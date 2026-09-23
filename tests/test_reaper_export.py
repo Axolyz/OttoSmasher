@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,7 @@ separated_cue = test_vocals.separated_cue
 
 
 def test_clipboard_records_and_quote_integrity(tmp_path):
-    audio = tmp_path / '日语 "test".wav'
+    audio = tmp_path / ("日语 'test'.wav" if os.name == "nt" else '日语 "test".wav')
     audio.touch()
     payload = media_payload(audio, 2, [(0, 0), (0.2, 0.3), (2, 1.5)], 0.2, 0.5, "test")
     assert payload.startswith(b"<ITEM\0") and payload.endswith(b"\0\0")
@@ -24,7 +25,8 @@ def test_clipboard_records_and_quote_integrity(tmp_path):
     assert any(
         r.startswith("SM ") and "0.200000000000 0.300000000000 0 0 0.400000000000" in r for r in records
     )
-    assert any(r.startswith("FILE '") for r in records)
+    assert "FILE " + quoted(audio) in records
+    assert quoted('a"b') == "'a\"b'"
     with pytest.raises(ValueError):
         quoted("a\nb")
     with pytest.raises(ValueError):

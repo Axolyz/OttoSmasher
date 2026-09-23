@@ -137,7 +137,16 @@ def write_json(path: Path, payload):
             temporary = Path(out.name)
             json.dump(payload, out, ensure_ascii=False, indent=2, allow_nan=False)
             out.write("\n")
-        os.replace(temporary, path)
+        # Windows can briefly deny replacement while another writer or scanner
+        # holds the destination. Retry the atomic rename, never truncate it.
+        for attempt in range(8):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if os.name != "nt" or attempt == 7:
+                    raise
+                time.sleep(min(0.01 * 2**attempt, 0.25))
     finally:
         if temporary:
             temporary.unlink(missing_ok=True)

@@ -1,4 +1,5 @@
 import json
+import sys
 
 import numpy as np
 import pytest
@@ -48,6 +49,8 @@ def test_flatten_selection_registers_only_successful_result(library, monkeypatch
         )
 
     monkeypatch.setattr("subprocess.run", fake_run)
+    # The worker is simulated here; this provenance test does not need model environments.
+    monkeypatch.setattr("ottosmasher.job_worker.python_env", lambda _name: sys.executable)
     monkeypatch.setattr(sample_analysis, "prepare", lambda *a: None)
     before = db.execute("SELECT count(*) FROM materials").fetchone()[0]
     out = ops.flatten(db, root["id"], mode="all", start=0.2, end=0.5, role="raw")

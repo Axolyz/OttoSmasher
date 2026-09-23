@@ -96,10 +96,9 @@ def index(path, start, end):
                 {"cached": True, "index_seconds": time.perf_counter() - began, "path": str(target)},
             )
     # Lock per range so separate queued requests cannot overwrite a partial index.
-    import fcntl
+    from filelock import FileLock
 
-    with (root / (key + ".lock")).open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with FileLock(str(root / (key + ".lock"))):
         if target.is_file():
             with np.load(target, allow_pickle=False) as f:
                 return (

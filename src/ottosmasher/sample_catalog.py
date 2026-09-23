@@ -231,7 +231,7 @@ def batch(db, query, target="inbox"):
         raise ValueError("接收目标必须是普通文件夹")
     bid = identity("batch", query, time.time_ns())
     fid = "batch-" + bid
-    db.execute("INSERT INTO sample_folders VALUES(?,?,?)", (fid, time.strftime("检索 %m-%d %H:%M:%S"), bid))
+    db.execute("INSERT INTO sample_folders VALUES(?,?,?)", (fid, "检索 " + time.strftime("%m-%d %H:%M:%S"), bid))
     db.execute(
         "INSERT INTO sample_batches VALUES(?,?,?,?,?)", (bid, fid, target, json.dumps(query), time.time())
     )
