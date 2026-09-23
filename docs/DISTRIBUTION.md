@@ -11,7 +11,7 @@
 - `.app` / Windows 程序目录中的 `resources/software` 只读，包含源码与前端。
 - Electron `userData/workspace` 保存数据库、缓存、模型及 inference 环境；可用 `OTTO_ROOT` 指定已有工作区。默认不接管源代码安装版工作区。
 - Python 用 `OTTO_CODE_ROOT` 读取程序，用 `OTTO_ROOT` 写数据，`OTTO_CORE_ENV` 定位基础媒体运行库。
-- 首次运行将校验过的 conda-pack 基础环境释放到 `userData/runtimes/<构建ID>`，执行官方 `conda-unpack` 重定位；后续启动复用。此步骤仅解包本机附带文件，不下载或安装模型。
+- 首次运行将校验过的 conda-pack 基础环境释放到 `userData/runtimes/<构建ID>`，执行 `conda-unpack` 重定位；后续启动复用。Windows 对固定的 0.9.2 脚本应用一处兼容修正：先只读比较内容，需要修改时才打开写入，避免尝试写入正在使用但实际不需要修改的 Python DLL。替换规则保持上游实现，需要修改但无法写入时仍然报错。此步骤仅解包本机附带文件，不下载或安装模型。
 - 应用默认服务端口 18766，源码版仍为 18765，避免二者误连。检查服务构建 ID，不能使用同一工作区的旧版服务冒充新版。
 - 不清理用户创建的环境、模型与数据；旧版本运行库目前可在退出应用后手动移除，不在普通媒体缓存清理中混删。
 
@@ -19,7 +19,7 @@
 
 工作流：`.github/workflows/build-apps.yml`，支持 `main` 推送、版本标签、手动触发。
 
-每个平台执行：上传内容审计 → 安装 core → 前端与 Python 测试 → 编译 native addon → 打包基础环境 → electron-builder → 启动实际打包 App 的冒烟检查。检查在带中文和空格的独立路径运行，覆盖新库、API、ffmpeg、libmpv 音频、范围终点。CI 不下载推理模型，不执行真实语料全量分析。
+每个平台执行：上传内容审计 → 安装 core → 前端与 Python 测试 → 编译 native addon → 打包基础环境 → electron-builder → 启动实际打包 App 的冒烟检查。Windows 原生模块还会在 Electron 宿主中先执行加载检查。打包检查清除开发环境的 PATH 和 Python/Conda 环境变量，在带中文和空格的独立路径运行，覆盖新库、API、ffmpeg、libmpv 音频、范围终点。CI 不下载推理模型，不执行真实语料全量分析。
 
 Actions 的 Artifacts 保存 14 天；默认不创建 Release，不申请签名、不自动发布。不将生成的 ZIP 再提交 Git，也无需用 Git LFS 存模型。正式版本可以将通过验收的应用 ZIP 上传 Releases，权重继续使用上游地址与校验清单。
 
@@ -46,6 +46,13 @@ Windows 不传 `--player`，先从 x64 MSVC 环境执行 `scripts/setup_player.p
 - 首版产物未配置 Apple Developer ID / notarization 或 Windows 签名证书；不能声称已经通过 Gatekeeper / SmartScreen。Mac 签名公证与 Windows 签名应在正式发行阶段接入 Secrets。
 - 项目采用 GPL-3.0-or-later，见根目录 LICENSE。Electron、Python 依赖、mpv/ffmpeg/rubberband 的许可证各自有效；正式二进制发行前还需要整理其许可及对应源码提供要求。模型遵从上游许可，不随 App 再分发。
 
-## 本机验证记录（2026-09-23）
+## 构建验证记录（2026-09-23）
 
-Mac ARM64 在独立的中文路径工作区通过了打包 App 启动、基础服务、ffmpeg/ffprobe、libmpv 原生加载和范围音频输出检查。范围测试使用实际 PCM 帧数，避免把合并后的播放进度事件误当作精确终点。Windows 工作流已配置，但尚未在 Actions 上执行；CUDA、视频窗口和高 DPI 仍需 Windows 实机验收。
+[Actions 35865371095](https://github.com/Axolyz/OttoSmasher/actions/runs/35865371095)，代码版本 `7eaf930b3ea70ed1d35fa912bf6a4fca2cd599c2`：
+
+- macOS ARM64：226 项 Python 测试、7 项播放器协议与手势测试，以及打包 App 冒烟检查通过。
+- Windows x64：225 项 Python 测试通过、1 项平台限定测试跳过，7 项播放器协议与手势测试、Electron 原生模块预检和打包 App 冒烟检查通过。
+- 两端均从独立中文路径启动，清除开发运行库 PATH 后通过基础服务、ffmpeg/ffprobe、libmpv 原生加载、中文媒体路径和范围音频输出检查。范围测试使用实际 PCM 帧数，避免把合并后的播放进度事件误当作精确终点。
+- 下载页 Artifacts：`OttoSmasher-macos-arm64` 约 639 MiB；`OttoSmasher-windows-x64` 约 551 MiB。附件含应用 ZIP、源码审计和启动测试报告，2026-10-07 到期。
+
+本机 Mac ARM64 也已通过打包 App 冒烟检查。上述结果不覆盖 GPU 推理、真实视频窗口嵌入、高 DPI 和听感；Windows/CUDA 仍需实机验收。
