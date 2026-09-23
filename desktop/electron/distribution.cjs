@@ -64,7 +64,7 @@ async function prepare(app) {
     python: path.join(core, process.platform === 'win32' ? 'python.exe' : 'bin/python'),
     env: {OTTO_ROOT: root, OTTO_CODE_ROOT: codeRoot, OTTO_CORE_ENV: core,
       OTTO_PLAYER_ADDON: path.join(runtime, 'player.node'), OTTO_BUILD_ID: manifest.id,
-      PYTHONPATH: path.join(codeRoot, 'src'), PYTHONHOME: '',
+      PYTHONPATH: path.join(codeRoot, 'src'), PYTHONHOME: '', PYTHONUTF8: '1',
       PATH: [...bins, process.env.PATH || ''].join(path.delimiter)}};
 }
 module.exports = {prepare, run, sha256};

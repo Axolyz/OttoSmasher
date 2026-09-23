@@ -60,7 +60,7 @@ def main():
                 z.writestr(info, data, compress_type=zipfile.ZIP_DEFLATED)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+        args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({k: v for k, v in result.items() if k != 'entries'}, ensure_ascii=False))
 
 

@@ -21,6 +21,7 @@ jobs:
             target: windows-x64
     runs-on: ${{ matrix.os }}
     env:
+      PYTHONUTF8: '1'
       PYTHONPATH: ${{ github.workspace }}/src
       OTTO_CODE_ROOT: ${{ github.workspace }}
     defaults:
