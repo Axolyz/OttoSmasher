@@ -9,6 +9,17 @@ const {
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+function reportSmokeFailure(error) {
+  if (process.env.OTTO_SMOKE_REPORT) {
+    fs.writeFileSync(process.env.OTTO_SMOKE_REPORT, JSON.stringify({
+      passed: false, platform: process.platform, arch: process.arch,
+      error: String(error?.stack || error),
+    }, null, 2));
+  }
+}
+if (process.argv.includes("--packaged-smoke")) {
+  process.on("uncaughtException", error => { reportSmokeFailure(error); app.exit(1); });
+}
 if (process.env.OTTO_APP_USER_DATA) app.setPath("userData", path.resolve(process.env.OTTO_APP_USER_DATA));
 let root = path.resolve(__dirname, "../..");
 let codeRoot = root;
@@ -226,7 +237,7 @@ else {
       return window;
     })
     .catch((e) => {
-      if (process.argv.includes("--packaged-smoke")) { console.error(e); stopOwnedService(); app.exit(1); }
+      if (process.argv.includes("--packaged-smoke")) { reportSmokeFailure(e); console.error(e); stopOwnedService(); app.exit(1); }
       else dialog.showErrorBox("启动失败", String(e));
     });
   function stopOwnedService() {

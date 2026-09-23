@@ -13,7 +13,16 @@ report = ROOT / 'dist/packaged-smoke.json'
 env = {**os.environ, 'OTTO_ROOT': str(test / 'workspace'), 'OTTO_APP_USER_DATA': str(test / 'profile'),
        'OTTO_SMOKE_REPORT': str(report), 'OTTO_DESKTOP_PORT': '18789'}
 env.pop('ELECTRON_RUN_AS_NODE', None)
-subprocess.run([str(app), '--packaged-smoke'], env=env, timeout=240, check=True)
-result = json.loads(report.read_text())
+report.unlink(missing_ok=True)
+try:
+    completed = subprocess.run([str(app), '--packaged-smoke'], env=env, timeout=240)
+finally:
+    if report.exists():
+        print(report.read_text(encoding='utf-8'), flush=True)
+    log = test / 'workspace/data/logs/desktop-service.log'
+    if log.exists():
+        print(log.read_text(encoding='utf-8', errors='replace')[-6000:], flush=True)
+completed.check_returncode()
+result = json.loads(report.read_text(encoding='utf-8'))
 assert result['passed'], result
 print(json.dumps(result))
