@@ -42,7 +42,12 @@ async function prepare(app) {
       const destination = path.join(runtime, item.target);
       fs.mkdirSync(destination, {recursive: true});
       const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : '/usr/bin/tar';
-      await run(tar, ['-xzf', archive, '-C', destination]);
+      // Windows' bundled tar parses argv through the active ANSI code page.
+      // Node opens the archive and sets cwd with Unicode APIs instead.
+      const archiveFd = fs.openSync(archive, 'r');
+      try {
+        await run(tar, ['-xzf', '-'], {cwd: destination, stdio: [archiveFd, 'pipe', 'pipe']});
+      } finally { fs.closeSync(archiveFd); }
     }
     const python = path.join(runtime, 'core', process.platform === 'win32' ? 'python.exe' : 'bin/python');
     for (const item of manifest.files) {
