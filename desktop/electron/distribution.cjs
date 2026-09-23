@@ -53,7 +53,9 @@ async function prepare(app) {
     for (const item of manifest.files) {
       const prefix = path.join(runtime, item.target);
       const unpack = path.join(prefix, process.platform === 'win32' ? 'Scripts/conda-unpack-script.py' : 'bin/conda-unpack');
-      await run(python, [unpack], {env: {...process.env, PYTHONHOME: '', PYTHONPATH: ''}});
+      const args = process.platform === 'win32'
+        ? [path.join(codeRoot, 'scripts/relocate_windows_runtime.py'), unpack] : [unpack];
+      await run(python, args, {env: {...process.env, PYTHONHOME: '', PYTHONPATH: '', PYTHONUTF8: '1'}});
     }
     for (const item of manifest.native) {
       if (!/^[a-zA-Z0-9_.-]+$/.test(item.name)) throw Error('Invalid native manifest');
