@@ -13,6 +13,13 @@ report = ROOT / 'dist/packaged-smoke.json'
 env = {**os.environ, 'OTTO_ROOT': str(test / 'workspace'), 'OTTO_APP_USER_DATA': str(test / 'profile'),
        'OTTO_SMOKE_REPORT': str(report), 'OTTO_DESKTOP_PORT': '18789'}
 env.pop('ELECTRON_RUN_AS_NODE', None)
+for key in ('PYTHONPATH', 'PYTHONHOME', 'CONDA_PREFIX', 'CONDA_DEFAULT_ENV', 'VIRTUAL_ENV'):
+    env.pop(key, None)
+if platform.system() == 'Windows':
+    system = Path(env.get('SystemRoot', r'C:\Windows'))
+    env['PATH'] = os.pathsep.join(map(str, [system / 'System32', system]))
+else:
+    env['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
 report.unlink(missing_ok=True)
 startup_log = Path(str(report) + '.startup.log')
 startup_log.unlink(missing_ok=True)
