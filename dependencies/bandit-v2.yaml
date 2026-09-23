@@ -1,0 +1,47 @@
+audio:
+  chunk_size: 384000
+  min_mean_abs: 0
+  num_channels: 2
+  sample_rate: 48000
+cls: Bandit
+inference:
+  batch_size: 1
+  overlap_size: 336000
+kwargs:
+  band_type: musical
+  bidirectional: true
+  center: true
+  complex_mask: true
+  emb_dim: 128
+  fs: 48000
+  hidden_activation: Tanh
+  hidden_activation_kwargs: null
+  hop_length: 512
+  in_channels: 1
+  mlp_dim: 512
+  n_bands: 64
+  n_fft: 2048
+  n_sqm_modules: 8
+  normalize_channel_independently: false
+  normalized: false
+  onesided: true
+  pad_mode: reflect
+  power: null
+  rnn_dim: 256
+  rnn_type: GRU
+  stems:
+  - speech
+  - music
+  - sfx
+  treat_channel_as_feature: true
+  use_freq_weights: true
+  win_length: 2048
+  window_fn: hann_window
+  wkwargs: null
+training:
+  instruments:
+  - speech
+  - music
+  - sfx
+  target_instrument: null
+  use_amp: true

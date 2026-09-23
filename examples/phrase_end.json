@@ -1,0 +1,14 @@
+{
+  "bpm": 120,
+  "notes": [
+    {"start_beats": 0, "end_beats": 0.5},
+    {"start_beats": 1, "end_beats": 1.5}
+  ],
+  "span_beats": 8,
+  "boundary": "end",
+  "adjust_pauses": true,
+  "factor_min": 0.85,
+  "factor_max": 1.18,
+  "tolerance_beats": 0.12,
+  "mode": "phonetic"
+}

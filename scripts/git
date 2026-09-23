@@ -1,0 +1,3 @@
+#!/bin/sh
+OTTO_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec "$OTTO_PROJECT_DIR/.runtime/envs/core/bin/git" "$@"

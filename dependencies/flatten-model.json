@@ -1,0 +1,9 @@
+{
+  "path": "models/flatten/pc_nsf_hifigan.onnx",
+  "config": "models/flatten/config.json",
+  "sha256": "c0d5d05b6cfe12e254c82adeed6e52a31449a2d1398e05e1d7234f7dbfd720bb",
+  "config_sha256": "c3c56efaa5abdf1862224ae8396b17680c78d0b95ab009a31ef5d2f873cf07c2",
+  "source_checkout": "/Users/a/Documents/Codex/2026-09-13/d/work/HiFiShifter-src",
+  "source": "https://github.com/ARounder-183/HiFiShifter",
+  "use": "local experimental dependency"
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export PATH="$PROJECT_DIR/.runtime/envs/core/bin:$PATH"
+export HF_HOME="$PROJECT_DIR/models/subtitle-preprocessing"
+export OMP_NUM_THREADS=4
+export PYTHONUTF8=1
+exec "$PROJECT_DIR/.runtime/envs/subplz/bin/subplz" "$@"

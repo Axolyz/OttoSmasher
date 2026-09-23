@@ -1,0 +1,4 @@
+#!/bin/sh
+OTTO_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export OTTO_ROOT="$OTTO_PROJECT_DIR"
+exec "$OTTO_PROJECT_DIR/.runtime/envs/core/bin/python" -m ottosmasher.cli "$@"

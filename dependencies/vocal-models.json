@@ -1,0 +1,16 @@
+{
+  "default": "becruily_deux",
+  "models": {
+    "becruily_deux": {
+      "repository": "https://huggingface.co/becruily/mel-band-roformer-deux",
+      "revision": "2da74427d682a3df47a774378fc24d7a1a0cdaad",
+      "files": {
+        "becruily_deux.ckpt": "10255c02295bf3e3865d4ee50ff752d7b19b124ed5fd93b147babc4333eda3aa",
+        "config_deux_becruily.yaml": "bb3ea9bce37ca96d63568490d5a92d7e41df3d7726788b6970c10d89eb62d902"
+      },
+      "directory": "models/separation/vocal/vocal_instrumental_dual",
+      "stems": ["Vocals", "Instrumental"]
+    },
+    "bs_roformer_voc_hyperacev2": {"provider":"pymss", "stems":["vocals","other"],"note":"Existing installed model remains selectable; existing analyses retain their original separation lineage."}
+  }
+}

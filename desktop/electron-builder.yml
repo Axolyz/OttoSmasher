@@ -1,0 +1,28 @@
+appId: org.ottosmasher.desktop
+productName: OttoSmasher
+asar: true
+npmRebuild: false
+files:
+  - electron/**
+  - package.json
+extraResources:
+  - from: ../build/app/software
+    to: software
+  - from: ../build/app/runtime
+    to: runtime
+directories:
+  output: ../dist/apps
+  buildResources: ../build/icons
+mac:
+  category: public.app-category.music
+  target:
+    - target: zip
+      arch: arm64
+  identity: null
+  icon: ../ottosmasher.png
+win:
+  target:
+    - target: zip
+      arch: x64
+  icon: ../ottosmasher.png
+artifactName: OttoSmasher-${version}-${os}-${arch}.${ext}

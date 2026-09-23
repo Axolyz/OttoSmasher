@@ -1,0 +1,22 @@
+{
+  "HubertFA": {
+    "url": "https://github.com/wolfgitpr/HubertFA.git",
+    "commit": "b3f086966946255a05b0ccb69c865c8e3e806e0a"
+  },
+  "yohane": {
+    "url": "https://github.com/Japan7/yohane.git",
+    "commit": "207bd1410598576154013fb1e1ecc32134f2345f"
+  },
+  "pymss": {
+    "url": "https://github.com/pymss-project/pymss.git",
+    "commit": "df96b9212fbd1d4491dff2c5043bcfea2f0cdff6"
+  },
+  "narabas": {
+    "url": "https://github.com/darashi/narabas.git",
+    "commit": "b5e6511ce24dd2f14fc633ed5a23214225ca3eb7"
+  },
+  "pydomino": {
+    "url": "https://github.com/DwangoMediaVillage/pydomino",
+    "commit": "4930396642fdd85618884c7a209218a628fd3c34"
+  }
+}

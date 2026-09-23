@@ -1,0 +1,15 @@
+{
+  "bpm": 120,
+  "step_beats": 0.5,
+  "cells": [
+    {"state":"required"}, {"state":"any"},
+    {"state":"required"}, {"state":"any"},
+    {"state":"required"}, {"state":"any"},
+    {"state":"required"}, {"state":"any"}
+  ],
+  "factor_min": 0.85,
+  "factor_max": 1.18,
+  "tolerance_beats": 0.12,
+  "mode": "phonetic",
+  "limit": 20
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "repo": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
+    "revision": "cf031e020336460d15a417eba710bbc5bb43be9a",
+    "rfilename": "pytorch_model.bin",
+    "blobId": "f6236a13770500af65dd0d782392fb6512649641",
+    "size": 1271531927,
+    "lfs": {
+      "sha256": "4f6821dcd79770fcd4c11487c4ee5c040b3a7e1863425224014ba5ea8fbc1b67",
+      "size": 1271531927,
+      "pointerSize": 135
+    }
+  },
+  {
+    "repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+    "rfilename": "model.bin",
+    "blobId": "c849f26401bf079fdea48ac9f7461fdff2e743ea",
+    "size": 1617884929,
+    "lfs": {
+      "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+      "size": 1617884929,
+      "pointerSize": 135
+    }
+  }
+]

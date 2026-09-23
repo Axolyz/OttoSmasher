@@ -1,0 +1,12 @@
+{
+  "fcpe": {
+    "path": "models/features/fcpe.onnx",
+    "sha256": "013b507acd406de122b61ee497300ac6be082511101bc2136b886e48d9737e5d",
+    "source": "ARounder-183/HiFiShifter bundled fcpe.onnx",
+    "upstream": "https://github.com/CNChTu/FCPE",
+    "preprocessing": "HiFiShifter 16k 1024/160 log-Slaney magnitude, confidence .05, local argmax +/-4",
+    "purpose": "local F0 analysis; no resynthesis",
+    "source_revision": "6432687173ae343ef0f2f824695650e877739ee0",
+    "download_url": "https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687173ae343ef0f2f824695650e877739ee0/backend/src-tauri/resources/models/fcpe/fcpe.onnx"
+  }
+}

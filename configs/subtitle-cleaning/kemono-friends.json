@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "title_contains": "Kemono Friends",
+  "description": "本批日文字幕：圆括号用于角色、音效、语言说明及汉字读音；原字幕逐行保留。不是其他片源的默认规则。",
+  "remove_patterns": ["[（(](?:[^（）()]|[（(][^（）()]*[）)])*[）)]", "[♪♬]"],
+  "unknown_brackets": "preserve_and_flag"
+}

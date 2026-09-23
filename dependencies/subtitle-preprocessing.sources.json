@@ -1,0 +1,14 @@
+{
+  "sub-align": {
+    "url": "https://github.com/Jim-Elijah/sub-align.git",
+    "commit": "39b4d175c60eeb3a1f0b633abba58cb0e4ddce7d",
+    "license": "MIT",
+    "path": "work/sub-align"
+  },
+  "subplz": {
+    "url": "https://github.com/kanjieater/SubPlz.git",
+    "commit": "6be8b6fab185372b458bdde13c61f4da204dc6fc",
+    "license": "MIT",
+    "path": "work/SubPlz"
+  }
+}

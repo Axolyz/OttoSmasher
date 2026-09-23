@@ -1,0 +1,92 @@
+name: Build desktop apps
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+          - os: windows-2022
+            target: windows-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONPATH: ${{ github.workspace }}/src
+      OTTO_CODE_ROOT: ${{ github.workspace }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '12.5.1'
+          run_install: false
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: otto-core
+          create-args: >-
+            python=3.11 pip ffmpeg=9 conda-pack=0.9.2
+          cache-environment: true
+      - name: Audit public source
+        run: python scripts/audit_release_source.py --report dist/source-audit.json
+      - name: Install core (no inference frameworks or models)
+        run: python -m pip install '.[dev]'
+      - name: Install pinned Rubber Band command-line tool
+        run: python scripts/setup_rubberband.py --prefix "$CONDA_PREFIX"
+      - name: Install desktop dependencies
+        run: pnpm --dir desktop install --frozen-lockfile
+      - name: Build desktop
+        run: pnpm --dir desktop build
+      - name: Core tests
+        run: python -m pytest -q
+      - name: Desktop protocol and gesture tests
+        run: node --test desktop/tests/*.test.cjs
+      - name: macOS player environment
+        if: runner.os == 'macOS'
+        run: |
+          test "$(uname -m)" = arm64
+          micromamba create -y -p "$PWD/.runtime/envs/player" -c conda-forge mpv=0.41.0 nodejs=22
+          python scripts/setup_player.py --build-only
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - name: Windows native player
+        if: runner.os == 'Windows'
+        run: python scripts/setup_player.py
+      - name: Stage macOS core application
+        if: runner.os == 'macOS'
+        run: python scripts/stage_app.py --core "$CONDA_PREFIX" --player "$PWD/.runtime/envs/player"
+      - name: Stage Windows core application
+        if: runner.os == 'Windows'
+        run: python scripts/stage_app.py --core "$CONDA_PREFIX"
+      - name: Bundle portable app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm --dir desktop exec electron-builder --config electron-builder.yml --publish never
+      - name: Smoke test the actual packaged application
+        run: python scripts/smoke_packaged_app.py
+      - name: Upload application and source audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: OttoSmasher-${{ matrix.target }}
+          path: |
+            dist/apps/*.zip
+            dist/source-audit.json
+            dist/packaged-smoke.json
+          if-no-files-found: error
+          retention-days: 14

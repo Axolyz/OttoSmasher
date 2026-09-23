@@ -1,0 +1,56 @@
+{
+  "tests": {
+    "focused_passed": 53,
+    "typescript": "passed",
+    "vite": "passed",
+    "ruff": "passed"
+  },
+  "deux": {
+    "model_fingerprints": {
+      "models/separation/vocal/vocal_instrumental_dual/becruily_deux.ckpt": "10255c02295bf3e3865d4ee50ff752d7b19b124ed5fd93b147babc4333eda3aa",
+      "models/separation/vocal/vocal_instrumental_dual/becruily_deux.yaml": "bb3ea9bce37ca96d63568490d5a92d7e41df3d7726788b6970c10d89eb62d902"
+    },
+    "outputs": [
+      {
+        "duration": 12.0,
+        "samplerate": 44100,
+        "channels": 2
+      },
+      {
+        "duration": 12.0,
+        "samplerate": 44100,
+        "channels": 2
+      }
+    ]
+  },
+  "sfc": {
+    "seconds": 77.88099004200194,
+    "weights": "model",
+    "sample_rate": 44100,
+    "channels": 1,
+    "peak_rss_bytes": 6202753024
+  },
+  "sfc_quality": "Dialogue remains abnormally weak; issue not resolved; BandIt v2 is default cinematic route",
+  "reference_frame_test": {
+    "reference_time": 102,
+    "candidate_time": 101.975,
+    "scan_range": [
+      100,
+      104
+    ],
+    "confirmed_regions_created": 0
+  },
+  "subplz": {
+    "gen": "nonempty SRT from actual 12s transcription",
+    "sync_short_clip": "upstream chapter matching skipped output"
+  },
+  "ui": {
+    "subtitle_overlay": "verified with actual cue",
+    "rhythm_mapping": "visible",
+    "f0_overlay": "visible",
+    "wheel_pan": "verified",
+    "shift_wheel_zoom": "verified",
+    "opening_plugin": "loads, file selection and source selection tested",
+    "extra_windows": 0
+  }
+}

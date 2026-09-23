@@ -1,0 +1,31 @@
+# Shared inference environment. Platform locks are generated only after verification.
+numpy>=2,<3
+scipy>=1.12,<2
+librosa==0.11.0
+soundfile>=0.13,<1
+torch==2.14.0
+torchaudio==2.11.0
+onnxruntime==1.30.0; sys_platform != 'win32'
+onnxruntime-gpu==1.30.0; sys_platform == 'win32'
+transformers==5.17.0
+./vendor/pymss
+./vendor/pydomino
+pyopenjtalk-plus==0.4.1.post9
+praatio==6.2.2
+TextGrid==1.6.1
+pysubs2>=1.8,<2
+sudachipy>=0.6,<1
+sudachidict-core>=20250129
+pykakasi>=2.3,<3
+filelock>=3.16,<4
+psutil>=6,<8
+matplotlib==3.11.2
+resampy==0.4.3
+./vendor/yohane
+
+torchcodec==0.16.0
+
+# Approved Japanese text-tokenization exception for Qwen; acoustic inference stays PyTorch.
+nagisa==0.2.11
+DyNet38==2.2
+cython==3.3.0

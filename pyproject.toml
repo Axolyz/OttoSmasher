@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ottosmasher"
+version = "0.1.0"
+description = "Local Japanese dialogue and rhythmic sample search helper"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+  "psutil>=6,<8", "filelock>=3.18,<4", "Pillow>=11,<13", "numpy>=1.26,<3", "scipy>=1.12,<2", "soundfile>=0.13,<1",
+  "librosa>=0.11,<1", "pysubs2>=1.8,<2", "pykakasi>=2.3,<3",
+  "praatio>=6.2,<7", "mido>=1.3,<2", "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1", "pydantic>=2.9,<3", "sudachipy>=0.6,<1", "sudachidict-core>=20250129"
+]
+
+[project.optional-dependencies]
+reaper = ["pyobjc-framework-Cocoa>=11,<13; sys_platform == 'darwin'"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1", "ruff>=0.11"]
+
+[project.scripts]
+otto = "ottosmasher.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ottosmasher"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110

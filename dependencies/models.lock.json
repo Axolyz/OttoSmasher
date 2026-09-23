@@ -1,0 +1,26 @@
+{
+  "models/hubert/1218_hfa_model_new_dict/model.onnx": {
+    "bytes": 415220874,
+    "sha256": "4722c13e1d5c1d740ec69c9121f5ec37a88d534aba7637bafb480208be170183"
+  },
+  "models/hubert/1218_hfa_model_new_dict/config.json": {
+    "bytes": 447,
+    "sha256": "bcbe054d9f94916a0513e81df197e6144a75f48e624a07f39d21c52df4cb654e"
+  },
+  "models/hubert/1218_hfa_model_new_dict/vocab.json": {
+    "bytes": 4093,
+    "sha256": "0c581e79b2feaea6c5615e1c2620cabfc7a5f07cea74df5c331e5c81210f8115"
+  },
+  "models/separation/vocal/vocal_extraction/bs_roformer_voc_hyperacev2.ckpt": {
+    "bytes": 288724430,
+    "sha256": "54cf516f621f2f460bf660ed137e244b8931bf7a2ce85ddceecff816dbc4d668"
+  },
+  "models/separation/vocal/vocal_extraction/bs_roformer_voc_hyperacev2.yaml": {
+    "bytes": 1974,
+    "sha256": "18c9edecb4168e92b3aaba6b3b9c22448b3a4ebc445becc4b4ae808e57d29f7f"
+  },
+  "models/narabas/narabas-v0.onnx": {
+    "bytes": 1262530407,
+    "sha256": "ac9983740343b260e20f3ac72ee37c5f85a86436ff256c5701707f5909c4a126"
+  }
+}

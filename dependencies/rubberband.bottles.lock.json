@@ -1,0 +1,47 @@
+{
+  "libsamplerate": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/libsamplerate/blobs/sha256:3c6892acfead8a6b32ede92a5f1eb1d4a4dc8a75e6c295b469875d50ec05e019",
+    "sha256": "3c6892acfead8a6b32ede92a5f1eb1d4a4dc8a75e6c295b469875d50ec05e019"
+  },
+  "libogg": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/libogg/blobs/sha256:b6ec0e6b292eab3768d90933a2e663aa8a43951f601dab9bd418b1a6564f4925",
+    "sha256": "b6ec0e6b292eab3768d90933a2e663aa8a43951f601dab9bd418b1a6564f4925"
+  },
+  "rubberband": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/rubberband/blobs/sha256:d510bad14f78b8a3e7be16f5c49a78fb3638f686ec1c04c2cb28310b49e4ead7",
+    "sha256": "d510bad14f78b8a3e7be16f5c49a78fb3638f686ec1c04c2cb28310b49e4ead7"
+  },
+  "libsndfile": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/libsndfile/blobs/sha256:b28dda5bedf544be14e36938d2862ef2f3066a34a85158a50d414deb4a9614f2",
+    "sha256": "b28dda5bedf544be14e36938d2862ef2f3066a34a85158a50d414deb4a9614f2"
+  },
+  "lame": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/lame/blobs/sha256:b0cfa1500aff96430c865fa5e3e8b5494bb9ff70dd4f4fe8f9e7684da626649a",
+    "sha256": "b0cfa1500aff96430c865fa5e3e8b5494bb9ff70dd4f4fe8f9e7684da626649a"
+  },
+  "mpg123": {
+    "cellar": "/opt/homebrew/Cellar",
+    "url": "https://ghcr.io/v2/homebrew/core/mpg123/blobs/sha256:3d42cc9e1a044fe3c566e909bd122bb6a5b01f2696c110e915b2aee52a0c3142",
+    "sha256": "3d42cc9e1a044fe3c566e909bd122bb6a5b01f2696c110e915b2aee52a0c3142"
+  },
+  "flac": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/flac/blobs/sha256:2595081ed6509f8f4442067e6b73e1ceccb0e8d68b17e5330ad0c57c9f031b80",
+    "sha256": "2595081ed6509f8f4442067e6b73e1ceccb0e8d68b17e5330ad0c57c9f031b80"
+  },
+  "opus": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/opus/blobs/sha256:9b159efdfe3b5a31e5f4db9bac8cf40054ac301c508215f7db13cfc6ca661a66",
+    "sha256": "9b159efdfe3b5a31e5f4db9bac8cf40054ac301c508215f7db13cfc6ca661a66"
+  },
+  "libvorbis": {
+    "cellar": ":any",
+    "url": "https://ghcr.io/v2/homebrew/core/libvorbis/blobs/sha256:f71115c28f65e1a87ae0dbe695421ecacfcddcaa6f91a3e0a23493da73560de5",
+    "sha256": "f71115c28f65e1a87ae0dbe695421ecacfcddcaa6f91a3e0a23493da73560de5"
+  }
+}

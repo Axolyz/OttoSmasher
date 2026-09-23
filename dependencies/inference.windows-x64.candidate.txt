@@ -1,0 +1,7 @@
+# Windows x64 candidate, NOT hardware validated. Installer writes a resolved freeze after success.
+-r inference.in
+
+# Approved Japanese text-tokenization exception for Qwen; acoustic inference stays PyTorch.
+nagisa==0.2.11
+DyNet38==2.2
+cython==3.3.0
