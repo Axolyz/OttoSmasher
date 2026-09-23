@@ -69,6 +69,11 @@ jobs:
       - name: Windows native player
         if: runner.os == 'Windows'
         run: python scripts/setup_player.py
+      - name: Windows Electron native addon preflight
+        if: runner.os == 'Windows'
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: pnpm --dir desktop exec electron tests/native-addon-smoke.cjs
       - name: Stage macOS core application
         if: runner.os == 'macOS'
         run: python scripts/stage_app.py --core "$CONDA_PREFIX" --player "$PWD/.runtime/envs/player"

@@ -68,7 +68,7 @@ static napi_value create(napi_env env,napi_callback_info info) {
  napi_get_buffer_info(env,args[0],&bytes,&len);napi_get_value_bool(env,args[1],&video);
  if(len!=sizeof(HWND)) return fail(env,"Invalid native HWND");
  HWND parent;memcpy(&parent,bytes,sizeof(parent));
- if(!IsWindow(parent)) return fail(env,"Parent window closed");
+ if(video&&!IsWindow(parent)) return fail(env,"Parent window closed");
  Player* p=new Player{mpv_create(),nullptr,parent};
  if(!p->mpv){delete p;return fail(env,"mpv_create failed");}
  if(video){

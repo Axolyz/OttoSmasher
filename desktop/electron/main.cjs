@@ -9,6 +9,10 @@ const {
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+function smokeStage(stage) {
+  if (process.env.OTTO_SMOKE_REPORT)
+    fs.appendFileSync(process.env.OTTO_SMOKE_REPORT + '.startup.log', `${new Date().toISOString()} ${stage}\n`);
+}
 function reportSmokeFailure(error) {
   if (process.env.OTTO_SMOKE_REPORT) {
     fs.writeFileSync(process.env.OTTO_SMOKE_REPORT, JSON.stringify({
@@ -215,14 +219,18 @@ else {
           await bootWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(
             '<body style="background:#171b21;color:#e6e9ef;font:16px system-ui;padding:28px"><h2>OttoSmasher</h2><p>正在准备本地运行库…</p><p style="font-size:13px;color:#aab4c4">首次启动需要解包和校验；完成后将自动进入工作站。</p></body>'));
         }
+        smokeStage('prepare runtime');
         packagedRuntime = await require("./distribution.cjs").prepare(app);
         root = packagedRuntime.root;
         codeRoot = packagedRuntime.codeRoot;
         Object.assign(process.env, packagedRuntime.env);
+        smokeStage('load native addon');
         player = require("./player.cjs")(root, origin, trusted);
       }
       if (process.argv.includes("--packaged-smoke")) {
+        smokeStage('start service');
         await service();
+        smokeStage('test packaged playback');
         const result = await require("./packaged-smoke.cjs")(packagedRuntime, origin);
         fs.writeFileSync(process.env.OTTO_SMOKE_REPORT, JSON.stringify(result, null, 2));
         app.quit();

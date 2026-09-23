@@ -14,9 +14,13 @@ env = {**os.environ, 'OTTO_ROOT': str(test / 'workspace'), 'OTTO_APP_USER_DATA':
        'OTTO_SMOKE_REPORT': str(report), 'OTTO_DESKTOP_PORT': '18789'}
 env.pop('ELECTRON_RUN_AS_NODE', None)
 report.unlink(missing_ok=True)
+startup_log = Path(str(report) + '.startup.log')
+startup_log.unlink(missing_ok=True)
 try:
     completed = subprocess.run([str(app), '--packaged-smoke'], env=env, timeout=240)
 finally:
+    if startup_log.exists():
+        print(startup_log.read_text(encoding='utf-8'), flush=True)
     if report.exists():
         print(report.read_text(encoding='utf-8'), flush=True)
     log = test / 'workspace/data/logs/desktop-service.log'
