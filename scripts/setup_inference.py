@@ -36,7 +36,6 @@ def main():
             requirements = locked.name
         build_env = dict(os.environ)
         if name == "onnx":
-            subprocess.run([py, "-c", "import pyopenjtalk; assert pyopenjtalk.g2p('あ')"], check=True)
             subprocess.run([py, "-m", "pip", "install", "cmake==4.4.3", "ninja==1.13.2", "wheel"], check=True)
             build_env["PATH"] = str(py.parent) + os.pathsep + build_env.get("PATH", "")
             if sys.platform == "darwin":
@@ -60,7 +59,7 @@ def main():
             check=True,
         )
         if name == "onnx":
-            subprocess.run([py, "-c", "import pyopenjtalk; assert pyopenjtalk.g2p('あ')"], check=True)
+            subprocess.run([py, CODE_ROOT / "scripts/prepare_g2p_dictionary.py"], check=True)
             subprocess.run(
                 [py, CODE_ROOT / "scripts/setup_domino_decoder.py"], cwd=CODE_ROOT, env=build_env, check=True
             )

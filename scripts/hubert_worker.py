@@ -15,7 +15,7 @@ from ottosmasher.workspace import ROOT, CODE_ROOT
 
 sys.path.insert(0, str(CODE_ROOT / "vendor" / "HubertFA"))
 import onnxruntime as ort
-import pyopenjtalk
+from ottosmasher.g2p_frontend import generate
 from onnx_infer import InferenceOnnx
 
 
@@ -44,7 +44,7 @@ def main():
     engine.load_config()
     allowed = set(engine.vocab["vocab"])
     for cue in manifest["cues"]:
-        raw = pyopenjtalk.g2p(cue["spoken"]).split()
+        raw = generate(cue["spoken"])["phones"]
         # This checkpoint merges geminate closure into its silence class. It cannot
         # produce an independently supervised Japanese cl interval.
         phones = [("SP" if p in {"pau", "sil", "cl"} else p.lower() if p in {"I", "U"} else p) for p in raw]
@@ -54,7 +54,7 @@ def main():
             raise ValueError(f"Unsupported phones for {cue['id']}: {unknown}")
         (args.folder / (cue["id"] + ".lab")).write_text(" ".join(phones), encoding="utf-8")
         cue["g2p"] = {
-            "backend": "pyopenjtalk-plus",
+            "backend": "openjtalk-plus-tsqyomi-v1",
             "raw": raw,
             "input_phones": phones,
             "mapping": "devoiced I/U to i/u; pau/sil/cl handled as model silence; no unknowns skipped",
