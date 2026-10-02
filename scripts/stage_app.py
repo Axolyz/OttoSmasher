@@ -22,6 +22,9 @@ def audit_runtime(prefix):
         raise ValueError("不能打包 experiment 环境")
     for path in prefix.rglob("*"):
         name = path.name.lower()
+        # sklearn/scipy ship a tiny optional array-api shim, not the PyTorch runtime.
+        if name == "torch" and path.parent.name == "array_api_compat":
+            continue
         if name in {"torch", "torchaudio", "torchvision"} or name.startswith(
             ("torch-", "torchaudio-", "torchvision-", "libtorch")
         ):

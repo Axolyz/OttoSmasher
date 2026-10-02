@@ -30,3 +30,11 @@ def test_release_refuses_failed_smoke_and_extra_zip(tmp_path):
     with pytest.raises(ValueError,match='smoke'):validate(root,'1.0.0')
     (root/'unexpected.zip').write_bytes(b'x')
     with pytest.raises(ValueError,match='unexpected'):validate(root,'1.0.0')
+
+
+def test_runtime_audit_distinguishes_compatibility_adapter_from_torch(tmp_path):
+    audit=runpy.run_path(str(Path(__file__).resolve().parents[1]/'scripts/stage_app.py'))['audit_runtime']
+    (tmp_path/'lib/python3.11/site-packages/sklearn/externals/array_api_compat/torch').mkdir(parents=True)
+    audit(tmp_path)
+    (tmp_path/'lib/python3.11/site-packages/torch').mkdir()
+    with pytest.raises(ValueError,match='PyTorch'):audit(tmp_path)

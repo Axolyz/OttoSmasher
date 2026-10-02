@@ -57,7 +57,7 @@ jobs:
           micromamba run -p "$PWD/.runtime/envs/onnx" python -m pip install -r dependencies/onnx.in cmake ninja wheel .
           micromamba run -p "$PWD/.runtime/envs/onnx" python scripts/setup_domino_decoder.py
           micromamba run -p "$PWD/.runtime/envs/onnx" python -m pip check
-          micromamba run -p "$PWD/.runtime/envs/onnx" python -c "import pyopenjtalk; assert pyopenjtalk.g2p('あ')"
+          micromamba run -p "$PWD/.runtime/envs/onnx" python scripts/prepare_g2p_dictionary.py
           python scripts/prepare_model_support.py
       - name: Install pinned Rubber Band command-line tool
         run: python scripts/setup_rubberband.py --prefix "$CONDA_PREFIX"
