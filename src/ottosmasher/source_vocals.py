@@ -71,72 +71,66 @@ def ensure(cue, model="becruily_deux"):
             f"Full-source separation starts: {cue['source_duration']:.2f}s; phone alignment waits for this track",
             flush=True,
         )
-        run(
+        from .asset_timeline import AssetSelection, selection_asset
+        from .selection_ops import from_source
+
+        with connect() as db:
+            selected = from_source(db, r["id"], 0, cue["source_duration"], "raw", cue["audio_stream"])
+            input_asset = selection_asset(db, selected)
+        completed = run(
             "separate",
             {
-                "material_id": r["id"],
-                "start": 0,
-                "end": cue["source_duration"],
-                "audio_stream": cue["audio_stream"],
+                "selection": selected.json(),
+                "input_asset": input_asset,
+                "source_id": cue["source_id"],
+                "suggested_title": cue.get("title", "原片人声"),
                 "model": model,
-                "output": str(folder),
                 "save": False,
             },
             os.environ.get("OTTO_JOB_ID") or "source-" + key,
         )
         with connect() as db:
-            for row in db.execute(
-                "SELECT payload FROM shared_sample_audio WHERE source_id=?", (cue["source_id"],)
-            ):
-                a = json.loads(row[0])
-                if (
-                    a["role"] == "vocals"
-                    and Path(a.get("path", "")).is_relative_to(folder)
-                    and valid(a, cue["source_duration"])
+            for output in completed.get("assets", []):
+                if "vocal" not in output["stem"].lower() and output["stem"].lower() not in (
+                    "dialog",
+                    "dialogue",
                 ):
+                    continue
+                a = selection_asset(db, AssetSelection(**output["selection"]))
+                a.update(
+                    role="vocals",
+                    speech_analysis_eligible=True,
+                    provenance={
+                        **a.get("provenance", {}),
+                        "model": model,
+                        "model_fingerprints": model_identity(model),
+                        "source_id": cue["source_id"],
+                        "source_audio_stream": cue["audio_stream"],
+                        "source_fingerprint": cue["fingerprint"],
+                    },
+                )
+                if valid(a, cue["source_duration"]):
+                    db.execute(
+                        "INSERT OR REPLACE INTO shared_sample_audio VALUES(?,?,?)",
+                        (key, cue["source_id"], json.dumps(a)),
+                    )
                     write_json(manifest, a)
-                    print("Full-source vocals published; alignment can now start", flush=True)
                     return a
         raise RuntimeError("Whole-source separation produced no registered vocals")
 
 
 def clip(cue, asset, model):
-    from .materials import sha256
     from .media import window
     from .vocals import model_identity
-    from .workspace import command, executable
 
     start, end = window(cue)
     first, last = max(0, start - 3), min(cue["source_duration"], end + 3)
     key = identity("whole-vocal-clip-v1", asset["sha256"], start, end, first, last)
+    # A crop is a view of the persistent track, never a second audio owner.
     folder = DATA / "vocals" / key
-    manifest = folder / "manifest.json"
-    if manifest.exists():
-        result = json.loads(manifest.read_text())
-        if Path(result["audio_path"]).exists():
-            return {**result, "cue_id": cue["id"]}
     folder.mkdir(parents=True, exist_ok=True)
-    audio = folder / "vocals.wav"
-    command(
-        [
-            executable("ffmpeg"),
-            "-v",
-            "error",
-            "-nostdin",
-            "-y",
-            "-ss",
-            str(start),
-            "-t",
-            str(end - start),
-            "-i",
-            asset["path"],
-            "-ar",
-            "48000",
-            "-c:a",
-            "pcm_s24le",
-            audio,
-        ]
-    )
+    manifest = folder / "manifest.json"
+    audio = Path(asset["path"])
     result = {
         "id": key,
         "cue_id": cue["id"],
@@ -153,7 +147,9 @@ def clip(cue, asset, model):
         "context_end": cue["source_duration"],
         "folder": str(folder),
         "audio_path": str(audio),
-        "audio_sha256": sha256(audio),
+        "audio_sha256": asset["sha256"],
+        "audio_start": start,
+        "audio_end": end,
         "separated_context": asset["path"],
         "full_source_asset": asset,
         "verified": False,

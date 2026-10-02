@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import uuid
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -20,9 +21,15 @@ def safe_title(title):
     return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", title).strip(" .")[:90] or "sample"
 
 
+@lru_cache(maxsize=128)
+def _source_probe(path, size, modified):
+    return probe(path)
+
+
 def source_spec(path, start=0, end=None, audio_stream=None):
     path = Path(path).expanduser().resolve(strict=True)
-    info = probe(path)
+    stamp = path.stat()
+    info = _source_probe(str(path), stamp.st_size, stamp.st_mtime_ns)
     duration = float(info["format"]["duration"])
     end = duration if end is None else end
     if not all(math.isfinite(v) for v in (start, end)) or not 0 <= start < end <= duration + 0.002:

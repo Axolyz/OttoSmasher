@@ -24,3 +24,6 @@ desktop/.vite/
 
 .env.*
 *.log
+
+# Local handoff notes are not release documentation.
+/STATUS.md

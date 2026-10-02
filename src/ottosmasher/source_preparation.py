@@ -43,11 +43,23 @@ def listing(db):
         s["cues"] = db.execute(
             "SELECT count(*) FROM cues c WHERE source_id=? AND " + source_regions.sql_allowed("c"), (s["id"],)
         ).fetchone()[0]
-        s["analyzed"] = db.execute(
-            "SELECT count(DISTINCT c.id) FROM cues c JOIN analyses a ON a.cue_id=c.id WHERE c.source_id=? AND json_array_length(a.payload,'$.phones')>0 AND "
-            + source_regions.sql_allowed("c"),
-            (s["id"],),
-        ).fetchone()[0]
+        from .asset_compat import active
+
+        if active(db):
+            s["analyzed"] = db.execute(
+                "SELECT count(*) FROM cues c WHERE c.source_id=? AND "
+                + source_regions.sql_allowed("c")
+                + " AND EXISTS (SELECT 1 FROM analysis_references r JOIN analysis_runs a ON a.id=r.run_id "
+                "WHERE r.owner_type='annotation' AND r.owner_id=c.id AND r.kind IN ('pydomino','narabas','phonetic') "
+                "AND json_array_length(a.payload,'$.phones')>0)",
+                (s["id"],),
+            ).fetchone()[0]
+        else:
+            s["analyzed"] = db.execute(
+                "SELECT count(DISTINCT c.id) FROM cues c JOIN analyses a ON a.cue_id=c.id WHERE c.source_id=? AND json_array_length(a.payload,'$.phones')>0 AND "
+                + source_regions.sql_allowed("c"),
+                (s["id"],),
+            ).fetchone()[0]
         rows.append(s)
     return rows
 
@@ -145,7 +157,7 @@ def preview(db, source_id):
     }
 
 
-def ingest(db, source_id, token):
+def ingest(db, source_id, token, ordinals=None, start=None, end=None):
     from . import workspace
 
     p = preview(db, source_id)
@@ -153,7 +165,16 @@ def ingest(db, source_id, token):
         raise ValueError("字幕、音轨或 OP/ED 已改变，请重新预览")
     if p["op_review"] == "pending":
         raise ValueError("请先确认 OP/ED 检查完成，或明确选择暂时跳过")
-    if p["counts"]["invalid"]:
+    p["rows"] = [
+        r
+        for r in p["rows"]
+        if (ordinals is None or r["ordinal"] in ordinals)
+        and (start is None or r["end"] > start)
+        and (end is None or r["start"] < end)
+    ]
+    if not p["rows"]:
+        raise ValueError("所选范围没有字幕")
+    if any(r["status"] == "invalid" for r in p["rows"]):
         raise ValueError("字幕包含无效范围，请先修正")
     vid = identity("subtitle-version", source_id, p["fingerprint"])
     # Pin all legacy cues to the previous immutable subtitle revision before adding another.
@@ -201,15 +222,7 @@ def ingest(db, source_id, token):
             )
         db.execute("UPDATE sources SET subtitle_path=? WHERE id=?", (str(target), source_id))
     db.execute("CREATE TABLE IF NOT EXISTS deleted_sample_cues(cue_id TEXT PRIMARY KEY)")
-    db.execute(
-        "DELETE FROM deleted_sample_cues WHERE cue_id IN (SELECT cue_id FROM cue_subtitle_versions WHERE version_id=?)",
-        (vid,),
-    )
     materials.sync_cues(db)
-    db.execute(
-        "UPDATE materials SET nature='speech',folder_id='' WHERE id IN (SELECT cue_id FROM cue_subtitle_versions WHERE version_id=?) AND folder_id='inbox'",
-        (vid,),
-    )
     db.commit()
     return {"version_id": vid, **p["counts"]}
 
@@ -221,7 +234,7 @@ def selected_materials(db, source_ids=None, material_ids=None):
         return [
             r[0]
             for r in db.execute(
-                f"SELECT m.id FROM materials m WHERE m.id IN ({placeholders}) AND m.cue_id IS NOT NULL AND "
+                f"SELECT m.id FROM materials m WHERE m.id IN ({placeholders}) AND m.cue_id IS NOT NULL AND m.nature='speech' AND "
                 + source_regions.sql_allowed("m"),
                 material_ids,
             )
@@ -232,7 +245,7 @@ def selected_materials(db, source_ids=None, material_ids=None):
     return [
         r[0]
         for r in db.execute(
-            f"SELECT m.id FROM materials m JOIN cues c ON m.cue_id=c.id WHERE m.id=c.id AND m.source_id IN ({placeholders}) AND "
+            f"SELECT m.id FROM materials m JOIN cues c ON m.cue_id=c.id WHERE m.source_id IN ({placeholders}) AND m.nature='speech' AND "
             + source_regions.sql_allowed("c"),
             source_ids,
         )

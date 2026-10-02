@@ -91,5 +91,6 @@ def test_separation_available_before_any_phone_analysis(library, monkeypatch, tm
 def test_three_stem_submission_independent_of_discovery(library, monkeypatch):
     db, _, _ = library
     monkeypatch.setattr(operation_jobs, "submit", lambda op, p: p)
-    result = source_separation.submit(db, "tracks", {"routes": ["bandit-v2"]})
-    assert result["request"]["routes"] == ["bandit-v2"]
+    monkeypatch.setattr(source_separation.models, "statuses", lambda: [{"id": "studio-three-stem"}])
+    result = source_separation.submit(db, "tracks", {"routes": ["studio-three-stem"]})
+    assert result["request"]["routes"] == ["studio-three-stem"]

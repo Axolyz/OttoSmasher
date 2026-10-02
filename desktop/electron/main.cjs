@@ -25,14 +25,20 @@ if (process.argv.includes("--packaged-smoke")) {
   process.on("uncaughtException", error => { reportSmokeFailure(error); app.exit(1); });
 }
 if (process.env.OTTO_APP_USER_DATA) app.setPath("userData", path.resolve(process.env.OTTO_APP_USER_DATA));
-let root = path.resolve(__dirname, "../..");
-let codeRoot = root;
+let codeRoot = path.resolve(__dirname, "../..");
+let root = path.resolve(process.env.OTTO_ROOT || codeRoot);
 let packagedRuntime;
 let ownedService;
 let bootWindow;
-const appIcon = path.join(app.isPackaged ? path.join(process.resourcesPath, "software") : root, "ottosmasher.png");
+const appIcon = path.join(app.isPackaged ? path.join(process.resourcesPath, "software") : codeRoot, "ottosmasher.png");
 app.setAppUserModelId("org.ottosmasher.desktop");
+app.on("browser-window-created", (_event, win) => {
+  win.on("page-title-updated", (event) => { event.preventDefault(); win.setTitle(`OttoSmasher · ${process.env.OTTO_EDITION || "standard"}`); });
+});
 const port = Number(process.env.OTTO_DESKTOP_PORT || (app.isPackaged ? 18766 : 18765));
+let edition = process.env.OTTO_EDITION || "standard";
+let separationProvider = process.env.OTTO_SEPARATION_PROVIDER || "studio";
+let archived = (process.env.OTTO_ARCHIVED || "").split(",").filter(Boolean).sort();
 const origin = `http://127.0.0.1:${port}`;
 const views = new Set(["search", "library", "cut", "sources", "workflows"]);
 let starting;
@@ -42,7 +48,7 @@ async function service() {
       const r = await fetch(origin + "/api/helper/info");
       if (!r.ok) return false;
       const info = await r.json();
-      return info.root === root && (!packagedRuntime || info.build_id === packagedRuntime.buildId);
+      return info.root === root && info.edition === edition && info.separation_provider === separationProvider && JSON.stringify(info.archived || []) === JSON.stringify(archived) && (!packagedRuntime || info.build_id === packagedRuntime.buildId);
     } catch {
       return false;
     }
@@ -112,6 +118,18 @@ async function open(view = "library", material = "", separate = false) {
       sandbox: true,
     },
   });
+  const diagnostic = (event, detail = {}) => {
+    const folder = path.join(root, "data", "logs");
+    fs.mkdirSync(folder, {recursive:true});
+    fs.appendFileSync(path.join(folder, "desktop-events.jsonl"), JSON.stringify({time:new Date().toISOString(),event,window:w.id,...detail}) + "\n");
+  };
+  w.webContents.on("render-process-gone", (_event, detail) => diagnostic("render-process-gone", detail));
+  w.on("unresponsive", () => diagnostic("unresponsive"));
+  w.on("responsive", () => diagnostic("responsive"));
+  w.webContents.on("did-fail-load", (_event, code, description, url) => diagnostic("did-fail-load", {code,description,url}));
+  w.webContents.on("console-message", (event) => {
+    if (event.message?.startsWith("OTTO_DIAGNOSTIC ")) diagnostic("renderer", {message:event.message});
+  });
   player.attach(w);
   w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   w.webContents.on("will-navigate", (e, url) => {
@@ -136,6 +154,11 @@ ipcMain.handle("otto:open", async (e, v, m) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   w.webContents.send("otto:navigate", { view: v, material: m });
 });
+ipcMain.handle("otto:zoom", (e, factor) => {
+  trusted(e);
+  if (![1,1.25,1.5].includes(factor)) throw Error("Invalid display scale");
+  e.sender.setZoomFactor(factor);
+});
 ipcMain.handle("otto:new-window", async (e, v, m) => {
   trusted(e);
   return void (await open(v, m, true));
@@ -158,7 +181,7 @@ ipcMain.handle("otto:pick", async (e) => {
             "mp3",
             "m4a",
             "ogg",
-            "webm",
+            "webm", "png", "jpg", "jpeg", "webp", "gif", "avif",
           ],
         },
       ],
@@ -204,7 +227,21 @@ ipcMain.on("otto:drag", (e, p) => {
 });
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", (_e, argv) => {
+  app.on("second-instance", async (_e, argv) => {
+    const requested = argv.find(a=>a.startsWith("--edition="))?.slice(10) || "standard";
+    const requestedArchive = (argv.find(a=>a.startsWith("--archived="))?.slice(11) || "").split(",").filter(Boolean).sort();
+    const requestedProvider = argv.find(a=>a.startsWith("--separation-provider="))?.slice(22) || "studio";
+    if (requestedProvider !== separationProvider || requested !== edition || JSON.stringify(requestedArchive) !== JSON.stringify(archived)) {
+      // CLI has already checked jobs and switched the owned service.
+      edition = requested; archived = requestedArchive; separationProvider = requestedProvider;
+      process.env.OTTO_SEPARATION_PROVIDER = separationProvider;
+      process.env.OTTO_EDITION = edition; process.env.OTTO_ARCHIVED = archived.join(",");
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.setTitle(`OttoSmasher · ${edition}`);
+        await window.webContents.session.clearCache();
+        window.webContents.reloadIgnoringCache();
+      }
+    }
     const arg = argv.find((a) => a.startsWith("--view="));
     open(arg?.split("=")[1] || "library").catch(console.error);
   });

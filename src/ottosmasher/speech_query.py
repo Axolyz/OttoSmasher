@@ -1,7 +1,8 @@
 """Ordered rhythm-unit queries. Retrieval never infers audio or registers samples."""
 
-import json
+import math
 import time
+from collections import OrderedDict
 from itertools import pairwise
 from typing import Literal
 
@@ -10,7 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .workspace import identity
 
-VERSION = "speech-units-5"
+VERSION = "speech-units-7"
+_SPEED_CACHE = OrderedDict()
 
 
 def canonical_consonant(label):
@@ -97,7 +99,8 @@ class SpeechQuery(BaseModel):
     cross_pauses: bool = False
     max_gap: float | None = Field(default=None, ge=0)
     rhythm: dict | None = None
-    limit: int = Field(default=100, ge=1, le=500)
+    limit: int | None = Field(default=100, ge=1)
+    create_session: bool = False
 
 
 def unit_metrics(record):
@@ -153,8 +156,10 @@ def unit_metrics(record):
                 for p in phones
                 if p["start"] < end and p["end"] > onset_start
             ],
-            span_seconds=end - start,
-            sustain_seconds=max(0, min(end, f["sustain_end"]) - start)
+            span_seconds=f.get("effective_end", end) - f.get("effective_start", start),
+            sustain_seconds=max(
+                0, min(f.get("effective_end", end), f["sustain_end"]) - f.get("effective_start", start)
+            )
             if f.get("sustain_end") is not None
             else None,
         )
@@ -233,7 +238,7 @@ def match_units(units, query):
         if not query.cross_pauses and any(a["phrase"] != b["phrase"] for a, b in pairwise(chosen)):
             continue
         if query.max_gap is not None and any(
-            b["start"] - a["end"] > query.max_gap for a, b in pairwise(chosen)
+            b["anchor"] - a["end"] > query.max_gap for a, b in pairwise(chosen)
         ):
             continue
         at_start = first == 0 or (
@@ -280,7 +285,7 @@ def hit_record(mid, record, hit, mode="sequence", plan_id=None):
     return result
 
 
-def rhythm_evidence(record, hit, rhythm):
+def rhythm_evidence(record, hit, rhythm, cache=None):
     """Compare the same adjacent units in explicitly selected whole/phrase scopes."""
     wanted = [record["view"]["units"][i]["time"] for i in hit["unit_indices"]]
     variants = [record, *record.get("entries", [])]
@@ -304,14 +309,20 @@ def rhythm_evidence(record, hit, rhythm):
             {**variant, "strategy": record.get("strategy", "acoustic")},
             {**hit, "unit_indices": local},
             rhythm,
+            cache,
         )
         if evidence:
             evidence["scope"] = variant.get("scope", {"kind": "whole"})
             results.append(evidence)
-    return min(results, key=lambda m: m["mean_deviation"]) if results else None
+    return min(results, key=evidence_key) if results else None
 
 
-def _rhythm_evidence(record, hit, rhythm):
+def evidence_key(evidence):
+    speed = evidence.get("candidate", {}).get("speech_playback_speed", 1)
+    return (round(evidence.get("score", evidence["mean_deviation"]), 10), speed < 1)
+
+
+def _rhythm_evidence(record, hit, rhythm, cache=None):
     """Measure the fixed adjacent correspondence; never force source into query rhythm."""
     from .rhythm_index import prototype
     from .sample_rhythm import candidates
@@ -324,16 +335,96 @@ def _rhythm_evidence(record, hit, rhythm):
     if strategy not in record["compiled"]["routes"]:
         return None
     bpm = rhythm.get("bpm")
-    options = candidates(record, bpm, strategy)[0] if bpm else [{"density": 1}]
+    cache = {} if cache is None else cache
+    scope_key = (record.get("scope", {}).get("scope_id", id(record["view"])), strategy, bpm)
+    options_key = (scope_key, "options")
+    if options_key not in cache:
+        persistent_key = (record.get("signature"), record.get("scope", {}).get("scope_id"), strategy, bpm)
+        if bpm and all(persistent_key[:2]) and persistent_key in _SPEED_CACHE:
+            _SPEED_CACHE.move_to_end(persistent_key)
+            cache[options_key] = _SPEED_CACHE[persistent_key]
+        else:
+            cache[options_key] = candidates(record, bpm, strategy, 2)[0] if bpm else [{"density": 1}]
+            if bpm and all(persistent_key[:2]):
+                _SPEED_CACHE[persistent_key] = cache[options_key]
+                if len(_SPEED_CACHE) > 20000:
+                    _SPEED_CACHE.popitem(last=False)
+    options = cache[options_key]
     measured = []
     for option in options:
         if rhythm.get("speed_filter") and bpm:
             multiplier = 1 / option["speech_playback_speed"]
             if not rhythm.get("factor_min", 0.85) <= multiplier <= rhythm.get("factor_max", 1.18):
                 continue
-        pattern = prototype(record, strategy, option["density"])
+        speed = option.get("speech_playback_speed", 1)
+        if (
+            bpm
+            and rhythm.get("playback_speed_filter")
+            and not rhythm.get("playback_speed_min", 0.8) - 1e-8
+            <= speed
+            <= rhythm.get("playback_speed_max", 1.25) + 1e-8
+        ):
+            continue
+        pattern_key = (scope_key, option["density"])
+        if pattern_key not in cache:
+            cache[pattern_key] = prototype(record, strategy, option["density"])
+        pattern = cache[pattern_key]
+        pattern = {
+            **pattern,
+            "units": [
+                {**u, "features": f} for u, f in zip(pattern.get("units", []), record.get("features", []))
+            ],
+        }
         plan = pattern["plan"]
         rest_adjustments = []
+        if bpm and rhythm.get("_required"):
+            from .quantized_match import match_pattern
+            from .rhythm_index import compose_pattern
+
+            patterns = [pattern]
+            if rhythm.get("adjust_pauses") and record.get("entries"):
+                combined = compose_pattern(
+                    {"cue": record["cue"], "entries": [record, *record["entries"]]},
+                    strategy,
+                    option["density"],
+                )
+                if combined:
+                    patterns.append(combined)
+            for candidate_pattern in patterns:
+                matched = match_pattern(
+                    candidate_pattern,
+                    {
+                        **rhythm,
+                        "required_unit_indices": indices,
+                        "speed_filter": False,
+                        "boundary": "anywhere",
+                    },
+                )
+                if matched:
+                    actual_speed = matched["speech_playback_speed"]
+                    if (
+                        rhythm.get("playback_speed_filter")
+                        and not rhythm.get("playback_speed_min", 0.8) - 1e-8
+                        <= actual_speed
+                        <= rhythm.get("playback_speed_max", 1.25) + 1e-8
+                    ):
+                        continue
+                    penalty = rhythm.get("speed_preference", 0) * abs(math.log2(actual_speed))
+                    base = matched["cost"] - 0.02 * abs(math.log(actual_speed))
+                    measured.append(
+                        {
+                            "strict": True,
+                            "basis": "beats",
+                            "mean_deviation": matched.get("mean_error", base),
+                            "score": base + penalty,
+                            "speed_penalty": penalty,
+                            "candidate": {**option, "speech_playback_speed": actual_speed},
+                            "occupancy_collisions": [],
+                            "rest_adjustments": matched.get("rest_adjustments", []),
+                            "witness": matched,
+                        }
+                    )
+            continue
         if rhythm.get("adjust_pauses") and record.get("entries"):
             from .quantized_match import match_pattern
             from .rhythm_index import compose_pattern
@@ -419,11 +510,17 @@ def _rhythm_evidence(record, hit, rhythm):
             )
         combined = np.maximum(deviations, sustain_shortfalls)
         occupancy_cost = sum(len(c) for c in collisions)
+        penalty = rhythm.get("speed_preference", 0) * abs(math.log2(speed)) if bpm else 0
+        strict = bool(np.max(combined) <= tolerance + 1e-8 and not occupancy_cost)
+        if rhythm.get("_required") and not strict:
+            continue
         measured.append(
             {
                 "strict": bool(np.max(combined) <= tolerance + 1e-8 and not occupancy_cost),
                 "basis": "beats" if bpm else "normalized_shape",
                 "mean_deviation": float(np.mean(combined)) + occupancy_cost,
+                "speed_penalty": penalty,
+                "score": float(np.mean(combined)) + occupancy_cost + penalty,
                 "rest_adjustments": rest_adjustments,
                 "occupancy_collisions": collisions,
                 "mapped_durations_beats": durations.tolist(),
@@ -436,12 +533,10 @@ def _rhythm_evidence(record, hit, rhythm):
                 "target": goal.tolist(),
             }
         )
-    return min(measured, key=lambda m: m["mean_deviation"]) if measured else None
+    return min(measured, key=evidence_key) if measured else None
 
 
 def query(db, payload):
-    from .sample_analysis import ready
-    from .sample_rhythm import with_speakers
     from .sample_scope import ids
     from .ui_catalog import effective_all
 
@@ -457,94 +552,51 @@ def query(db, payload):
         if [n.start_beats for n in checked.notes] != sorted(n.start_beats for n in checked.notes):
             raise ValueError("音块和节奏布局顺序不一致")
     results, errors = [], []
-    legacy = None
-    if q.rhythm_policy == "required" and q.rhythm and q.rhythm.get("bpm") is not None:
-        from .sample_rhythm import search
+    from .speech_search_index import records
 
-        if not q.rhythm:
-            raise ValueError("缺少节奏布局")
-        legacy = search(
-            db,
-            {
-                **q.scope,
-                **q.rhythm,
-                "boundary": q.boundary if q.boundary_basis == "sample" else "anywhere",
-                "limit": 100,
-            },
-            all_matches=True,
-        )
-    legacy_by_sample = {}
-    for h in (legacy or {}).get("results", []):
-        legacy_by_sample.setdefault(h["material_id"], []).append(h)
-    for mid in eligible:
-        if legacy is not None and mid not in legacy_by_sample:
+    if q.rhythm:
+        for name in ("playback_speed_min", "playback_speed_max", "speed_preference"):
+            value = q.rhythm.get(name, 0 if name == "speed_preference" else 1)
+            if (
+                not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or (value < 0 if name == "speed_preference" else value <= 0)
+            ):
+                raise ValueError("无效倍速条件")
+        if (
+            q.rhythm.get("playback_speed_min", 0.8) > q.rhythm.get("playback_speed_max", 1.25)
+            or q.rhythm.get("speed_preference", 0) > 1
+        ):
+            raise ValueError("无效倍速范围或偏好权重")
+    for row, record, units, error in records(db, eligible):
+        mid = row["id"]
+        if error:
+            errors.append({"material_id": mid, "reason": error})
             continue
         try:
-            record = ready(db, mid)
-            key = identity(VERSION, record["signature"])
-            db.execute(
-                "CREATE TABLE IF NOT EXISTS speech_unit_indices(material_id TEXT, revision TEXT, payload TEXT, PRIMARY KEY(material_id,revision))"
-            )
-            cached = db.execute(
-                "SELECT payload FROM speech_unit_indices WHERE material_id=? AND revision=?", (mid, key)
-            ).fetchone()
-            if cached:
-                units = json.loads(cached[0])
-            else:
-                units = unit_metrics(record)
-                db.execute("INSERT INTO speech_unit_indices VALUES(?,?,?)", (mid, key, json.dumps(units)))
-            speakers = with_speakers(db, record, record["view"]["units"])
-            for u, s in zip(units, speakers):
-                u["measurements"].update({k: v for k, v in s["features"].items() if k.startswith("speaker")})
-            record["strategy"] = db.execute(
-                "SELECT active_quantization_strategy FROM materials WHERE id=?", (mid,)
-            ).fetchone()[0]
             hits = []
+            cache = {}
             for hit in match_units(units, q):
-                if legacy is None:
-                    if q.rhythm_policy != "none":
-                        evidence = rhythm_evidence(record, hit, q.rhythm)
-                        if evidence is None or q.rhythm_policy == "required" and not evidence["strict"]:
-                            continue
-                        hit = {
-                            **hit,
-                            "rhythm_evidence": evidence,
-                            "score": hit["score"] + evidence["mean_deviation"],
-                            "match_kind": "strict" if evidence["strict"] else "approximate",
-                        }
-                    hits.append(hit_record(mid, record, hit, q.rhythm_policy))
-                else:
-                    for old in legacy_by_sample[mid]:
-                        # Legacy indices are local to its recorded scope. Map through saved plan.
-                        from .sample_rhythm import load
-
-                        _record, pp = load(db, mid, old["plan_id"])
-                        matched = [t for t in pp["unit_targets"] if t.get("role") == "matched"]
-                        times = [t["source_seconds"] for t in matched]
-                        selected_times = [record["view"]["units"][i]["time"] for i in hit["unit_indices"]]
-                        if len(times) == len(selected_times) and all(
-                            abs(a - b) < 1e-5 for a, b in zip(times, selected_times)
-                        ):
-                            hits.append(
-                                hit_record(
-                                    mid,
-                                    record,
-                                    {**hit, "score": old.get("cost", hit["score"])},
-                                    "rhythm",
-                                    old["plan_id"],
-                                )
-                            )
+                if q.rhythm_policy != "none":
+                    evidence = rhythm_evidence(
+                        record, hit, {**q.rhythm, "_required": q.rhythm_policy == "required"}, cache
+                    )
+                    if evidence is None:
+                        continue
+                    hit = {
+                        **hit,
+                        "rhythm_evidence": evidence,
+                        "score": hit["score"] + evidence["score"],
+                        "match_kind": "strict" if evidence["strict"] else "approximate",
+                    }
+                hits.append(hit_record(mid, record, hit, q.rhythm_policy))
             if not hits:
                 continue
             distinct = {}
             for h in sorted(hits, key=lambda x: x["score"]):
                 distinct.setdefault(tuple(h["unit_indices"]), h)
             hits = list(distinct.values())
-            row = dict(
-                db.execute(
-                    "SELECT id,title,source_id,start,end,starred,nature FROM materials WHERE id=?", (mid,)
-                ).fetchone()
-            )
+            row = {k: row[k] for k in ("id", "title", "source_id", "start", "end", "starred", "nature")}
             hits.sort(key=lambda h: (h["score"], h["start"]))
             results.append(
                 {
@@ -559,19 +611,34 @@ def query(db, payload):
         except (ValueError, KeyError) as e:
             errors.append({"material_id": mid, "reason": str(e)})
     results.sort(key=lambda r: (r["score"], r["material_id"]))
-    results = results[: q.limit]
+    total = len(results)
+    if not q.create_session and q.limit is not None:
+        results = results[: q.limit]
     tags = effective_all(db, [r["id"] for r in results])
     for r in results:
         r["tags"] = tags.get(r["id"], [])
     db.commit()
-    return {
-        "version": "speech-query-v2",
+    result = {
+        "version": "speech-query-v3",
+        "total": total,
         "results": results,
         "query": q.model_dump(),
         "elapsed_ms": round((time.perf_counter() - begun) * 1000, 2),
         "index_status": {"errors": errors},
         "hit_count": sum(r["hit_count"] for r in results),
     }
+    if q.create_session:
+        from .search_sessions import create, read
+
+        saved = create(db, "speech", q.model_dump(), result)
+        page = read(db, saved["id"])
+        return {
+            **page,
+            "session_id": saved["id"],
+            "session": saved,
+            "elapsed_ms": round((time.perf_counter() - begun) * 1000, 2),
+        }
+    return result
 
 
 def validate_hit(db, hit):

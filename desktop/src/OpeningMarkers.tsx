@@ -1,10 +1,11 @@
+import {DraftNumber as InputNumber} from "./DraftNumber";
 import { VideoPlayer } from "./NativePlayer";
 import {
   Button,
   Dropdown,
   Form,
   Input,
-  InputNumber,
+
   Modal,
   Select,
   Space,
@@ -279,7 +280,7 @@ export function OpeningMarkers({
                               size="small"
                               value={a}
                               step={0.01}
-                              onChange={(v) =>
+                              onChange={(v: any) =>
                                 setEdits({ ...edits, [k]: [v || 0, b] })
                               }
                             />
@@ -287,7 +288,7 @@ export function OpeningMarkers({
                               size="small"
                               value={b}
                               step={0.01}
-                              onChange={(v) =>
+                              onChange={(v: any) =>
                                 setEdits({ ...edits, [k]: [a, v || 0] })
                               }
                             />
@@ -423,7 +424,7 @@ export function OpeningMarkers({
                 <InputNumber
                   min={0}
                   value={offset}
-                  onChange={(v) => setOffset(v || 0)}
+                  onChange={(v: any) => setOffset(v || 0)}
                 />
               </Form.Item>
               <Form.Item label="扫描范围（秒；结束留空为全片）">
@@ -431,7 +432,7 @@ export function OpeningMarkers({
                   <InputNumber
                     min={0}
                     value={scanStart}
-                    onChange={(v) => setScanStart(v || 0)}
+                    onChange={(v: any) => setScanStart(v || 0)}
                   />
                   <InputNumber min={0} value={scanEnd} onChange={setScanEnd} />
                 </Space>
@@ -455,7 +456,7 @@ export function OpeningMarkers({
                 <InputNumber
                   min={0}
                   value={manualStart}
-                  onChange={(v) => setManualStart(v || 0)}
+                  onChange={(v: any) => setManualStart(v || 0)}
                 />
                 <Button
                   onClick={() =>
@@ -486,7 +487,7 @@ export function OpeningMarkers({
               min={0.1}
               max={900}
               value={duration}
-              onChange={(v) => setDuration(v || 90)}
+              onChange={(v: any) => setDuration(v || 90)}
             />
           </Form.Item>
         </Form>

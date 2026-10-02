@@ -1,0 +1,14 @@
+{
+  "default_included": false,
+  "modules": {
+    "builtin-separation": {
+      "lifecycle": "archived",
+      "requires": "torch"
+    },
+    "native-alignment": {
+      "lifecycle": "archived",
+      "requires": "torch"
+    }
+  },
+  "preserve_existing_assets": true
+}

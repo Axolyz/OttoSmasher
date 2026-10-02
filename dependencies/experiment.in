@@ -1,0 +1,7 @@
+# Controlled PyTorch runtime for integrated experiment features, not arbitrary projects.
+numpy>=2,<3
+scipy>=1.12,<2
+soundfile>=0.13,<1
+librosa==0.11.0
+torch==2.14.0
+torchaudio==2.11.0

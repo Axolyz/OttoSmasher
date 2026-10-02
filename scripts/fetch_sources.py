@@ -8,7 +8,13 @@ from pathlib import Path
 
 CODE_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("OTTO_ROOT", CODE_ROOT)).resolve()
-REPOS = {'HubertFA': 'https://github.com/wolfgitpr/HubertFA.git', 'pymss': 'https://github.com/pymss-project/pymss.git', 'narabas': 'https://github.com/darashi/narabas.git', 'yohane': 'https://github.com/Japan7/yohane.git', 'pydomino': 'https://github.com/DwangoMediaVillage/pydomino'}
+REPOS = {
+    "HubertFA": "https://github.com/wolfgitpr/HubertFA.git",
+    "pymss": "https://github.com/pymss-project/pymss.git",
+    "narabas": "https://github.com/darashi/narabas.git",
+    "yohane": "https://github.com/Japan7/yohane.git",
+    "pydomino": "https://github.com/DwangoMediaVillage/pydomino",
+}
 
 
 def main():
@@ -22,7 +28,16 @@ def main():
     lock_path = CODE_ROOT / "dependencies/sources.lock.json"
     pinned = json.loads(lock_path.read_text()) if lock_path.exists() else {}
     lock = {}
+    selected = {"HubertFA", "narabas", "pydomino"}
+    from ottosmasher.editions import enabled
+
+    if "builtin-separation" in enabled():
+        selected.add("pymss")
+    if "native-alignment" in enabled():
+        selected.add("yohane")
     for name, url in REPOS.items():
+        if name not in selected:
+            continue
         target = ROOT / "vendor" / name
         if not target.exists():
             subprocess.run([git, "init", str(target)], check=True)

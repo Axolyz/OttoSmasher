@@ -16,6 +16,7 @@ export type PlayerBridge = {
       width: number;
       height: number;
       visible: boolean;
+      clip?: {x:number;y:number;width:number;height:number};
     },
   ): void;
   destroy(id: number): Promise<void>;
@@ -32,6 +33,7 @@ type NativeController = {
     width: number;
     height: number;
     visible: boolean;
+      clip?: {x:number;y:number;width:number;height:number};
   }): boolean;
   destroy(): void;
 };
@@ -87,6 +89,7 @@ export function attachNativeMedia(
   };
   const fail = (e: unknown) => {
     if (disposed) return;
+    console.error("OTTO_DIAGNOSTIC " + JSON.stringify({event:"native-media-error",source,generation,requestId,message:String(e)}));
     error = { code: 4, message: String(e) } as MediaError;
     wantsPlay = false;
     paused = true;
@@ -183,6 +186,12 @@ export function attachNativeMedia(
         time = activeRange.end;
         clockAt = performance.now();
         emit("timeupdate");
+      } else if (Number.isFinite(duration)) {
+        // The final native position event can precede EOF by a render tick.
+        // Publish the actual media endpoint to waveform and visual followers.
+        time = duration;
+        clockAt = performance.now();
+        emit("timeupdate");
       }
       ended = true;
       paused = true;
@@ -225,7 +234,7 @@ export function attachNativeMedia(
         fixedDuration = info.duration;
         if (info.duration != null) duration = info.duration;
       })
-      .catch(fail);
+      .catch(e=>{if(!disposed&&token===loadToken)fail(e)});
   };
   const descriptors: PropertyDescriptorMap = {
     src: { get: () => source, set: load },
@@ -355,6 +364,7 @@ export function attachNativeMedia(
       width: number;
       height: number;
       visible: boolean;
+      clip?: {x:number;y:number;width:number;height:number};
     }) => {
       if (id && !disposed) {
         bridge.geometry(id, bounds);

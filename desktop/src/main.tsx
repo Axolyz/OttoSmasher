@@ -1,3 +1,12 @@
+import {DraftNumber as InputNumber} from "./DraftNumber";
+import AnnotationBoundaryEditor from "./AnnotationBoundaryEditor";
+import FlattenModal from "./FlattenModal";
+import { completedFor } from "./JobChanges";
+import VisualPlayback from "./VisualPlayback";
+import BusinessTextEditor from "./BusinessTextEditor";
+import {SelectionImport,DescendantRanges} from "./SelectionTools";
+import SelectionEditor from "./SelectionEditor";
+import StudioModelSelect from "./StudioModelSelect";
 import { VideoPlayer } from "./NativePlayer";
 import Hls from "hls.js";
 import { UButton } from "./Ui";
@@ -7,7 +16,7 @@ import {
   Modal,
   Select,
   Input,
-  InputNumber,
+
   Space,
   Form,
   Alert,
@@ -30,6 +39,7 @@ declare global {
   interface Window {
     ottoDesktop?: {
       player?: PlayerBridge;
+      zoom?: (factor:number)=>Promise<void>;
       newWindow?: (view: string, material?: string) => Promise<void>;
       open: (v: string, m?: string) => Promise<void>;
       onNavigate?: (
@@ -45,6 +55,8 @@ declare global {
   }
 }
 type Material = {
+  preview_role?: string;
+  navigation_key?: number;
   id: string;
   title: string;
   notes: string;
@@ -142,8 +154,15 @@ export function Cutter({
   onFile: (p: string) => void;
   onImport: () => void;
 }) {
+  const [timeline,setTimeline]=useState<any>(null);
   const [action, setAction] = useState("");
   const [selectionTitle, setSelectionTitle] = useState("");
+  const [sourceImport,setSourceImport]=useState(false);
+  const [sourceVisual,setSourceVisual]=useState<any>(null);
+  const [visualEditor,setVisualEditor]=useState<any[]|null>(null);
+  const [visualRevision,setVisualRevision]=useState(0);
+  const [visualMaster,setVisualMaster]=useState<HTMLMediaElement|null>(null);
+  const [editingSelection,setEditingSelection]=useState<any>(null);
   const [saving, setSaving] = useState(false);
   const element = useRef<HTMLVideoElement>(null),
     container = useRef<HTMLDivElement>(null),
@@ -165,14 +184,14 @@ export function Cutter({
   const subtitleFollowPause = useRef(0);
   const [separationMode, setSeparationMode] = useState("vocals");
   const [separationRange, setSeparationRange] = useState("whole");
-  const [cinematicRoute, setCinematicRoute] = useState("bandit-v2");
+  const [cinematicRoute, setCinematicRoute] = useState("");
   const [cinematicModels, setCinematicModels] = useState<any[]>([]);
   useEffect(() => {
     if (action !== "separate") return;
     request("/api/sound/info")
       .then((x) =>
         setCinematicModels(
-          x.models.filter((m: any) => ["bandit-v2"].includes(m.id)),
+          x.models,
         ),
       )
       .catch(onMessage);
@@ -189,7 +208,7 @@ export function Cutter({
   annotationsRef.current = [
     ...context.map((c) => ({
       id: "subtitle-" + c.id,
-      start: Math.max(0, c.start - origin),
+      start: c.start - origin,
       end: c.end - origin,
       label: "字幕 · " + c.original.slice(0, 24),
     })),
@@ -222,12 +241,14 @@ export function Cutter({
   useEffect(() => {
     if (!r) return;
     let live = true;
-    const refresh = () =>
-      request(`/api/sound/tracks?source_id=${r.source_id}`)
+    const refresh = (event?: Event) => {
+      if (event && !completedFor(event, {source:r.source_id}, ["source-separate", "source-separation", "separate", "selection-separate"])) return;
+      return request(`/api/sound/tracks?source_id=${r.source_id}`)
         .then((x) => {
           if (live) setEffectTracks(x);
         })
         .catch(onMessage);
+    };
     void refresh();
     window.addEventListener("otto:jobs-updated", refresh);
     const open = () => setAction("separate");
@@ -237,7 +258,7 @@ export function Cutter({
       window.removeEventListener("otto:jobs-updated", refresh);
       window.removeEventListener("otto:source-separate", open);
     };
-  }, [r?.id]);
+  }, [r?.id,visualRevision]);
   const updating = useRef(false),
     generation = useRef(0),
     requestedProxy = useRef(false),
@@ -257,7 +278,7 @@ export function Cutter({
     setStream(r.audio_stream);
     setOrigin(0);
     setUrl("");
-    setAudioRole(r.cue_id ? "vocals" : "raw");
+    setAudioRole(r.preview_role || (r.cue_id ? "vocals" : "raw"));
     setReferencePeaks(null);
     setWaveformUrl("");
     setContext([]);
@@ -265,15 +286,16 @@ export function Cutter({
     setPreviewRange([r.start, r.end]);
     setBusy(true);
     let stale = false;
-    request(`/api/samples/${r.id}/reference`, {
-      start: r.start,
-      end: r.end,
-      role: r.cue_id ? "vocals" : "raw",
-      streaming: true,
-      audio_stream: r.audio_stream,
+    request(`/api/samples/source/${r.source_id}/visual?native=${!!window.ottoDesktop?.player}`).then(visual=>{
+      if(stale)return null;
+      const custom=visual.binding&&!visual.binding.is_default?visual:null;
+      setSourceVisual(custom);
+      return request(`/api/samples/${r.id}/reference`, {
+        start:r.start,end:r.end,role:r.preview_role||(r.cue_id?'vocals':'raw'),streaming:true,audio_stream:r.audio_stream,audio_only:!!custom,
+      });
     })
       .then((p) => {
-        if (stale || load !== loadVersion.current) return;
+        if (stale || !p || load !== loadVersion.current) return;
         setReferencePeaks(p.waveform);
         setWaveformUrl(p.waveform_url || "");
         setOrigin(p.origin);
@@ -288,7 +310,7 @@ export function Cutter({
     return () => {
       stale = true;
     };
-  }, [r?.id]);
+  }, [r?.id,r?.start,r?.end,r?.navigation_key]);
   useEffect(() => {
     if (!r || !element.current || !container.current || !url) return;
     const n = ++generation.current;
@@ -339,6 +361,7 @@ export function Cutter({
         });
         const regions = (w as any).ottoRegions as Regions;
         ws.current = w;
+        setTimeline(w);
         w.once("ready", () =>
           regions.addRegion({
             id: "selection",
@@ -368,6 +391,7 @@ export function Cutter({
       generation.current++;
       ws.current?.destroy();
       ws.current = null;
+      setTimeline(null);
     };
   }, [r?.id, url, origin, stream]);
   useEffect(() => {
@@ -459,6 +483,7 @@ export function Cutter({
     onMessage("正在准备播放；视频按需加载，波形在后台生成…");
     try {
       const p = await request(`/api/samples/${r.id}/reference`, {
+        audio_only:!!sourceVisual,
         start: a,
         end: b,
         audio_stream: track,
@@ -480,6 +505,8 @@ export function Cutter({
       if (load === loadVersion.current) setBusy(false);
     }
   };
+  useEffect(()=>{if(action!=="save"||!r)return;let dead=false;setSelectionTitle("");request('/api/samples/selection/resolve',{material_id:r.id,clock:'source',start,end,role:audioRole,audio_stream:stream})
+    .then(selection=>request('/api/samples/selection/name',{selection})).then(x=>{if(!dead){setSelectionTitle(x.title);setSelectionNature(x.nature||"unclassified")}}).catch(onMessage);return()=>{dead=true}},[action,r?.id,start,end,audioRole,stream]);
   const saveSelection = async () => {
     if (!r) return;
     return request(`/api/samples/${r.id}/source-selection`, {
@@ -487,9 +514,8 @@ export function Cutter({
       end,
       role: audioRole,
       audio_stream: stream,
-      folder_id: "",
       nature: selectionNature,
-      title: selectionTitle.trim() || r.title,
+      title: selectionTitle.trim() || null,
     });
   };
   const save = async () => {
@@ -584,7 +610,7 @@ export function Cutter({
         <Select
           aria-label="音轨"
           value={stream}
-          onChange={(v) => makeProxy(previewRange[0], previewRange[1], v)}
+          onChange={(v: any) => makeProxy(previewRange[0], previewRange[1], v)}
           options={meta.streams
             .filter((s: any) => s.codec_type === "audio")
             .map((s: any) => ({
@@ -626,9 +652,17 @@ export function Cutter({
           正在打开媒体；视频按播放位置加载，无需等待整集转换。
         </p>
       )}
+      <Space wrap><Button onClick={()=>setVisualEditor([{type:'source_visual',id:r.source_id}])}>原片画面绑定…</Button><Button onClick={()=>setSourceImport(true)}>从选区起点回导成品…</Button>
+        <Button onClick={()=>request('/api/samples/selection/resolve',{material_id:r.id,start,end,role:audioRole,audio_stream:stream,clock:'source'}).then(setEditingSelection).catch(onMessage)}>选区标注 / FA…</Button></Space>
+      <BusinessTextEditor objects={visualEditor} onClose={()=>setVisualEditor(null)} onSaved={()=>setVisualRevision(x=>x+1)}/>
+      <SelectionImport id={r.id} range={[start,end]} clock='source' role={audioRole} audioStream={stream} open={sourceImport} onClose={()=>setSourceImport(false)} onSaved={onSave}/>
+      <SelectionEditor selection={editingSelection} open={!!editingSelection} onClose={()=>setEditingSelection(null)} onSaved={()=>{onMessage('选区资料已保存');}}/>
       <div className="video-layout">
         <div className="source-video">
+          {sourceVisual&&<VisualPlayback id={sourceVisual.material_id} master={visualMaster} timeOffset={origin} revision={visualRevision}/>}
           <VideoPlayer
+            audioOnly={!!sourceVisual}
+            style={sourceVisual?{height:44,width:'100%'}:{height:'min(280px, 22vh)',width:'100%'}}
             key={url}
             subtitle={context
               .filter((c) => c.start <= position && position < c.end)
@@ -638,6 +672,7 @@ export function Cutter({
             src={url.endsWith(".m3u8") ? undefined : url}
             controls
             onLoadedMetadata={() => {
+              setVisualMaster(element.current);
               seek(
                 Math.max(
                   origin,
@@ -687,7 +722,7 @@ export function Cutter({
               key={c.id}
               data-cue-id={c.id}
               className={
-                c.start <= position && position <= c.end ? "active" : ""
+                c.start <= position && position < c.end ? "active" : ""
               }
               onClick={() => {
                 setStart(c.start);
@@ -702,14 +737,16 @@ export function Cutter({
           {!context.length && <p>此范围没有字幕</p>}
         </div>
       </div>
-      <div ref={container} className="waveform" />
+      {action==='flatten'&&<FlattenModal input={{material_id:r.id,start,end,role:audioRole,audio_stream:stream,clock:'source'}} onClose={()=>setAction('')} onQueued={id=>onMessage('拉平任务已排队：'+id)}/>}
+      <AnnotationBoundaryEditor timeline={timeline} origin={origin} onSaved={()=>{void api(`/materials/${r.id}/context?start=${previewRange[0]}&end=${previewRange[1]}`).then(setContext).catch(onMessage);window.dispatchEvent(new Event("otto:annotations-edited"))}}/>
+      <DescendantRanges id={r.id} timeline={timeline} origin={origin} sourceRange={[origin,origin+(timeline?.getDuration()||1)]} role={audioRole} onSelect={onSave}/><div ref={container} className="waveform" />
       <div className="studio-toolbar compact">
         <InputNumber
           precision={3}
           aria-label="播放位置"
           value={+position.toFixed(3)}
           step={step}
-          onChange={(v) => seek(v || 0)}
+          onChange={(v: any) => seek(v || 0)}
         />
         <span>秒</span>
         <span className="toolbar-spacer" />
@@ -718,7 +755,7 @@ export function Cutter({
           aria-label="源开始秒"
           value={start}
           step={0.001}
-          onChange={(v) => setStart(v || 0)}
+          onChange={(v: any) => setStart(v || 0)}
         />
         <span>—</span>
         <InputNumber
@@ -726,14 +763,14 @@ export function Cutter({
           aria-label="源结束秒"
           value={end}
           step={0.001}
-          onChange={(v) => setEnd(v || 0)}
+          onChange={(v: any) => setEnd(v || 0)}
         />
         <Button
-          type="primary"
+          type="default"
           disabled={busy}
           onClick={() => setAction("save")}
         >
-          保存选区
+          截取
         </Button>
         <Dropdown
           menu={{
@@ -776,9 +813,9 @@ export function Cutter({
             ? "准备分离音源"
             : action === "flatten"
               ? "拉平并保存单音"
-              : "保存选区"
+              : "截取"
         }
-        open={!!action}
+        open={!!action && action!=="flatten"}
         confirmLoading={saving}
         okButtonProps={{
           disabled:
@@ -792,14 +829,6 @@ export function Cutter({
           try {
             if (action === "save") {
               await save();
-            } else if (action === "flatten") {
-              const j = await request(`/api/samples/${r.id}/source-flatten`, {
-                start,
-                end,
-                role: audioRole,
-                audio_stream: stream,
-              });
-              onMessage("拉平任务已排队：" + j.id);
             } else {
               const a = separationRange === "whole" ? 0 : start;
               const b = separationRange === "whole" ? r.source_duration : end;
@@ -817,6 +846,8 @@ export function Cutter({
                 });
               } else {
                 await request(`/api/samples/${r.id}/separate`, {
+                  clock: "source",
+                  role: audioRole,
                   start: a,
                   end: b,
                   audio_stream: stream,
@@ -842,6 +873,7 @@ export function Cutter({
             : `${start.toFixed(3)}–${end.toFixed(3)}`}{" "}
           秒
         </p>
+
         {action === "save" && (
           <Form layout="vertical">
             <Form.Item label="名称">
@@ -900,18 +932,11 @@ export function Cutter({
                   }))}
                 />
               ) : (
-                <Select
+                <StudioModelSelect
                   style={{ width: "100%" }}
                   value={vocalModel}
                   onChange={setVocalModel}
-                  options={[
-                    { value: "becruily_deux", label: "becruily Deux" },
-                    {
-                      value: "bs_roformer_voc_hyperacev2",
-                      label: "HyperACE v2",
-                    },
-                  ]}
-                />
+    />
               )}
             </Form.Item>
             <Help>
@@ -919,12 +944,7 @@ export function Cutter({
             </Help>
           </Form>
         )}
-        {action === "flatten" && (
-          <Alert
-            type="info"
-            title="根据可靠 F0 拉平整个选段；不需要字幕。只保存最终单音，不额外创建未拉平采样。"
-          />
-        )}
+
       </Modal>
     </main>
   );

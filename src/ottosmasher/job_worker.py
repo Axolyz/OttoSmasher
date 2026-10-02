@@ -1,18 +1,17 @@
-from .workspace import CODE_ROOT
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
 
-from .workspace import DATA, ROOT, connect, identity, write_json
+from .workspace import DATA, connect, identity, write_json
 
 
 def python_env(name):
     from .inference_runtime import python_path
+
     if name in ("separation", "features", "narabas", "hubert", "pydomino"):
-        name = "inference"
+        name = "onnx"
     p = python_path(name)
     if not p.is_file():
         raise ValueError(f"缺少项目环境：{name}")
@@ -20,6 +19,9 @@ def python_env(name):
 
 
 def run(operation, p, jid):
+    from .editions import require_operation
+
+    require_operation(operation, p)
     if p.get("runtime"):
         os.environ["OTTO_INFERENCE_SETTINGS"] = json.dumps(p["runtime"])
     from . import materials as m
@@ -44,10 +46,12 @@ def run(operation, p, jid):
 
     if operation == "acoustic-features":
         from .timbre_features import analyze
+
         with connect() as db:
             return analyze(db, {"material_ids": p["material_ids"]})
     if operation == "native-alignment":
         from .native_alignment import run as align_native
+
         return align_native(p, jid)
     if operation == "sample-features":
         from .sample_ops import refresh_features
@@ -60,6 +64,16 @@ def run(operation, p, jid):
         return analyze(
             p["material_id"], p.get("retry", False), p.get("backends"), p.get("vocal_model", "becruily_deux")
         )
+    if operation == "force-fa":
+        from .reanalysis import run as force_fa
+        return force_fa(p, jid)
+    if operation == "pitch-index":
+        from .pitch_indexing import run as index_pitch
+        with connect() as db:
+            return index_pitch(db,p,jid)
+    if operation == 'flatten' and p.get('selection'):
+        from .selection_ops import flatten
+        return flatten(p,jid)
     if operation == "flatten":
         from .sample_ops import flatten
 
@@ -67,7 +81,7 @@ def run(operation, p, jid):
             return flatten(
                 db,
                 p["material_id"],
-                **{k: p[k] for k in ("mode", "batch_id", "start", "end", "role", "input_asset") if k in p},
+                **{k: p[k] for k in ("mode", "batch_id", "start", "end", "role", "input_asset", "target", "inner", "transition", "title", "pitch_strategy", "boundary_side") if k in p},
             )
     if operation == "sample-prepare":
         from .sample_analysis import prepare
@@ -84,107 +98,22 @@ def run(operation, p, jid):
         with connect() as db:
             return rebuild_index(db, p.get("kind", "narabas"))
     if operation == "cut":
-        return media.cut(**p)
+        return media.cut(**{k: v for k, v in p.items() if k not in {"runtime", "edition_context"}})
     if operation == "separate":
-        write_json(
-            DATA / "jobs" / f"{jid}-progress.json",
-            {"stage": "preparing_audio", "message": "正在读取原片音轨及载入分离模型", "updated": time.time()},
-        )
-        from . import sample_audio, sample_catalog
-
-        with connect() as db:
-            if p.get("material_id"):
-                r = m.get(db, p["material_id"])
-                start = float(p.get("start", r["start"]))
-                end = float(p.get("end", r["end"]))
-                context_start = max(0, start - 2)
-                context_end = min(r["source_duration"], end + 2)
-                asset = sample_audio.resolve_range(
-                    db, r, context_start, context_end, "raw", p.get("audio_stream")
-                )
-                source = str(sample_audio.pcm(asset))
-            else:
-                source = str(Path(p["path"]).expanduser().resolve(strict=True))
-        output = Path(p.get("output") or DATA / "media" / "processed" / jid).resolve()
+        if p.get('selection'):
+            from .selection_ops import separate
+            return separate(p,jid)
+        if p.get('material_id'):
+            raise ValueError('旧分离任务没有固定声音资产，请从当前选区重新提交')
+        # Standalone CLI file processing has no source identity to bind.
+        from .separation import separate
+        source = str(Path(p['path']).expanduser().resolve(strict=True))
+        output = Path(p.get('output') or DATA / 'media' / 'processed' / jid).resolve()
         output.mkdir(parents=True, exist_ok=True)
-        req = {
-            "path": source,
-            "output": str(output),
-            "model": p.get("model", "becruily_deux"),
-            "device": p.get("device", "auto"),
-            "stems": p.get("stems"),
-            "progress_path": str(DATA / "jobs" / f"{jid}-progress.json"),
-        }
-        request = DATA / "jobs" / f"{jid}-separate.json"
-        write_json(request, req)
-        subprocess.run(
-            [python_env("separation"), str(CODE_ROOT / "scripts/material_separate_worker.py"), str(request)],
-            check=True,
-        )
-        result = json.loads(request.with_suffix(".result.json").read_text())
-        if p.get("material_id"):
-            with connect() as db:
-                result["samples"] = []
-                for x in result["outputs"]:
-                    import soundfile as sf
-
-                    info = sf.info(x["path"])
-                    role = "vocals" if x["stem"].lower() == "vocals" else "residual"
-                    a = {
-                        "path": x["path"],
-                        "sha256": m.sha256(x["path"]),
-                        "start": 0,
-                        "end": info.duration,
-                        "sample_rate": info.samplerate,
-                        "channels": info.channels,
-                        "audio_stream": 0,
-                        "role": role,
-                        "root_knots": [[0, context_start], [info.duration, context_end]],
-                        "provenance": {
-                            **x,
-                            "source_id": r["source_id"],
-                            "raw_input": asset,
-                            "model": req["model"],
-                            "source_audio_stream": asset["audio_stream"],
-                            "source_fingerprint": r["fingerprint"],
-                        },
-                    }
-                    db.execute(
-                        "INSERT OR REPLACE INTO shared_sample_audio VALUES(?,?,?)",
-                        (identity(a), r["source_id"], json.dumps(a)),
-                    )
-                    if p.get("save", False):
-                        # Explicit save creates a child; background separation remains a shared asset.
-                        a = {
-                            **a,
-                            "start": start - context_start,
-                            "end": end - context_start,
-                            "root_knots": [[0, start], [end - start, end]],
-                        }
-                        input_audio = sample_audio.resolve_range(db, r, start, end, "raw")
-                        result["samples"].append(
-                            sample_catalog.derive(
-                                db,
-                                r["id"],
-                                operation="separation",
-                                asset=a,
-                                input_asset=input_audio,
-                                folder_id=p.get("folder_id", "inbox"),
-                                parameters={"model": x["model"], "stem": x["stem"]},
-                            )["id"]
-                        )
-                db.commit()
-        return result
-    if operation == "subtitles":
-        script = "preprocess_subtitles.py"
-        env = "core"
-        args = [p.get("operation", "all")]
-        if p.get("source_id"):
-            args += ["--source-id", p["source_id"]]
-    else:
-        raise ValueError("未知处理操作")
-    subprocess.run([python_env(env), str(CODE_ROOT / "scripts" / script), *args], check=True)
-    return {"script": script, "arguments": args, "completed": True}
+        from .inference_runtime import settings
+        outputs = separate(p.get('model','becruily_deux'),[source],output,p.get('stems'),p.get('device') or settings()['inference_device'])[0]
+        return {'outputs':outputs}
+    raise ValueError("未知处理操作")
 
 
 def main(jid):
@@ -232,6 +161,11 @@ def main(jid):
             "UPDATE operation_jobs SET status=?,result=?,error=?,updated=? WHERE id=? AND status<>'cancelled'",
             (status, json.dumps(result, ensure_ascii=False), error, time.time(), jid),
         )
+    # Durable replacements have committed; generated masters are no longer owners.
+    from .audio_storage import retire_encoded_outputs, trim_pcm
+    with connect() as db:
+        retire_encoded_outputs(db)
+    trim_pcm()
 
 
 if __name__ == "__main__":

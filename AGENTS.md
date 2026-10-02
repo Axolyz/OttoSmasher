@@ -1,26 +1,35 @@
 # OttoSmasher
 
-The current specification is `docs/CURRENT_REQUIREMENTS.md`. The two root-level
-historical requirement/architecture documents remain useful context; current user
-instructions override them.
+## 本地提交约定
 
-- Helper first: searchable original dialogue, explicit rhythmic constraints,
-  original/tempo-matched audition, provenance, and non-destructive exports.
-- Keep raw seconds, phones, mora, and perceptual rhythm anchors distinct.
-- Separate approximate matches from matches achievable within a time-warp budget.
-- Subtitle timestamps are coarse, with up to roughly 0.5 s error. Never present
-  subtitle boundaries or uniformly divided text as measured phone boundaries.
-- Keep media, model weights, third-party checkouts, environments and generated
-  artifacts out of Git. Preserve original media and processing ancestry.
-- No automatic destructive changes or unreviewed promotion of model output to
-  manually verified annotations.
-- The web page remains the shared analysis demo. Desktop migration is now authorized:
-  Electron hosts independent search, cutter and library windows with real-file DAW handoff.
-- Run pymss vocals extraction before production speech/phone analysis; no silent
-  fallback to mixed audio. Keep analysis and rendered audio-version provenance aligned.
-- Use isolated project environments; do not modify global shell configuration.
-- On this Mac use `./scripts/git` or `.runtime/envs/core/bin/git`; `/usr/bin/git`
-  is an unconfigured Apple Command Line Tools stub. Python is `.runtime/envs/core/bin/python`.
-- Test meaningful timing, indexing, provenance and failure behavior. Real anime
-  validation complements synthetic timing fixtures; no subjective quality claims
-  based only on numerical tests.
+- 每次任务完成并通过相应验证后，默认自动创建本地 Git 提交，无需再次询问；用户明确要求暂不提交时除外。
+- 提交只包含当前任务的相关改动；保护已有未提交修改，不将无关工作一并暂存或提交。
+- 推送、合并和发布仍须用户明确授权，不随本地提交自动执行。
+
+## 接手
+
+- 先读本文件、`PROJECT.md` 和 `STATUS.md`；按当前任务再读相关代码与文档。
+  产品细则入口为 `docs/CURRENT_REQUIREMENTS.md`，用户最新明确要求优先。
+- 先核对 Git 分支、工作区及相关差异，保护已有修改；不要假定本地与远端历史相同。
+- 历史提交报告和探索期文档仅供按需查证，默认不批量读取、整理或总结。
+
+## 开发与验证
+
+- 环境隔离在项目/用户工作区内，不修改全局 Python 或 shell 配置。
+  本机 Git 使用 `./scripts/git` 或 `.runtime/envs/core/bin/git`（系统 Git 是未配置的 CLT stub）；
+  Python 使用 `.runtime/envs/core/bin/python`。跨平台命令见 README。
+- 媒体、权重、第三方源码、环境、生成物和凭据不进 Git；删除或迁移数据须有对应授权。
+- 遵守 `PROJECT.md` 的音源、时间、分析与人工确认边界。没有实测证据，不宣称功能可用或音质领先。
+- 按改动运行有意义的时间、索引、来源和失败行为检查；真实素材小批验证补充合成测试。
+  Electron 原生播放与浏览器兼容播放分别验收。简单文档修改不必重跑业务测试。
+- 尽量少使用computer use进行测试。
+
+## 阶段收尾与换任务
+
+- 有意义的阶段完成、关键方案变化或准备交接时，改写同一份 `STATUS.md`：
+  保留当前目标、计划/进度、验证命令及适用版本、未提交工作、未知项和具体下一步。
+  区分本地实现、已验证、已提交和已集成；旧测试结果注明版本，建议不写成决定。
+- 新任务先处理未交接工作、保存仍有效的长期结论，再替换当前状态。
+  长期知识变化才更新 `PROJECT.md`；工作规则变化才更新本文件。
+- 取消“每次提交后生成长报告”的工作方式。不新增重复的 `PLAN.md`、逐日交接副本，
+  不要求简单修改每次更新全部文档。既有历史文档保留。

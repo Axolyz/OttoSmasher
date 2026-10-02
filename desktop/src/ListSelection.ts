@@ -12,10 +12,7 @@ export function useListSelection<K extends Key>(
   const anchor = useRef<K | null>(null);
   const signature = JSON.stringify(visible);
   useEffect(() => {
-    if (retainOutside) {
-      anchor.current = null;
-      return;
-    }
+    if (retainOutside) return;
     setSelected((old) => {
       const next = old.filter((id) => visible.includes(id));
       return next.length === old.length ? old : next;
@@ -35,7 +32,8 @@ export function useListSelection<K extends Key>(
   const click = (id: K, e: MouseEvent) => {
     if ((e.target as HTMLElement).closest("button,a,input,.ant-select"))
       return true;
-    if (!enabled && !e.metaKey && !e.ctrlKey && !e.shiftKey) return false;
+    if (!enabled && !e.metaKey && !e.ctrlKey && !e.shiftKey) {anchor.current=id;return false;}
+    e.preventDefault();
     setEnabled(true);
     if (
       e.shiftKey &&
@@ -45,7 +43,7 @@ export function useListSelection<K extends Key>(
       const a = visible.indexOf(anchor.current),
         b = visible.indexOf(id);
       setSelected([
-        ...new Set(visible.slice(Math.min(a, b), Math.max(a, b) + 1)),
+        ...new Set([...selected.filter(x=>!visible.includes(x)), ...visible.slice(Math.min(a, b), Math.max(a, b) + 1)]),
       ]);
     } else {
       setSelected((old) =>

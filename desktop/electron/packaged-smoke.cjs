@@ -7,6 +7,12 @@ module.exports = async function smoke(runtime, origin) {
   const info = await response.json();
   assert.equal(info.root, runtime.root);
   assert.equal(info.total, 0);
+  const onnxResponse = await fetch(origin + '/api/library-tools/runtime');
+  assert(onnxResponse.ok);
+  const onnx = await onnxResponse.json();
+  assert.equal(onnx.probe_passed, true, JSON.stringify(onnx));
+  assert.equal(onnx.torch_installed, false);
+  assert(onnx.models.every(model=>!model.files_ready), 'Model weights must remain external');
   const rate = 48000, wav = Buffer.alloc(44 + rate * 2);
   wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
   wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
@@ -42,6 +48,6 @@ module.exports = async function smoke(runtime, origin) {
     'from ottosmasher.workspace import command,executable; command([executable("ffmpeg"),"-version"]); command([executable("ffprobe"),"-version"])'],
     {env: {...process.env, ...runtime.env}});
   return {passed: true, platform: process.platform, arch: process.arch, build: runtime.buildId,
-    checks: ['isolated empty workspace', 'relocated Python/API', 'ffmpeg/ffprobe', 'native libmpv', 'Unicode media path', 'engine range stop'],
+    checks: ['isolated empty workspace', 'relocated Python/API', 'ONNX CPU and G2P/decoder runtime without torch or model weights', 'ffmpeg/ffprobe', 'native libmpv', 'Unicode media path', 'engine range stop'],
     not_tested: ['GPU inference', 'video embedding/high DPI', 'perceptual audio quality']};
 };

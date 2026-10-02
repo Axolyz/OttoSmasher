@@ -157,6 +157,11 @@ def put(db, descriptor, producer, version, parameters, input_ref=None, commit=Tr
             "speech_analysis_eligible": False,
             "root_knots": input_ref["asset"]["root_knots"],
         }
+    from .audio_storage import durable
+    from .workspace import DATA
+    if p.is_relative_to(DATA / "media") and p.suffix.lower() != ".mp3":
+        p = durable(p, data_root=DATA)
+        a = {**a, "path": str(p), "sha256": sha256(p)}
     aid = identity("processed-audio-v1", a, producer, version, parameters)
     stat = p.stat()
     doc = {

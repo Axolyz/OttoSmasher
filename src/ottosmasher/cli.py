@@ -49,6 +49,8 @@ def main():
 
         result = run_acoustic(args.limit, args.source_id, lambda s: print(s, flush=True))
     elif args.command == "serve":
+        from .editions import identity
+        identity()  # Reject invalid or torch-only archive flags before exposing any API.
         import uvicorn
 
         uvicorn.run("ottosmasher.api:app", host="127.0.0.1", port=args.port)

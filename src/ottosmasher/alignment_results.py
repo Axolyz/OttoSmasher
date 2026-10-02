@@ -41,8 +41,11 @@ def processing_provenance(item, kind, raw=None):
     return {
         "reference_files": {name: digest(ROOT / name) for name in references[kind]},
         "input_sample_rate": sr,
-        "converted_audio_sha256": digest(input_path) if input_path else None,
-        "audio_conversion": "FFmpeg mono PCM s16le resample from identical versioned pymss vocals",
+        "converted_audio_sha256": (raw or {}).get("converted_audio_sha256") or (digest(input_path) if input_path else None),
+        "audio_conversion": (
+            "selected audio range; mono polyphase resample; float32 for ONNX/pydomino, PCM16 for Hubert"
+            if item.get("input_audio") else "FFmpeg mono PCM s16le resample from identical versioned pymss vocals"
+        ),
         "phone_conversion": {
             "pydomino": "OpenJTalk phones; I/U to i/u; boundary pau; minimum 10 ms",
             "phonetic": "OpenJTalk I/U to i/u; omit cl/pau/sil; validate ja/ checkpoint vocabulary",
@@ -95,7 +98,7 @@ def import_result(folder, item, kind, raw):
     raw_id = identity(raw)
     provenance = processing_provenance(item, kind, raw)
     existing = db.execute(
-        "SELECT payload FROM analyses WHERE cue_id=? AND kind=? AND version=?", (cue["id"], kind, version)
+        "SELECT payload FROM analyses WHERE cue_id=? AND kind=? AND version=? ORDER BY created DESC LIMIT 1", (cue["id"], kind, version)
     ).fetchone()
     prior = {}
     if existing:
@@ -132,6 +135,10 @@ def import_result(folder, item, kind, raw):
         "alignment_dictionary_sha256": raw.get("alignment_dictionary_sha256"),
         "generated_pronunciations": raw.get("generated_pronunciations"),
         "g2p": raw.get("g2p"),
+        "frontend_version": "openjtalk-plus-tsqyomi-v1" if item.get("frontends") else None,
+        "dictionary_version": item.get("dictionary_version"),
+        "alignment_text_version": item.get("alignment_text_version"),
+        "fa_padding": item.get("fa_padding"),
         "alignment_input_lineage": item.get("audio_lineage"),
         "mora": raw.get("mora", {}).get(item["id"]),
         "created": time.time(),
@@ -171,26 +178,13 @@ def import_result(folder, item, kind, raw):
             "crop_backend": kind,
             "crop_version": version,
         }
-        crop = folder / kind / item["id"] / f"target-vocals-{version}-context-import-v3.wav"
-        command(
-            [
-                executable("ffmpeg"),
-                "-v",
-                "error",
-                "-y",
-                "-ss",
-                start - origin,
-                "-t",
-                end - start,
-                "-i",
-                item["audio_lineage"]["audio_path"],
-                "-c:a",
-                "pcm_s24le",
-                crop,
-            ]
-        )
-        lineage.update(audio_path=str(crop), audio_sha256=hashlib.sha256(crop.read_bytes()).hexdigest())
-        y, sr = sf.read(crop, always_2d=True)
+        from .audio_storage import read, lineage_audio
+        audio_path, audio_start, _ = lineage_audio(item["audio_lineage"])
+        first = audio_start + start - origin
+        last = audio_start + end - origin
+        lineage.update(audio_path=audio_path, audio_start=first, audio_end=last,
+                       audio_sha256=item["audio_lineage"]["audio_sha256"])
+        y, sr = read(audio_path, first, last)
         anchors = []
         for p in phones:
             base = normalize_phone(p["label"])

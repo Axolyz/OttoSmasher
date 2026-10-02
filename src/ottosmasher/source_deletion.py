@@ -23,6 +23,13 @@ def remove_sources(db, ids):
         ],
     )
     tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+    if "source_default_tracks" in tables:
+        db.execute("DELETE FROM source_default_tracks WHERE source_id IN (SELECT id FROM deleting_sources)")
+    for table in ("subtitle_sample_imports", "subtitle_classifications"):
+        if table in tables:
+            db.execute(
+                f"DELETE FROM {table} WHERE annotation_id IN (SELECT id FROM timeline_annotations WHERE source_id IN (SELECT id FROM deleting_sources))"
+            )
     for table in tables:
         columns = {r[1] for r in db.execute(f'PRAGMA table_info("{table}")')}
         if "cue_id" in columns:

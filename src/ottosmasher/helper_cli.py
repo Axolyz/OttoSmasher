@@ -1,4 +1,5 @@
 from .workspace import CODE_ROOT
+
 """Composable file/directory operations, without requiring a running GUI."""
 
 import argparse
@@ -177,6 +178,14 @@ def main(argv):
             a.add_argument(
                 "--json", required=True, help="Explicit source_ids/material_ids and model selection"
             )
+    if cmd == "ui":
+        for action_parser in sub.choices.values():
+            action_parser.add_argument(
+                "--edition",
+                choices=["standard", "experiment"],
+                default=os.environ.get("OTTO_EDITION", "standard"),
+            )
+            action_parser.add_argument("--enable-archived", default=os.environ.get("OTTO_ARCHIVED", ""))
     a = vars(p.parse_args(argv[1:]))
     action = a.pop("action")
 
@@ -184,6 +193,11 @@ def main(argv):
         return json.load(sys.stdin) if a["json"] == "-" else json.loads(Path(a["json"]).read_text())
 
     if cmd == "ui":
+        os.environ["OTTO_EDITION"] = a.pop("edition")
+        os.environ["OTTO_ARCHIVED"] = a.pop("enable_archived")
+        from .editions import enabled
+
+        enabled()
         if action == "browser":
             subprocess.run([sys.executable, str(CODE_ROOT / "scripts/refresh_browser.py")], check=True)
             return
@@ -200,8 +214,23 @@ def main(argv):
         )
         if not electron.exists():
             raise ValueError("请先运行 scripts/setup_desktop.sh")
+        from .service_version import ensure_current_service
+
+        ensure_current_service(int(os.environ.get("OTTO_DESKTOP_PORT", "18765")))
+        from .service_version import ensure_desktop_modules
+
+        ensure_desktop_modules()
         child = subprocess.Popen(
-            [str(electron), str(CODE_ROOT / "desktop"), "--view=" + action], cwd=ROOT, start_new_session=True
+            [
+                str(electron),
+                str(CODE_ROOT / "desktop"),
+                "--view=" + action,
+                "--edition=" + os.environ["OTTO_EDITION"],
+                "--archived=" + os.environ["OTTO_ARCHIVED"],
+                "--separation-provider=" + os.environ.get("OTTO_SEPARATION_PROVIDER", "studio"),
+            ],
+            cwd=ROOT,
+            start_new_session=True,
         )
         result = {"pid": child.pid, "view": action}
     elif cmd == "media":

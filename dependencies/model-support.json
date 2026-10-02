@@ -1,0 +1,70 @@
+{
+  "files": [
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/ds-zh-pinyin-lite.txt",
+      "sha256": "1d52f8c9c7821edf46bac484229c0695e93a37a9644c6ff6cfc5bc3b09a245ae",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/ds-zh-pinyin-lite.txt"
+    },
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/config.json",
+      "sha256": "bcbe054d9f94916a0513e81df197e6144a75f48e624a07f39d21c52df4cb654e",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/config.json"
+    },
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/VERSION",
+      "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/VERSION"
+    },
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/vocab.json",
+      "sha256": "0c581e79b2feaea6c5615e1c2620cabfc7a5f07cea74df5c331e5c81210f8115",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/vocab.json"
+    },
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/ds_cmudict-07b.txt",
+      "sha256": "8c9301c6981039e23fbfaa3c8e09e83b2eca2bd969f2acc475ec491cbaac3de6",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/ds_cmudict-07b.txt"
+    },
+    {
+      "path": "models/hubert/1218_hfa_model_new_dict/japanese_dict_full.txt",
+      "sha256": "7a5651752a33e0cefc92c16828417f2940357556c409598661fca807f2ff7678",
+      "url": "https://github.com/wolfgitpr/HubertFA/releases/download/v0.0.7/1218_hfa_model_new_dict.zip",
+      "member": "1218_hfa_model_new_dict/japanese_dict_full.txt"
+    },
+    {
+      "path": "models/tsqyomi/tokenizer.json",
+      "sha256": "6a0734cf21c802169defaffe719bc2ef12bb9d0be37e54b61ed27aa89394723d",
+      "url": "https://huggingface.co/tsukumijima/tsqyomi-models/resolve/680596dd2ad2bad59ee5db3741e197cfce79f9b4/v4/tokenizer.json"
+    },
+    {
+      "path": "models/tsqyomi/metadata.json",
+      "sha256": "829c60584ba33ca6a10fe3697ab62b0210398c93266f743e79b32d85497c9cd6",
+      "url": "https://huggingface.co/tsukumijima/tsqyomi-models/resolve/680596dd2ad2bad59ee5db3741e197cfce79f9b4/v4/metadata.json"
+    },
+    {
+      "path": "models/flatten/config.json",
+      "sha256": "c3c56efaa5abdf1862224ae8396b17680c78d0b95ab009a31ef5d2f873cf07c2",
+      "url": "https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687173ae343ef0f2f824695650e877739ee0/backend/src-tauri/resources/models/nsf_hifigan/config.json"
+    }
+  ],
+  "tsqyomi": {
+    "repository": "tsukumijima/tsqyomi-models",
+    "revision": "680596dd2ad2bad59ee5db3741e197cfce79f9b4",
+    "files": [
+      "model.onnx",
+      "tokenizer.json",
+      "metadata.json"
+    ],
+    "subdirectory": "v4",
+    "sha256": {
+      "model.onnx": "ea7e4f229a4ccb8e6bc0f7037b4dba1452ca794808eabc88b421aa7d62d5b9c8",
+      "tokenizer.json": "6a0734cf21c802169defaffe719bc2ef12bb9d0be37e54b61ed27aa89394723d",
+      "metadata.json": "829c60584ba33ca6a10fe3697ab62b0210398c93266f743e79b32d85497c9cd6"
+    }
+  }
+}

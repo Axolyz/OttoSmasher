@@ -1,3 +1,15 @@
+import {RuntimeSettings} from "./RuntimeSettings";
+import {DraftNumber as InputNumber} from "./DraftNumber";
+import {LibraryFilters,TagEdit} from "./LibraryFilters";
+import ViewBoundary from "./ViewBoundary";
+import {useSearchResults, ResultStatus} from "./SearchResults";
+import AssetResult from "./AssetResult";
+import TagExpressionInput from "./TagExpressionInput";
+import StudioModelSelect from "./StudioModelSelect";
+import BusinessTextEditor from "./BusinessTextEditor";
+import FrontendDialog from "./FrontendDialog";
+import PhoneTimingEditor from "./PhoneTimingEditor";
+import PitchSearch from "./PitchSearch";
 import StorageSettings from "./StorageSettings";
 import SpeechHits from "./SpeechHits";
 import { attachNativeMedia } from "./NativeMedia";
@@ -17,7 +29,7 @@ import {
   Empty,
   Form,
   Input,
-  InputNumber,
+
   Menu,
   Modal,
   Select,
@@ -55,10 +67,23 @@ import "./workstation.css";
 const api = (p: string, b?: any) => request("/api/samples" + p, b);
 export default function Workstation() {
   const { message, modal } = App.useApp();
+  const [edition, setEdition] = useState("standard");
+  useEffect(() => { request("/api/helper/capabilities").then(c => {
+    setEdition(c.edition); document.title = `OttoSmasher · ${c.edition}`;
+  }).catch(report); }, []);
   const report = (x: any) =>
     message.error(x instanceof Error ? x.message : String(x));
+  const [pageSizeMode,setPageSizeMode]=useSavedState<number>("ui.page-size",0);
+  const [panelHeight,setPanelHeight]=useState(Math.max(300,window.innerHeight-280));
+  const catalogPanel=useRef<HTMLDivElement>(null);
+  const [sidebarCollapsed,setSidebarCollapsed]=useSavedState('ui.sidebar-collapsed',false);
+  useEffect(()=>{const element=catalogPanel.current;if(!element)return;const observer=new ResizeObserver(entries=>{const height=entries[0].contentRect.height;if(height>0)setPanelHeight(height)});observer.observe(element);return()=>observer.disconnect()},[]);
+  const pageSize=pageSizeMode || Math.max(1,Math.min(100,Math.floor((panelHeight-95)/62)));
+  const results = useSearchResults(report,pageSize);
+  const [singleTag,setSingleTag]=useSavedState<string|undefined>('ui.single-tag',undefined);
+  const [activeFilter,setActiveFilter]=useState<any>(null),[tagEdit,setTagEdit]=useState<any>(null);
+  const resultTable = useRef<any>(null);
   const [page, setPage] = useSavedState("ui.page", "library"),
-    [folder, setFolder] = useSavedState<string[]>("ui.folders", []),
     [text, setText] = useSavedState("ui.text", ""),
     [tags, setTags] = useSavedState<string[]>("ui.tags", []),
     [star, setStar] = useSavedState("ui.star", false),
@@ -70,12 +95,23 @@ export default function Workstation() {
     });
   const [viewport, setViewport] = useState(window.innerHeight),
     [contextRow, setContextRow] = useState<any>(null);
+  const [tagExpression, setTagExpression] = useSavedState("ui.tag-expression", tags.map(t => JSON.stringify(t)).join(" AND "));
+  const [tagError, setTagError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api("/tags/validate", {expression: tagExpression}).then(result => {
+        if (!cancelled) setTagError(result.valid ? "" : result.error);
+      }).catch(e => { if (!cancelled) setTagError(String(e)); });
+    }, 200);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [tagExpression]);
   useEffect(() => {
     const resize = () => setViewport(window.innerHeight);
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
-  const [info, setInfo] = useState<any>({ folders: [], tags: [] }),
+  const [info, setInfo] = useState<any>({ tags: [] }),
     [listing, setListing] = useState<any>({ results: [], total: 0 }),
     [selected, setSelected] = useState<any>(null),
     [selectedId, setSelectedId] = useSavedState("ui.selected", ""),
@@ -84,6 +120,7 @@ export default function Workstation() {
     [epoch, setEpoch] = useState(0),
     [conditions, setConditions] = useSavedState<any[]>("ui.conditions", []),
     [busy, setBusy] = useState(false);
+  const [newSamples, setNewSamples] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]),
     [taskPanel, setTaskPanel] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false),
@@ -93,8 +130,6 @@ export default function Workstation() {
     [sourceTarget, setSourceTarget] = useState<any>(null),
     [file, setFile] = useState(""),
     [nature, setNature] = useSavedState("ui.nature", ""),
-    [views, setViews] = useState<any[]>([]),
-    [rhythmResults, setRhythmResults] = useState<any>(null),
     [importOpen, setImportOpen] = useState(false),
     [importNature, setImportNature] = useState("unclassified"),
     [paths, setPaths] = useState(""),
@@ -108,6 +143,10 @@ export default function Workstation() {
   const [rowLoading, setRowLoading] = useState("");
   const rowAudio = useRef<HTMLAudioElement>(null),
     auditionGeneration = useRef(0);
+  useEffect(()=>{
+    const play=(event:Event)=>{window.dispatchEvent(new Event("otto:pause-media"));rowLoop.current=false;setRowAudioUrl((event as CustomEvent).detail);setRowPlaying("pitch-hit");const player=rowAudio.current;if(player&&player.getAttribute("src")===(event as CustomEvent).detail){player.currentTime=0;void player.play().catch(report);}};
+    window.addEventListener("otto:pitch-audition",play);return()=>window.removeEventListener("otto:pitch-audition",play);
+  },[]);
   const jobsSignature = useRef("");
   async function auditionRow(r: any, quantized = false) {
     rowLoop.current = false;
@@ -117,6 +156,7 @@ export default function Workstation() {
       setRowPlaying("");
       return;
     }
+    if(r.result_status)return;
     window.dispatchEvent(new Event("otto:pause-media"));
     const generation = ++auditionGeneration.current;
     rowAudio.current?.pause();
@@ -158,13 +198,14 @@ export default function Workstation() {
     context: boolean,
     loop = false,
   ) {
+    if(hit.disabled)return;
     window.dispatchEvent(new Event("otto:pause-media"));
     const generation = ++auditionGeneration.current;
     rowAudio.current?.pause();
     setRowLoading(hit.material_id);
     rowLoop.current = loop;
     try {
-      const result = await api("/speech-hit", {
+      const result = hit.kind === "pitch" ? await api("/pitch-hit", {asset_id:hit.asset_id,start:hit.file_start,end:hit.file_end}) : await api("/speech-hit", {
         hit,
         action: quantized ? "quantized" : "play",
         context,
@@ -190,6 +231,8 @@ export default function Workstation() {
     }
   }
   function locateHit(hit: any) {
+    if(hit.disabled)return;
+    if(!hit.material_id){void sourceFor({source_id:hit.source_id,source_result:true},hit);return;}
     setPid(hit.plan_id);
     setActiveHit(hit);
     if (selectedId !== hit.material_id)
@@ -197,7 +240,6 @@ export default function Workstation() {
   }
   useEffect(() => {
     setPid(undefined);
-    setRhythmResults(null);
     ++auditionGeneration.current;
     rowAudio.current?.pause();
     setRowPlaying("");
@@ -217,11 +259,15 @@ export default function Workstation() {
   const scope = {
     nature,
     pool: "all",
-    folder_ids: folder,
+    single_tag: singleTag,
+    intersections: activeFilter ? [activeFilter.scope] : [],
     text,
-    tags,
+    tag_expression: tagExpression,
     starred: star,
   };
+  const browseScopeKey=JSON.stringify(scope);
+  const previousBrowseScope=useRef(browseScopeKey);
+  useEffect(()=>{if(previousBrowseScope.current!==browseScopeKey){previousBrowseScope.current=browseScopeKey;results.browse();}},[browseScopeKey]);
   const refresh = () => setEpoch((x) => x + 1);
   const run = async (fn: () => Promise<any>) => {
     try {
@@ -231,9 +277,21 @@ export default function Workstation() {
     }
   };
   const [modelIds, setModelIds] = useState<string[] | null>(null);
+  const [editObjects, setEditObjects] = useState<{type: string; id: string}[] | null>(null);
+  const [frontendTarget, setFrontendTarget] = useState<{cueId?: string} | null>(null);
+  const [timingTarget, setTimingTarget] = useState<{id:string;backend:string}|null>(null);
+  const reanalyse = (ids: React.Key[]) => run(async () => {
+    ids=ids.filter(id=>!rows.find((r:any)=>r.id===id)?.source_result);if(!ids.length)return;
+    const result = await api("/reanalyse", {ids:ids.map(String),backend:settings.phone_model_order?.[0] || settings.phone_backend});
+    if(result.job) message.success(`重新 FA 已排队：${result.job.id}`);
+    if(result.missing.length) modal.info({title:"部分采样需要补充输入",content:result.missing.map((x:any)=><p key={x.material_id}>{x.material_id}: {x.reason}</p>)});
+    refresh();
+  });
+  const editSamples = (ids: React.Key[]) => {const targets=ids.filter(id=>!rows.find((r:any)=>r.id===id)?.source_result);if(targets.length)setEditObjects(targets.map(id => ({type: "sample", id: String(id)})));};
   const choiceSerial = useRef(0);
   const detailRequest = useRef<AbortController | null>(null);
   async function choose(id: string, plan?: string, hit?: any) {
+    results.remember({selected_id:id});
     setActiveHit(hit || null);
     const serial = ++choiceSerial.current;
     detailRequest.current?.abort();
@@ -242,6 +300,7 @@ export default function Workstation() {
     const stub = rows.find((x: any) => x.id === id);
     setSelectedId(id);
     setPid(plan);
+    if(stub?.source_result){setSelected(null);return;}
     if (stub) setSelected({ ...stub, _loading: true, analysis_settings: {} });
     let r;
     try {
@@ -271,9 +330,6 @@ export default function Workstation() {
     api("/info")
       .then((v) => {
         setInfo(v);
-        setFolder((old) =>
-          old.filter((id) => v.folders.some((f: any) => f.id === id)),
-        );
         if (!v.total) {
           setSelected(null);
           setSelectedId("");
@@ -281,7 +337,6 @@ export default function Workstation() {
         }
       })
       .catch(report);
-    request("/api/library-tools/views").then(setViews).catch(report);
   }, [epoch]);
   useEffect(() => {
     request("/api/ui/settings")
@@ -303,10 +358,15 @@ export default function Workstation() {
   }, []);
   useEffect(() => {
     let previousStates: Map<string, string> | null = null;
+    let previousSignatures = new Map<string, string>();
     const load = () =>
-      request("/api/helper/jobs")
+      request("/api/helper/jobs?summary=true")
         .then((rows) => {
-          setJobs(rows);
+          const changed = rows.filter((j: any) => previousSignatures.get(j.id) !== JSON.stringify([j.status,j.result]));
+          const initialized = previousSignatures.size > 0;
+          previousSignatures = new Map(rows.map((j: any) => [j.id, JSON.stringify([j.status,j.result])]));
+          if (changed.length) setJobs(rows);
+          if (initialized && changed.some((j: any) => j.status === "succeeded")) setNewSamples(true);
           const analysisFinished =
             previousStates &&
             rows.some(
@@ -329,11 +389,8 @@ export default function Workstation() {
           );
           if (sig !== jobsSignature.current) {
             jobsSignature.current = sig;
-            refresh();
+            window.dispatchEvent(new CustomEvent("otto:jobs-updated", { detail: initialized ? changed : [] }));
           }
-          window.dispatchEvent(
-            new CustomEvent("otto:jobs-updated", { detail: rows }),
-          );
         })
         .catch(() => {});
     load();
@@ -358,47 +415,51 @@ export default function Workstation() {
   useEffect(() => {
     setOffset(0);
     setChecked([]);
-    setRhythmResults(null);
   }, [
     text,
     JSON.stringify(tags),
-    JSON.stringify(folder),
     nature,
     star,
     filterMode,
+    tagExpression,
+    singleTag,
     JSON.stringify(conditions),
+    activeFilter,
+    JSON.stringify(sort),
   ]);
   useEffect(() => {
+    if(results.active)return;
     let active = true;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setBusy(true);
       request("/api/ui/catalog", {
         scope,
         offset,
-        limit: 100,
+        limit: pageSize,
         sort: sort.key,
         order: sort.order,
         conditions:
           filterMode === "pitched" || filterMode === "unpitched"
             ? conditions
             : [],
-      })
+      }, controller.signal)
         .then((v) => {
           if (active) setListing(v);
         })
-        .catch(report)
+        .catch(e=>{if(!controller.signal.aborted)report(e)})
         .finally(() => {
           if (active) setBusy(false);
         });
     }, 180);
     return () => {
       active = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [
     text,
     JSON.stringify(tags),
-    JSON.stringify(folder),
     nature,
     star,
     offset,
@@ -406,17 +467,30 @@ export default function Workstation() {
     sort,
     conditions,
     filterMode,
+    results.active,
+    pageSize,
+    activeFilter,
+    tagExpression,
+    singleTag,
   ]);
+  const rhythmResults = results.result;
+  useEffect(()=>{
+    if(!rhythmResults)return;
+    const frame=requestAnimationFrame(()=>resultTable.current?.scrollTo({top:rhythmResults.state?.scroll||0}));
+    const id=rhythmResults.state?.selected_id;
+    if(id && rhythmResults.results.some((r:any)=>(r.id||r.material_id)===id&&!r.result_status))void choose(id).catch(report);
+    return()=>cancelAnimationFrame(frame);
+  },[rhythmResults?.session_id]);
   const rows =
-    filterMode === "speech" && rhythmResults
+    results.active && rhythmResults
       ? rhythmResults.results.map((r: any) => ({
           ...r,
-          id: r.material_id,
-          title: r.sample_title,
-          duration: r.end - r.start,
+          id: r.material_id || r.id,
+          title: r.sample_title || r.title,
+          duration: r.duration ?? r.end - r.start,
           key: r.id || r.material_id,
         }))
-      : listing.results;
+      : results.active ? [] : listing.results;
   const selection = useListSelection(
     checked,
     setChecked,
@@ -464,7 +538,7 @@ export default function Workstation() {
       const r = await api("/register", {
         path,
         nature: importNature,
-        folder_id: folder.length === 1 ? folder[0] : "inbox",
+
       });
       await choose(r.id);
     }
@@ -479,10 +553,13 @@ export default function Workstation() {
     setImportOpen(true);
   }
   async function sourceFor(r: any, hit?: any) {
+    if(r.source_result){const id=r.id||hit?.source_asset_id;results.remember({selected_id:id});setSelectedId(id);}
     setSourceTarget({
       source_id: r.source_id,
-      material_id: r.id,
+      material_id: r.source_result ? undefined : r.id,
       hit_range: hit ? [hit.start, hit.end] : undefined,
+      source_range: hit?.source_range,
+      source_role: hit?.source_role,
       nonce: Date.now(),
     });
     navigate("sources");
@@ -491,12 +568,13 @@ export default function Workstation() {
     run(async () => {
       await api("/" + r.id + "/preferences", { starred: !r.starred });
       refresh();
+      results.reload();
       if (selectedId === r.id) await choose(r.id, pid);
     });
   async function selectAllSamples() {
     const ids =
-      filterMode === "speech" && rhythmResults
-        ? rows.map((r: any) => r.id)
+      results.active && rhythmResults
+        ? (await request(`/api/library-tools/search-results/${results.active}/ids`)).ids
         : (
             await request("/api/ui/catalog", {
               scope,
@@ -509,6 +587,7 @@ export default function Workstation() {
     selection.select(ids);
   }
   function deleteSamples(ids: React.Key[]) {
+    ids=ids.filter(id=>!rows.find((r:any)=>r.id===id)?.source_result);
     if (!ids.length) return;
     modal.confirm({
       title: `删除 ${ids.length} 个采样？`,
@@ -522,26 +601,31 @@ export default function Workstation() {
           setSelected(null);
           setSelectedId("");
         }
-        setRhythmResults(null);
-        refresh();
+            refresh();
       },
     });
   }
-  function deleteFolders(ids: string[]) {
-    if (!ids.length) return;
-    modal.confirm({
-      title: `删除 ${ids.length} 个文件夹？`,
-      content: "其中的采样保留，改为未归档。",
-      okText: "删除",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        await api("/folders/delete", { ids });
-        setFolder([]);
-        refresh();
-      },
-    });
-  }
-  const rowMenu = (r: any) => [
+  const batchMenu=(ids:React.Key[])=>[
+    {key:'tags-add',label:`给所选 ${ids.length} 项添加标签…`,onClick:()=>setTagEdit({ids,operation:'add'})},
+    {key:'tags-remove',label:`从所选 ${ids.length} 项移除指定标签…`,onClick:()=>setTagEdit({ids,operation:'remove'})},
+    {key:'edit',label:`编辑所选 ${ids.length} 项资料…`,onClick:()=>editSamples(ids)},
+    {key:'fa',label:`重新 FA 所选 ${ids.length} 项…`,onClick:()=>reanalyse(ids)},
+    {key:'model',label:`切换所选 ${ids.length} 项音素模型…`,onClick:()=>setModelIds(ids.map(String))},
+    {key:'flatten',label:`批量拉平所选 ${ids.length} 项…`,onClick:()=>setBulkFlatten(true)},
+    {key:'delete',label:`删除所选 ${ids.length} 项…`,danger:true,onClick:()=>deleteSamples(ids)}
+  ];
+  useEffect(()=>{selection.finish()},[browseScopeKey,JSON.stringify(sort),JSON.stringify(conditions),results.active]);
+  const rowMenu = (r: any) => checked.includes(r.id)&&checked.length>1 ? batchMenu(checked) : r.source_result ? [{key:'source',label:'打开来源音轨',disabled:!!r.result_status,onClick:()=>sourceFor(r,r.hits?.[0])}] : [
+    ...batchMenu([r.id]).slice(0,2),
+    { key: "force-fa", label: "重新 FA 所选采样", onClick: () => reanalyse(checked.includes(r.id) ? checked : [r.id]) },
+    { key: "phone-times", label: "编辑音素时间 / 切换版本", onClick: () => run(async () => {
+      const item=await api("/"+r.id); setTimingTarget({id:r.id,backend:item.active_phone_backend});
+    }) },
+    { key: "alignment-text", label: "编辑对齐文本 / 预览 G2P", onClick: () => run(async () => {
+      const item = await api("/" + r.id); if (!item.cue_id) throw Error("此采样没有文字标注，请先补台词");
+      setFrontendTarget({cueId: item.cue_id});
+    }) },
+    { key: "edit-json", label: "编辑资料…", onClick: () => editSamples([r.id]) },
     ...selection.menu(r.id),
     {
       key: "phone-model",
@@ -591,7 +675,7 @@ export default function Workstation() {
       render: (v: string, r: any) => (
         <div className="sample-row-content">
           <div className="sample-thumb-play">
-            <SampleThumbnail material={r} />
+            {!r.source_result && <SampleThumbnail material={r} />}
             <Tooltip title="左键：原版 · 右键：默认卡拍">
               <Button
                 size="small"
@@ -607,18 +691,18 @@ export default function Workstation() {
                 }
                 onClick={(e) => {
                   e.stopPropagation();
-                  void auditionRow(r);
+                  if(r.source_result)void auditionHit(r.hits[0],false,false);else void auditionRow(r);
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  void auditionRow(r, true);
+                  if(r.source_result)void auditionHit(r.hits[0],false,false);else void auditionRow(r, true);
                 }}
               />
             </Tooltip>
           </div>
           <div className="sample-title">
-            <span>{v}</span>
+            <span>{v}</span>{r.result_status&&<Tag color="warning">{r.result_status==="deleted"?"采样已删除":"音源已变化"}</Tag>}
             <div className="tag-line">
               {(r.tags || [])
                 .filter((t: any) => !t.tag.startsWith("cluster:"))
@@ -686,14 +770,14 @@ export default function Workstation() {
       key: "duration",
       sorter: true,
       width: 75,
-      render: (v: number) => v?.toFixed(2) + "s",
+      render: (v: number) => Number.isFinite(v) ? v.toFixed(2) + "s" : "—",
     },
     {
       title: "",
       key: "star",
       fixed: "right",
       width: 38,
-      render: (_: any, r: any) => (
+      render: (_: any, r: any) => r.source_result ? null : (
         <Button
           type="text"
           size="small"
@@ -708,6 +792,11 @@ export default function Workstation() {
     },
   ];
   const commands = [
+    { label: "音高检索", run: () => { navigate("library");setFilterMode("pitch"); } },
+    { label: "重新 FA 所选采样", run: () => reanalyse(checked.length ? checked : selectedId ? [selectedId] : []) },
+    { label: "用户辞典 / G2P 预览", run: () => setFrontendTarget({}) },
+    { label: "编辑所选资料", run: () => editSamples(checked.length ? checked : selectedId ? [selectedId] : []) },
+    { label: "撤销最近资料修改", run: () => run(async () => { await api("/edit/undo", {}); refresh(); }) },
     { label: "导入独立采样", run: pickSamples },
     { label: "添加 / 浏览原片", run: () => navigate("sources") },
     {
@@ -754,8 +843,11 @@ export default function Workstation() {
           }}
         />
       )}
+      <BusinessTextEditor objects={editObjects} onClose={() => setEditObjects(null)} onSaved={() => { refresh(); results.reload(); if(selectedId)void api('/'+selectedId).then(updated=>setSelected((old:any)=>old?.id===updated.id?updated:old)).catch(report); }} />
+      <FrontendDialog target={frontendTarget} onClose={() => setFrontendTarget(null)} />
+      <PhoneTimingEditor target={timingTarget} onClose={()=>setTimingTarget(null)} onSaved={()=>{refresh();if(selectedId)void choose(selectedId);}} />
       <div className="studio-header">
-        <strong className="studio-brand">OttoSmasher</strong>
+        <strong className="studio-brand">OttoSmasher <Tag>{edition}</Tag></strong>
         <Menu
           mode="horizontal"
           selectedKeys={[page]}
@@ -770,12 +862,13 @@ export default function Workstation() {
           <Tooltip title="留空：保持原语速的卡拍；指定 BPM：默认使用不慢于原速的最近二进制方案。">
             <InputNumber
               aria-label="全局目标 BPM"
+              allowEmpty
               prefix="BPM"
               placeholder="原速"
               min={20}
               max={400}
               value={playbackBpm}
-              onChange={(v) => setPlaybackBpm(v)}
+              onChange={(v: any) => setPlaybackBpm(v)}
               style={{ width: 115 }}
             />
           </Tooltip>
@@ -815,6 +908,7 @@ export default function Workstation() {
                   onClick: () =>
                     window.ottoDesktop?.newWindow?.(page, selectedId),
                 },
+                ...[1,1.25,1.5].map(factor=>({key:'zoom-'+factor,label:`显示缩放 ${factor*100}%`,onClick:()=>window.ottoDesktop?.zoom?.(factor)})),
               ],
             }}
           >
@@ -825,14 +919,9 @@ export default function Workstation() {
       <div className="studio-body" hidden={page !== "library"}>
         <aside
           className="studio-sidebar"
+          hidden={sidebarCollapsed}
           tabIndex={0}
-          onKeyDown={(e) => {
-            if ((e.target as HTMLElement).closest("input,textarea")) return;
-            if (["Delete", "Backspace"].includes(e.key)) {
-              e.preventDefault();
-              deleteFolders(folder);
-            }
-          }}
+
         >
           <Button
             type="primary"
@@ -852,148 +941,12 @@ export default function Workstation() {
             ]}
             onClick={({ key }) => setNature(key)}
           />
-          <div className="sidebar-caption">虚拟文件夹</div>
-          <Menu
-            selectedKeys={folder.length ? folder : ["all"]}
-            multiple
-            items={[
-              { key: "all", label: "全部采样", icon: <AppstoreOutlined /> },
-              ...info.folders.map((f: any) => ({
-                key: f.id,
-                label: (
-                  <Dropdown
-                    trigger={["contextMenu"]}
-                    menu={{
-                      items: [
-                        {
-                          key: "delete",
-                          label: "删除文件夹",
-                          danger: true,
-                          onClick: () =>
-                            deleteFolders(
-                              folder.includes(f.id) ? folder : [f.id],
-                            ),
-                        },
-                        {
-                          key: "all",
-                          label: "全选文件夹",
-                          onClick: () =>
-                            setFolder(info.folders.map((x: any) => x.id)),
-                        },
-                      ],
-                    }}
-                  >
-                    <span>{f.name}</span>
-                  </Dropdown>
-                ),
-                icon: <FolderOutlined />,
-              })),
-            ]}
-            onClick={({ key, domEvent }) => {
-              if (key === "all") setFolder([]);
-              else
-                setFolder(
-                  domEvent.metaKey || domEvent.ctrlKey
-                    ? folder.includes(key)
-                      ? folder.filter((x) => x !== key)
-                      : [...folder, key]
-                    : [key],
-                );
-            }}
-          />
-          <Button
-            type={star ? "primary" : "text"}
-            icon={<StarOutlined />}
-            onClick={() => setStar(!star)}
-          >
-            仅星标
-          </Button>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "add",
-                  label: "新建文件夹",
-                  onClick: () =>
-                    run(async () => {
-                      const name = await ask("文件夹名称");
-                      if (name) {
-                        await api("/folders", { name });
-                        refresh();
-                      }
-                    }),
-                },
-                {
-                  key: "rename",
-                  label: "重命名当前文件夹",
-                  disabled: folder.length !== 1,
-                  onClick: () =>
-                    run(async () => {
-                      const name = await ask(
-                        "文件夹名称",
-                        info.folders.find((f: any) => f.id === folder[0])?.name,
-                      );
-                      if (name) {
-                        await api("/folders", { id: folder[0], name });
-                        refresh();
-                      }
-                    }),
-                },
-                {
-                  key: "all-folders",
-                  label: "全选文件夹",
-                  onClick: () => setFolder(info.folders.map((f: any) => f.id)),
-                },
-                {
-                  key: "delete-folders",
-                  label: "删除所选文件夹",
-                  danger: true,
-                  disabled: !folder.length,
-                  onClick: () => deleteFolders(folder),
-                },
-                {
-                  key: "save",
-                  label: "保存当前筛选",
-                  onClick: () =>
-                    run(async () => {
-                      const name = await ask("视图名称");
-                      if (name) {
-                        await request("/api/library-tools/views", {
-                          name,
-                          scope: { ...scope, mode: filterMode, conditions },
-                        });
-                        refresh();
-                      }
-                    }),
-                },
-              ],
-            }}
-          >
-            <Button type="text" icon={<MoreOutlined />}>
-              目录操作
-            </Button>
-          </Dropdown>
-          {views.length > 0 && (
-            <>
-              <div className="sidebar-caption">保存的筛选</div>
-              <Menu
-                items={views.map((v) => ({ key: v.id, label: v.name }))}
-                onClick={({ key }) => {
-                  const s = views.find((v) => v.id === key).scope;
-                  setFolder(s.folder_ids || []);
-                  setNature(s.nature || "");
-                  setText(s.text || "");
-                  setTags(s.tags || []);
-                  setStar(!!s.starred);
-                  setFilterMode(s.mode || "browse");
-                  setConditions(s.conditions || []);
-                }}
-              />
-            </>
-          )}
+          <LibraryFilters singleTag={singleTag} onSingleTag={setSingleTag} scope={scope} conditions={conditions} active={activeFilter} onSelect={setActiveFilter} report={report} tags={info.tags} onTagsChanged={refresh}/>
+          <Button type={star?'primary':'text'} icon={<StarOutlined/>} onClick={()=>setStar(!star)}>仅星标</Button>
         </aside>
         <main className="library-stage">
           <div className="studio-toolbar">
+            <Button onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} aria-label="切换筛选侧栏">{sidebarCollapsed?"展开筛选":"收起筛选"}</Button>
             <Input
               ref={find}
               prefix={<SearchOutlined />}
@@ -1002,24 +955,17 @@ export default function Workstation() {
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            <Select
-              mode="multiple"
-              allowClear
-              maxTagCount="responsive"
-              placeholder="标签交集"
-              value={tags}
-              options={(listing.tags || info.tags).map((t: string) => ({
-                value: t,
-                label: t.replace(/^(work|character|type):/, ""),
-              }))}
-              onChange={setTags}
-            />
+            {activeFilter&&<Tag closable onClose={()=>setActiveFilter(null)}>筛选器：{activeFilter.name}</Tag>}
+            {singleTag&&<Tag closable onClose={()=>setSingleTag(undefined)}>标签范围：{singleTag.replace(/^character:/,'角色：').replace(/^participants:/,'参与者（未分段）：')}</Tag>}
+            <span>进一步筛选</span><TagExpressionInput value={tagExpression} onChange={setTagExpression} tags={info.tags||[]} error={tagError}/>
+
             <Select
               value={filterMode}
               onChange={setFilterMode}
               options={[
                 { value: "browse", label: "普通筛选" },
                 { value: "speech", label: "语音 · 音块检索" },
+                { value: "pitch", label: "独立音高检索" },
                 { value: "pitched", label: "单音 · 音色" },
                 { value: "unpitched", label: "单音 · 瞬态" },
               ]}
@@ -1028,10 +974,11 @@ export default function Workstation() {
           {filterMode === "speech" && (
             <RhythmSearch
               scope={scope}
-              onResults={setRhythmResults}
+              onResults={(r,q)=>{void results.add("speech",q,r).catch(report)}}
               onMessage={report}
             />
           )}{" "}
+          {filterMode === "pitch" && <PitchSearch scope={scope} onResults={(r,q)=>{void results.add("pitch",q,r).catch(report)}}/>}
           {["pitched", "unpitched"].includes(filterMode) && (
             <FeatureFilters
               mode={filterMode}
@@ -1043,98 +990,25 @@ export default function Workstation() {
               })}
             />
           )}
+          {results.bar}
+          <ResultStatus result={rhythmResults} onRepeat={()=>run(async()=>{
+            if(!rhythmResults)return;
+            const kind=rhythmResults.kind;
+            const began=performance.now();
+            const value=await api(kind==='pitch'?'/pitch-query':'/speech-query',rhythmResults.query);
+            await results.add(kind,rhythmResults.query,{...(kind==='pitch'?{...value,results:value.grouped_results,grouped_results:undefined}:value),_ui_started_at:began});
+          })}/>
           <div className="studio-toolbar compact">
             <span>
-              {rhythmResults && filterMode === "speech"
-                ? `${rows.length} 个命中采样`
+              {results.active && rhythmResults
+                ? `${rhythmResults.total} 个命中采样`
                 : `${listing.total} 个采样`}
             </span>
-            <Button onClick={() => run(selectAllSamples)}>全选</Button>
-            {checked.length > 0 && (
-              <Button onClick={() => setModelIds(checked.map(String))}>
-                切换音素模型
-              </Button>
-            )}
-            {checked.length > 0 && (
-              <Button danger onClick={() => deleteSamples(checked)}>
-                删除
-              </Button>
-            )}
-            {checked.length > 0 && (
-              <>
-                <Tag>{checked.length} 项已选</Tag>
-                <Dropdown
-                  menu={{
-                    items: [
-                      {
-                        key: "analyse",
-                        label: "准备语音分析",
-                        onClick: () =>
-                          window.dispatchEvent(
-                            new CustomEvent("otto:analysis-dialog", {
-                              detail: { material_ids: checked },
-                            }),
-                          ),
-                      },
-                      {
-                        key: "flatten",
-                        label: "批量拉平…",
-                        onClick: () => setBulkFlatten(true),
-                      },
-                      {
-                        key: "accept",
-                        label: "接收所选批次候选",
-                        onClick: () =>
-                          run(async () => {
-                            await api("/review", {
-                              ids: checked,
-                              accept: true,
-                            });
-                            refresh();
-                          }),
-                      },
-                      {
-                        key: "discard",
-                        label: "丢弃所选批次候选",
-                        onClick: () =>
-                          modal.confirm({
-                            title: "丢弃所选批次候选？",
-                            content: "仅影响待审核候选；父采样和共享音源保留。",
-                            onOk: () =>
-                              run(async () => {
-                                await api("/review", {
-                                  ids: checked,
-                                  accept: false,
-                                });
-                                refresh();
-                              }),
-                          }),
-                      },
-                      {
-                        key: "move",
-                        label: "移动到文件夹",
-                        children: info.folders
-                          .filter((f: any) => !f.batch_id)
-                          .map((f: any) => ({
-                            key: f.id,
-                            label: f.name,
-                            onClick: () =>
-                              run(async () => {
-                                for (const id of checked)
-                                  await api("/" + id + "/preferences", {
-                                    folder_id: f.id,
-                                  });
-                                refresh();
-                              }),
-                          })),
-                      },
-                    ],
-                  }}
-                >
-                  <Button>批量操作</Button>
-                </Dropdown>
-              </>
-            )}
+            {newSamples && <Button size="small" onClick={() => {setNewSamples(false); refresh();}}>资料已更新 · 刷新浏览列表</Button>}
+            <Button onClick={() => run(selectAllSamples)}>选全部匹配结果</Button>
+            {checked.length>0&&<><Tag>{checked.length} 项已选</Tag><Dropdown menu={{items:batchMenu(checked)}}><Button>批量操作</Button></Dropdown></>}
+            <Button onClick={()=>selection.select([...checked,...rows.filter((r:any)=>!r.source_result&&!r.result_status).map((r:any)=>r.id)])}>选本页</Button>
+            <Select aria-label="每页数量" value={pageSizeMode} onChange={(v: any)=>{setPageSizeMode(v)}} options={[{value:0,label:'一屏一页'},...[20,50,100].map(value=>({value,label:`${value} 项 / 页`}))]}/>
             {selection.enabled && (
               <Button type="text" onClick={selection.finish}>
                 退出多选
@@ -1142,8 +1016,7 @@ export default function Workstation() {
             )}
             <span className="toolbar-spacer" />
             <Help>
-              单击查看详情，右键进入多选；⌘ / Ctrl 点击切换选择，Shift 连选，Esc
-              退出。按住 ⌘ / Ctrl 可选择多个文件夹。
+              单击查看详情，勾选框选择；⌘ / Ctrl 点击切换选择，Shift 页内连选，翻页保留勾选，Esc 清空。
             </Help>
           </div>
           <Splitter className="library-split">
@@ -1154,6 +1027,7 @@ export default function Workstation() {
               >
                 <div
                   className="catalog-pane"
+                  ref={catalogPanel}
                   onKeyDown={(e) => {
                     if (
                       (e.target as HTMLElement).closest(
@@ -1183,32 +1057,32 @@ export default function Workstation() {
                   tabIndex={-1}
                 >
                   <Table
+                    ref={resultTable}
+                    onScroll={e=>results.scroll((e.currentTarget as HTMLElement).scrollTop)}
                     size="small"
                     virtual
                     scroll={{
                       x: 455,
-                      y: Math.max(
-                        240,
-                        viewport - (filterMode === "speech" ? 420 : 240),
-                      ),
+                      y: Math.max(120,panelHeight-95),
                     }}
-                    rowKey={(r) => r.key || r.id}
+                    rowSelection={{columnWidth:32,selectedRowKeys:checked,onChange:keys=>selection.select(keys),preserveSelectedRowKeys:true,getCheckboxProps:(r:any)=>({disabled:!!r.source_result||!!r.result_status})}}
+                    rowKey={(r) => r.id}
                     columns={
-                      rhythmResults && filterMode === "speech"
+                      results.active && rhythmResults
                         ? columns.map((c) => ({ ...c, sorter: false }))
                         : columns
                     }
                     dataSource={rows}
-                    loading={busy}
+                    loading={results.active ? results.loading : busy}
                     pagination={
-                      rhythmResults && filterMode === "speech"
-                        ? false
+                      results.active && rhythmResults
+                        ? {current:Math.floor(results.offset/pageSize)+1,pageSize,total:rhythmResults.total,showSizeChanger:false,onChange:(p:number)=>results.setOffset((p-1)*pageSize)}
                         : {
-                            current: offset / 100 + 1,
-                            pageSize: 100,
+                            current: Math.floor(offset / pageSize) + 1,
+                            pageSize,
                             total: listing.total,
                             showSizeChanger: false,
-                            onChange: (p) => setOffset((p - 1) * 100),
+                            onChange: (p) => setOffset((p - 1) * pageSize),
                           }
                     }
                     rowClassName={(r) =>
@@ -1222,11 +1096,15 @@ export default function Workstation() {
                           : ""
                     }
                     onRow={(r) => ({
+                      "data-sample-id":r.id,
                       onClick: (e) => {
+                        if(r.result_status==='deleted'){message.info("此采样已删除，保留搜索记录供参考");return;}
+                        if(r.source_result){void sourceFor(r,r.result_status?undefined:r.hits?.[0]);return;}
                         if (!selection.click(r.id, e))
-                          run(() => choose(r.id, r.plan_id));
+                          run(() => choose(r.id, r.result_status ? undefined : r.plan_id));
                       },
-                      onContextMenu: () => setContextRow(r),
+                      onMouseDown: (e) => {if(e.shiftKey||e.ctrlKey||e.metaKey)e.preventDefault()},
+                      onContextMenu: () => {if(r.source_result||r.result_status)selection.finish();else if(!checked.includes(r.id))selection.select([r.id]);setContextRow(r)},
                     })}
                     onChange={(_, __, s: any) => {
                       if (s.field)
@@ -1242,7 +1120,7 @@ export default function Workstation() {
             <Splitter.Panel min={390}>
               <div className="inspector-scroll">
                 {selected ? (
-                  <Inspector
+                  <ViewBoundary key={selected.id}><Inspector
                     key={selected.id}
                     material={selected}
                     hitPlan={pid}
@@ -1251,19 +1129,21 @@ export default function Workstation() {
                       rows.find((x: any) => x.id === selected.id)?.hits || []
                     }
                     onHit={locateHit}
-                    folders={info.folders.filter((f: any) => !f.batch_id)}
                     onSource={() => sourceFor(selected, activeHit)}
                     onAudition={(quantized) => auditionRow(selected, quantized)}
                     onSelect={(id, p) => run(() => choose(id, p))}
                     onRefresh={async () => {
-                      refresh();
-                      await choose(selectedId, pid);
+                      const id = selectedId;
+                      const updated = await api("/" + id);
+                      results.reload();
+                      setSelected((previous: any) => previous?.id === id ? updated : previous);
+                      setListing((previous: any) => ({...previous, results: previous.results.map((row: any) => row.id === id ? {...row, ...updated} : row)}));
                     }}
                     onMessage={(x) =>
                       x instanceof Error ? report(x) : message.info(String(x))
                     }
                     onFile={setFile}
-                            />
+                            /></ViewBoundary>
                 ) : (
                   <Empty description="选择采样，查看波形和制作选区" />
                 )}
@@ -1327,6 +1207,7 @@ export default function Workstation() {
           onError={report}
         />
       )}
+      {tagEdit&&<TagEdit initial={tagEdit} onClose={()=>setTagEdit(null)} onSaved={()=>{refresh();results.reload()}} report={report}/>}
       <Modal
         title="批量拉平"
         open={bulkFlatten}
@@ -1337,11 +1218,9 @@ export default function Workstation() {
             await api("/batch-flatten", {
               ids: checked,
               mode: flattenMode,
-              target_folder: "pitched",
             });
             setBulkFlatten(false);
-            setTaskPanel(true);
-            refresh();
+            message.info("批量拉平已排队；当前列表和选区保持不变，可在任务中查看进度。");
           })
         }
       >
@@ -1471,8 +1350,12 @@ export default function Workstation() {
                         key: "open",
                         label: "打开结果",
                         disabled: !j.result,
-                        onClick: () => {
-                          if (j.operation === "speech-prepare") {
+                        onClick: () => run(async () => {
+                          const detail = await request("/api/helper/jobs/" + j.id);
+                          j = detail;
+                          if (j.operation === "separate" && j.result?.assets?.length) {
+                            modal.info({title:"分离结果 · 声音资产",width:760,content:<>{j.result.assets.map((a:any)=><AssetResult key={a.selection.asset_id} selection={a.selection} name={a.stem} onSaved={()=>refresh()}/>)}</>});
+                          } else if (j.operation === "speech-prepare") {
                             modal.info({
                               title: "语音分析结果",
                               width: 800,
@@ -1550,7 +1433,7 @@ export default function Workstation() {
                               ),
                             });
                           setTaskPanel(false);
-                        },
+                        }),
                       },
                     ],
                   }}
@@ -1584,29 +1467,27 @@ export default function Workstation() {
         }
       >
         <Form layout="vertical">
+          <RuntimeSettings settings={settings} onChange={setSettings}/>
           <StorageSettings />
+          <Button onClick={() => { setSettingsOpen(false); setFrontendTarget({}); }}>编辑用户辞典 / 预览 G2P</Button>
           <Form.Item label="空闲时整理可重建缓存" tooltip="无客户端访问 5 分钟且没有任务时，清理超过 7 天或超出 2 GiB 的临时缓存；不自动删除模型处理结果。">
-            <Switch checked={settings.cache_auto_trim !== false} onChange={v => setSettings({...settings, cache_auto_trim:v})} />
+            <Switch checked={settings.cache_auto_trim !== false} onChange={(v: any) => setSettings({...settings, cache_auto_trim:v})} />
           </Form.Item>
-          <Form.Item label="新语音默认模型">
-            <Select
-              value={settings.phone_backend}
-              onChange={(v) => setSettings({ ...settings, phone_backend: v })}
-              options={["narabas", "phonetic", "pydomino"].map((v) => ({
-                value: v,
-                label:
-                  {
-
-                    phonetic: "HubertFA",
-                    pydomino: "pydomino（末位备选）",
-                  }[v] || v,
-              }))}
-            />
+          <Form.Item label="FA 模型顺序（首项为默认，不自动重试其他模型）">
+            <Input value={(settings.phone_model_order || [settings.phone_backend, "phonetic", "pydomino"]).join(" ")}
+              onChange={e => { const order = e.target.value.trim().split(/\s+/); setSettings({...settings, phone_model_order: order, phone_backend: order[0]}); }} />
+            <small>填写 narabas、phonetic（HubertFA）、pydomino，各一次。</small>
+          </Form.Item>
+          <Form.Item label="FA 前 / 后容差（秒）">
+            <Space><InputNumber min={0} max={5} step={0.05} value={settings.fa_padding_before ?? .65}
+              onChange={(v: any) => setSettings({...settings, fa_padding_before: v ?? .65})} />
+              <InputNumber min={0} max={5} step={0.05} value={settings.fa_padding_after ?? .65}
+              onChange={(v: any) => setSettings({...settings, fa_padding_after: v ?? .65})} /></Space>
           </Form.Item>
           <Form.Item label="新采样量化路线">
             <Select
               value={settings.quantization}
-              onChange={(v) => setSettings({ ...settings, quantization: v })}
+              onChange={(v: any) => setSettings({ ...settings, quantization: v })}
               options={[
                 { value: "acoustic", label: "原节奏 · 无 mora" },
                 { value: "mora_guided", label: "mora 参考校准" },
@@ -1616,36 +1497,35 @@ export default function Workstation() {
           </Form.Item>
           <Form.Item label="大数字惩罚度" tooltip="1× 为原权重 0.045。只重建无 mora 的节奏与索引，不重新推理。">
             <InputNumber min={0} max={3} step={0.1} value={settings.large_number_penalty ?? 1}
-              onChange={(v) => setSettings({...settings, large_number_penalty: v ?? 1})} suffix="×" />
+              onChange={(v: any) => setSettings({...settings, large_number_penalty: v ?? 1})} suffix="×" />
           </Form.Item>
-          <Form.Item label="后续任务推理设备">
+          <Form.Item label="外部 Studio 分离设备">
             <Select value={settings.inference_device || "auto"}
-              onChange={(v) => setSettings({...settings,inference_device:v})}
+              onChange={(v: any) => setSettings({...settings,inference_device:v})}
               options={[{value:"auto",label:"自动"},{value:"cpu",label:"CPU"},{value:"cuda",label:"CUDA"},{value:"mps",label:"MPS（PyTorch）"}]} />
           </Form.Item>
           {settings.inference_device === "cuda" && <Form.Item label="CUDA 设备编号">
             <InputNumber min={0} precision={0} value={settings.cuda_device ?? 0}
-              onChange={(v)=>setSettings({...settings,cuda_device:v ?? 0})} />
+              onChange={(v: any)=>setSettings({...settings,cuda_device:v ?? 0})} />
           </Form.Item>}
           <Button onClick={()=>run(async()=> {
             const result = await request("/api/library-tools/runtime");
-            modal.info({title: result.ready ? "统一推理环境" : "环境检查失败",width:700,
+            modal.info({title: result.ready ? "ONNX 推理环境" : "环境检查失败",width:700,
               content:<pre className="log-view">{JSON.stringify(result,null,2)}</pre>});
           })}>检查已保存的环境与实际设备</Button>
+          <Form.Item label="PyMSS Studio 安装目录（留空自动检测）"><Input value={settings.studio_app} onChange={e=>setSettings({...settings,studio_app:e.target.value})} /></Form.Item>
+          <Form.Item label="Studio 数据目录（留空使用默认目录）"><Input value={settings.studio_data} onChange={e=>setSettings({...settings,studio_data:e.target.value})} /></Form.Item>
+          <small>先保存目录，再重新打开设置以刷新模型列表。此选项仅用于外部 Studio 和显式启用的 experiment 任务。ONNX 加速在上方单独设置。</small>
           <Form.Item label="默认人声模型">
-            <Select
+            <StudioModelSelect
               value={settings.vocal_model}
-              onChange={(v) => setSettings({ ...settings, vocal_model: v })}
-              options={[
-                { value: "becruily_deux", label: "becruily Deux" },
-                { value: "bs_roformer_voc_hyperacev2", label: "HyperACE" },
-              ]}
-            />
+              onChange={(v: any) => setSettings({ ...settings, vocal_model: v })}
+/>
           </Form.Item>
           <Form.Item label="显示人声分离内部进度">
             <Switch
               checked={settings.separation_progress !== false}
-              onChange={(v) =>
+              onChange={(v: any) =>
                 setSettings({ ...settings, separation_progress: v })
               }
             />
@@ -1658,7 +1538,7 @@ export default function Workstation() {
               min={1}
               max={4}
               value={settings.model_concurrency || 1}
-              onChange={(v) =>
+              onChange={(v: any) =>
                 setSettings({ ...settings, model_concurrency: v })
               }
             />
@@ -1668,7 +1548,7 @@ export default function Workstation() {
               min={1}
               max={4}
               value={settings.utility_concurrency || 2}
-              onChange={(v) =>
+              onChange={(v: any) =>
                 setSettings({ ...settings, utility_concurrency: v })
               }
             />
@@ -1676,7 +1556,7 @@ export default function Workstation() {
           <Form.Item label="波形缩放曲线">
             <Select
               value={settings.zoom_curve}
-              onChange={(v) => setSettings({ ...settings, zoom_curve: v })}
+              onChange={(v: any) => setSettings({ ...settings, zoom_curve: v })}
               options={[
                 { value: "exponential", label: "指数" },
                 { value: "linear", label: "线性" },
@@ -1688,7 +1568,7 @@ export default function Workstation() {
               min={1}
               max={100}
               value={settings.zoom_threshold}
-              onChange={(v) => setSettings({ ...settings, zoom_threshold: v })}
+              onChange={(v: any) => setSettings({ ...settings, zoom_threshold: v })}
             />
           </Form.Item>
           <Form.Item label="默认导出目录">

@@ -1,0 +1,6 @@
+transformers==5.17.0
+./vendor/yohane
+pyopenjtalk-plus==0.4.1.post9
+nagisa==0.2.11
+DyNet38==2.2
+cython==3.3.0

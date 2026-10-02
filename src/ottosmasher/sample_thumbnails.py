@@ -12,28 +12,11 @@ _DECODERS = threading.BoundedSemaphore(2)
 
 
 def thumbnail(db, mid):
-    row = db.execute(
-        "SELECT m.start,m.end,s.path,s.fingerprint,s.metadata FROM materials m JOIN sources s ON s.id=m.source_id WHERE m.id=?",
-        (mid,),
-    ).fetchone()
-    if not row:
-        raise ValueError("采样不存在")
-    videos = [
-        v
-        for v in json.loads(row["metadata"])["streams"]
-        if v["codec_type"] == "video" and not v.get("disposition", {}).get("attached_pic")
-    ]
-    if not videos or not Path(row["path"]).is_file():
-        return None
-    start, end = row["start"], row["end"]
-    stored = db.execute("SELECT payload FROM sample_assets WHERE material_id=?", (mid,)).fetchone()
-    if stored:
-        knots = json.loads(stored[0]).get("root_knots")
-        if knots:
-            start, end = knots[0][1], knots[-1][1]
-    stamp = (start + end) / 2
-    stat = Path(row["path"]).stat()
-    key = identity("sample-thumb-v1", row["fingerprint"], stat.st_mtime_ns, stamp, videos[0]["index"])
+    from .visual_media import effective,position
+    binding=effective(db,mid)
+    if not binding:return None
+    stamp=position(binding,min(binding['audio_duration']/2,(binding.get('root_knots') or [[0,0],[binding['audio_duration'],0]])[-1][0]))
+    key=identity('visual-thumb-v2',binding,stamp)
     out = DATA / "cache/thumbnails" / (key + ".jpg")
     with _DECODERS:
         if not out.exists():
@@ -50,9 +33,9 @@ def thumbnail(db, mid):
                         "-ss",
                         str(stamp),
                         "-i",
-                        row["path"],
+                        binding["path"],
                         "-map",
-                        f"0:{videos[0]['index']}",
+                        f"0:{binding['video_stream']}",
                         "-frames:v",
                         "1",
                         "-vf",

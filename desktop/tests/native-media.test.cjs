@@ -74,6 +74,7 @@ test("native clock remains range-local; pending seek/play and waveform URLs neve
   e.addEventListener("ended", () => ended++);
   f.state({ "eof-reached": "yes" });
   assert.equal(ended, 1);
+  assert.equal(e.currentTime, 10);
   await e.play();
   await tick();
   assert.equal(e.currentTime, 0);

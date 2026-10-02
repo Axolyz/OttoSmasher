@@ -104,26 +104,12 @@ def sync_cues(db):
             "INSERT OR IGNORE INTO subtitle_versions VALUES(?,?,?,?,?,?)",
             (vid, source["id"], str(snapshot), digest, 1, time.time()),
         )
-    fresh = [r[0] for r in db.execute("SELECT id FROM cues WHERE id NOT IN (SELECT id FROM materials)")]
-    db.execute(
-        f"""INSERT OR IGNORE INTO materials(id,source_id,start,end,audio_stream,cue_id,title,created)
-      SELECT c.id,c.source_id,c.start,c.end,s.audio_stream,c.id,
-      CASE WHEN c.spoken<>'' THEN c.spoken ELSE c.original END,?
-      FROM cues c JOIN sources s ON s.id=c.source_id WHERE c.id NOT IN (SELECT cue_id FROM deleted_sample_cues) AND c.end>c.start AND c.start>=0 AND {sql_allowed("c")}""",
-        (time.time(),),
-    )
-    if fresh and "active_phone_backend" in {r[1] for r in db.execute("PRAGMA table_info(materials)")}:
-        from .ui_catalog import settings
+    from .asset_timeline import ensure as ensure_assets
+    from .timeline_labels import sync_cue
 
-        if "nature" in {r[1] for r in db.execute("PRAGMA table_info(materials)")}:
-            db.executemany(
-                "UPDATE materials SET nature='speech',folder_id='' WHERE id=?", [(mid,) for mid in fresh]
-            )
-        defaults = settings(db)
-        db.executemany(
-            "UPDATE materials SET active_phone_backend=?,active_quantization_strategy=? WHERE id=?",
-            [(defaults["phone_backend"], defaults["quantization"], mid) for mid in fresh],
-        )
+    ensure_assets(db)
+    for cue in db.execute("SELECT id FROM cues"):
+        sync_cue(db, cue[0])
     db.commit()
 
 
@@ -248,9 +234,12 @@ def save_range(
         )
     if inserted.rowcount:
         db.execute(
-            "UPDATE materials SET nature=?,folder_id='' WHERE id=?",
+            "UPDATE materials SET nature=? WHERE id=?",
             ("speech" if cue_id else "unclassified", mid),
         )
+        from .asset_compat import bind_raw_range
+
+        bind_raw_range(db, mid)
     db.commit()
     return {**get(db, mid), "_new_registration": bool(inserted.rowcount)}
 
@@ -287,8 +276,12 @@ def get(db, mid):
     if r["cue_id"]:
         # Read status/range scalars in SQLite, not four large phone/energy payloads in Python.
         from .backends import BACKENDS
+
         for kind in BACKENDS:
-            a = db.execute("SELECT CASE WHEN json_extract(payload,'$.input_variant')='vocals' THEN json_array_length(payload,'$.phones') ELSE 0 END n,json_extract(payload,'$.error') error,json_extract(payload,'$.window_start') start,json_extract(payload,'$.window_end') end FROM analyses WHERE cue_id=? AND kind=? ORDER BY created DESC LIMIT 1", (r["cue_id"], kind)).fetchone()
+            a = db.execute(
+                "SELECT CASE WHEN json_extract(payload,'$.input_variant')='vocals' THEN json_array_length(payload,'$.phones') ELSE 0 END n,json_extract(payload,'$.error') error,json_extract(payload,'$.window_start') start,json_extract(payload,'$.window_end') end FROM analyses WHERE cue_id=? AND kind=? ORDER BY created DESC LIMIT 1",
+                (r["cue_id"], kind),
+            ).fetchone()
             available = bool(a and a["n"] and not a["error"])
             r["analysis_status"][kind] = "ready" if available else "unavailable"
             if available and r["id"] == r["cue_id"] and r["range_origin"] == "subtitle_coarse":
@@ -305,7 +298,13 @@ def get(db, mid):
     ).fetchone()
     r["derivation"] = {**dict(edge), "payload": json.loads(edge["payload"])} if edge else None
     asset = db.execute("SELECT payload FROM sample_assets WHERE material_id=?", (mid,)).fetchone()
-    r["audio_asset"] = json.loads(asset[0]) if asset else None
+    from .source_locations import resolve_descriptor, identity_descriptor
+
+    r["audio_asset"] = resolve_descriptor(db, r["source_id"], json.loads(asset[0])) if asset else None
+    binding = db.execute(
+        "SELECT asset_id,start,end,revision FROM asset_samples WHERE sample_id=?", (mid,)
+    ).fetchone()
+    r["asset_selection"] = dict(binding) if binding else None
     if r["audio_asset"]:
         knots = r["audio_asset"].get("root_knots")
         if knots:
@@ -313,6 +312,29 @@ def get(db, mid):
         r["available"] = (
             Path(r["audio_asset"]["path"]).is_file() if r["audio_asset"].get("path") else r["available"]
         )
+        if r["audio_asset"].get("missing_reason"):
+            r["available"] = False
+        from .backends import BACKENDS
+        from .analysis_scope import covering
+
+        for kind in BACKENDS:
+            if r["audio_asset"].get("speech_analysis_eligible") is False:
+                r["analysis_status"][kind] = "unavailable"
+            if covering(db, r["audio_asset"], kind):
+                r["analysis_status"][kind] = "ready"
+
+        for head in db.execute(
+            "SELECT r.kind,a.payload FROM analysis_references r JOIN analysis_runs a ON a.id=r.run_id WHERE r.owner_type='sample' AND r.owner_id=?",
+            (mid,),
+        ):
+            measured = json.loads(head["payload"])
+            if measured.get("input_descriptor_signature") == identity(
+                identity_descriptor(db, r["audio_asset"])
+            ):
+                r["analysis_status"][head["kind"]] = (
+                    "ready" if measured.get("phones") and not measured.get("error") else "unavailable"
+                )
+        r["rhythm_available"] = any(v == "ready" for v in r["analysis_status"].values())
     r["local_analysis_status"] = {
         x["backend"]: {"status": x["status"], "error": x["error"]}
         for x in db.execute("SELECT * FROM sample_analysis_status WHERE material_id=?", (mid,))
@@ -328,7 +350,7 @@ def get(db, mid):
     return r
 
 
-def query_ids(db, text="", collection=None, tags=(), source_id=None, analyzed_only=False):
+def query_ids(db, text="", collection=None, tags=(), source_id=None, analyzed_only=False, tag_expression=""):
     from .catalog import normalize, reading_text
     from .source_regions import ensure, sql_allowed
 
@@ -356,11 +378,16 @@ def query_ids(db, text="", collection=None, tags=(), source_id=None, analyzed_on
     if where:
         sql += " WHERE " + " AND ".join(where)
     result = [r[0] for r in db.execute(sql + " ORDER BY m.created DESC,m.source_id,m.start,m.id", args)]
-    if tags:
+    if tags or tag_expression:
         from .ui_catalog import effective_all
+        from .tag_expression import parse, from_tags
 
-        effective = effective_all(db)
-        result = [mid for mid in result if set(tags) <= {t["tag"] for t in effective[mid]}]
+        expression = parse(tag_expression)
+        legacy = parse(from_tags(tags))
+        effective = effective_all(db, result, only_tags=expression.tag_names() | legacy.tag_names())
+        result = [
+            mid for mid in result if expression.matches(effective[mid]) and legacy.matches(effective[mid])
+        ]
     return result
 
 
@@ -448,8 +475,6 @@ def add_version(db, mid, path, operation, manifest, parent_id=None):
     return {"id": vid, "path": str(path), "fingerprint": fingerprint}
 
 
-
-
 def binding(db, mid, kind="narabas"):
     r = get(db, mid)
     if not r["cue_id"] or r["analysis_status"].get(kind) != "ready":
@@ -465,4 +490,27 @@ def binding(db, mid, kind="narabas"):
             or abs(entry["scope"]["source_end"] - r["end"]) > 1e-6
         ):
             raise ValueError("选区分析已改变，请重新保存范围")
+    return r
+
+
+def playback_record(db, mid):
+    """Source/selection metadata only; never traverse analyses to resolve media."""
+    row = db.execute(
+        """SELECT m.*,s.path,s.fingerprint,s.duration source_duration,
+        s.title source_title,s.metadata source_metadata
+        FROM materials m JOIN sources s ON s.id=m.source_id WHERE m.id=?""",
+        (mid,),
+    ).fetchone()
+    if not row:
+        raise ValueError("素材不存在")
+    r = dict(row)
+    stored = db.execute("SELECT payload FROM sample_assets WHERE material_id=?", (mid,)).fetchone()
+    if stored:
+        asset = json.loads(stored[0])
+        knots = asset.get("root_knots")
+        if knots:
+            r["start"], r["end"] = knots[0][1], knots[-1][1]
+    elif r["cue_id"]:
+        # Only unmigrated selections need the legacy measured-range resolution.
+        return get(db, mid)
     return r

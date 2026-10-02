@@ -27,6 +27,11 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
     rows, items, full_by_source, failed_sources, records = [], [], {}, {}, {}
     with connect() as db:
         allowed = set(selected_materials(db, material_ids=material_ids))
+        from .ui_catalog import settings
+        defaults = settings(db)
+        padding = [defaults["fa_padding_before"], defaults["fa_padding_after"]]
+        from .frontend_service import dictionary, alignment_text
+        frozen_dictionary = dictionary()
     for mid in dict.fromkeys(material_ids):
         row = {"material_id": mid, "status": "preparing", "stages": {}}
         rows.append(row)
@@ -57,7 +62,7 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
                     "SELECT payload FROM sample_assets WHERE material_id=?", (mid,)
                 ).fetchone()
                 bound = json.loads(stored[0]) if stored else None
-                cue = {**get_cue(db, r["cue_id"]), "audio_stream": r["audio_stream"]}
+                cue = {**get_cue(db, r["cue_id"]), "audio_stream": r["audio_stream"], "fa_padding": padding}
                 from .source_regions import sql_allowed
 
                 context = [
@@ -69,6 +74,8 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
                         (r["source_id"], cue["start"] - 0.8, cue["end"] + 0.8),
                     )
                 ]
+                for text_cue in context:
+                    text_cue["alignment"] = alignment_text(db, text_cue)
             item_model = vocal_model
             if switch_backend and bound:
                 item_model = bound.get("provenance", {}).get("model", vocal_model)
@@ -96,26 +103,19 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
                 raise ValueError("绑定音源不是该整轨人声，不能用另一音源补齐分析；原选择与音源均保留")
             with connect() as db:
                 if not (switch_backend and bound):
-                    db.execute(
-                        "INSERT OR REPLACE INTO sample_assets VALUES(?,?)",
-                        (
-                            mid,
-                            json.dumps(
-                                {
-                                    **full,
-                                    "start": r["start"],
-                                    "end": r["end"],
-                                    "root_knots": [[0, r["start"]], [r["end"] - r["start"], r["end"]]],
-                                }
-                            ),
-                        ),
-                    )
+                    from .asset_compat import bind
+                    bind(db,mid,{**full,"start":r["start"],"end":r["end"],
+                        "root_knots":[[0,r["start"]],[r["end"]-r["start"],r["end"]]]})
                 for backend in backends:
                     a = get_speech_analysis(db, cue["id"], backend)
                     reusable = bool(
                         a
                         and a.get("phones")
                         and not a.get("error")
+                        and a.get("frontend_version") == "openjtalk-plus-tsqyomi-v1"
+                        and a.get("dictionary_version") == frozen_dictionary["version"]
+                        and a.get("alignment_text_version") == next(x["alignment"]["version"] for x in context if x["id"] == cue["id"])
+                        and a.get("fa_padding") == padding
                         and a.get("audio_lineage", {}).get("full_source_asset", {}).get("sha256")
                         == full["sha256"]
                     )
@@ -142,6 +142,18 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
     # Preparation operates only on selected, missing inputs, after full sources are available.
     write_json(folder / "manifest.json", {"cues": items, "count": len(items), "backends": backends})
     if items:
+        from .frontend_service import batch as frontend_batch
+        contexts = {c["id"]: c for item in items for c in item["context"]}
+        frontend_results = frontend_batch([c["alignment"]["text"] for c in contexts.values()], frozen_dictionary)
+        frontends = {}
+        for c, frontend in zip(contexts.values(), frontend_results):
+            frontend["mora"]["original_matches"] = c["alignment"]["original_matches"]
+            frontends[c["id"]] = frontend
+        for item in items:
+            item["frontends"] = {c["id"]: frontends[c["id"]] for c in item["context"]}
+            item["dictionary_version"] = frozen_dictionary["version"]
+            item["fa_padding"] = padding
+            item["alignment_text_version"] = contexts[item["id"]]["alignment"]["version"]
         started = time.monotonic()
         from .workspace import command, executable
 
@@ -158,27 +170,7 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
                     "window_start": lineage["window_start"],
                     "window_end": lineage["window_end"],
                 }
-                for sr in (16000, 44100):
-                    wav = folder / "inputs" / f"{item['id']}-{sr}.wav"
-                    wav.parent.mkdir(parents=True, exist_ok=True)
-                    command(
-                        [
-                            executable("ffmpeg"),
-                            "-v",
-                            "error",
-                            "-y",
-                            "-i",
-                            lineage["audio_path"],
-                            "-ac",
-                            "1",
-                            "-ar",
-                            sr,
-                            "-c:a",
-                            "pcm_s16le",
-                            wav,
-                        ]
-                    )
-                    entry[f"wav_{sr}"] = str(wav)
+                entry["input_audio"] = lineage
                 write_json(folder / "inputs" / (item["id"] + ".json"), entry)
             except Exception as e:  # noqa: BLE001 - persist item failure without aborting the batch
                 for row in rows:
@@ -215,10 +207,9 @@ def run(material_ids, backends, vocal_model, update=lambda rows: None, switch_ba
                         else {"status": "ready"}
                     )
                     with connect() as db:
-                        db.execute(
-                            "DELETE FROM sample_measurements WHERE material_id=? AND backend=?",
-                            (mid, backend),
-                        )
+                        if not value.get('error'):
+                            from .asset_compat import forget_measurement
+                            forget_measurement(db,mid,backend)
                     print(f"Stage import {backend} {mid}: {time.monotonic() - started:.3f}s", flush=True)
                 except Exception as e:  # noqa: BLE001 - persist item failure without aborting the batch
                     row["stages"][backend] = {"status": "failed", "error": str(e)}

@@ -61,6 +61,15 @@ def listing(db, source_id=None):
             }
         )
     durations = dict(db.execute("SELECT id,duration FROM sources"))
+    # Canonical separation outputs are tracks even before the user saves a sample.
+    for item in db.execute("SELECT a.* FROM sound_assets a WHERE EXISTS(SELECT 1 FROM asset_inputs i WHERE i.asset_id=a.id AND i.operation='separation')" + (" AND a.source_id=?" if source_id else ""), (source_id,) if source_id else ()):
+        descriptor = json.loads(item['descriptor'])
+        knots = descriptor.get('root_knots')
+        if not knots or not Path(descriptor.get('path','')).is_file():
+            continue
+        rows.append({'artifact_id':'canonical:'+item['id'],'source_id':item['source_id'],
+                     'title':descriptor.get('role','分离资产'),'start':knots[0][1],'end':knots[-1][1],
+                     'route':'PyMSS','role':descriptor.get('role')})
     for r in rows:
         r["complete"] = r["start"] <= 0.02 and r["end"] >= durations.get(r["source_id"], float("inf")) - 0.02
     rows.sort(key=lambda r: (not r["complete"], r["title"], r["start"]))
@@ -68,7 +77,12 @@ def listing(db, source_id=None):
 
 
 def resolve(db, aid, source_id, start, end):
-    if aid.startswith("shared:"):
+    if aid.startswith('canonical:'):
+        row=db.execute('SELECT * FROM sound_assets WHERE id=?',(aid.removeprefix('canonical:'),)).fetchone()
+        if not row:raise ValueError('声音资产不存在')
+        descriptor=json.loads(row['descriptor'])
+        d={'asset':descriptor,'source_id':row['source_id'],'producer':descriptor.get('role'),'version':row['id']}
+    elif aid.startswith("shared:"):
         row = db.execute("SELECT * FROM shared_sample_audio WHERE id=?", (aid[7:],)).fetchone()
         if not row:
             raise ValueError("参考音源不存在")

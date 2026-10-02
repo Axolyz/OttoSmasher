@@ -189,3 +189,21 @@ def test_export_directory_preserves_asset_and_avoids_overwrite(library, tmp_path
     assert Path(output["path"]).parent == destination
     assert (destination / source.name).read_bytes() == b"existing"
     assert source.exists()
+
+
+@pytest.mark.parametrize('unified', [False, True])
+def test_query_tag_membership_matches_full_presentation(library, unified):
+    from ottosmasher import asset_migration
+    db, root, _ = library
+    ui.label_source(db, root['source_id'], work='原名', media_type='动画')
+    materials.edit(db, root['id'], tags=['保留', '无关'])
+    db.execute("INSERT INTO tag_rules VALUES('保留',1)")
+    if unified:
+        db.commit()
+        asset_migration.activate(db)
+    child = samples.derive(db, root['id'], start=.1, end=.3)
+    db.execute('INSERT INTO tag_overrides VALUES(?,?,?)', (child['id'], 'work', '替换'))
+    wanted = {'保留', 'work:原名', 'work:替换', 'type:动画', 'absent', 'pitch:F5'}
+    full = ui.effective_all(db, [root['id'], child['id']])
+    subset = ui.effective_all(db, [root['id'], child['id']], only_tags=wanted)
+    assert subset == {mid: {t['tag'] for t in tags} & wanted for mid, tags in full.items()}

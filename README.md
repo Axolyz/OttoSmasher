@@ -1,35 +1,87 @@
-# OttoSmasher
+<p align="center">
+  <img src="ottosmasher.png" alt="OttoSmasher logo" width="160" />
+</p>
+<h1 align="center">OttoSmasher</h1>
+<p align="center">把日语对白变成可检索、可试听、可制作的音 MAD 素材。</p>
+<p align="center">
+  <a href="https://github.com/Axolyz/OttoSmasher/releases/latest">下载</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="https://github.com/Axolyz/OttoSmasher/issues">反馈问题</a> ·
+  <a href="LICENSE">GPL-3.0-or-later</a>
+</p>
 
-本地日语音 MAD 素材工作站：无字幕原片导入、原生连续播放、音轨分离、采样截取与拉平、音素分析、统一音块/节奏检索，以及来源可追溯的导出。
+OttoSmasher 是本地运行的音频素材工作站。以原片、声音资产、时间标注和采样为基础，保留每个成品的实际音源及时间关系。界面以中文为主，语音对齐面向日语。
 
-## 启动
+## 功能
 
-macOS Apple Silicon：双击 `启动助手.command` / `启动素材管理器.command`，或 `./otto ui library`。浏览器兼容页为 `http://127.0.0.1:18765/helper/`；libmpv 原生视频仅在 Electron 窗口内嵌入。
+- **原片与采样管理**：原生音视频播放、波形选区、星标、标签、保存筛选器及批量编辑。
+- **语音分析与搜索**：narabas、HubertFA、pydomino 音素对齐，FCPE 音高分析，节奏与音高检索；搜索结果可固定保存。
+- **字幕取样**：独立导入字幕标记，再按需分批创建台词或音效采样；支持轨道角色及前后容差。
+- **音频制作**：截取、拉平、卡拍、导出及外部成品回导；拉平支持首元音起点、内部保留和左右交界定音。
+- **外部分离**：调用本机 PyMSS Studio 已安装的运行环境和已下载模型。
 
-第一次安装：`./scripts/bootstrap.sh`，然后 `./scripts/setup_desktop.sh`、`.runtime/envs/core/bin/python scripts/setup_player.py`。环境、权重和媒体都留在项目本地，不修改全局 Python 或 shell 配置。
+## 快速开始
 
-Windows x64：安装 Visual Studio C++ Build Tools，在 x64 Native Tools 终端进入项目运行 `powershell -ExecutionPolicy Bypass -File scripts/setup_windows.ps1`；CPU 机器加 `-CpuOnly`。安装后双击 `launch-windows.cmd`。**Windows/CUDA 与原生窗口嵌入尚待实机验收**，不能视为已验证发行版。
+### 1. 下载并启动
 
-## 当前功能
+在 [Releases](https://github.com/Axolyz/OttoSmasher/releases) 下载 **standard** 应用压缩包：
 
-- 原片页：可选字幕关联、OP/ED 标记、整轨人声或 BandIt v2 三轨分离、连续浏览和截取。
-- 采样库：性质筛选与文件夹分离；原声/卡拍试听、波形/音高、普通裁切、最终拉平、人工标签和导出。
-- 统一语音检索：同一组音块条件，可不限节奏、严格匹配或按节奏相似度排序。普通查询不会运行模型或登记采样。
-- 音素模型：narabas 默认，HubertFA、pydomino 备选。Yohane/Qwen 的模型与实现保留，GUI 入口暂时关闭。
-- 工具与工作流页保留空状态。旧插件、分享、模型实验面板和 demo 已删除。
+| 系统 | 文件 |
+| --- | --- |
+| macOS 14 或更新版本，Apple Silicon | `OttoSmasher-1.0.0-mac-arm64.zip` |
+| Windows 10/11，x64 | `OttoSmasher-1.0.0-win-x64.zip` |
 
-当前约束见 [CURRENT_REQUIREMENTS](docs/CURRENT_REQUIREMENTS.md)，部署和验证状态见 [实施记录](docs/SIMPLIFICATION_2026_09.md)。字幕清洗保持独立：[字幕预处理](docs/SUBTITLE_PREPROCESSING.md)，SubPlz 使用 `scripts/subplz`。
+解压完整压缩包。macOS 将 `OttoSmasher.app` 放入应用程序目录；Windows 打开解压目录中的 `OttoSmasher.exe`。首次启动需要在用户目录释放运行库，请等待初始化完成。
 
-## 环境与数据
+应用包含 Python、ONNX Runtime、媒体工具、播放器、G2P 辞典、tokenizer 和模型配置；**不需要自行安装 Python、Node.js 或 PyTorch**。应用不包含 ONNX 权重、用户素材和 PyMSS Studio。
 
-core 负责服务，统一 inference 负责 PyTorch/ONNX；播放器与独立字幕工具另计。设置中配置设备并运行环境检查。GPU 明确指定后，不自动退回 CPU。模型下载仅在显式安装时执行；失败时按错误中的准确网址、文件名和目录手动补齐。
+当前应用未配置开发者签名/公证；系统可能显示未知开发者提示。请核对下载来源和 Release 中的 SHA-256。macOS Intel 与 Linux 暂无发布包。
 
-不将环境、权重、原片或生成物加入 Git。删除登记与删除原文件不是同一操作；保存派生采样必须保持音源和原片时间映射。模型结果不代表人工确认。
+### 2. 放置模型
 
-## GitHub 构建
+取得单独分发的 `OttoSmasher-1.0.0-models.zip`。权重包由项目维护者另行提供，不包含在应用下载中。
 
-[Build desktop apps](.github/workflows/build-apps.yml) 分别构建 Windows x64 便携包与 macOS Apple Silicon App，产物在 Actions 中下载。包含基础运行库，不包含推理环境、权重或用户素材。当前为未签名的测试构建；完整边界、首次启动、推理安装与验收限制见 [分发说明](docs/DISTRIBUTION.md)。
+1. 启动应用，打开设置中的**运行环境／模型状态**，查看模型文件的完整路径。
+2. 将模型包内的 `models` 目录合并到该路径对应的工作区根目录，保留子目录结构；不要放入 `.app` 或程序资源目录，也不要形成 `models/models`。
+3. 刷新环境检测，确认六类模型文件就位。首次实际使用后才会出现对应的模型实测结果。
 
-## 许可
+模型包只包含当前使用的 narabas、HubertFA、pydomino、FCPE、PC-NSF-HiFiGAN、tsqyomi 及对应支持文件。不会包含 Qwen、Yohane、旧内置分离或其他实验权重。包内提供文件清单与校验值。
 
-本项目采用 [GPL-3.0-or-later](LICENSE)。第三方运行库及模型各自遵从上游许可证。
+### 3. 配置 PyMSS Studio
+
+自行安装 PyMSS Studio，并在 Studio 内完成运行环境配置及所需分离模型的下载。回到 OttoSmasher 设置，检查 Studio 安装目录、数据目录和可用模型；自动检测不到时手动指定。
+
+仅导入、试听、检索和拉平时不需要运行分离。需要分离时，Studio 的模型与运行库必须先准备好；OttoSmasher 不会替 Studio 安装依赖或偷偷换用其他模型。
+
+### 4. 开始制作
+
+导入原片 → 按需导入字幕标记或准备分离轨 → 截取／从字幕建立采样 → 分析与检索 → 拉平、卡拍和导出。
+
+没有字幕也可以导入、试听和手动截取。外部成品回导只需确定选区起点，终点按文件时长计算，不能超过实际声音资产边界。
+
+## 设备与数据
+
+默认 CPU 推理。可在设置显式启用 Windows DirectML 或 macOS CoreML；后端支持、探测成功和模型实测是不同状态，部分算子仍可能在 CPU 执行。Windows DirectML 的具体硬件表现仍需要实机反馈。
+
+用户数据与应用分开保存。更新应用不会要求覆盖素材库；备份时应包含工作区数据库、媒体及模型。删除采样登记不等于删除原文件，模型结果也不等于人工确认。
+
+## 源码开发
+
+源码仓库保留维护所需的测试和构建脚本，它们不是最终用户需要安装的运行环境。过程报告和旧示例不作为发布文档。
+
+- macOS：`./scripts/bootstrap.sh`，之后按 [构建说明](docs/DISTRIBUTION.md) 准备 ONNX 与原生播放器。
+- Windows：使用 `scripts/setup_windows.ps1`；原生模块编译需要 Visual Studio C++ Build Tools。
+- 前端：`pnpm --dir desktop install --frozen-lockfile`、`pnpm --dir desktop build`。
+- 测试：`PYTHONPATH=src .runtime/envs/core/bin/python -m pytest -q`、`node --test desktop/tests/*.test.cjs`。
+
+正式应用通过 [GitHub Actions](.github/workflows/build-apps.yml) 在各目标系统构建，发布只包含 standard；experiment 是源码开发入口。
+
+## 反馈与贡献
+
+请通过 [Issues](https://github.com/Axolyz/OttoSmasher/issues) 提供系统、CPU 架构、应用版本、复现步骤及错误日志。请先移除日志中的个人路径和私有素材信息，不要上传模型或无权分发的原片。
+
+## 许可证与致谢
+
+OttoSmasher 使用 [GPL-3.0-or-later](LICENSE)。感谢 ONNX Runtime、Electron、mpv、FFmpeg、Rubber Band、pyopenjtalk-plus、narabas、HubertFA、pydomino、FCPE、PC-NSF-HiFiGAN、tsqyomi 及 PyMSS Studio 的开发者。
+
+第三方组件和模型保留各自许可，应用的 GPL 不替代它们。详见 [第三方声明](THIRD_PARTY_NOTICES.md)。

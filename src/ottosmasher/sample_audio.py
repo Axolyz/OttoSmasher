@@ -8,15 +8,20 @@ from .workspace import DATA, get_speech_analysis, identity
 
 def resolve(db, mid, role=None, range_row=None):
     from .audio_sources import separated_source
-    from .materials import get
+    from .materials import playback_record
 
-    r = range_row or get(db, mid)
     stored = db.execute("SELECT payload FROM sample_assets WHERE material_id=?", (mid,)).fetchone()
     if stored and range_row is None and role in (None, "selected"):
-        a = json.loads(stored[0])
+        from .source_locations import resolve_descriptor
+
+        source_id = db.execute("SELECT source_id FROM materials WHERE id=?", (mid,)).fetchone()[0]
+        a = resolve_descriptor(db, source_id, json.loads(stored[0]))
+        if a.get("missing_reason"):
+            raise ValueError(a["missing_reason"])
         if a.get("path") and not Path(a["path"]).is_file():
             raise ValueError("绑定的音频文件缺失")
         return a
+    r = range_row or playback_record(db, mid)
     role = (None if role == "selected" else role) or ("vocals" if r["cue_id"] else "raw")
     if role.startswith("artifact:"):
         from .sound_tracks import resolve as resolve_track
@@ -119,6 +124,19 @@ def resolve(db, mid, role=None, range_row=None):
 
 
 def pcm(asset):
+    from filelock import FileLock
+
+    path = DATA / "sample-cache" / (identity("sample-pcm-v1", asset) + ".wav")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(path) + ".use"):
+        try:
+            return _pcm(asset)
+        finally:
+            path.with_suffix(".building.wav").unlink(missing_ok=True)
+            path.with_suffix(".building.wav.json").unlink(missing_ok=True)
+
+
+def _pcm(asset):
     import math
 
     import numpy as np
@@ -131,6 +149,8 @@ def pcm(asset):
     path = DATA / "sample-cache" / f"{key}.wav"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
+        target = path
+        path = target.with_suffix(".building.wav")
         if "residual_of" in asset:
             v, sr = sf.read(pcm(asset["residual_of"]), always_2d=True, dtype="float32")
             raw, rr = sf.read(pcm(asset["raw"]), always_2d=True, dtype="float32")
@@ -156,6 +176,11 @@ def pcm(asset):
             sf.write(path, y, sr, subtype="FLOAT")
         else:
             cut(asset["path"], asset["start"], asset["end"], asset.get("audio_stream", 0), output=path)
+        path.replace(target)
+        path = target
+    import os
+
+    os.utime(path, None)
     return path
 
 

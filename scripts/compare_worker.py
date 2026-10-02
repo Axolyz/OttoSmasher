@@ -1,6 +1,6 @@
 from ottosmasher.inference_runtime import onnx_session
 
-"""Isolated CPU model worker. Raw context output is never overwritten by import."""
+"""Isolated ONNX model worker. Raw context output is never overwritten by import."""
 
 import argparse
 import hashlib
@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pyopenjtalk
 
-from ottosmasher.workspace import ROOT, CODE_ROOT
+from ottosmasher.workspace import CODE_ROOT, ROOT
+
 sys.path.insert(0, str(CODE_ROOT / "src"))
 from ottosmasher.ctc import forced_ctc
 
@@ -24,57 +25,28 @@ def save(path, data):
     tmp.replace(path)
 
 
-@lru_cache(maxsize=256)
-def kana_phones(kana):
-    return pyopenjtalk.g2p(kana).split()
-
-
 def reading(text):
-    kana = pyopenjtalk.g2p(text, kana=True)
-    moras = []
-    for c in kana:
-        if c in "ァィゥェォャュョヮ" and moras:
-            moras[-1] += c
-        elif "\u30a1" <= c <= "\u30fa" or c == "ー":
-            moras.append(c)
-    raw = pyopenjtalk.g2p(text).split()
-    expected, indices = [], []
-    for i, m in enumerate(moras):
-        ph = (
-            [expected[-1]]
-            if m == "ー" and expected
-            else ["cl"]
-            if m == "ッ"
-            else ["N"]
-            if m == "ン"
-            else kana_phones(m)
-        )
-        expected.extend(ph)
-        indices.extend([i] * len(ph))
-    speech = [p for p in raw if p not in {"pau", "sil"}]
-    vowels = set("aiueoAIUEO")
-    compatible = len(expected) == len(speech) and all(
-        a == b or (a in vowels and b in vowels) for a, b in zip(expected, speech)
-    )
+    from ottosmasher.g2p_frontend import generate
+
+    result = generate(text)
     return (
-        {
-            "reading": kana,
-            "sequence": moras,
-            "count": len(moras),
-            "source": "pyopenjtalk-plus reading; no measured mora times",
-            "phone_mapping": "ordered_g2p" if compatible else "unavailable",
-        },
-        raw,
-        indices if compatible else [None] * len(speech),
+        result["mora"],
+        result["phones"],
+        [idx for phone, idx in zip(result["phones"], result["phone_mora"]) if phone not in {"pau", "sil"}],
     )
 
 
 def transcript(item, kind):
     owners, seq, raw_records, moras = [], [], [], {}
     for c in item["context"]:
-        mora, raw, indices = reading(c["spoken"])
+        frontend = item.get("frontends", {}).get(c["id"])
+        if frontend:
+            mora, raw = frontend["mora"], frontend["phones"]
+            indices = [idx for phone, idx in zip(raw, frontend["phone_mora"]) if phone not in {"pau", "sil"}]
+        else:
+            mora, raw, indices = reading(c.get("alignment_text", c["spoken"]))
         moras[c["id"]] = mora
-        raw_records.append({"cue_id": c["id"], "phones": raw})
+        raw_records.append({"cue_id": c["id"], "phones": raw, "frontend": frontend})
         j = 0
         for p in raw:
             idx = indices[j] if p not in {"pau", "sil"} else None
@@ -84,15 +56,12 @@ def transcript(item, kind):
                 mapped = "SP"
             if mapped == "sil":
                 mapped = "pau"
-            if kind == "phonetic" and mapped == "SP":
-                continue
             seq.append(mapped)
             if mapped not in {"SP", "pau"}:
                 owners.append(
                     {"phone": mapped, "cue_id": c["id"], "mora_index": idx, "reading": mora["reading"]}
                 )
-        if kind != "phonetic":
-            seq.append("pau")
+        seq.append("SP" if kind == "phonetic" else "pau")
     return seq, owners, raw_records, moras
 
 
@@ -107,30 +76,33 @@ def main():
     init_started = time.monotonic()
     kind = args.kind
     if kind == "phonetic":
-        sys.path.insert(0, str(ROOT / "vendor/HubertFA"))
+        sys.path.insert(0, str(CODE_ROOT / "vendor/HubertFA"))
         sys.path.insert(0, str(CODE_ROOT / "scripts"))
-        from hubert_worker import CPUInference
+        from hubert_worker import RuntimeInference
         from praatio import textgrid
 
         model = ROOT / "models/hubert/1218_hfa_model_new_dict/model.onnx"
-        engine = CPUInference(model)
+        engine = RuntimeInference(model)
         engine.load_config()
         engine.init_decoder()
         engine.load_model()
     elif kind == "pydomino":
-        import pydomino
+        from ottosmasher import domino_adapter as pydomino
+        from ottosmasher.model_inventory import model_path
         import soundfile as sf
 
-        model = ROOT / "vendor/pydomino/onnx_model/phoneme_transition_model.onnx"
+        model = model_path("models/pydomino/phoneme_transition_model.onnx")
         engine = pydomino.Aligner(str(model))
     else:
         import onnxruntime as ort
         import soundfile as sf
-        import torch
 
-        sys.path.insert(0, str(ROOT / "vendor/narabas"))
-        from narabas.narabas import Narabas
-        from narabas.symbols import BOS, EOS, phoneme_to_id
+        sys.path.insert(0, str(CODE_ROOT / "vendor/narabas"))
+        # Import the data-only symbol table without executing narabas.__init__ (imports torch).
+        import runpy
+
+        symbols = runpy.run_path(str(CODE_ROOT / "vendor/narabas/narabas/symbols.py"))
+        BOS, EOS, phoneme_to_id = symbols["BOS"], symbols["EOS"], symbols["phoneme_to_id"]
 
         model = ROOT / "models/narabas/narabas-v0.onnx"
         options = ort.SessionOptions()
@@ -162,76 +134,65 @@ def main():
             seq, owners, raw, moras = transcript(item, kind)
             result.update(g2p=raw, phone_owners=owners, mora=moras)
             output.parent.mkdir(parents=True, exist_ok=True)
-            if kind == "phonetic":
-                import shutil
+            import contextlib
+            from ottosmasher.audio_storage import model_input, read, lineage_audio
 
-                unknown = [p for p in seq if "ja/" + p not in engine.vocab["vocab"]]
-                if unknown:
-                    raise ValueError(f"Unsupported HubertFA phones: {unknown}")
-
-                wav = output.parent / "input.wav"
-                shutil.copyfile(item["wav_16000"], wav)
-                wav.with_suffix(".lab").write_text(" ".join(seq))
-                # Upstream appends datasets/predictions. Each resumable item must
-                # start empty while retaining the loaded acoustic model.
-                engine.dataset = []
-                engine.predictions = []
-                engine.get_dataset(
-                    wav_folder=output.parent, language="ja", g2p="phoneme", dictionary_path=None
+            sample_rate = 44100 if kind == "phonetic" else 16000
+            in_memory = bool(item.get("input_audio") and kind != "phonetic")
+            if in_memory:
+                audio, sr = read(
+                    *lineage_audio(item["input_audio"]),
+                    rate=sample_rate,
+                    channels=1,
+                    stream=item["input_audio"].get("file_audio_stream", 0),
                 )
-                if len(engine.dataset) != 1:
-                    raise ValueError("HubertFA rejected the input transcript")
-                engine.infer(non_lexical_phonemes="AP", pad_times=1, pad_length=5)
-                engine.export(output_folder=output.parent, output_format=["textgrid"])
-                tg = textgrid.openTextgrid(
-                    str(output.parent / "TextGrid/input.TextGrid"), includeEmptyIntervals=False
-                )
-                result["phones"] = [
-                    {"start": float(a), "end": float(b), "label": p.removeprefix("ja/")}
-                    for a, b, p in tg.getTier("phones").entries
-                ]
-            elif kind == "pydomino":
-                y, sr = sf.read(item["wav_16000"], dtype="float32")
-                if sr != 16000 or y.ndim != 1:
-                    raise ValueError("pydomino requires 16 kHz mono vocals")
-                sequence = ["pau"] + seq
-                sequence = [
-                    p for j, p in enumerate(sequence) if not (p == "pau" and j and sequence[j - 1] == p)
-                ]
-                # 10 ms minimum preserves real very short phones (upstream example uses 30 ms).
-                spans = engine.align(y, " ".join(sequence), 1)
-                result.update(
-                    min_frame=1,
-                    phones=[{"start": float(a), "end": float(b), "label": p} for a, b, p in spans],
-                )
+                y = audio[:, 0]
+                input_context = contextlib.nullcontext(None)
             else:
-                y, sr = sf.read(item["wav_16000"], dtype="float32")
-                if sr != rate:
-                    raise ValueError(f"narabas requires {rate} Hz")
-                logits = engine.run(None, {"input": y[None, :]})[0]
+                input_context = (
+                    model_input(item["input_audio"], sample_rate)
+                    if item.get("input_audio")
+                    else contextlib.nullcontext(item[f"wav_{sample_rate}"])
+                )
+            with input_context as prepared:
+                result["converted_audio_sha256"] = hashlib.sha256(
+                    y.tobytes() if in_memory else Path(prepared).read_bytes()
+                ).hexdigest()
+                if kind == "phonetic":
+                    from ottosmasher.hubert_pauses import align
 
-                # Preserve the upstream decoder's output on exactly the same emissions.
-                class Cached:
-                    hop_length_sec = hop / rate
-                    sess = type("Session", (), {"run": lambda self, *a, _logits=logits: [_logits]})()
-
-                    def load_audio(self, path, _y=y):
-                        return torch.from_numpy(_y[None, :])
-
-                try:
-                    baseline = Narabas.align(Cached(), item["wav_16000"], " ".join(seq))
-                    result["upstream_baseline"] = [
-                        {"start": float(a), "end": float(b), "label": p} for a, b, p in baseline
+                    result["phones"] = align(engine, str(prepared), seq)
+                    result["decoder"] = "hubert-explicit-pauses-v1"
+                    result["closure_not_separately_aligned"] = any("cl" in x["phones"] for x in raw)
+                elif kind == "pydomino":
+                    if not in_memory:
+                        y, sr = sf.read(str(prepared), dtype="float32")
+                    if sr != 16000 or y.ndim != 1:
+                        raise ValueError("pydomino requires 16 kHz mono vocals")
+                    sequence = ["pau"] + seq
+                    sequence = [
+                        p for j, p in enumerate(sequence) if not (p == "pau" and j and sequence[j - 1] == p)
                     ]
-                except Exception as exc:  # noqa: BLE001 - isolate and retain each backend failure
-                    result["upstream_baseline_error"] = str(exc)
-                ids = [BOS] + [phoneme_to_id[p] for p in seq] + [EOS]
-                spans = forced_ctc(logits[0], ids)
-                result["decoder"] = "ottosmasher-ctc-viterbi-v1; upstream baseline retained separately"
-                result["phones"] = [
-                    {"start": a * hop / rate, "end": b * hop / rate, "label": p}
-                    for p, (a, b) in zip(seq, spans[1:-1])
-                ]
+                    # 10 ms minimum preserves real very short phones (upstream example uses 30 ms).
+                    spans = engine.align(y, " ".join(sequence), 1)
+                    result.update(
+                        min_frame=1,
+                        phones=[{"start": float(a), "end": float(b), "label": p} for a, b, p in spans],
+                    )
+                else:
+                    if not in_memory:
+                        y, sr = sf.read(str(prepared), dtype="float32")
+                    if sr != rate:
+                        raise ValueError(f"narabas requires {rate} Hz")
+                    logits = engine.run(None, {"input": y[None, :]})[0]
+
+                    ids = [BOS] + [phoneme_to_id[p] for p in seq] + [EOS]
+                    spans = forced_ctc(logits[0], ids)
+                    result["decoder"] = "ottosmasher-ctc-viterbi-v1"
+                    result["phones"] = [
+                        {"start": a * hop / rate, "end": b * hop / rate, "label": p}
+                        for p, (a, b) in zip(seq, spans[1:-1])
+                    ]
         except Exception as exc:  # noqa: BLE001 - isolate and retain each backend failure
             import traceback
 

@@ -86,7 +86,7 @@ def test_reviewed_regions_block_auto_import_not_manual_cuts(library):
     assert child["id"] in materials.query_ids(db)
     regions.remove(db, mark["id"])
     materials.sync_cues(db)
-    assert "opening" in materials.query_ids(db)
+    assert "opening" not in materials.query_ids(db)
     regions.confirm(db, root["source_id"], 0.2, 0.8)
     assert "opening" not in materials.query_ids(db)
     assert child["id"] in materials.query_ids(db)

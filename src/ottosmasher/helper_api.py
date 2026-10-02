@@ -1,5 +1,6 @@
 """Local HTTP adapter. Domain operations stay usable without this module."""
 
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Query
@@ -10,6 +11,8 @@ from . import material_operations as ops
 from . import materials as m
 from . import media_operations as media
 from .cue_operations import database
+from .editions import capabilities
+from .service_version import LOADED_SIGNATURE
 from .workspace import DATA, ROOT
 
 router = APIRouter(prefix="/api/helper")
@@ -20,6 +23,8 @@ def info():
     with database() as db:
         return {
             "version": "0.11.0",
+            **capabilities(),
+            "code_signature": LOADED_SIGNATURE,
             "build_id": __import__("os").environ.get("OTTO_BUILD_ID", "development"),
             "root": str(ROOT),
             "workspace": str(DATA),
@@ -111,8 +116,6 @@ def collection(body: dict):
 def member(mid: str, body: dict):
     with database() as db:
         return m.membership(db, mid, body["collection_id"], body.get("present", True))
-
-
 
 
 @router.get("/materials/{mid}/binding")
@@ -218,10 +221,10 @@ def audition(mid: str):
 
 
 @router.get("/jobs")
-def jobs():
+def jobs(summary: bool = False):
     from .operation_jobs import listing
 
-    return listing()
+    return listing(summary=summary)
 
 
 @router.post("/jobs")
@@ -256,6 +259,10 @@ def job_log(jid: str):
 def context(mid: str, start: float, end: float):
     with database() as db:
         r = m.get(db, mid)
+        from .asset_compat import active
+        if active(db):
+            from .timeline_labels import text_context
+            return text_context(db,r['source_id'],start,end)
         return [
             dict(x)
             for x in db.execute(
@@ -317,3 +324,29 @@ def native_player_waveform(key: str):
     from .native_player import waveform
 
     return waveform(key)
+
+
+@router.get("/capabilities")
+def edition_capabilities():
+    from .editions import capabilities
+
+    return capabilities()
+
+
+@router.get("/studio")
+def studio_status():
+    from .studio import status
+
+    return status()
+
+
+@router.get("/jobs/{jid}")
+def job_details(jid:str):
+    from .workspace import connect
+    with connect() as db:
+        row=db.execute("SELECT * FROM operation_jobs WHERE id=?",(jid,)).fetchone()
+        if not row:raise ValueError("任务不存在")
+        result=dict(row)
+        result['payload']=json.loads(result['payload'])
+        result['result']=json.loads(result['result']) if result['result'] else None
+        return result

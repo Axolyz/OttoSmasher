@@ -12,7 +12,8 @@ LOCK = threading.Lock()
 
 
 def window(cue, padding=0.65):
-    return max(0.0, cue["start"] - padding), min(cue["source_duration"], cue["end"] + padding)
+    before, after = cue.get("fa_padding", (padding, padding))
+    return max(0.0, cue["start"] - before), min(cue["source_duration"], cue["end"] + after)
 
 
 def source_audio(source):
@@ -110,7 +111,7 @@ def render(
         if hashlib.sha256(Path(lineage["audio_path"]).read_bytes()).hexdigest() != lineage["audio_sha256"]:
             raise ValueError("Vocals asset checksum mismatch")
         if variant == "vocals":
-            input_path, seek, input_map = lineage["audio_path"], start - parent_start, "0:a:0"
+            input_path, seek, input_map = lineage["audio_path"], lineage.get("audio_start", 0) + start - parent_start, "0:a:0"
     if variant not in {"raw", "vocals"}:
         raise ValueError("Unknown audio variant")
     key = identity(

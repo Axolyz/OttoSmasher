@@ -13,7 +13,7 @@ def test_local_backend_order_and_retired_execution():
         with pytest.raises(ValueError):
             worker_command("/tmp", retired)
     assert "audiosep" not in MODELS
-    assert CINEMATIC == ("bandit-v2",)
+    assert CINEMATIC == ()  # Routes are discovered from installed Studio models.
 
 
 

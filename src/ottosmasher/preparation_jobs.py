@@ -12,7 +12,7 @@ def inspect(db, source_ids=None, material_ids=None, backends=None, vocal_model="
     from .vocals import VOCAL_MODELS, model_identity
 
     selected = list(dict.fromkeys(backends or ["narabas"]))
-    if not selected or any(k not in BACKENDS for k in selected) or vocal_model not in VOCAL_MODELS:
+    if not selected or any(k not in BACKENDS for k in selected):
         raise ValueError("未知对齐或人声模型")
     mids = selected_materials(db, source_ids, material_ids)
     dependencies = []
@@ -22,7 +22,25 @@ def inspect(db, source_ids=None, material_ids=None, backends=None, vocal_model="
         *[(b, BACKENDS[b]["env"]) for b in selected],
     ]:
         from .inference_runtime import python_path
+
         p = python_path()
+        if key == "separation":
+            from .separation import adapter
+
+            try:
+                adapter()
+                ready = vocal_model in VOCAL_MODELS
+                dependencies.append(
+                    {
+                        "name": key,
+                        "label": "人声分离 · Studio",
+                        "ready": ready,
+                        "error": None if ready else "请先选择 Studio 中已下载的人声模型",
+                    }
+                )
+            except (ValueError, RuntimeError, OSError) as exc:
+                dependencies.append({"name": key, "ready": False, "error": str(exc)})
+            continue
         dependencies.append(
             {
                 "name": key,
@@ -60,8 +78,24 @@ def run(p, jid):
     from .alignment_batch import run as batch
 
     def update(rows):
-        progress = {"type": "preparation", "rows": rows, "stage_revision": time.time_ns(), "completed": sum(r["status"] in ("ready", "failed", "excluded") for r in rows), "total": len(p["material_ids"])}
+        progress = {
+            "type": "preparation",
+            "rows": rows,
+            "stage_revision": time.time_ns(),
+            "completed": sum(r["status"] in ("ready", "failed", "excluded") for r in rows),
+            "total": len(p["material_ids"]),
+        }
         with connect() as db:
-            db.execute("UPDATE operation_jobs SET result=?,updated=? WHERE id=?", (json.dumps(progress), time.time(), jid))
-    rows = batch(p["material_ids"], p.get("backends") or ["narabas"], p.get("vocal_model", "becruily_deux"), update, p.get("switch_backend"))
+            db.execute(
+                "UPDATE operation_jobs SET result=?,updated=? WHERE id=?",
+                (json.dumps(progress), time.time(), jid),
+            )
+
+    rows = batch(
+        p["material_ids"],
+        p.get("backends") or ["narabas"],
+        p.get("vocal_model", "becruily_deux"),
+        update,
+        p.get("switch_backend"),
+    )
     return {"type": "preparation", "rows": rows, "completed": len(rows), "total": len(p["material_ids"])}

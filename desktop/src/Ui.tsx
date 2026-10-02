@@ -1,3 +1,4 @@
+import {DraftNumber} from "./DraftNumber";
 import React, { useState } from "react";
 import {
   Button,
@@ -102,6 +103,7 @@ export function UInput({
   onBlur,
   ...p
 }: React.InputHTMLAttributes<HTMLInputElement>) {
+  if (type === "number") return <DraftNumber {...p} allowEmpty={p.required===false||p.value===''||p.value==null} onChange={(v:any)=>onChange?.({target:{value:v===null?'':String(v)},currentTarget:{value:v===null?'':String(v)}} as any)} onBlur={onBlur}/>;
   if (type === "checkbox")
     return <Checkbox {...(p as any)} onChange={onChange as any} />;
   if (type === "file" || type === "range" || type === "radio")

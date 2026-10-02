@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.15)
+project(otto_domino_decoder LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+add_subdirectory(${DOMINO_SOURCE}/pybind11 pybind11)
+pybind11_add_module(otto_domino_decoder decoder.cpp ${DOMINO_SOURCE}/src/phoneme_transition.cpp ${DOMINO_SOURCE}/src/viterbi.cpp)
+target_include_directories(otto_domino_decoder PRIVATE ${DOMINO_SOURCE}/src)
+install(TARGETS otto_domino_decoder LIBRARY DESTINATION . RUNTIME DESTINATION .)

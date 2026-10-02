@@ -8,6 +8,7 @@ ownership roots, but live jobs block maintenance. No symlink is traversed.
 import json
 import os
 import time
+from collections import defaultdict
 from pathlib import Path
 
 from filelock import FileLock
@@ -17,6 +18,7 @@ from .workspace import ROOT, write_json
 GROUPS = {
     "playback": ("播放与可视化缓存", ["data/cache", "data/previews", "data/sound-previews"]),
     "pcm": ("临时解码音频", ["data/sample-cache", "data/audio"]),
+    "measurements": ("音高与声学测量", ["data/sample-cache", "data/sound-features", "data/pitch-index"]),
     "processing": (
         "模型处理结果",
         [
@@ -25,6 +27,7 @@ GROUPS = {
             "data/media/source-vocals",
             "data/vocals",
             "data/alignment",
+            "data/media/compact",
         ],
     ),
     "derived": ("派生节奏缓存", ["data/sample-plans", "data/quantization-plans", "data/unit-features"]),
@@ -134,15 +137,6 @@ def references(db, root):
             if q.is_file() and q not in paths:
                 paths.add(q)
                 pending.append(q)
-    # An aligned sample projection's local PCM is inexpensive but some saved
-    # plans still address it directly. Keep it until those plans are rebuilt.
-    if "sample_records" in tables:
-        for row in db.execute("SELECT payload FROM sample_records"):
-            for s in strings(row[0]):
-                if s.startswith(str(root) + os.sep):
-                    p = Path(s)
-                    if p.is_file():
-                        paths.add(p)
     return paths, set(assets) - keep
 
 
@@ -159,6 +153,7 @@ def inventory(db, root=ROOT, *, now=None):
     now = time.time() if now is None else now
     protected, orphan_ids = references(db, root)
     rows, candidates = [], []
+    counted = set()
     for key, (title, roots) in GROUPS.items():
         row = {
             "key": key,
@@ -169,28 +164,72 @@ def inventory(db, root=ROOT, *, now=None):
             "recent_bytes": 0,
             "files": 0,
         }
+        children = {}
         for sub in roots:
             for p in files(root / sub):
+                if sub == 'data/sample-cache' and (p.name.endswith('.features.json') != (key == 'measurements')):
+                    continue
+                counted.add(p)
                 st = p.stat()
                 row["files"] += 1
                 row["total_bytes"] += st.st_size
                 # Features cost model inference. Keep all measurements, even if
                 # their adjacent decoded WAV can be regenerated cheaply.
-                owned = p in protected or p.name.endswith(".features.json") or "native-player" in p.parts
+                owned = key == 'measurements' or p in protected or p.name.endswith(".features.json") or "native-player" in p.parts
                 if owned:
                     row["protected_bytes"] += st.st_size
-                elif now - st.st_mtime < 900 or p.suffix in (".lock", ".part", ".tmp"):
+                elif now - st.st_mtime < 900 or p.suffix in (".lock", ".part", ".tmp", ".use"):
                     row["recent_bytes"] += st.st_size
                 else:
                     row["reclaimable_bytes"] += st.st_size
                     candidates.append((p, st.st_size, st.st_mtime_ns))
+                backend = next((x for x in p.parts if x in ('narabas', 'phonetic', 'pydomino')), '共用')
+                label = sub + (' / ' + backend if 'alignment' in sub else '') + ' / ' + (p.suffix or '其他')
+                child = children.setdefault(label, {'key': key + ':' + label, 'title': label, 'files': 0,
+                    'total_bytes': 0, 'reclaimable_bytes': 0, 'protected_bytes': 0, 'recent_bytes': 0})
+                child['files'] += 1; child['total_bytes'] += st.st_size
+                field = 'protected_bytes' if owned else 'recent_bytes' if now - st.st_mtime < 900 or p.suffix in ('.lock', '.part', '.tmp', '.use') else 'reclaimable_bytes'
+                child[field] += st.st_size
+        row['children'] = list(children.values())
         rows.append(row)
+    extra = defaultdict(lambda: {'total_bytes': 0, 'files': 0})
+    for p in files(root / 'data'):
+        if p in counted:
+            continue
+        relative = p.relative_to(root / 'data')
+        key = relative.parts[0] if len(relative.parts) > 1 else ('数据库' if p.name.startswith('catalog.sqlite3') else '其他文件')
+        extra[key]['total_bytes'] += p.stat().st_size; extra[key]['files'] += 1
+    for key, values in extra.items():
+        rows.append({'key': 'other:' + key, 'title': key, **values, 'reclaimable_bytes': 0,
+                     'protected_bytes': values['total_bytes'], 'excluded': key in ('backups', 'reports', 'validation')})
+    # Physical bytes are attributed once, even when thousands of selections share a track.
+    source_files = defaultdict(set)
+    tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    source_rows = []
+    if 'sound_assets' in tables:
+        for sid, encoded in db.execute('SELECT source_id,descriptor FROM sound_assets'):
+            p = Path(json.loads(encoded).get('path', ''))
+            if p.is_file() and p.is_relative_to(root / 'data'):
+                source_files[str(p)].add(sid)
+        if 'shared_sample_audio' in tables:
+            for sid, encoded in db.execute('SELECT source_id,payload FROM shared_sample_audio'):
+                p = Path(json.loads(encoded).get('path', ''))
+                if p.is_file() and p.is_relative_to(root / 'data'):
+                    source_files[str(p)].add(sid)
+        sizes = defaultdict(int)
+        for path, owners in source_files.items():
+            sizes[next(iter(owners)) if len(owners) == 1 else 'shared'] += Path(path).stat().st_size
+        titles = dict(db.execute('SELECT id,title FROM sources'))
+        source_rows = [{'key': sid, 'title': titles.get(sid, '多来源共享'), 'total_bytes': size} for sid, size in sizes.items()]
     return (
         {
             "categories": rows,
             "total_bytes": sum(r["total_bytes"] for r in rows),
             "reclaimable_bytes": sum(r["reclaimable_bytes"] for r in rows),
             "active_jobs": active_jobs(db),
+            "daily_bytes": sum(r['total_bytes'] for r in rows if not r.get('excluded')),
+            "source_audio": source_rows,
+            "cache_limit_bytes": 512 * 1024**2,
         },
         candidates,
         orphan_ids,
@@ -214,19 +253,26 @@ def clean(db, root=ROOT, *, automatic=False, now=None):
             p.is_relative_to(root / sub) for key in ("playback", "pcm", "derived") for sub in GROUPS[key][1]
         )
         total = sum(size for p, size, _ in candidates if not automatic or cheap(p))
+        over_budget = total > 512 * 1024**2
         removed, skipped, freed = [], [], 0
         for p, size, stamp in sorted(candidates, key=lambda item: item[2]):
             # Automatic policy only evicts cheap caches, never model outputs.
             if automatic:
                 if not cheap(p):
                     continue
-                if now - stamp / 1e9 < 7 * 86400 and total - freed <= 2 * 1024**3:
+                if now - stamp / 1e9 < 86400 and total - freed <= (384 if over_budget else 512) * 1024**2:
                     continue
             try:
                 if p.is_symlink() or p.stat().st_mtime_ns != stamp:
                     skipped.append(str(p))
                     continue
-                p.unlink()
+                from filelock import Timeout
+                try:
+                    with FileLock(str(p) + '.use', timeout=0):
+                        p.unlink()
+                except Timeout:
+                    skipped.append(str(p))
+                    continue
                 freed += size
                 removed.append(str(p.relative_to(root)))
             except OSError:
@@ -264,3 +310,7 @@ def automatic_maintenance():
         if not settings(db).get("cache_auto_trim", True) or active_jobs(db):
             return
         clean(db, automatic=True)
+        from .audio_storage import trim_pcm
+        trim_pcm()
+        from .audio_storage import retire_encoded_outputs
+        retire_encoded_outputs(db)

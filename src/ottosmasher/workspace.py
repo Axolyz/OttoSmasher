@@ -22,16 +22,41 @@ def identity(*parts) -> str:
 
 
 _DB_INIT_LOCK = threading.RLock()
+_INITIALIZED_DATABASES = set()
+
+
+def _database_key():
+    path = DATA / "catalog.sqlite3"
+    try:
+        stat = path.stat()
+        return (str(path.resolve()), stat.st_dev, stat.st_ino)
+    except FileNotFoundError:
+        return None
+
+
+def _open_database():
+    db = sqlite3.connect(DATA / "catalog.sqlite3", timeout=30)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys=ON")
+    from .asset_timeline import descriptor_range
+    db.create_function("asset_descriptor", 3, descriptor_range, deterministic=True)
+    return db
 
 
 def connect() -> sqlite3.Connection:
     # New workspaces receive concurrent GUI requests before migrations finish.
     # Serialize schema initialization across threads and local worker processes.
+    if _database_key() in _INITIALIZED_DATABASES:
+        return _open_database()
     with _DB_INIT_LOCK:
+        if _database_key() in _INITIALIZED_DATABASES:
+            return _open_database()
         DATA.mkdir(parents=True, exist_ok=True)
         from filelock import FileLock
         with FileLock(str(DATA / "schema.lock")):
-            return _connect()
+            db = _connect()
+            _INITIALIZED_DATABASES.add(_database_key())
+            return db
 
 
 def _connect() -> sqlite3.Connection:
@@ -97,6 +122,9 @@ def _connect() -> sqlite3.Connection:
     from .materials import migrate
 
     migrate(db)
+    from .asset_timeline import ensure as ensure_assets
+
+    ensure_assets(db)
     from .sample_catalog import migrate as migrate_samples
 
     migrate_samples(db)
@@ -153,6 +181,11 @@ def write_json(path: Path, payload):
 
 
 def save_analysis(db, cue_id, kind, version, payload):
+    from .asset_compat import active, save_analysis as save_run
+    if active(db):
+        save_run(db,cue_id,kind,version,payload)
+        db.commit()
+        return
     db.execute(
         "INSERT OR REPLACE INTO analyses VALUES (?,?,?,?,?)",
         (cue_id, kind, version, json.dumps(payload, ensure_ascii=False, allow_nan=False), time.time()),
@@ -177,10 +210,34 @@ def get_cue(db, cue_id):
     ).fetchone()
     if row is None:
         raise ValueError("Unknown cue")
-    return dict(row)
+    cue = dict(row)
+    from .asset_compat import active
+
+    if active(db):
+        annotation = db.execute("SELECT * FROM timeline_annotations WHERE id=?", (cue_id,)).fetchone()
+        if annotation:
+            from .subtitle_speakers import spoken_text
+            from .asset_timeline import map_time
+
+            scope = json.loads(annotation['scope'])
+            lo, hi = annotation['start'], annotation['end']
+            if scope['type'] == 'asset':
+                mapping = db.execute('SELECT mapping FROM sound_assets WHERE id=?',(scope['ids'][0],)).fetchone()
+                if not mapping or not mapping[0]:
+                    raise ValueError('文字标注没有可用的来源时间映射')
+                knots = json.loads(mapping[0])
+                lo, hi = map_time(knots,lo), map_time(knots,hi)
+            cue.update(start=lo,end=hi,original=annotation['text'],spoken=spoken_text(annotation['text']),
+                       imported_original=cue['original'],annotation_revision=annotation['revision'],
+                       annotation_deleted=bool(annotation['deleted']))
+    return cue
 
 
 def get_analysis(db, cue_id, kind):
+    from .asset_compat import active
+    if active(db):
+        row=db.execute("SELECT a.payload FROM analysis_references r JOIN analysis_runs a ON a.id=r.run_id WHERE owner_type='annotation' AND owner_id=? AND r.kind=?",(cue_id,kind)).fetchone()
+        return json.loads(row[0]) if row else None
     row = db.execute(
         "SELECT payload FROM analyses WHERE cue_id=? AND kind=? ORDER BY created DESC LIMIT 1", (cue_id, kind)
     ).fetchone()

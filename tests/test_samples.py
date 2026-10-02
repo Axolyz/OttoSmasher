@@ -47,7 +47,7 @@ def test_two_crops_compose_original_frames_without_copy(library):
 def test_pending_accept_does_not_move_existing_or_duplicate_shared_source(library):
     db, root, _ = library
     c.preferences(db, root["id"], nature="unpitched")
-    batch = c.batch(db, {"notes": [0]}, target="pitched")
+    batch = c.batch(db, {"notes": [0]})
     pending = c.derive(db, root["id"], operation="candidate", batch_id=batch["id"])
     assert pending["status"] == "pending"
     assert c.review(db, [pending["id"]]) == [root["id"]]
@@ -55,10 +55,10 @@ def test_pending_accept_does_not_move_existing_or_duplicate_shared_source(librar
     assert Path(root["path"]).exists()
     first = c.derive(db, root["id"], start=0.1, end=0.5, batch_id=batch["id"])
     c.review(db, [first["id"]])
-    b2 = c.batch(db, {}, target="speech")
+    b2 = c.batch(db, {})
     same = c.derive(db, root["id"], start=0.1, end=0.5, batch_id=b2["id"])
     assert c.review(db, [same["id"]]) == [first["id"]]
-    assert materials.get(db, first["id"])["nature"] == "unpitched"
+    assert materials.get(db, first["id"])["nature"] == "unclassified"
     lost = c.derive(db, root["id"], start=0.1, end=0.6, batch_id=b2["id"])
     c.review(db, [lost["id"]], False)
     assert Path(root["path"]).exists() and materials.get(db, root["id"])["status"] == "confirmed"
@@ -165,8 +165,13 @@ def test_retired_alignment_migration_purges_retired_results_preserves_materials(
     db.execute("DELETE FROM alignment_migrations WHERE id='retire-mfa-sofa-v2'")
     c.migrate_alignment_choices(db)
     assert materials.get(db, root["id"])["active_phone_backend"] == "narabas"
-    assert db.execute("SELECT payload FROM sample_measurements WHERE material_id=? AND backend='sofa'", (root['id'],)).fetchone() is None
-    assert materials.get(db, root['id'])['id'] == root['id']
+    assert (
+        db.execute(
+            "SELECT payload FROM sample_measurements WHERE material_id=? AND backend='sofa'", (root["id"],)
+        ).fetchone()
+        is None
+    )
+    assert materials.get(db, root["id"])["id"] == root["id"]
     c.preferences(db, root["id"], active_phone_backend="narabas")
     c.migrate_alignment_choices(db)
     assert materials.get(db, root["id"])["active_phone_backend"] == "narabas"

@@ -29,7 +29,16 @@ def views():
 def view(body: dict):
     with database() as db:
         ensure_views(db)
-        key = identity(body["name"])
+        import uuid
+
+        if not isinstance(body.get("name"), str) or not body["name"].strip() or len(body["name"]) > 200:
+            raise ValueError("筛选器名称须为 1–200 字符")
+        if not isinstance(body.get("scope"), dict):
+            raise ValueError("筛选器条件必须为对象")
+        from .sample_scope import ids
+
+        ids(db, body["scope"])  # Validate tag expressions and intersection structure before saving.
+        key = body.get("id") or uuid.uuid4().hex
         db.execute(
             "INSERT OR REPLACE INTO saved_views VALUES(?,?,?)", (key, body["name"], json.dumps(body["scope"]))
         )
@@ -113,8 +122,8 @@ def openings_sources(body: dict):
             meta = probe(path)
             tracks = [s for s in meta["streams"] if s["codec_type"] == "audio"]
             preferred = [s for s in tracks if s.get("tags", {}).get("language") in ("ja", "jpn")]
-            if not tracks or not any(s["codec_type"] == "video" for s in meta["streams"]):
-                raise ValueError("请选择有声音的视频原片")
+            if not tracks:
+                raise ValueError("请选择含声音轨道的原片")
             selected = (preferred or tracks)[0]["index"]
             d = source(db, {"path": path, "audio_stream": body.get("audio_stream", selected)})
             results.append({"id": d["source_id"], "title": d["title"]})
@@ -141,3 +150,72 @@ def runtime_check():
     from .inference_runtime import check
 
     return check()
+
+
+@router.get("/search-results")
+def result_sessions():
+    from .search_sessions import listing
+
+    with database() as db:
+        return listing(db)
+
+
+@router.post("/search-results")
+def create_result_session(body: dict):
+    from .search_sessions import create
+
+    with database() as db:
+        return create(db, **body)
+
+
+@router.get("/search-results/{sid}")
+def read_result_session(sid: str, offset: int = 0, limit: int = 100):
+    from .search_sessions import read
+
+    with database() as db:
+        return read(db, sid, offset, limit)
+
+
+@router.post("/search-results/{sid}/state")
+def update_result_session(sid: str, body: dict):
+    from .search_sessions import update
+
+    with database() as db:
+        return update(db, sid, body)
+
+
+@router.delete("/search-results/{sid}")
+def close_result_session(sid: str):
+    from .search_sessions import close
+
+    with database() as db:
+        return close(db, sid)
+
+
+@router.delete("/views/{vid}")
+def delete_view(vid: str):
+    with database() as db:
+        ensure_views(db)
+        with db:
+            db.execute("DELETE FROM saved_views WHERE id=?", (vid,))
+    return {"ok": True}
+
+
+@router.get("/search-results/{sid}/ids")
+def result_ids(sid: str):
+    from .search_sessions import read
+
+    with database() as db:
+        first = read(db, sid, 0, 100)
+        rows = list(first["results"])
+        for offset in range(100, first["total"], 100):
+            rows.extend(read(db, sid, offset, 100)["results"])
+        return {
+            "ids": list(
+                dict.fromkeys(
+                    r.get("material_id") or r["id"]
+                    for r in rows
+                    if not r.get("result_status") and not r.get("source_result")
+                )
+            )
+        }

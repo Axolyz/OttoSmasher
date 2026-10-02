@@ -8,6 +8,12 @@
 #include <string>
 #include <vector>
 
+@interface OttoClip : NSView
+@end
+@implementation OttoClip
+- (NSView *)hitTest:(NSPoint)p { return nil; }
+@end
+
 @interface OttoVideo : NSOpenGLView {
 @public mpv_render_context *renderer;
 }
@@ -28,7 +34,7 @@
     mpv_render_context_report_swap(renderer);
 }
 @end
-struct Player { mpv_handle *mpv; OttoVideo *view; NSTimer *timer; };
+struct Player { mpv_handle *mpv; OttoVideo *view; NSTimer *timer; OttoClip *clip; };
 static std::map<int,Player*> players;
 static int serial = 0;
 static void *glproc(void *,const char *name) { return dlsym(RTLD_DEFAULT,name); }
@@ -42,7 +48,7 @@ static Player *get(napi_env e,napi_value v) { auto it=players.find(number(e,v));
 static napi_value create(napi_env env,napi_callback_info info) {
     size_t argc=2; napi_value args[2]; napi_get_cb_info(env,info,&argc,args,NULL,NULL);
     bool video=false; napi_get_value_bool(env,args[1],&video);
-    Player *p=new Player{mpv_create(),nil,nil};
+    Player *p=new Player{mpv_create(),nil,nil,nil};
     if (!p->mpv) { delete p; return fail(env,"mpv_create failed"); }
     mpv_set_option_string(p->mpv,"config","no");
     mpv_set_option_string(p->mpv,"terminal","no");
@@ -68,14 +74,17 @@ static napi_value create(napi_env env,napi_callback_info info) {
         p->view=[[OttoVideo alloc] initWithFrame:NSMakeRect(0,0,640,360) pixelFormat:fmt];
         [fmt release];
         [p->view setWantsBestResolutionOpenGLSurface:YES];
-        [host addSubview:p->view positioned:NSWindowAbove relativeTo:nil];
+        p->clip=[[OttoClip alloc] initWithFrame:NSMakeRect(0,0,640,360)];
+        p->clip.clipsToBounds=YES;
+        [p->clip addSubview:p->view];
+        [host addSubview:p->clip positioned:NSWindowAbove relativeTo:nil];
         [[p->view openGLContext] makeCurrentContext];
         mpv_opengl_init_params gl={glproc,NULL};
         mpv_render_param opts[]={{MPV_RENDER_PARAM_API_TYPE,(void*)MPV_RENDER_API_TYPE_OPENGL},{MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,&gl},{MPV_RENDER_PARAM_INVALID,NULL}};
         result=mpv_render_context_create(&p->view->renderer,p->mpv,opts);
-        if(result<0) { [p->view removeFromSuperview];[p->view release];mpv_terminate_destroy(p->mpv);delete p;return fail(env,mpv_error_string(result)); }
+        if(result<0) { [p->view removeFromSuperview];[p->view release];[p->clip removeFromSuperview];[p->clip release];mpv_terminate_destroy(p->mpv);delete p;return fail(env,mpv_error_string(result)); }
         OttoVideo *view=p->view;
-        p->timer=[[NSTimer scheduledTimerWithTimeInterval:1.0/60 repeats:YES block:^(NSTimer*){ if(!view.hidden && view->renderer && (mpv_render_context_update(view->renderer) & MPV_RENDER_UPDATE_FRAME)) [view setNeedsDisplay:YES]; }] retain];
+        p->timer=[[NSTimer scheduledTimerWithTimeInterval:1.0/60 repeats:YES block:^(NSTimer*){ if(!view.hidden && !view.superview.hidden && view->renderer && (mpv_render_context_update(view->renderer) & MPV_RENDER_UPDATE_FRAME)) [view setNeedsDisplay:YES]; }] retain];
         p->view.hidden=YES;
     }
     const char* props[]={"time-pos","duration","paused-for-cache","pause","eof-reached","idle-active","volume","mute","speed","hwdec-current","video-codec","audio-codec-name","aid","audio-delay","current-tracks/audio/external-filename","video-params/w","video-params/h",NULL};
@@ -90,10 +99,12 @@ static napi_value command(napi_env env,napi_callback_info info) {
     int r=mpv_command_async(p->mpv,0,list.data());if(r<0)return fail(env,mpv_error_string(r));return undefined(env);
 }
 static napi_value geometry(napi_env env,napi_callback_info info) {
-    size_t n=6;napi_value a[6];napi_get_cb_info(env,info,&n,a,NULL,NULL);Player *p=get(env,a[0]);if(!p||!p->view)return undefined(env);
-    bool visible;napi_get_value_bool(env,a[5],&visible);NSView *host=p->view.superview;
+    size_t n=10;napi_value a[10];napi_get_cb_info(env,info,&n,a,NULL,NULL);Player *p=get(env,a[0]);if(!p||!p->view)return undefined(env);
+    bool visible;napi_get_value_bool(env,a[5],&visible);NSView *host=p->clip.superview;
     double x=real(env,a[1]),y=real(env,a[2]),w=real(env,a[3]),h=real(env,a[4]);
-    [p->view setFrame:NSMakeRect(x,host.isFlipped?y:host.bounds.size.height-y-h,w,h)];p->view.hidden=!visible;
+    double cx=n>=10?real(env,a[6]):x,cy=n>=10?real(env,a[7]):y,cw=n>=10?real(env,a[8]):w,ch=n>=10?real(env,a[9]):h;
+    [p->clip setFrame:NSMakeRect(cx,host.isFlipped?cy:host.bounds.size.height-cy-ch,cw,ch)];
+    [p->view setFrame:NSMakeRect(x-cx,cy+ch-y-h,w,h)];p->view.hidden=!visible;p->clip.hidden=!visible;
     [[p->view openGLContext] update]; if(visible) [p->view setNeedsDisplay:YES]; return undefined(env);
 }
 static napi_value poll(napi_env env,napi_callback_info info) {
@@ -110,10 +121,10 @@ static napi_value poll(napi_env env,napi_callback_info info) {
     return obj;
 }
 static void destroyPlayer(int id) {auto it=players.find(id);if(it==players.end())return;Player *p=it->second;players.erase(it);
-    [p->timer invalidate];[p->timer release];if(p->view){[[p->view openGLContext] makeCurrentContext];mpv_render_context_free(p->view->renderer);p->view->renderer=NULL;[p->view removeFromSuperview];[p->view release];}
+    [p->timer invalidate];[p->timer release];if(p->view){[[p->view openGLContext] makeCurrentContext];mpv_render_context_free(p->view->renderer);p->view->renderer=NULL;[p->view removeFromSuperview];[p->view release];[p->clip removeFromSuperview];[p->clip release];}
     mpv_terminate_destroy(p->mpv);delete p;
 }
 static napi_value destroy(napi_env env,napi_callback_info info){size_t n=1;napi_value a[1];napi_get_cb_info(env,info,&n,a,NULL,NULL);destroyPlayer(number(env,a[0]));return undefined(env);}
 static void cleanup(void*){while(!players.empty())destroyPlayer(players.begin()->first);}
-static napi_value init(napi_env env,napi_value exports){napi_property_descriptor p[]={{"create",0,create,0,0,0,napi_default,0},{"command",0,command,0,0,0,napi_default,0},{"geometry",0,geometry,0,0,0,napi_default,0},{"poll",0,poll,0,0,0,napi_default,0},{"destroy",0,destroy,0,0,0,napi_default,0}};napi_define_properties(env,exports,5,p);napi_add_env_cleanup_hook(env,cleanup,NULL);return exports;}
+static napi_value init(napi_env env,napi_value exports){napi_property_descriptor p[]={{"create",0,create,0,0,0,napi_default,0},{"command",0,command,0,0,0,napi_default,0},{"geometry",0,geometry,0,0,0,napi_default,0},{"clipGeometry",0,geometry,0,0,0,napi_default,0},{"poll",0,poll,0,0,0,napi_default,0},{"destroy",0,destroy,0,0,0,napi_default,0}};napi_define_properties(env,exports,6,p);napi_add_env_cleanup_hook(env,cleanup,NULL);return exports;}
 NAPI_MODULE(NODE_GYP_MODULE_NAME,init)

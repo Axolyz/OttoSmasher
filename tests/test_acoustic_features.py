@@ -39,17 +39,17 @@ def test_spectral_ratios_gain_invariant_harmonics_and_unknown():
     assert all(x is None for x in tf.describe(np.zeros(sr), sr)["values"].values())
 
 
-def test_scope_folder_union_independent_star_and_pending(library):
+def test_scope_nature_union_independent_star_and_pending(library):
     db, root, _ = library
-    child = sample_catalog.derive(db, root["id"], start=0.1, end=0.7, folder_id="pitched")
-    sample_catalog.preferences(db, root["id"], folder_id="speech", starred=True)
+    child = sample_catalog.derive(db, root["id"], start=0.1, end=0.7, nature="pitched")
+    sample_catalog.preferences(db, root["id"], nature="speech", starred=True)
     assert set(sample_scope.ids(db, {"natures": ["speech", "pitched"]})) == {root["id"], child["id"]}
     assert sample_scope.ids(db, {"natures": ["speech", "pitched"], "starred": True}) == [root["id"]]
 
 
 def test_shared_filter_keeps_producers_distinct_and_missing_unknown(library, monkeypatch):
     db, root, _ = library
-    child = sample_catalog.derive(db, root["id"], start=0.1, end=0.7, folder_id="pitched")
+    child = sample_catalog.derive(db, root["id"], start=0.1, end=0.7, nature="pitched")
     docs = {
         (root["id"], "one"): {"values": {"score": 0.8}},
         (root["id"], "two"): {"values": {"score": 0.2}},

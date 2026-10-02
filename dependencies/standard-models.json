@@ -1,0 +1,8 @@
+{
+  "models/pydomino/phoneme_transition_model.onnx": {
+    "sha256": "ce3f5d7cb39e4fec08ed0380338f10193d5e00b9d032277485fa862075191710",
+    "bytes": 21937113,
+    "repository": "https://github.com/DwangoMediaVillage/pydomino",
+    "revision": "4930396642fdd85618884c7a209218a628fd3c34"
+  }
+}

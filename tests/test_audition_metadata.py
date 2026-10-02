@@ -92,12 +92,15 @@ def test_optional_import_speaker_tags_and_reimport_without_duplicates(library, t
     source_preparation.configure(db, root["source_id"], import_speakers=True)
     source_preparation.ingest(db, root["source_id"], p["token"])
     assert db.execute("SELECT count(*) FROM materials").fetchone()[0] == count
+    from test_revision_workflows import import_dialogue
+
+    import_dialogue(db, root)
     mid = materials.query_ids(db, tags=["character:あかり"])[0]
     child = sample_catalog.derive(
         db, mid, start=0.02, end=0.1, input_asset=sample_audio.resolve(db, mid, "raw")
     )
     tags = materials.get(db, child["id"])["tags"]
-    assert any(t["tag"] == "character:あかり" and not t["confirmed"] for t in tags)
+    assert any(t["tag"] == "character:あかり" and t["inherited"] for t in tags)
     assert child["id"] in materials.query_ids(db, tags=["character:あかり"])
 
 
@@ -137,7 +140,9 @@ def test_thumbnail_uses_root_time_and_cache_without_analysis(library, tmp_path, 
 
     monkeypatch.setattr(sample_thumbnails.subprocess, "run", ffmpeg)
     result = sample_thumbnails.thumbnail(db, warped["id"])
-    assert float(calls[0][calls[0].index("-ss") + 1]) == pytest.approx(0.5)
+    # Thumbnail and playback use the same sample-local midpoint mapped through
+    # the piecewise clock, rather than averaging the source endpoints.
+    assert float(calls[0][calls[0].index("-ss") + 1]) == pytest.approx(0.4)
     assert sample_thumbnails.thumbnail(db, warped["id"]) == result and len(calls) == 1
 
 

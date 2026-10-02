@@ -96,3 +96,27 @@ def clean_storage():
     with database() as db:
         result = clean(db)
         return {**result, "storage": status(db)}
+
+
+@router.post("/tags/preview")
+def tags_preview(body: dict):
+    from .tag_management import plan
+
+    with database() as db:
+        return plan(db, **body)
+
+
+@router.post("/tags/apply")
+def tags_apply(body: dict):
+    from .business_edits import apply
+
+    with database() as db:
+        return apply(db, body["document"])
+
+
+@router.post("/tags/options")
+def tag_options(body: dict):
+    from .tag_management import options
+
+    with database() as db:
+        return options(db, body.get("ids", []))

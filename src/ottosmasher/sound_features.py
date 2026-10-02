@@ -17,7 +17,7 @@ from .audio_sources import separated_source
 from .workspace import DATA, ROOT, identity, write_json
 
 VERSION = "fcpe-source-frames-v4"
-PROJECTION_VERSION = "unit-prosody-v1"
+PROJECTION_VERSION = "unit-prosody-v2"
 
 
 def model_info():
@@ -102,7 +102,9 @@ def build_asset(lineage, model):
         or hashlib.sha256(audio.read_bytes()).hexdigest() != lineage["audio_sha256"]
     ):
         raise ValueError("Separated vocals lineage mismatch")
-    y, sr = sf.read(audio, dtype="float32", always_2d=True)
+    from .audio_storage import read, lineage_audio
+
+    y, sr = read(*lineage_audio(lineage))
     result = dict(
         version=VERSION,
         asset_id=asset_id(lineage),
@@ -132,7 +134,7 @@ def first_vowel(unit):
     return next((str(p).lower() for p in labels if str(p).lower() in "aiueo" and len(str(p)) == 1), None)
 
 
-def project(units, segments, frames, origin, pauses):
+def project(units, segments, frames, origin, pauses, manual=False):
     """Use canonical segment membership, never the current search selection."""
     times = frames["times"] + origin
     voiced = frames["voiced"] & (frames["f0_hz"] > 0)
@@ -162,8 +164,21 @@ def project(units, segments, frames, origin, pauses):
             sustain = min(sustain, float(times[np.flatnonzero(active)[-1]]) + 0.005)
         else:
             sustain = None
+        from .vowel_bounds import bounds
+
+        effective_start, effective_end = bounds(
+            start,
+            end,
+            times,
+            frames["energy"],
+            manual=manual or not (first_vowel(unit) or unit.get("phone") in {"N", "ん"}),
+        )
+        if manual:
+            sustain = end
         out.append(
             {
+                "effective_start": effective_start,
+                "effective_end": effective_end,
                 "first_vowel": first_vowel(unit),
                 "pitch_midi": float(np.median(values)) if len(values) >= 3 else None,
                 "pitch_trend_semitones": trend,

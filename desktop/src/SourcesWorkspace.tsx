@@ -1,3 +1,6 @@
+import {TrackRoles, SubtitleSamples, SubtitleMarkers} from "./SubtitleSamples";
+import { completedFor } from "./JobChanges";
+import StudioModelSelect from "./StudioModelSelect";
 import { useListSelection } from "./ListSelection";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -41,6 +44,8 @@ export function SourcesWorkspace({
   onFile: (p: string) => void;
 }) {
   const { modal } = App.useApp();
+  const [sampleImport,setSampleImport]=useState<any>(null);
+  const [roleSource,setRoleSource]=useState("");
   const [viewport, setViewport] = useState(window.innerHeight);
   useEffect(() => {
     const resize = () => setViewport(window.innerHeight);
@@ -96,8 +101,9 @@ export function SourcesWorkspace({
   };
   useEffect(() => {
     if (!active) return;
-    const refresh = () => {
-      void load().catch(onMessage);
+    const refresh = (event?: Event) => {
+      if (event && !completedFor(event, {}, ["import", "source-import", "source-separate", "separate"])) return;
+      void load().then(rows=>{if(!event && sid && !current && rows.some((s:any)=>s.id===sid))return browse(sid)}).catch(onMessage);
     };
     refresh();
     window.addEventListener("otto:jobs-updated", refresh);
@@ -113,18 +119,22 @@ export function SourcesWorkspace({
       setBusy(false);
     }
   };
-  async function browse(id: string) {
+  const browseSerial = useRef(0);
+  async function browse(id: string, target?:any) {
+    const serial = ++browseSerial.current;
+    setSid(id);
     const r = await request("/api/samples/source-browser", { source_id: id });
+    if (serial !== browseSerial.current) return;
+    if(target?.source_range){r.start=target.source_range[0];r.end=target.source_range[1];r.preview_role=target.source_role;r.navigation_key=target.nonce;}
     setCurrent(r);
     setSid(id);
   }
   useEffect(() => {
-    run(async () => { const rows = await load(); if (sid && rows.some((s: any) => s.id === sid)) await browse(sid); });
-  }, []);
-  useEffect(() => {
     if (target?.material_id)
       run(async () => {
+        const serial = ++browseSerial.current;
         const r = await request("/api/samples/" + target.material_id);
+        if (serial !== browseSerial.current) return;
         if(target.hit_range && r.audio_asset?.root_knots) {
           const knots=r.audio_asset.root_knots;
           const map=(t:number)=>{ let i=0;while(i<knots.length-2&&knots[i+1][0]<t)i++;const a=knots[i],b=knots[i+1];return a[1]+(t-a[0])*(b[1]-a[1])/(b[0]-a[0]); };
@@ -133,7 +143,7 @@ export function SourcesWorkspace({
         setCurrent(r);
         setSid(r.source_id);
       });
-    else if (target?.source_id) run(() => browse(target.source_id));
+    else if (target?.source_id) run(() => browse(target.source_id,target));
   }, [target]);
   useEffect(() => {
     const f = (e: Event) => {
@@ -201,17 +211,6 @@ export function SourcesWorkspace({
   useEffect(() => {
     if (!active) selection.finish();
   }, [active]);
-  async function importSub(s: any) {
-    const r = await api("/import-direct", {
-      source_id: s.id,
-      import_speakers: importSpeakers,
-    });
-    await load();
-    onRefresh();
-    onMessage(
-      `台词已登记：${r.ready} 条，排除 ${r.excluded} 条；重复条目自动跳过`,
-    );
-  }
   async function detect() {
     const r = await api("/music-markers", { source_ids: scopeIds });
     setMarkers(r);
@@ -226,13 +225,22 @@ export function SourcesWorkspace({
         if (selected.includes(sid)) { window.dispatchEvent(new Event("otto:pause-media")); setCurrent(null); setSid(""); }
         selection.finish(); await load(); onRefresh(); } });
   };
-  const menu = (s: any) => [
-    ...selection.menu(s.id),
+  const sourceBatchMenu=(chosen:string[])=>[
+    {key:'import',label:`给所选 ${chosen.length} 个原片导入字幕标记…`,onClick:()=>{setImportIds(chosen);setDialog('import')}},
+    {key:'markers',label:`从所选 ${chosen.length} 个原片字幕识别 OP/ED`,onClick:()=>run(async()=>{setToolIds(chosen);setMarkers(await api('/music-markers',{source_ids:chosen}));await load();setDialog('markers')})},
+    {key:'analysis',label:`准备所选 ${chosen.length} 个原片语音分析…`,onClick:()=>{setAnalysisScope({source_ids:chosen});setDialog('analysis')}},
+    {key:'delete',label:`删除所选 ${chosen.length} 个原片…`,danger:true,onClick:()=>deleteSources(chosen)}
+  ];
+  const menu = (s: any) => ids.includes(s.id)&&ids.length>1 ? sourceBatchMenu(ids) : [
+    {key:'roles',label:'人声／音效与默认轨…',onClick:()=>setRoleSource(s.id)},
+    {key:'subtitle-effects',label:'从字幕导入音效采样…',onClick:()=>setSampleImport({sourceId:s.id,kind:'event'})},
+    {key:'subtitle-speech',label:'从字幕导入台词语音…',onClick:()=>setSampleImport({sourceId:s.id,kind:'dialogue'})},
+    {key:'relocate',label:'重新定位文件…',onClick:()=>run(async()=>{const paths=await window.ottoDesktop?.pick();if(paths?.[0]){await api('/relocate',{source_id:s.id,path:paths[0]});await load();await browse(s.id)}})},
     {key: "delete", label: "删除原片", danger: true, onClick: () => deleteSources(ids.includes(s.id) ? ids : [s.id])},
     { key: "metadata", label: "作品、字幕与音轨…", onClick: () => edit(s) },
     {
       key: "import",
-      label: "导入字幕为台词",
+      label: "导入字幕标记",
       disabled: !s.subtitle_path && !s.preparation?.subtitle_path,
       onClick: () => {
         setImportIds([s.id]);
@@ -286,59 +294,8 @@ export function SourcesWorkspace({
           添加原片
         </Button>
         <Button onClick={() => selection.select(rows.map((s: any) => s.id))}>全选</Button>
-        {ids.length > 0 && <Button danger onClick={() => deleteSources(ids)}>删除</Button>}
-        {selection.enabled && (
-          <>
-            {ids.length > 0 && (
-              <Dropdown
-                menu={{
-                  items: [
-                    {
-                      key: "markers",
-                      label: "从字幕识别 OP / ED",
-                      disabled: !scopeIds.length,
-                      onClick: () => run(detect),
-                    },
-                    {
-                      key: "opening",
-                      label: "参考帧 / 手动标记",
-                      disabled: !scopeIds.length,
-                      onClick: () => {
-                        setToolIds(ids);
-                        setDialog("opening");
-                      },
-                    },
-                    {
-                      key: "analysis",
-                      label: "准备所选范围语音分析",
-                      disabled: !scopeIds.length,
-                      onClick: () => {
-                        setAnalysisScope({ source_ids: scopeIds });
-                        setDialog("analysis");
-                      },
-                    },
-                    {
-                      key: "import",
-                      label: "导入所选原片字幕",
-                      disabled: !scopeIds.length,
-                      onClick: () => {
-                        setImportIds(scopeIds);
-                        setDialog("import");
-                      },
-                    },
-                  ],
-                }}
-              >
-                <Button icon={<MoreOutlined />}>
-                  所选 {scopeIds.length} 项
-                </Button>
-              </Dropdown>
-            )}
-            <Button type="text" onClick={selection.finish}>
-              退出多选
-            </Button>
-          </>
-        )}
+        <Dropdown disabled={!selected} menu={{items:selected?menu(selected).filter(x=>['roles','import','subtitle-effects','subtitle-speech','relocate'].includes(x.key)):[]}}><Button>字幕与音轨</Button></Dropdown>
+        {ids.length>0&&<><Dropdown menu={{items:sourceBatchMenu(ids)}}><Button>批量操作 · 已选 {ids.length} 项</Button></Dropdown><Button onClick={selection.finish}>清空选择</Button></>}
         <Help>
           添加原片不创建采样。没有字幕也可浏览、选区、分离、拉平和导出。字幕导入会跳过已标记的
           OP / ED 和重复条目。
@@ -361,6 +318,7 @@ export function SourcesWorkspace({
             >
               <Table
                 rowKey="id"
+                rowSelection={{columnWidth:32,selectedRowKeys:ids,onChange:keys=>selection.select(keys.map(String))}}
                 size="small"
                 pagination={false}
                 dataSource={rows}
@@ -378,7 +336,8 @@ export function SourcesWorkspace({
                   onClick: (e) => {
                     if (!selection.click(s.id, e)) run(() => browse(s.id));
                   },
-                  onContextMenu: () => setContextSource(s),
+                  onMouseDown: (e) => {if(e.shiftKey||e.ctrlKey||e.metaKey)e.preventDefault()},
+                  onContextMenu: () => {if(!ids.includes(s.id))setIds([s.id]);setContextSource(s)},
                 })}
                 columns={[
                   {
@@ -435,33 +394,9 @@ export function SourcesWorkspace({
           </div>
         </Splitter.Panel>
       </Splitter>
-      <Modal
-        title="导入字幕台词"
-        open={dialog === "import"}
-        onCancel={() => setDialog("")}
-        okText="导入"
-        confirmLoading={busy}
-        onOk={() =>
-          run(async () => {
-            for (const id of importIds)
-              await importSub(sources.find((s) => s.id === id));
-            setDialog("");
-          })
-        }
-      >
-        <p>
-          导入 {importIds.length} 个原片的字幕，自动跳过已登记台词与排除范围。
-        </p>
-        <Checkbox
-          checked={importSpeakers}
-          onChange={(e) => setImportSpeakers(e.target.checked)}
-        >
-          根据字幕括号登记说话人
-        </Checkbox>
-        <Help>
-          标签注明来自字幕。多人或群体保留参与者与文字片段，不推断先后时间或自动拆句；音效说明不作为角色名。
-        </Help>
-      </Modal>
+      {sampleImport&&<SubtitleSamples {...sampleImport} onClose={()=>setSampleImport(null)} onSaved={()=>{onRefresh();void load()}} report={onMessage}/>}
+      <Modal open={!!roleSource} title='人声／音效与默认轨' width={900} footer={null} onCancel={()=>setRoleSource('')}>{roleSource&&<TrackRoles sourceId={roleSource} report={onMessage}/>}</Modal>
+      {dialog==='import'&&<SubtitleMarkers sourceIds={importIds} onClose={()=>setDialog('')} onSaved={()=>{void load();onRefresh()}} report={onMessage}/>}
       <Modal
         title="添加原片"
         open={dialog === "add"}
@@ -666,14 +601,10 @@ export function SourcesWorkspace({
       >
         <Form layout="vertical">
           <Form.Item label="人声模型">
-            <Select
+            <StudioModelSelect
               value={vocal}
               onChange={setVocal}
-              options={[
-                { value: "becruily_deux", label: "becruily Deux" },
-                { value: "bs_roformer_voc_hyperacev2", label: "HyperACE" },
-              ]}
-            />
+/>
           </Form.Item>
           <Form.Item label="音素模型">
             <Checkbox.Group
@@ -683,7 +614,7 @@ export function SourcesWorkspace({
 
                 { value: "narabas", label: "narabas" },
                 { value: "phonetic", label: "HubertFA" },
-                { value: "pydomino", label: "pydomino（末位备选）" },
+                { value: "pydomino", label: "pydomino" },
               ]}
             />
           </Form.Item>

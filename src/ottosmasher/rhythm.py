@@ -77,6 +77,10 @@ class RhythmQuery(BaseModel):
     scope: Literal["both", "whole", "segments"] = "both"
     densities: list[float] = Field(default_factory=lambda: [1, 2, 4, 8], min_length=1, max_length=4)
     speed_filter: bool = False
+    playback_speed_filter: bool = False
+    playback_speed_min: float = Field(.8, gt=0, allow_inf_nan=False)
+    playback_speed_max: float = Field(1.25, gt=0, allow_inf_nan=False)
+    speed_preference: float = Field(0, ge=0, le=1, allow_inf_nan=False)
     adjust_pauses: bool = False
     factor_min: float = Field(0.85, ge=0.5, le=2)
     factor_max: float = Field(1.18, ge=0.5, le=2)

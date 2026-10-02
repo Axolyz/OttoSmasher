@@ -43,7 +43,12 @@ def preview(body: dict):
 @router.post("/import")
 def ingest(body: dict):
     with database() as db:
-        return prep.ingest(db, body["source_id"], body["token"])
+        return prep.ingest(
+            db,
+            body["source_id"],
+            body["token"],
+            **{k: body[k] for k in ("ordinals", "start", "end") if k in body},
+        )
 
 
 @router.post("/analysis")
@@ -57,6 +62,8 @@ def analysis(body: dict):
         )
         if not body.get("run"):
             return report
+        if any(not d["ready"] for d in report["dependencies"]):
+            raise ValueError("准备条件未满足：" + str(report["dependencies"]))
         if not report["total"]:
             raise ValueError("所选范围没有可处理的已导入台词")
         return submit(
@@ -95,7 +102,12 @@ def direct_import(body: dict):
         if current["op_review"] == "pending" or body.get("op_review"):
             prep.configure(db, body["source_id"], op_review=body.get("op_review", "skipped"))
         p = prep.preview(db, body["source_id"])
-        return prep.ingest(db, body["source_id"], p["token"])
+        return prep.ingest(
+            db,
+            body["source_id"],
+            p["token"],
+            **{k: body[k] for k in ("ordinals", "start", "end") if k in body},
+        )
 
 
 @router.post("/music-markers")
@@ -104,3 +116,47 @@ def music_markers(body: dict):
 
     with database() as db:
         return run(db, body["source_ids"], body.get("apply", True))
+
+
+@router.get("/roles")
+def roles(source_id: str):
+    from .track_roles import listing
+
+    with database() as db:
+        return listing(db, source_id)
+
+
+@router.post("/roles")
+def role_settings(body: dict):
+    from .track_roles import configure
+
+    with database() as db:
+        return configure(db, **body)
+
+
+@router.post("/subtitle-samples")
+def subtitle_samples(body: dict):
+    from .subtitle_import import preview, create
+
+    with database() as db:
+        params = {k: body[k] for k in ("source_id", "kind", "annotation_ids", "start", "end") if k in body}
+        return (
+            create(db, token=body["token"], selected_ids=body.get("selected_ids"), **params)
+            if body.get("apply")
+            else preview(db, **params)
+        )
+
+
+@router.post("/subtitle-rule-preview")
+def subtitle_rule_preview(body: dict):
+    from .subtitle_import import classify
+
+    return classify(body.get("text", ""), body.get("settings", {}))
+
+
+@router.post("/relocate")
+def relocate(body: dict):
+    from .source_locations import relocate
+
+    with database() as db:
+        return relocate(db, **body)

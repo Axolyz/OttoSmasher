@@ -1,21 +1,18 @@
 from ottosmasher import materials, sample_scope, ui_catalog
 from ottosmasher import sample_catalog as c
-from ottosmasher.sample_deletion import folders, remove, reset
+from ottosmasher.sample_deletion import remove, reset
 
 pytest_plugins = ["test_samples"]
 
 
-def test_nature_is_independent_of_folder_and_all_pages(library):
+def test_folder_retirement_keeps_nature_and_all_pages(library):
     db, root, _ = library
-    fid = c.folder(db, "我的目录")["id"]
-    c.preferences(db, root["id"], folder_id=fid, nature="pitched")
+    c.preferences(db, root["id"], nature="pitched")
+    assert not db.execute("SELECT 1 FROM sqlite_master WHERE name='sample_folders'").fetchone()
+    assert "folder_id" not in {r[1] for r in db.execute("PRAGMA table_info(materials)")}
     assert sample_scope.ids(db, {"nature": "speech"}) == []
-    assert root["id"] in sample_scope.ids(db, {"nature": "pitched", "folder_ids": [fid]})
     result = ui_catalog.listing(db, {"scope": {"nature": "pitched"}, "ids_only": True, "offset": 100})
     assert result["ids"] == [root["id"]]
-    folders(db, [fid])
-    r = materials.get(db, root["id"])
-    assert r["nature"] == "pitched" and r["folder_id"] == ""
 
 
 def test_remove_parent_retains_child_source(library):
@@ -30,7 +27,6 @@ def test_remove_parent_retains_child_source(library):
 
 def test_reset_stays_empty_after_sync_and_migration(library):
     db, root, _ = library
-    c.folder(db, "历史 / 测试")
     db.execute(
         "INSERT INTO cues VALUES('cue-reset',?,1,0,.5,'a','a','a','a',NULL,'speech','[]')",
         (root["source_id"],),
@@ -41,10 +37,10 @@ def test_reset_stays_empty_after_sync_and_migration(library):
     materials.sync_cues(db)
     c.migrate(db)
     assert db.execute("SELECT count(*) FROM materials").fetchone()[0] == 0
-    assert db.execute("SELECT count(*) FROM sample_folders").fetchone()[0] == 0
+    assert not db.execute("SELECT 1 FROM sqlite_master WHERE name='sample_folders'").fetchone()
     assert db.execute("SELECT count(*) FROM sources").fetchone()[0] == source_count
     fresh = materials.register_file(db, root["path"])
-    c.preferences(db, fresh["id"], folder_id="inbox", nature="unpitched")
+    c.preferences(db, fresh["id"], nature="unpitched")
     assert materials.get(db, fresh["id"])["nature"] == "unpitched"
 
 
@@ -53,9 +49,9 @@ def test_nature_derivation_rules_and_duplicate_preservation(library):
     c.preferences(db, root["id"], nature="speech")
     cut = c.derive(db, root["id"], start=0.1, end=0.5, nature="unpitched")
     inherited = c.derive(db, cut["id"], start=0, end=0.2, operation="quantized")
-    assert inherited["nature"] == "unpitched"
+    assert inherited["nature"] == "unclassified"
     separated = c.derive(db, cut["id"], operation="audio_source")
-    assert separated["nature"] == "unpitched"
+    assert separated["nature"] == "unclassified"
     flattened = c.derive(db, cut["id"], operation="flatten")
     assert flattened["nature"] == "pitched"
     c.preferences(db, root["id"], nature="pitched")
@@ -63,7 +59,6 @@ def test_nature_derivation_rules_and_duplicate_preservation(library):
     c.preferences(db, cut["id"], nature="speech")
     duplicate = c.derive(db, root["id"], start=0.1, end=0.5, nature="unpitched")
     assert duplicate["id"] == cut["id"] and duplicate["nature"] == "speech"
-    c.preferences(db, cut["id"], folder_id="pitched")  # legacy destination is not a type setter
     assert materials.get(db, cut["id"])["nature"] == "speech"
 
 

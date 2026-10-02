@@ -15,7 +15,7 @@ from .time_mapping import schedule
 from .workspace import DATA, identity, write_json
 
 
-def candidates(record, bpm, strategy):
+def candidates(record, bpm, strategy, count=3):
     if not math.isfinite(bpm) or bpm <= 0:
         raise ValueError("BPM 必须为正数")
     if strategy not in record["compiled"]["routes"]:
@@ -64,7 +64,9 @@ def candidates(record, bpm, strategy):
     if not fast or fast[1] < 1 - 1e-5:
         return [], errors
     result = []
-    for label, k in [("near_fast", exponent), ("near_slow", exponent - 1), ("double_fast", exponent + 1)]:
+    for label, k in [("near_fast", exponent), ("near_slow", exponent - 1), ("double_fast", exponent + 1)][
+        :count
+    ]:
         p = at(k)
         if p:
             result.append({"density": p[0], "speech_playback_speed": p[1], "candidate_role": label})
@@ -220,7 +222,9 @@ def load(db, mid, pid):
 
 @lru_cache(maxsize=1024)
 def decode(payload):
-    return json.loads(payload)
+    from .sample_analysis import decode_record
+
+    return decode_record(payload)
 
 
 def search(db, payload, *, all_matches=False):
@@ -231,24 +235,28 @@ def search(db, payload, *, all_matches=False):
     start = time.perf_counter()
     payload = dict(payload)
     eligible = set(ids(db, payload))
-    for key in ("pool", "folder_id", "folder_ids", "starred", "material_ids", "target_folder", "nature"):
+    for key in ("pool", "starred", "material_ids", "nature"):
         payload.pop(key, None)
     q = RhythmQuery.model_validate(payload)
     rows = db.execute(
         "SELECT m.*,r.payload FROM materials m JOIN sample_records r ON r.material_id=m.id AND r.backend=m.active_phone_backend WHERE m.status<>'discarded'"
     ).fetchall()
+
     def matches(pattern, local):
         if not all_matches:
             found = match_pattern(pattern, local)
             return [found] if found else []
         from .quantized_match import _requirements
+
         count = len(_requirements(local)[0])
         result = []
-        for first in range(len(pattern.get("units", []))-count+1):
-            candidate = {**local.model_dump(), "required_unit_indices": list(range(first, first+count))}
+        for first in range(len(pattern.get("units", [])) - count + 1):
+            candidate = {**local.model_dump(), "required_unit_indices": list(range(first, first + count))}
             found = match_pattern(pattern, candidate)
-            if found: result.append(found)
+            if found:
+                result.append(found)
         return result
+
     hits = []
     errors = []
     searched = 0
@@ -306,7 +314,7 @@ def search(db, payload, *, all_matches=False):
     from .ui_catalog import effective_all
 
     display_tags = effective_all(db, list({h[2]["id"] for h in hits})) if hits else {}
-    for match, record, r, opt in (hits if all_matches else hits[: q.limit]):
+    for match, record, r, opt in hits if all_matches else hits[: q.limit]:
         p = generate_references(
             record["cue"],
             record["analysis"],

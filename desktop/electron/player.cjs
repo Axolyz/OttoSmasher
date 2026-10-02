@@ -70,7 +70,7 @@ module.exports = function install(root, origin, trusted) {
       aid: null,
       audio_delay: 0,
     };
-    if (/^\/api\/helper\/native-player\/[a-f0-9]{24}$/.test(u.pathname)) {
+    if (/^\/api\/(?:helper\/native-player|samples\/visual-native)\/[a-f0-9]{24}$/.test(u.pathname)) {
       const response = await fetch(u);
       if (!response.ok) throw Error(await response.text());
       spec = await response.json();
@@ -161,13 +161,17 @@ module.exports = function install(root, origin, trusted) {
       own(e, id);
       if (![b.x, b.y, b.width, b.height].every(Number.isFinite)) return;
       const z = e.sender.getZoomFactor();
-      addon.geometry(
+      const clip=b.clip||b;
+      if(![clip.x,clip.y,clip.width,clip.height].every(Number.isFinite))return;
+      const partial=clip.x>b.x+1||clip.y>b.y+1||clip.width<b.width-1||clip.height<b.height-1;
+      (addon.clipGeometry||addon.geometry)(
         id,
         b.x * z,
         b.y * z,
         Math.max(1, b.width * z),
         Math.max(1, b.height * z),
-        !!b.visible,
+        !!b.visible&&(!partial||!!addon.clipGeometry),
+        clip.x*z,clip.y*z,Math.max(1,clip.width*z),Math.max(1,clip.height*z),
       );
     } catch {}
   });

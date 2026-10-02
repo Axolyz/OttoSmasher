@@ -6,8 +6,9 @@ import soundfile as sf
 VERSION = "acoustic-coverage-v3"
 
 
-def energy_frames(path, origin, hop_seconds=0.01):
-    y, sr = sf.read(path, dtype="float32", always_2d=True)
+def energy_frames(path, origin, hop_seconds=0.01, start=0, end=None):
+    from .audio_storage import read
+    y, sr = read(path, start, end)
     mono = y.mean(axis=1)
     hop = max(1, round(sr * hop_seconds))
     rms = np.array([np.sqrt(np.mean(mono[i : i + hop] ** 2)) for i in range(0, len(mono), hop)])
@@ -26,7 +27,9 @@ def quiet_runs(times, rms, hop, threshold, minimum=0.06):
 
 def acoustic_crop(item, phones, raw):
     origin, limit = item["window_start"], item["window_end"]
-    times, rms, hop = energy_frames(item["audio_lineage"]["audio_path"], origin)
+    from .audio_storage import lineage_audio
+    path, first, last = lineage_audio(item["audio_lineage"])
+    times, rms, hop = energy_frames(path, origin, start=first, end=last)
     threshold = max(float(np.quantile(rms, 0.85)) * 0.12, 1e-5)
     quiet = quiet_runs(times, rms, hop, threshold)
     first, last = phones[0]["start"], phones[-1]["end"]

@@ -1,4 +1,5 @@
 from .workspace import CODE_ROOT
+
 """Persisted local jobs. Child processes outlive windows; retries get new IDs."""
 
 import json
@@ -19,6 +20,8 @@ OPERATIONS = {
     "opening-scan",
     "sample-features",
     "sample-phones",
+    "force-fa",
+    "pitch-index",
     "flatten",
     "sample-prepare",
     "separate",
@@ -29,26 +32,45 @@ OPERATIONS = {
 
 
 def resource_lane(operation):
-    return (
-        "utility"
-        if operation in {"cut", "sample-prepare", "index", "opening-scan"}
-        else "model"
-    )
+    return "utility" if operation in {"cut", "sample-prepare", "index", "opening-scan"} else "model"
 
 
 def submit(operation, payload):
     from .cache_storage import maintenance_lock
-    with maintenance_lock():
+    from .editions import transition_lock
+
+    with transition_lock(), maintenance_lock():
         return _submit(operation, payload)
 
 
 def _submit(operation, payload):
+    from .editions import identity as edition_identity
+    from .editions import require_operation
+
+    require_operation(operation, payload)
+    context_file = DATA / "edition-context.json"
+    if context_file.exists() and json.loads(context_file.read_text()) != edition_identity():
+        raise ValueError("当前工作区运行另一版本；请先从启动器切换版本")
     if operation not in OPERATIONS:
         raise ValueError("未知操作")
     from .inference_runtime import settings as runtime_settings
-    payload = {**payload, "runtime": payload.get("runtime") or runtime_settings()}
+
+    payload = {
+        **payload,
+        "edition_context": edition_identity(),
+        "runtime": payload.get("runtime") or runtime_settings(),
+    }
     jid = uuid.uuid4().hex
     with connect() as db:
+        if (operation == 'separate' and (payload.get('selection') or payload.get('material_id'))) or (operation=='flatten' and payload.get('selection')):
+            from .selection_ops import separation_snapshot
+            payload = separation_snapshot(db,payload)
+            if operation == 'flatten' and (payload.get('pitch_strategy') is not None or payload.get('mode') == 'from_first_vowel'):
+                from .flatten_pitch import VERSION
+                payload['flatten_algorithm'] = VERSION
+            if operation == 'flatten' and payload.get('expected_asset') is not None:
+                if payload['expected_asset'] != payload['input_asset']:
+                    raise ValueError('声音资产已改变，请重新打开拉平弹窗')
         db.execute(
             "INSERT INTO operation_jobs VALUES(?,?,?,?,?,?,?,?,?)",
             (
@@ -85,14 +107,21 @@ def launch(jid):
     return {"id": jid, "status": "queued", "pid": child.pid}
 
 
-def listing():
+def listing(summary=False):
     with connect() as db:
-        rows = [dict(r) for r in db.execute("SELECT * FROM operation_jobs ORDER BY created DESC LIMIT 200")]
+        fields = "*" if not summary else """id,operation,status,error,updated,created,pid,payload,
+            CASE WHEN result IS NULL THEN NULL ELSE json_object(
+              'type',json_extract(result,'$.type'),'completed',json_extract(result,'$.completed'),
+              'total',json_extract(result,'$.total'),'stage_revision',json_extract(result,'$.stage_revision'),
+              'material_id',json_extract(result,'$.material_id'),'sample_id',json_extract(result,'$.sample.id')
+            ) END result"""
+        rows = [dict(r) for r in db.execute(f"SELECT {fields} FROM operation_jobs ORDER BY created DESC LIMIT 200")]
         for r in rows:
             if r["status"] in ("running", "queued") and r["pid"]:
                 try:
                     import psutil
-                    if not psutil.pid_exists(r['pid']):
+
+                    if not psutil.pid_exists(r["pid"]):
                         raise ProcessLookupError()
                 except ProcessLookupError:
                     r["status"] = "interrupted"
@@ -110,6 +139,18 @@ def listing():
             r["resource_lane"] = resource_lane(r["operation"])
             r["payload"] = json.loads(r["payload"])
             r["result"] = json.loads(r["result"]) if r["result"] else None
+            payload=r['payload']; mids=set(payload.get('material_ids',[]) or [])
+            if payload.get('material_id'):mids.add(payload['material_id'])
+            for item in payload.get('inputs',[]) or []:
+                if isinstance(item,dict) and item.get('material_id'):mids.add(item['material_id'])
+            sources=set(payload.get('source_ids',[]) or [])
+            if payload.get('source_id'):sources.add(payload['source_id'])
+            if mids:
+                sources.update(x[0] for x in db.execute('SELECT DISTINCT source_id FROM materials WHERE id IN ('+','.join('?' for _ in mids)+')',tuple(mids)))
+            selection=payload.get('selection') or {}
+            if selection.get('asset_id'):
+                sources.update(x[0] for x in db.execute('SELECT source_id FROM sound_assets WHERE id=?',(selection['asset_id'],)))
+            r['affected']={'sample_ids':sorted(mids),'source_ids':sorted(sources)}
         return rows
 
 
@@ -127,7 +168,9 @@ def cancel(jid):
                 if os.name == "posix":
                     os.killpg(row["pid"], signal.SIGTERM)
                 else:
-                    subprocess.run(["taskkill", "/PID", str(row["pid"]), "/T", "/F"], check=False, capture_output=True)
+                    subprocess.run(
+                        ["taskkill", "/PID", str(row["pid"]), "/T", "/F"], check=False, capture_output=True
+                    )
             except ProcessLookupError:
                 pass
     return {"status": "cancelled"}

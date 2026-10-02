@@ -21,11 +21,31 @@ def main(argv):
             "plans",
             "search",
             "review",
-            "folder",
             "flatten",
             "batch-flatten",
             "export",
             "analyze",
+            "reanalyse",
+            "pitch-query",
+            "pitch-index",
+            "selection-save",
+            "selection-external-import",
+            "selection-resolve",
+            "selection-descendants",
+            "selection-separate",
+            "selection-reanalyse",
+            "selection-flatten",
+            "phone-times-export",
+            "phone-times-apply",
+            "edit-new-annotation",
+            "edit-promote-tags",
+            "edit-export",
+            "edit-preview",
+            "edit-apply",
+            "edit-undo",
+            "migration-prepare",
+            "migration-audit",
+            "migration-activate",
         ],
     )
     p.add_argument("material", nargs="?")
@@ -44,7 +64,75 @@ def main(argv):
     with connect() as db:
         action = args.action
         mid = args.material
-        if action == "get":
+        if action.startswith("selection-"):
+            from . import selection_ops
+
+            verb = action.removeprefix("selection-")
+            if verb == "resolve":
+                selected = (
+                    selection_ops.from_source(
+                        db, mid, data["start"], data["end"], data.get("role", "raw"), data.get("audio_stream")
+                    )
+                    if data.get("clock") == "source"
+                    else selection_ops.from_sample(
+                        db, mid, data.get("start"), data.get("end"), data.get("role")
+                    )
+                )
+                result = selected.json()
+            elif verb in {"separate", "flatten"}:
+                result = submit(verb, data)
+            elif verb == "reanalyse":
+                from .reanalysis import submit_selection
+
+                result = submit_selection(db, **data)
+            else:
+                result = getattr(selection_ops, verb.replace("-", "_"))(db, **data)
+        elif action == "pitch-query":
+            from .pitch_search import query
+
+            result = query(db, data)
+        elif action == "pitch-index":
+            from .pitch_indexing import selection_scope
+
+            result = submit("pitch-index", selection_scope(db, data))
+        elif action == "phone-times-export":
+            from .phone_timing import document
+
+            result = document(db, mid, data.get("backend"))
+        elif action == "phone-times-apply":
+            from .phone_timing import apply
+
+            result = apply(db, data)
+        elif action == "reanalyse":
+            from .reanalysis import submit as force_fa
+
+            result = force_fa(db, data.get("ids", [mid] if mid else []), data.get("backend"))
+        elif action.startswith("edit-"):
+            from . import business_edits
+
+            if action == "edit-promote-tags":
+                result = business_edits.promote_tags(db, **data)
+            elif action == "edit-new-annotation":
+                result = business_edits.new_annotation(db, **data)
+            elif action == "edit-export":
+                result = business_edits.export(db, data["objects"])
+            elif action == "edit-preview":
+                result = business_edits.preview(db, data)
+            elif action == "edit-apply":
+                result = business_edits.apply(db, data)
+            else:
+                result = business_edits.undo(db, data.get("action_id"))
+        elif action.startswith("migration-"):
+            from .asset_migration import prepare, audit, activate
+
+            result = (
+                prepare(db, **data)
+                if action == "migration-prepare"
+                else activate(db)
+                if action == "migration-activate"
+                else audit(db)
+            )
+        elif action == "get":
             result = materials.get(db, mid)
         elif action == "register":
             result = ops.register(db, **data)
@@ -59,11 +147,10 @@ def main(argv):
             result = rhythm.plans(db, mid, **data)
         elif action == "search":
             from .speech_query import query
+
             result = query(db, data)
         elif action == "review":
             result = catalog.review(db, data["ids"], data.get("accept", True))
-        elif action == "folder":
-            result = catalog.folder(db, data["name"], data.get("id"))
         elif action == "flatten":
             result = submit("flatten", {"material_id": mid, **data})
         elif action == "batch-flatten":

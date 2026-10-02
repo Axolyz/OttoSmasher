@@ -1,10 +1,18 @@
+import {DraftNumber as InputNumber} from "./DraftNumber";
+import { completedFor } from "./JobChanges";
+import FlattenModal from "./FlattenModal";
+import SeparationControls from "./SeparationControls";
+import SelectionEditor from "./SelectionEditor";
+import VisualPlayback from "./VisualPlayback";
+import BusinessTextEditor from "./BusinessTextEditor";
+import { DescendantRanges, SelectionImport } from "./SelectionTools";
 import { usePlaybackTempo } from "./PlaybackTempo";
 import {
   Button,
   Dropdown,
   Form,
   Input,
-  InputNumber,
+
   Modal,
   Select,
   Space,
@@ -30,11 +38,13 @@ import { audioTimeline, isAnnotation } from "./AudioTimeline";
 import { AudioPlayer } from "./MediaTimeline";
 import { RhythmMapping } from "./RhythmMapping";
 import { Cutter, ask } from "./main";
-import { NativeAlignment } from "./NativeAlignment";
+import { NativeAlignment } from "./ArchivedAlignment";
+import { readApiResponse } from "./ApiResponse";
 // Retain the experimental implementations and installed weights, but close the GUI entry.
-const NATIVE_ALIGNMENT_ENTRY_ENABLED = false;
+const NATIVE_ALIGNMENT_ENTRY_ENABLED = true;
 import { FeatureDetails } from "./AcousticFeatures";
 export async function request(url: string, body?: any, signal?: AbortSignal) {
+  if(body && /settings|search|pitch-query$|speech-query$|source-selection|flatten|save|cut|import|\/apply|\/rename|\/update/.test(url) && Array.from(document.querySelectorAll('.otto-number-invalid')).some(e=>e.getClientRects().length&&!e.querySelector('input:disabled'))) throw Error('请填写标红的数字输入框');
   if (
     body &&
     window.ottoDesktop?.player &&
@@ -44,6 +54,7 @@ export async function request(url: string, body?: any, signal?: AbortSignal) {
       ].includes(url))
   )
     body = { ...body, native: true };
+  const began = performance.now();
   const r = await fetch(
     url,
     body === undefined
@@ -55,14 +66,10 @@ export async function request(url: string, body?: any, signal?: AbortSignal) {
           body: JSON.stringify(body),
         },
   );
-  const data = await r.json();
-  if (!r.ok)
-    throw Error(
-      typeof data.detail === "string"
-        ? data.detail
-        : JSON.stringify(data.detail),
-    );
-  return data;
+  const result = await readApiResponse(r, url);
+  const elapsed = performance.now() - began;
+  if (elapsed > 250) console.info("OTTO_DIAGNOSTIC " + JSON.stringify({event:"slow-request",url,elapsed_ms:Math.round(elapsed)}));
+  return result;
 }
 const api = (p: string, b?: any, signal?: AbortSignal) =>
   request("/api/samples" + p, b, signal);
@@ -70,7 +77,7 @@ const backends: any = {
 
   narabas: "narabas",
   phonetic: "HubertFA",
-  pydomino: "pydomino（末位备选）",
+  pydomino: "pydomino",
 };
 const routes: any = {
   acoustic: "原节奏 · 无 mora",
@@ -95,7 +102,6 @@ export function Inspector({
   hit,
   hits = [],
   onHit,
-  folders,
   onSelect,
   onRefresh,
   onMessage,
@@ -108,7 +114,6 @@ export function Inspector({
   hit?: any;
   hits?: any[];
   onHit?: (hit: any) => void;
-  folders: any[];
   onSelect: (id: string, pid?: string) => void;
   onRefresh: () => Promise<void>;
   onMessage: (e: any) => void;
@@ -119,7 +124,8 @@ export function Inspector({
     ),
     [action, setAction] = useState(""),
     [audition, setAudition] = useState("strict"),
-    [flattenMode, setFlattenMode] = useState("all"),
+    [cutTitle,setCutTitle] = useState(""),
+    [separationParameters,setSeparationParameters] = useState('{"model": null, "stems": null}'),
     [override, setOverride] = useState<any>({ category: "work", value: "" });
   const [record, setRecord] = useState<any>(null),
     [error, setError] = useState(""),
@@ -133,8 +139,11 @@ export function Inspector({
     [pid, setPid] = useState(""),
     [preview, setPreview] = useState(""),
     [busy, setBusy] = useState(false),
-    [folder, setFolder] = useState(""),
-    [cutNature, setCutNature] = useState(r.nature || "unclassified");
+    [cutNature, setCutNature] = useState("unclassified");
+  const [visualMaster,setVisualMaster]=useState<HTMLMediaElement|null>(null);
+  const [visualRevision,setVisualRevision]=useState(0);
+  const [editingSelection,setEditingSelection]=useState<any>(null);
+  const [visualEdit,setVisualEdit]=useState<{type:string;id:string}[]|null>(null);
   const [bpm] = usePlaybackTempo();
   const audio = useRef<HTMLAudioElement>(null);
   const pendingNativeRange = useRef<{id:string;start:number;end:number}|null>(null);
@@ -152,6 +161,8 @@ export function Inspector({
       setBusy(false);
     }
   };
+  const [timeline, setTimeline] = useState<any>(null);
+  const recordId=useRef(r.id);recordId.current=r.id;
   const analysisRequest = useRef(0);
   const analysisAbort = useRef<AbortController | null>(null);
   const projectionRequested = useRef(new Set<string>());
@@ -167,18 +178,19 @@ export function Inspector({
     analysisAbort.current?.abort();
     const controller = new AbortController();
     analysisAbort.current = controller;
-    if (!r) return;
+    if (!r || r._loading) return;
+    setRecord(null);
     try {
       const a = await api(
         "/" + r.id + "/analysis?part=display",
         undefined,
         controller.signal,
       );
-      if (seq !== analysisRequest.current) return;
+      if (controller.signal.aborted || seq !== analysisRequest.current) return;
       setRecord(a);
       setError("");
     } catch (e) {
-      if (seq !== analysisRequest.current) return;
+      if (controller.signal.aborted || seq !== analysisRequest.current) return;
       setRecord(null);
       setError(String(e));
       if (
@@ -200,12 +212,13 @@ export function Inspector({
     setPreview("");
   }, [
     r?.id,
+    r?._loading,
     r?.active_phone_backend,
     r?.active_quantization_strategy,
     JSON.stringify(r?.analysis_settings || {}),
   ]);
   useEffect(() => {
-    if (!r || !record) return;
+    if (!r || r._loading || !record || (panel !== "rhythm" && !hitPlan)) return;
     let dead = false;
     api("/" + r.id + "/plans", {
       bpm,
@@ -221,33 +234,32 @@ export function Inspector({
     return () => {
       dead = true;
     };
-  }, [record?.signature, bpm, hitPlan]);
+  }, [record, r?._loading, bpm, hitPlan, panel]);
   useEffect(() => {
     if (!r) return;
     let dead = false;
-    setAudioReady("");
+    setAudioReady(r.id);
+    setRole("selected");
+    setAudioCaps(null);
     setAcoustics(null);
-    api("/" + r.id + "/audio-capabilities")
-      .then((x) => {
-        if (dead) return;
-        setAudioCaps(x);
-        setRole(x.default_role);
-        setAudioReady(r.id);
-      })
-      .catch(onMessage);
-    return () => {
-      dead = true;
-    };
-  }, [r?.id, r?.audio_asset?.sha256]);
+    return () => { dead = true; };
+  }, [r?.id]);
+  async function discoverTracks(){
+    if(audioCaps)return;
+    const id=r.id;
+    try{const caps=await api('/'+id+'/audio-capabilities');if(recordId.current===id)setAudioCaps(caps)}catch(e){onMessage(e)}
+  }
   useEffect(() => {
     if (!r || audioReady !== r.id) return;
     let dead = false;
-    const refresh = () =>
-      api("/" + r.id + "/acoustics?role=" + role)
+    const refresh = (event?: Event) => {
+      if (event && !completedFor(event, {sample:r.id}, ["sample-features", "sample-prepare"])) return;
+      return api("/" + r.id + "/acoustics?role=" + role)
         .then((x) => {
           if (!dead) setAcoustics(x);
         })
         .catch(onMessage);
+    };
     setAcoustics(null);
     refresh();
     window.addEventListener("otto:jobs-updated", refresh);
@@ -257,30 +269,12 @@ export function Inspector({
     };
   }, [r?.id, role, audioReady]);
   useEffect(() => {
-    let signature = "";
     const refresh = (event: Event) => {
-      const jobs = (event as CustomEvent).detail || [];
-      const relevant = jobs.filter(
-        (j: any) =>
-          j.payload?.material_id === r?.id ||
-          j.result?.rows?.some((row: any) => row.material_id === r?.id),
-      );
-      const next = JSON.stringify(
-        relevant.map((j: any) => [
-          j.id,
-          j.status,
-          j.result?.completed,
-          j.result?.stage_revision,
-        ]),
-      );
-      if (next !== signature) {
-        signature = next;
-        if (relevant.length) getAnalysis();
-      }
+      if (completedFor(event, {sample:r.id}, ["sample-prepare", "speech-prepare", "force-fa", "sample-phones"])) void getAnalysis();
     };
     window.addEventListener("otto:jobs-updated", refresh);
     return () => window.removeEventListener("otto:jobs-updated", refresh);
-  }, [r?.id]);
+  }, [r?.id, r?._loading, r?.active_phone_backend, r?.active_quantization_strategy, JSON.stringify(r?.analysis_settings || {})]);
   const hitRef = useRef<any>(null);
   hitRef.current = hit;
   const annotations = (r: any) => [
@@ -288,16 +282,20 @@ export function Inspector({
       id: `phone-${i}`,
       start: p.start,
       end: p.end,
+      effective_start:p.effective_start,
+      effective_end:p.effective_end,
       label: p.label || p.phone || p.text || "",
     })),
     ...(r?.view?.pauses || []).map((p: any, i: number) => ({
       id: `pause-${i}`,
       start: p.start,
       end: p.end,
+      effective_start:p.effective_start,
+      effective_end:p.effective_end,
       label: "休止",
       color: "#060b1499",
     })),
-    ...(hitRef.current && hitRef.current.revision === r?.signature
+    ...(hitRef.current && !hitRef.current.disabled && (hitRef.current.kind==='pitch' || hitRef.current.revision === r?.signature)
       ? [
           {
             id: "hit",
@@ -330,7 +328,7 @@ export function Inspector({
     (wave.current as any)?.ottoSetAnnotations(annotations(recordRef.current));
   }, [record, role, acoustics, hit]);
   useEffect(() => {
-    if (!hit || !record || hit.revision !== record.signature) return;
+    if (!hit || hit.disabled || (hit.kind!=='pitch' && (!record || hit.revision !== record.signature))) return;
     setRange([hit.start, hit.end]);
     wave.current?.setTime(hit.start);
     wave.current?.setScrollTime(Math.max(0, hit.start - 0.3));
@@ -382,6 +380,8 @@ export function Inspector({
         regions.current = plugin;
         (w as any).ottoSetFrames(framesRef.current);
         wave.current = w;
+        setTimeline(w);
+        setVisualMaster(w.getMediaElement());
         w.once("ready", () =>
           plugin.addRegion({
             id: "selection",
@@ -415,6 +415,8 @@ export function Inspector({
       controller.abort();
       wave.current?.destroy();
       wave.current = null;
+      setTimeline(null);
+      setVisualMaster(null);
     };
   }, [r?.id, role]);
   useEffect(() => {
@@ -464,7 +466,6 @@ export function Inspector({
         body.active_quantization_strategy ||
         body.analysis_settings
       ) {
-        onSelect(r.id);
         window.dispatchEvent(new Event("otto:speech-index-changed"));
       }
       await onRefresh();
@@ -478,35 +479,31 @@ export function Inspector({
     });
     await onRefresh();
   };
-  const flattenSelection = async (mode: string) => {
-    const job = await api("/" + r.id + "/flatten", {
-      mode,
-      start: range[0],
-      end: range[1],
-      role,
-    });
-    await onRefresh();
-    onMessage("当前选区拉平已排队：" + job.id);
-  };
   const play = async (mode: string) => {
     const v = await api("/" + r.id + "/preview", { plan_id: pid, mode });
     setPreview(v.url);
   };
+  useEffect(()=>{if(action!=="cut")return;let dead=false;setCutTitle("");api('/selection/resolve',{material_id:r.id,start:range[0],end:range[1],role})
+    .then(selection=>api('/selection/name',{selection})).then(x=>{if(!dead){setCutTitle(x.title);setCutNature(x.nature||"unclassified")}}).catch(onMessage);return()=>{dead=true}},[action,r.id,role,range[0],range[1]]);
   const saveCut = () =>
     run(async () => {
       const child = await api("/" + r.id + "/select", {
         start: range[0],
         end: range[1],
         role,
-        folder_id: folder,
         nature: cutNature,
+        title: cutTitle || null,
       });
       await onRefresh();
       onSelect(child.id);
       setAction("");
     });
   const actions = [
-    { key: "cut", label: "保存选区…", onClick: () => setAction("cut") },
+    {key:'annotations',label:'选区标注 / 轨道组 / FA…',onClick:()=>run(async()=>setEditingSelection(await api('/selection/resolve',{material_id:r.id,start:range[0],end:range[1],role})))},
+    {key:'visual',label:'画面绑定…',onClick:()=>setVisualEdit([{type:'source_visual',id:r.source_id},{type:'sample_visual',id:r.id}])},
+    {key:'pv',label:'导出 PV 画面清单',onClick:()=>run(async()=>onFile((await api('/'+r.id+'/export',{video:true})).path))},
+    { key: "cut", label: "截取…", onClick: () => setAction("cut") },
+    { key: "external-import", label: "回导等长成品…", onClick: () => setAction("external-import") },
     { key: "flatten", label: "拉平选区…", onClick: () => setAction("flatten") },
     { key: "source", label: "返回原片", onClick: onSource },
     {
@@ -551,12 +548,8 @@ export function Inspector({
     },
     {
       key: "separate",
-      label: "准备分离音源",
-      onClick: () =>
-        run(async () => {
-          await api("/" + r.id + "/separate", { save: false });
-          onMessage("分离任务已排队");
-        }),
+      label: "使用 PyMSS 处理选区",
+      onClick: () => setAction("separate"),
     },
   ];
   return (
@@ -569,7 +562,7 @@ export function Inspector({
             aria-label="试听当前采样"
             title="左键原声／右键卡拍"
             icon={<PlayCircleOutlined />}
-            onClick={() => onAudition(false)}
+            onClick={() => {if(wave.current)void wave.current.playPause().catch(onMessage);}}
             onContextMenu={(e) => {
               e.preventDefault();
               onAudition(true);
@@ -640,9 +633,12 @@ export function Inspector({
           }
         />
       </div>
+
+      <SelectionImport id={r.id} range={range} role={role} open={action==='external-import'} onClose={()=>setAction('')} onSaved={id=>{void onRefresh();onSelect(id);}}/>
       <div className="studio-toolbar compact">
         <Select
           value={role}
+          onOpenChange={open=>{if(open)void discoverTracks()}}
           onChange={setRole}
           options={["selected", "raw", "vocals", "residual"].map((value) => ({
             value,
@@ -676,7 +672,7 @@ export function Inspector({
           拖动吸附音素边界。
         </Help>
       </div>
-      {hit && (
+      {hit && hits.length>0 && (
         <Space wrap>
           <Button
             size="small"
@@ -699,11 +695,15 @@ export function Inspector({
           >
             下一个命中
           </Button>
-          {record && hit.revision !== record.signature && (
+          {(hit.disabled || (hit.kind!=='pitch' && record && hit.revision !== record.signature)) && (
             <Tag color="warning">命中已失效，请重新查询</Tag>
           )}
         </Space>
       )}
+      <SelectionEditor sampleId={r.id} selection={editingSelection} open={!!editingSelection} onClose={()=>setEditingSelection(null)} onSaved={()=>{void onRefresh();}}/>
+      <VisualPlayback id={r.id} role={role} master={visualMaster} revision={visualRevision}/>
+      <DescendantRanges id={r.id} role={role} timeline={timeline} onSelect={onSelect}/>
+      <BusinessTextEditor objects={visualEdit} onClose={()=>setVisualEdit(null)} onSaved={()=>{setVisualRevision(x=>x+1);void onRefresh();}}/>
       <Dropdown menu={{ items: actions }} trigger={["contextMenu"]}>
         <div ref={wrap} />
       </Dropdown>
@@ -714,7 +714,7 @@ export function Inspector({
           size="small"
           value={range[0]}
           step={0.001}
-          onChange={(v) => setRange([v || 0, range[1]])}
+          onChange={(v: any) => setRange([v || 0, range[1]])}
         />
         <span>—</span>
         <InputNumber
@@ -723,19 +723,21 @@ export function Inspector({
           size="small"
           value={range[1]}
           step={0.001}
-          onChange={(v) => setRange([range[0], v || 0])}
+          onChange={(v: any) => setRange([range[0], v || 0])}
         />
         <span>s</span>
         <span className="toolbar-spacer" />
         <Button
-          type="primary"
-          icon={<ScissorOutlined />}
+          type="default"
           onClick={() => setAction("cut")}
         >
-          保存选区
+          截取
         </Button>
         <Button onClick={() => setAction("flatten")}>拉平…</Button>
+        <Button onClick={()=>actions.find(a=>a.key==='separate')?.onClick()}>PyMSS</Button>
+        <Button onClick={()=>setAction('external-import')}>回导…</Button>
       </div>
+      {action==='flatten'&&<FlattenModal input={{material_id:r.id,start:range[0],end:range[1],role,backend:r.active_phone_backend}} initialMode="from_first_vowel" onClose={()=>setAction('')} onQueued={id=>onMessage('拉平任务已排队：'+id)}/>}
       {error && panel === "analysis" && (
         <Alert
           type="warning"
@@ -828,7 +830,7 @@ export function Inspector({
                       options={Object.entries(backends).map(
                         ([value, label]) => ({ value, label: String(label) }),
                       )}
-                      onChange={(v) => prefs({ active_phone_backend: v })}
+                      onChange={(v: any) => prefs({ active_phone_backend: v })}
                     />
                   </Form.Item>
                   <Form.Item label="量化路线">
@@ -838,7 +840,7 @@ export function Inspector({
                         value,
                         label: String(label),
                       }))}
-                      onChange={(v) =>
+                      onChange={(v: any) =>
                         prefs({ active_quantization_strategy: v })
                       }
                     />
@@ -864,7 +866,7 @@ export function Inspector({
                             e.shiftKey && anchor !== null
                               ? Math.max(anchor, i)
                               : i;
-                        setRange([phones[first].start, phones[last].end]);
+                        setRange([phones[first].effective_start ?? phones[first].start, phones[last].effective_end ?? phones[last].end]);
                         if (!e.shiftKey) setAnchor(i);
                       }}
                     >
@@ -911,7 +913,7 @@ export function Inspector({
                     </Button>
                   )}
                 </Space>
-                {NATIVE_ALIGNMENT_ENTRY_ENABLED && <NativeAlignment id={r.id} task={()=>onMessage("字符／音节分析已排队，可在任务面板查看")} report={onMessage} locate={(a,b,sourceRole)=>{if(sourceRole!==role)pendingNativeRange.current={id:r.id,start:a,end:b};setRole(sourceRole);setRange([a,b]);wave.current?.setTime(a);wave.current?.setScrollTime(Math.max(0,a-.3));}} />}
+                {NATIVE_ALIGNMENT_ENTRY_ENABLED && <NativeAlignment id={r.id} task={()=>onMessage("字符／音节分析已排队，可在任务面板查看")} report={onMessage} locate={(a: number,b: number,sourceRole: string)=>{if(sourceRole!==role)pendingNativeRange.current={id:r.id,start:a,end:b};setRole(sourceRole);setRange([a,b]);wave.current?.setTime(a);wave.current?.setScrollTime(Math.max(0,a-.3));}} />}
                 <FeatureDetails id={r.id} />
               </>
             ),
@@ -931,19 +933,7 @@ export function Inspector({
                         { value: "pitched", label: "调谐单音" },
                         { value: "unpitched", label: "非调谐单音" },
                       ]}
-                      onChange={(v) => prefs({ nature: v })}
-                    />
-                  </Form.Item>
-                  <Form.Item label="归档文件夹">
-                    <Select
-                      value={r.folder_id}
-                      options={[{ id: "", name: "未归档" }, ...folders].map(
-                        (f) => ({
-                          value: f.id,
-                          label: f.name,
-                        }),
-                      )}
-                      onChange={(v) => prefs({ folder_id: v })}
+                      onChange={(v: any) => prefs({ nature: v })}
                     />
                   </Form.Item>
                   <Form.Item label="备注">
@@ -964,7 +954,7 @@ export function Inspector({
                       min={0}
                       max={5}
                       value={r.rating}
-                      onChange={(v) =>
+                      onChange={(v: any) =>
                         run(async () => {
                           await request(
                             "/api/helper/materials/" + r.id + "/edit",
@@ -1034,25 +1024,22 @@ export function Inspector({
         )}
       />
       <AudioPlayer key={preview} mediaRef={audio} url={preview} autoPlay />
+      <Modal title="PyMSS 选区参数" open={action==='separate'} onCancel={()=>setAction('')} confirmLoading={busy} onOk={()=>run(async()=>{
+        const params=JSON.parse(separationParameters);
+        if(Object.keys(params).some(k=>!['model','stems','device'].includes(k)))throw Error('只接受 model、stems、device');
+        await api('/'+r.id+'/separate',{...params,role,save:false,start:range[0],end:range[1]});setAction('');onMessage('分离已排队，任务结果中可试听并保存各声部');
+      })}><p>当前声音选区 [{range[0].toFixed(3)}, {range[1].toFixed(3)})。model 为 null 使用当前设置；只使用 Studio 已下载模型，stems 为 null 保留全部声部。</p><SeparationControls text={separationParameters} onChange={setSeparationParameters}/></Modal>
       <Modal
-        title={action === "flatten" ? "拉平选区" : "保存选区"}
-        open={["cut", "flatten"].includes(action)}
+        title="截取"
+        open={action === "cut"}
         onCancel={() => setAction("")}
         confirmLoading={busy}
-        onOk={() =>
-          action === "cut"
-            ? saveCut()
-            : run(async () => {
-                await flattenSelection(flattenMode);
-                setAction("");
-              })
-        }
+        onOk={saveCut}
       >
         <p>
           {range[0].toFixed(3)}—{range[1].toFixed(3)}s · {roles[role]}
         </p>
-        {action === "cut" ? (
-          <Form layout="vertical">
+          <Form layout="vertical"><Form.Item label="名称"><Input value={cutTitle} onChange={e=>setCutTitle(e.target.value)}/></Form.Item>
             <Form.Item label="性质">
               <Select
                 value={cutNature}
@@ -1065,40 +1052,7 @@ export function Inspector({
                 ]}
               />
             </Form.Item>
-            <Form.Item label="文件夹">
-              <Select
-                style={{ width: "100%" }}
-                value={folder}
-                onChange={setFolder}
-                options={[{ id: "", name: "未归档" }, ...folders].map((f) => ({
-                  value: f.id,
-                  label: f.name,
-                }))}
-              />
-            </Form.Item>
           </Form>
-        ) : (
-          <>
-            <Select
-              style={{ width: "100%" }}
-              value={flattenMode}
-              onChange={setFlattenMode}
-              options={[
-                { value: "all", label: "整个选段（无需字幕）" },
-                {
-                  value: "vowels",
-                  label: "仅元音，保留辅音",
-                  disabled: !record,
-                },
-              ]}
-            />
-            <Help>
-              根据可靠 F0
-              选择最近的十二平均律音。仅保存最终拉平采样，保留处理来源；没有可靠
-              F0 时报告失败。
-            </Help>
-          </>
-        )}
       </Modal>
       <Modal
         title="人工占格"
@@ -1125,7 +1079,7 @@ export function Inspector({
                   min={1}
                   disabled={!!hitPlan}
                   value={p?.slots?.[i]?.effective_slots || 1}
-                  onChange={(value) =>
+                  onChange={(value: any) =>
                     prefs({
                       analysis_settings: {
                         ...r.analysis_settings,
@@ -1168,7 +1122,7 @@ export function Inspector({
               max={3}
               step={0.1}
               value={r.analysis_settings.pause_sensitivity || 1}
-              onChange={(v) =>
+              onChange={(v: any) =>
                 prefs({
                   analysis_settings: {
                     ...r.analysis_settings,
@@ -1186,7 +1140,7 @@ export function Inspector({
               value={
                 r.analysis_settings.segments?.pause_threshold_seconds || 0.28
               }
-              onChange={(v) =>
+              onChange={(v: any) =>
                 prefs({
                   analysis_settings: {
                     ...r.analysis_settings,

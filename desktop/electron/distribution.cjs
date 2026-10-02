@@ -69,7 +69,7 @@ async function prepare(app) {
   const bins = process.platform === 'win32' ? [core, path.join(core, 'Library/bin'), path.join(core, 'Scripts')] : [path.join(core, 'bin')];
   return {root, codeRoot, buildId: manifest.id,
     python: path.join(core, process.platform === 'win32' ? 'python.exe' : 'bin/python'),
-    env: {OTTO_ROOT: root, OTTO_CODE_ROOT: codeRoot, OTTO_CORE_ENV: core,
+    env: {OTTO_ROOT: root, OTTO_CODE_ROOT: codeRoot, OTTO_CORE_ENV: core, OTTO_ONNX_ENV: path.join(runtime, 'onnx'), OTTO_EDITION: 'standard',
       OTTO_PLAYER_ADDON: path.join(runtime, 'player.node'), OTTO_BUILD_ID: manifest.id,
       PYTHONPATH: path.join(codeRoot, 'src'), PYTHONHOME: '', PYTHONUTF8: '1',
       PATH: [...bins, process.env.PATH || ''].join(path.delimiter)}};

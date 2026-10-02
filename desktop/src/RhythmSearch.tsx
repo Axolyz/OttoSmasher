@@ -1,3 +1,4 @@
+import {DraftNumber as InputNumber} from "./DraftNumber";
 import { usePlaybackTempo } from "./PlaybackTempo";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -6,7 +7,7 @@ import {
   Dropdown,
   Form,
   Input,
-  InputNumber,
+
   Modal,
   Select,
   Slider,
@@ -23,7 +24,7 @@ export function RhythmSearch({
   onMessage,
 }: {
   scope: any;
-  onResults: (r: any) => void;
+  onResults: (r: any, query:any) => void;
   onMessage: (e: any) => void;
 }) {
   const [notes, setNotes] = useSavedState<any[]>("ui.rhythm.notes", [
@@ -50,6 +51,10 @@ export function RhythmSearch({
   const [cross, setCross] = useSavedState("ui.speech.cross", false);
   const [gap, setGap] = useSavedState<number | null>("ui.speech.gap", null);
   const [bpm] = usePlaybackTempo();
+  const [speedFilter, setSpeedFilter] = useSavedState("ui.rhythm.speedFilter", false);
+  const [speedMin, setSpeedMin] = useSavedState("ui.rhythm.speedMin", .8);
+  const [speedMax, setSpeedMax] = useSavedState("ui.rhythm.speedMax", 1.25);
+  const [speedPreference, setSpeedPreference] = useSavedState("ui.rhythm.speedPreference", .1);
   const sequenceDrag = useRef<number | null>(null);
   const drag = useRef<any>(null);
   const patch = (v: any) => {
@@ -140,9 +145,7 @@ export function RhythmSearch({
         Object.fromEntries(
           Object.entries(n).filter(([k, v]) => keys.includes(k) && v != null),
         );
-      const r = await request(
-        "/api/samples/speech-query",
-        {
+      const query = {
           rhythm_policy: mode,
           scope,
           units: activeNotes.map((n) => pick(n, unitKeys)),
@@ -150,25 +153,30 @@ export function RhythmSearch({
           boundary_basis: basis,
           cross_pauses: cross,
           max_gap: gap,
-          limit: 100,
+          create_session: true,
           rhythm:
             mode !== "none"
               ? {
                   notes: activeNotes.map((n) => pick(n, oldKeys)),
                   span_beats: span,
                   bpm,
+                  playback_speed_filter: speedFilter,
+                  playback_speed_min: speedMin,
+                  playback_speed_max: speedMax,
+                  speed_preference: speedPreference,
                   adjust_pauses: pauses,
                   scope: range,
                   tolerance_beats: Math.min(0.1, step / 3),
                 }
               : null,
-        },
+        };
+      const r = await request("/api/samples/speech-query",query,
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      onResults(r);
+      onResults(r,query);
       setStatus(
-        `${r.results.length} 个采样 · ${r.hit_count} 处命中 · ${r.elapsed_ms.toFixed(0)} ms${r.index_status?.errors?.length ? " · " + r.index_status.errors.length + " 项缺少有效分析" : ""}`,
+        `${r.total ?? r.results.length} 个采样 · ${r.hit_count} 处命中 · ${r.elapsed_ms.toFixed(0)} ms${r.index_status?.errors?.length ? " · " + r.index_status.errors.length + " 项缺少有效分析" : ""}`,
       );
     } catch (e) {
       if (!controller.signal.aborted) onMessage(e);
@@ -176,22 +184,13 @@ export function RhythmSearch({
       if (!controller.signal.aborted) setBusy(false);
     }
   };
-  const searchRef = useRef(search);
-  searchRef.current = search;
-  useEffect(() => {
-    const refresh = () => {
-      if (hasQueried.current) void searchRef.current();
-    };
-    window.addEventListener("otto:speech-index-changed", refresh);
-    return () =>
-      window.removeEventListener("otto:speech-index-changed", refresh);
-  }, []);
+  /* Queries are explicit snapshots; background indexing must never rerun them. */
   return (
     <div className="rhythm-query">
       <div className="studio-toolbar compact">
         <Segmented
           value={mode}
-          onChange={(v) => setMode(String(v))}
+          onChange={(v: any) => setMode(String(v))}
           options={[
             { value: "none", label: "不限节奏" },
             { value: "required", label: "必须满足节奏" },
@@ -229,11 +228,18 @@ export function RhythmSearch({
         <Help>
           {mode === "none"
             ? "拖动编号音块排序，点击设置属性。只匹配相邻音块，缺失测量不会当作零。"
-            : "在空白处拖动绘制音块，拖动音块移动、拖动右侧调整长度；右键编辑逐音条件。三种自适应速度参与检索。"}
+            : "在空白处拖动绘制音块，拖动音块移动、拖动右侧调整长度；右键编辑逐音条件。快、慢两种自适应速度参与检索；综合分相同时优先快候选。"}
         </Help>
         <span className="toolbar-spacer" />
         <small>{status}</small>
       </div>
+      {mode !== "none" && bpm != null && <Space wrap style={{marginBottom:8}}>
+        <Checkbox checked={speedFilter} onChange={e=>setSpeedFilter(e.target.checked)}>限定播放倍速</Checkbox>
+        <InputNumber aria-label="最低播放倍速" min={0.01} step={.05} value={speedMin} disabled={!speedFilter} onChange={(v: any)=>setSpeedMin(v ?? .8)}/>
+        <span>–</span><InputNumber aria-label="最高播放倍速" min={0.01} step={.05} value={speedMax} disabled={!speedFilter} onChange={(v: any)=>setSpeedMax(v ?? 1.25)}/><span>×</span>
+        <span>原速偏好</span><InputNumber aria-label="原速偏好权重" min={0} max={1} step={.05} value={speedPreference} onChange={(v: any)=>setSpeedPreference(v ?? 0)}/>
+        <small>0 = 只按节奏排序；越大越偏好接近 1×</small>
+      </Space>}
       {mode === "none" ? (
         <Space wrap>
           {notes.map((n, i) => (
@@ -497,7 +503,7 @@ export function RhythmSearch({
                   max={span - step}
                   step={step}
                   value={notes[edit ?? -1]?.start_beats}
-                  onChange={(v) => v !== null && patch({ start_beats: v })}
+                  onChange={(v: any) => v !== null && patch({ start_beats: v })}
                 />
               </Form.Item>
               <Form.Item label="终点（拍）">
@@ -506,7 +512,7 @@ export function RhythmSearch({
                   max={span}
                   step={step}
                   value={notes[edit ?? -1]?.end_beats}
-                  onChange={(v) => v !== null && patch({ end_beats: v })}
+                  onChange={(v: any) => v !== null && patch({ end_beats: v })}
                 />
               </Form.Item>
             </Space>
@@ -520,7 +526,7 @@ export function RhythmSearch({
                     ? "specified"
                     : "none"
               }
-              onChange={(v) =>
+              onChange={(v: any) =>
                 patch({
                   consonants:
                     v === "any" ? undefined : v === "none" ? [] : ["k"],
@@ -551,7 +557,7 @@ export function RhythmSearch({
                 placeholder="音名"
                 style={{ width: 100 }}
                 value={notes[edit ?? -1]?.pitch_class}
-                onChange={(v) => patch({ pitch_class: v })}
+                onChange={(v: any) => patch({ pitch_class: v })}
                 options={[
                   "C",
                   "C♯",
@@ -572,7 +578,7 @@ export function RhythmSearch({
                 min={-1}
                 max={9}
                 value={notes[edit ?? -1]?.octave}
-                onChange={(v) => patch({ octave: v ?? undefined })}
+                onChange={(v: any) => patch({ octave: v ?? undefined })}
               />
               <InputNumber
                 prefix="±"
@@ -580,11 +586,11 @@ export function RhythmSearch({
                 min={0}
                 max={600}
                 value={notes[edit ?? -1]?.tolerance_cents ?? 50}
-                onChange={(v) => patch({ tolerance_cents: v ?? 50 })}
+                onChange={(v: any) => patch({ tolerance_cents: v ?? 50 })}
               />
             </Space>
           </Form.Item>
-          <Form.Item label="平稳程度（可靠 F0 的 P90−P10）">
+          <Form.Item label="音高波动范围" tooltip="可靠音高帧第 90 与第 10 百分位之差，即中间 80% 的音高跨度；100 音分等于一个半音，越小通常越平稳。">
             <Space>
               <Checkbox
                 checked={notes[edit ?? -1]?.stability_cents != null}
@@ -599,7 +605,7 @@ export function RhythmSearch({
                 suffix="音分"
                 min={0}
                 value={notes[edit ?? -1]?.stability_cents}
-                onChange={(v) => patch({ stability_cents: v ?? 100 })}
+                onChange={(v: any) => patch({ stability_cents: v ?? 100 })}
               />
             </Space>
           </Form.Item>
@@ -609,14 +615,14 @@ export function RhythmSearch({
               max={1}
               step={0.1}
               value={notes[edit ?? -1]?.min_coverage ?? 0.5}
-              onChange={(v) => patch({ min_coverage: v ?? 0.5 })}
+              onChange={(v: any) => patch({ min_coverage: v ?? 0.5 })}
             />
           </Form.Item>
           <Form.Item label="原声时值（秒，留空不限）">
             <Space wrap>
               <Select
                 value={notes[edit ?? -1]?.duration_measure || "sustain"}
-                onChange={(v) => patch({ duration_measure: v })}
+                onChange={(v: any) => patch({ duration_measure: v })}
                 options={[
                   { value: "sustain", label: "有效持续时长" },
                   { value: "span", label: "音块跨度" },
@@ -626,14 +632,14 @@ export function RhythmSearch({
                 min={0}
                 placeholder="下限"
                 value={notes[edit ?? -1]?.duration_min}
-                onChange={(v) => patch({ duration_min: v ?? undefined })}
+                onChange={(v: any) => patch({ duration_min: v ?? undefined })}
               />
               —
               <InputNumber
                 min={0}
                 placeholder="上限"
                 value={notes[edit ?? -1]?.duration_max}
-                onChange={(v) => patch({ duration_max: v ?? undefined })}
+                onChange={(v: any) => patch({ duration_max: v ?? undefined })}
               />
             </Space>
           </Form.Item>
@@ -641,7 +647,7 @@ export function RhythmSearch({
             <Select
               allowClear
               value={notes[edit ?? -1]?.phone}
-              onChange={(v) => patch({ phone: v })}
+              onChange={(v: any) => patch({ phone: v })}
               options={["a", "i", "u", "e", "o"].map((value) => ({
                 value,
                 label: value,
@@ -658,7 +664,7 @@ export function RhythmSearch({
             <Select
               allowClear
               value={notes[edit ?? -1]?.pitch_trend}
-              onChange={(v) => patch({ pitch_trend: v })}
+              onChange={(v: any) => patch({ pitch_trend: v })}
               options={[
                 { value: "up", label: "上扬" },
                 { value: "down", label: "下降" },
@@ -669,14 +675,14 @@ export function RhythmSearch({
               min={0}
               max={24}
               value={notes[edit ?? -1]?.pitch_trend_min ?? 1}
-              onChange={(v) => patch({ pitch_trend_min: v })}
+              onChange={(v: any) => patch({ pitch_trend_min: v })}
             />
           </Form.Item>
           <Form.Item label="语段内音高">
             <Select
               allowClear
               value={notes[edit ?? -1]?.pitch_register}
-              onChange={(v) => patch({ pitch_register: v })}
+              onChange={(v: any) => patch({ pitch_register: v })}
               options={[
                 { value: "high", label: "偏高" },
                 { value: "low", label: "偏低" },
@@ -687,7 +693,7 @@ export function RhythmSearch({
               min={0}
               max={24}
               value={notes[edit ?? -1]?.pitch_register_min ?? 2}
-              onChange={(v) => patch({ pitch_register_min: v })}
+              onChange={(v: any) => patch({ pitch_register_min: v })}
             />
           </Form.Item>
           <Form.Item label="相对响度下限（留空不限）">
@@ -696,7 +702,7 @@ export function RhythmSearch({
               min={-40}
               max={40}
               value={notes[edit ?? -1]?.energy_relative_min_db}
-              onChange={(v) =>
+              onChange={(v: any) =>
                 patch({ energy_relative_min_db: v ?? undefined })
               }
             />
@@ -704,13 +710,13 @@ export function RhythmSearch({
           {mode !== "none" && (
             <Form.Item label="时值范围（拍，留空不限）">
               <Space>
-                <InputNumber min={0} placeholder="下限" value={notes[edit ?? -1]?.duration_min_beats} onChange={v=>patch({duration_min_beats:v??undefined})}/>
-                <InputNumber min={0} placeholder="上限" value={notes[edit ?? -1]?.duration_max_beats} onChange={v=>patch({duration_max_beats:v??undefined})}/>
+                <InputNumber min={0} placeholder="下限" value={notes[edit ?? -1]?.duration_min_beats} onChange={(v: any)=>patch({duration_min_beats:v??undefined})}/>
+                <InputNumber min={0} placeholder="上限" value={notes[edit ?? -1]?.duration_max_beats} onChange={(v: any)=>patch({duration_max_beats:v??undefined})}/>
               </Space>
             </Form.Item>
           )}
           <Form.Item label="起音强度下限（0–1，留空不限）">
-            <InputNumber min={0} max={1} step={0.1} value={notes[edit ?? -1]?.strength_min} onChange={v=>patch({strength_min:v??undefined})}/>
+            <InputNumber min={0} max={1} step={0.1} value={notes[edit ?? -1]?.strength_min} onChange={(v: any)=>patch({strength_min:v??undefined})}/>
           </Form.Item>
           {mode !== "none" && (
             <Checkbox
@@ -745,7 +751,7 @@ export function RhythmSearch({
           >
             允许跨长休止
           </Checkbox>
-          <Form.Item label="相邻音块最大间隔（秒，留空不限）">
+          <Form.Item label="元音组末尾至下一元音锚点的最大间隔（秒）">
             <InputNumber min={0} value={gap} onChange={setGap} />
           </Form.Item>
           {mode !== "none" && (
@@ -755,7 +761,7 @@ export function RhythmSearch({
                   min={1}
                   max={128}
                   value={span}
-                  onChange={(v) =>
+                  onChange={(v: any) =>
                     setSpan(Math.max(v || 4, ...notes.map((n) => n.end_beats)))
                   }
                 />

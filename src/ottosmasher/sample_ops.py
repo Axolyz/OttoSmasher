@@ -1,4 +1,5 @@
 from .workspace import CODE_ROOT
+
 """GUI/CLI operations on immutable audio and derived sample identities."""
 
 import json
@@ -11,10 +12,13 @@ from . import sample_catalog as catalog
 from .workspace import DATA, identity, write_json
 
 
-def select(db, mid, start, end, role=None, folder_id="", batch_id=None, title=None, nature=None):
+def select(db, mid, start, end, role=None, batch_id=None, title=None, nature=None):
     parent = materials.get(db, mid)
+    source = sample_audio.resolve(db, mid, role)
     try:
         record = sample_analysis.ready(db, mid)
+        if record["asset"] != source:
+            record = None
     except ValueError:
         record = None
     locator = None
@@ -39,15 +43,12 @@ def select(db, mid, start, end, role=None, folder_id="", batch_id=None, title=No
                 for p in phones
             ],
         }
-        if not title:
-            words = list(dict.fromkeys(p["word_locator"]["word"] for p in phones if p.get("word_locator")))
-            title = (
-                parent["title"]
-                + " — "
-                + ("".join(words) + " " if words else "")
-                + " ".join(p["label"] for p in phones)
-            )
     source = sample_audio.resolve(db, mid, role)
+    from .selection_names import suggest
+
+    title = title or suggest(
+        db, parent["source_id"], source, start, end, record=record if role in (None, "selected") else None
+    )
     r = catalog.derive(
         db,
         mid,
@@ -57,7 +58,6 @@ def select(db, mid, start, end, role=None, folder_id="", batch_id=None, title=No
         input_asset=source,
         locator=locator,
         title=title,
-        folder_id=folder_id,
         nature=nature,
         batch_id=batch_id,
     )
@@ -83,61 +83,15 @@ def export(db, mid, plan_id=None, video=False, role=None):
                 operation="audio_source",
                 asset=selected,
                 parameters={"role": role},
-                folder_id="",
             )
             mid = child["id"]
             sample_analysis.prepare(db, mid)
     if video:
-        from . import media_operations as media
+        if plan_id:
+            raise ValueError("请先保存卡拍结果，再从该采样导出对应 PV 画面清单")
+        from .visual_media import export as export_pv
 
-        r = materials.get(db, mid)
-        asset = sample_audio.resolve(db, mid)
-        if asset["role"] == "warped":
-            raise ValueError("变速采样的视频导出尚不支持；请导出 WAV")
-        wav = sample_audio.pcm(asset)
-        key = identity("sample-video-v1", asset, r["path"], r["start"], r["end"])
-        target = DATA / "media/exports" / (key + ".mp4")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists():
-            tmp = target.with_suffix(".tmp.mp4")
-            media.command(
-                [
-                    media.executable("ffmpeg"),
-                    "-v",
-                    "error",
-                    "-nostdin",
-                    "-y",
-                    "-ss",
-                    str(r["start"]),
-                    "-t",
-                    str(r["end"] - r["start"]),
-                    "-i",
-                    r["path"],
-                    "-i",
-                    str(wav),
-                    "-map",
-                    "0:v:0",
-                    "-map",
-                    "1:a:0",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "fast",
-                    "-crf",
-                    "18",
-                    "-c:a",
-                    "aac",
-                    "-movflags",
-                    "+faststart",
-                    str(tmp),
-                ]
-            )
-            tmp.replace(target)
-        write_json(
-            target.with_suffix(".json"),
-            {"material_id": mid, "audio_asset": asset, "root_range": [r["start"], r["end"]]},
-        )
-        return {"material_id": mid, "path": str(target)}
+        return export_pv(db, mid)
     if not plan_id:
         from .media_operations import cut
 
@@ -190,8 +144,23 @@ def export(db, mid, plan_id=None, video=False, role=None):
     return {"material_id": r["id"], "path": out["audio"], "plan_id": plan_id, "feature_task": task}
 
 
-def flatten(db, mid, mode="vowels", batch_id=None, start=None, end=None, role=None, input_asset=None):
-    if mode not in ("vowels", "all"):
+def flatten(
+    db,
+    mid,
+    mode="vowels",
+    batch_id=None,
+    start=None,
+    end=None,
+    role=None,
+    input_asset=None,
+    target=None,
+    inner=None,
+    transition=(0.05, 0.05),
+    title=None,
+    pitch_strategy=None,
+    boundary_side="left",
+):
+    if mode not in ("vowels", "all", "interior", "from_first_vowel"):
         raise ValueError("未知拉平模式")
     source = input_asset or sample_audio.resolve(db, mid, role)
     duration = source["end"] - source["start"]
@@ -199,6 +168,14 @@ def flatten(db, mid, mode="vowels", batch_id=None, start=None, end=None, role=No
     end = duration if end is None else float(end)
     if not 0 <= start < end <= duration + 1e-6:
         raise ValueError("拉平选区越界")
+    if mode == "interior":
+        from .sample_flatten import validate_interior
+
+        inner, transition = validate_interior(end - start, inner, transition)
+    if target is not None:
+        from .pitch_values import midi
+
+        midi(target)
     # Cache a range, not a library sample. Registration happens only after success.
     clip = {**source, "start": source["start"] + start, "end": source["start"] + end}
     path = sample_audio.pcm(clip)
@@ -230,12 +207,16 @@ def flatten(db, mid, mode="vowels", batch_id=None, start=None, end=None, role=No
     except ValueError:
         pass
     intervals = None
-    if mode == "vowels":
+    if mode in ("vowels", "from_first_vowel"):
+        from .rhythm_units import normalize_phone
+
         record = sample_analysis.ready(db, mid)
+        if record["asset"] != source:
+            raise ValueError("当前试听音源与 FA 测量不一致，请先对该音源重新 FA，或使用整段拉平")
         intervals = [
             [max(start, p["start"]) - start, min(end, p["end"]) - start]
             for p in record["analysis"]["phones"]
-            if p["label"].lower().rstrip("ː:") in ("a", "i", "u", "e", "o")
+            if normalize_phone(p["label"]) in ("a", "i", "u", "e", "o", "I", "U", "N")
             and p["end"] > start
             and p["start"] < end
         ]
@@ -244,12 +225,24 @@ def flatten(db, mid, mode="vowels", batch_id=None, start=None, end=None, role=No
     from .job_worker import python_env
     from .workspace import ROOT
 
-    req = DATA / "jobs" / (identity("flatten-request", str(path), mode, intervals) + ".json")
-    write_json(req, {"path": str(path), "mode": mode, "intervals": intervals})
+    parameters = {
+        "preserve_boundaries": bool(mode in ("vowels", "from_first_vowel") and record["analysis"].get("manual_timing")),
+        "mode": mode,
+        "intervals": intervals,
+        "target": target,
+        "inner": inner,
+        "transition": list(transition),
+        "pitch_strategy": pitch_strategy,
+        "boundary_side": boundary_side,
+    }
+    req = DATA / "jobs" / (identity("flatten-request-v2", str(path), parameters) + ".json")
+    write_json(req, {"path": str(path), **parameters})
     subprocess.run(
         [python_env("features"), str(CODE_ROOT / "scripts/sample_flatten_worker.py"), str(req)], check=True
     )
     asset = json.loads(req.with_suffix(".result.json").read_text())
+    from .selection_names import suggest
+
     r = catalog.derive(
         db,
         mid,
@@ -259,19 +252,18 @@ def flatten(db, mid, mode="vowels", batch_id=None, start=None, end=None, role=No
         input_asset=source,
         locator=locator,
         asset=asset,
-        parameters={"mode": mode, "target_note": asset["target_note"]},
-        folder_id="",
+        parameters={**parameters, "target_note": asset["target_note"], "algorithm": "flatten-v2"},
         nature="pitched",
         batch_id=batch_id,
-        title=materials.get(db, mid)["title"] + " · " + asset["target_note"]["name"],
+        title=title or suggest(db, materials.get(db, mid)["source_id"], source, start, end),
     )
     sample_analysis.prepare(db, r["id"])
     return {"material_id": r["id"], "path": asset["path"], "target_note": asset["target_note"]}
 
 
-def batch_search(db, payload, target="speech"):
+def batch_search(db, payload):
     result = sample_rhythm.search(db, dict(payload))
-    batch = catalog.batch(db, payload, target)
+    batch = catalog.batch(db, payload)
     for hit in result["results"]:
         r = catalog.derive(
             db,
@@ -323,43 +315,54 @@ def source_browser(db, source_id):
     mid = identity("source-browser", source_id)
     db.execute(
         """INSERT OR IGNORE INTO materials
-      (id,source_id,start,end,audio_stream,title,created,pool,folder_id)
-      VALUES(?,?,0,?,?,?,?, 'source-browser','inbox')""",
+      (id,source_id,start,end,audio_stream,title,created,pool)
+      VALUES(?,?,0,?,?,?,?, 'source-browser')""",
         (mid, source_id, source["duration"], source["audio_stream"], source["title"], time.time()),
     )
+    if not db.execute("SELECT 1 FROM asset_samples WHERE sample_id=?", (mid,)).fetchone():
+        from .asset_compat import bind_raw_range
+
+        bind_raw_range(db, mid)
     db.commit()
     return materials.get(db, mid)
 
 
-def source_flatten(db, mid, start, end, role="raw", audio_stream=None):
-    from .operation_jobs import submit
-
-    r = materials.get(db, mid)
-    # Preserve known sentence ancestry when the chosen source covers that whole parent.
-    if r["start"] <= start < end <= r["end"] and r.get("cue_id"):
-        try:
-            asset = sample_audio.resolve_range(db, r, r["start"], r["end"], role, audio_stream)
-            return submit(
-                "flatten",
-                {
-                    "material_id": mid,
-                    "mode": "all",
-                    "input_asset": asset,
-                    "start": start - r["start"],
-                    "end": end - r["start"],
-                    "role": role,
-                },
-            )
-        except ValueError:
-            pass
-    parent = source_browser(db, r["source_id"])
-    asset = sample_audio.resolve_range(db, r, start, end, role, audio_stream)
-    return submit("flatten", {"material_id": parent["id"], "mode": "all", "input_asset": asset, "role": role})
-
-
-def source_selection(
-    db, mid, start, end, role="vocals", audio_stream=None, title=None, folder_id="", nature=None
+def source_flatten(
+    db,
+    mid,
+    start,
+    end,
+    role="raw",
+    audio_stream=None,
+    mode="all",
+    target=None,
+    inner=None,
+    transition=(0.05, 0.05),
+    title=None,
+    pitch_strategy=None,
+    boundary_side="left",
 ):
+    from .operation_jobs import submit
+    from .selection_ops import from_source
+
+    selection = from_source(db, mid, start, end, role, audio_stream)
+    db.commit()
+    return submit(
+        "flatten",
+        {
+            "selection": selection.json(),
+            "mode": mode,
+            "target": target,
+            "inner": inner,
+            "transition": transition,
+            "pitch_strategy": pitch_strategy,
+            "boundary_side": boundary_side,
+            "title": title,
+        },
+    )
+
+
+def source_selection(db, mid, start, end, role="vocals", audio_stream=None, title=None, nature=None):
     """Cutter coordinates are always original-media seconds."""
     r = materials.get(db, mid)
     parent = sample_audio.resolve(db, mid, "raw" if not r.get("audio_asset") else None)
@@ -371,7 +374,16 @@ def source_selection(
         knots = parent["root_knots"]
     local, root = np.asarray(knots).T
     left, right = float(np.interp(start, root, local)), float(np.interp(end, root, local))
-    asset = sample_audio.resolve_range(db, r, start, end, role, audio_stream)
+    from .selection_ops import from_source, resolve as resolve_selection
+
+    selected, asset = resolve_selection(db, from_source(db, mid, start, end, role, audio_stream))
+    from .selection_names import suggest
+
+    title = title or suggest(db, r["source_id"], asset, 0, asset["end"] - asset["start"])
+    if nature is None:
+        from .track_roles import nature as track_nature
+
+        nature = track_nature(db, selected.asset_id)
     child = catalog.derive(
         db,
         mid,
@@ -379,23 +391,25 @@ def source_selection(
         end=right,
         input_asset=parent,
         asset=asset,
+        asset_selection=selected,
         title=title,
-        folder_id=folder_id,
         nature=nature,
     )
     sample_analysis.prepare(db, child["id"])
     return child
 
 
-def reference(db, mid, start, end, role="raw", audio_stream=None, streaming=False, native=False):
+def reference(
+    db, mid, start, end, role="raw", audio_stream=None, streaming=False, native=False, audio_only=False
+):
     """Preview only: temporary range resolution never registers a sample."""
     from . import media_operations as media
     from .sample_audio import resolve_range
 
-    r = materials.get(db, mid)
+    r = materials.playback_record(db, mid)
     asset = resolve_range(db, r, start, end, role, audio_stream)
     metadata = json.loads(r["source_metadata"])
-    video = any(s["codec_type"] == "video" for s in metadata["streams"])
+    video = not audio_only and any(s["codec_type"] == "video" for s in metadata["streams"])
     track = r["audio_stream"] if audio_stream is None else audio_stream
     if native and video:
         from .native_player import register
@@ -485,10 +499,10 @@ def refresh_features(db, mid, role="selected"):
     }
 
 
-def register(db, path, folder_id="inbox", copy=False, text=None, nature="unclassified"):
+def register(db, path, copy=False, text=None, nature="unclassified"):
     r = materials.register_file(db, path, copy=copy)
     if r.get("_new_registration"):
-        catalog.preferences(db, r["id"], folder_id=folder_id, nature="speech" if text else nature)
+        catalog.preferences(db, r["id"], nature="speech" if text else nature)
     if copy and r.get("preferred_version"):
         v = next(v for v in r["versions"] if v["id"] == r["preferred_version"])
         catalog.bind_file(
@@ -518,13 +532,13 @@ def start_analysis(db, mid, text=None, retry=False):
     return submit("sample-phones", {"material_id": mid, "retry": retry})
 
 
-def batch_flatten(db, ids, target_folder="pitched", mode="vowels"):
+def batch_flatten(db, ids, mode="vowels"):
     from .operation_jobs import submit
 
     if mode not in ("vowels", "all"):
         raise ValueError("未知拉平模式")
     for mid in ids:
         materials.get(db, mid)
-    b = catalog.batch(db, {"operation": "flatten", "inputs": ids}, target_folder)
+    b = catalog.batch(db, {"operation": "flatten", "inputs": ids})
     jobs = [submit("flatten", {"material_id": mid, "batch_id": b["id"], "mode": mode}) for mid in ids]
     return {"batch": b, "jobs": jobs}

@@ -65,8 +65,21 @@ function fixture() {
   const call = (name, ...args) =>
     handlers["otto:player:" + name](event, ...args);
   call("create", true);
-  return { call, commands, poll, timers, events, handlers };
+  return { call, commands, poll, timers, events, handlers, addon, sender };
 }
+test("clipped native geometry preserves full video size and older addons hide safely",()=>{
+  const f=fixture(),calls=[];
+  f.addon.geometry=(...args)=>calls.push(args);
+  f.sender.getZoomFactor=()=>1.5;
+  const bounds={x:100,y:-20,width:640,height:360,visible:true,clip:{x:100,y:40,width:640,height:300}};
+  f.call('geometry',1,bounds);
+  assert.equal(calls[0][5],false);
+  f.addon.clipGeometry=(...args)=>calls.push(args);
+  f.call('geometry',1,bounds);
+  assert.deepEqual(calls[1],[1,150,-30,960,540,true,150,60,960,450]);
+  f.call('geometry',1,{...bounds,visible:false});
+  assert.equal(calls[2][5],false);
+});
 test("external stem is selected with an explicit offset; original audio stays disabled during loading", async () => {
   const f = fixture();
   const info = await f.call(
@@ -115,4 +128,10 @@ test("range endpoint is passed to the engine in source seconds and stale request
  assert.equal(f.events.at(-1).changes["time-pos"],"103.37");
  f.call("control",1,"seek",{generation:info.generation,requestId:3,value:4});
  assert(f.commands.some(c=>c.join("|")==="set|end|123"));
+});
+
+test('visual descriptors use a validated local path rather than streaming the movie over HTTP', async () => {
+  const f=fixture();
+  await f.call('load',1,'/api/samples/visual-native/012345678901234567890123');
+  assert(f.commands.some(c=>c[0]==='loadfile'&&c[1]==='/movie 日本語.mkv'));
 });

@@ -12,7 +12,7 @@ from ottosmasher import job_worker, sample_acoustics, sample_audio, source_vocal
 from ottosmasher.materials import sha256
 
 spec = importlib.util.spec_from_file_location(
-    "separation_chunks", Path(__file__).parents[1] / "scripts/separation_chunks.py"
+    "separation_chunks", Path(__file__).parents[1] / "archive/builtin_separation/separation_chunks.py"
 )
 chunks = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(chunks)
@@ -50,8 +50,9 @@ def test_full_source_separates_once_before_clipping_and_is_reusable(library, tmp
 
     def separate(op, p, jid):
         calls.append((op, p))
-        assert p["start"] == 0 and p["end"] == 1
-        target = Path(p["output"]) / "vocals.wav"
+        assert p["selection"]["start"] == 0 and p["selection"]["end"] == 1
+        assert p["input_asset"]["path"] == root["path"]
+        target = tmp_path / "vocals.wav"
         sf.write(target, np.ones(24000) * 0.1, 24000)
         a = {
             "path": str(target),
@@ -70,9 +71,9 @@ def test_full_source_separates_once_before_clipping_and_is_reusable(library, tmp
             },
         }
         with source_vocals.connect() as conn:
-            conn.execute(
-                "INSERT INTO shared_sample_audio VALUES(?,?,?)", ("whole", root["source_id"], json.dumps(a))
-            )
+            from ottosmasher.asset_timeline import register_asset
+            selected = register_asset(conn, root["source_id"], a)
+        return {"assets": [{"stem": "vocals", "selection": selected.json()}]}
 
     monkeypatch.setattr(job_worker, "run", separate)
     cue = {**root, "id": "cue1", "start": 0.1, "end": 0.4}

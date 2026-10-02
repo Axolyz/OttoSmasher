@@ -8,6 +8,7 @@ def unit(i, pitch=60, phrase=0, **fields):
         "id": str(i),
         "index": i,
         "start": i * 2.0,
+        "anchor": i * 2.0,
         "end": i * 2.0 + 1.5,
         "phrase": phrase,
         "measurements": {
@@ -61,6 +62,15 @@ def test_constraints_and_boundaries():
     assert match_units(values, q(boundary="end", units=[{}, {}]))
     assert not match_units(values, q(boundary="end", boundary_basis="sample", units=[{}, {}]))
     assert match_units(values, q(boundary="start", units=[{}, {}]))
+
+
+def test_max_gap_uses_vowel_anchor_even_when_consonant_swallows_silence():
+    values = [unit(0), unit(1, 64)]
+    query = q(units=[{}, {}], max_gap=.4)
+    assert not match_units(values, query)
+    values[1]["start"] = 1.51
+    assert not match_units(values, query)
+    assert match_units(values, q(units=[{}, {}], max_gap=.5))
 
 
 def test_pitch_threshold_coverage_and_duration_definition():

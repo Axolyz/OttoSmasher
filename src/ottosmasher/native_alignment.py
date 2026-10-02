@@ -1,12 +1,9 @@
-from .workspace import CODE_ROOT
 """Character/syllable alignment is a separate measured layer, never a phone backend."""
 
 import json
-import subprocess
 from pathlib import Path
 
-from .inference_runtime import python_path
-from .workspace import DATA, ROOT, connect, identity, write_json
+from .workspace import ROOT, identity
 
 ADAPTER_VERSIONS = {"yohane": "official-time-lyrics-v2", "qwen3-aligner": "official-japanese-nagisa-v2"}
 
@@ -30,6 +27,8 @@ def model_revision(model):
 
 
 def listing(db, mid):
+    from .editions import enabled
+
     ensure(db)
     results = [
         json.loads(r[0])
@@ -38,12 +37,21 @@ def listing(db, mid):
     for r in results:
         asset = r.get("input", {}).get("asset", {})
         p = Path(asset.get("path", ""))
-        r["stale"] = r.get("adapter_version") != ADAPTER_VERSIONS[r["model"]] or not p.is_file() or r.get("model_revision") != model_revision(r["model"])
+        r["stale"] = (
+            r.get("adapter_version") != ADAPTER_VERSIONS[r["model"]]
+            or not p.is_file()
+            or r.get("model_revision") != model_revision(r["model"])
+        )
         if p.is_file():
             r["stale"] |= r.get("input", {}).get("file_stat") != [p.stat().st_size, p.stat().st_mtime_ns]
     return {
         "models": [
-            {"id": k, "name": v, "available": (ROOT / "models" / k / "model.safetensors").is_file()}
+            {
+                "id": k,
+                "name": v,
+                "available": "native-alignment" in enabled()
+                and (ROOT / "models" / k / "model.safetensors").is_file(),
+            }
             for k, v in MODELS.items()
         ],
         "results": results,
@@ -75,62 +83,6 @@ def play(db, mid, model, index, native=False):
 
 
 def run(payload, jid):
-    from . import materials, sample_audio
-    from .source_vocals import ensure as vocals
-    from .workspace import get_cue
+    from .editions import archived_module
 
-    model = payload["model"]
-    if model not in MODELS:
-        raise ValueError("未知字符/音节对齐模型")
-    folder = DATA / "native-alignments" / jid
-    folder.mkdir(parents=True, exist_ok=True)
-    items = []
-    with connect() as db:
-        ensure(db)
-        for mid in payload["material_ids"]:
-            r = materials.get(db, mid)
-            if not r.get("cue_id"):
-                raise ValueError("字符/音节对齐需要已有台词")
-            cue = get_cue(db, r["cue_id"])
-            if r["start"] > cue["start"] + 0.05 or r["end"] < cue["end"] - 0.05:
-                raise ValueError("派生选段缺少独立正文；请在完整台词上运行字符/音节对齐")
-            asset = sample_audio.resolve(db, mid)
-            if asset["role"] != "vocals":
-                db.commit()  # Separation writes its own progress/assets through another connection.
-                vocals(cue, payload.get("vocal_model", "becruily_deux"))
-                asset = sample_audio.resolve_range(db, r, r["start"], r["end"], "vocals")
-            path = sample_audio.pcm(asset)
-            item = {
-                "material_id": mid,
-                "path": str(path),
-                "text": cue["spoken"],
-                "asset": asset,
-                "file_stat": [Path(asset["path"]).stat().st_size, Path(asset["path"]).stat().st_mtime_ns],
-                "audio_identity": identity(asset),
-                "output": str(folder / (mid + ".json")),
-            }
-            items.append(item)
-    req = folder / "request.json"
-    write_json(req, {"model": model, "model_revision": model_revision(model), "adapter_version": ADAPTER_VERSIONS[model], "items": items})
-    subprocess.run(
-        [str(python_path()), str(CODE_ROOT / "scripts/native_alignment_worker.py"), str(req)], check=True
-    )
-    rows = []
-    with connect() as db:
-        ensure(db)
-        for item in items:
-            result = json.loads(Path(item["output"]).read_text())
-            db.execute(
-                "INSERT OR REPLACE INTO native_alignments VALUES(?,?,?)",
-                (item["material_id"], model, json.dumps(result)),
-            )
-            rows.append(
-                {"material_id": item["material_id"], "status": result["status"], "error": result.get("error")}
-            )
-        db.commit()
-    if rows and all(row["status"] != "ready" for row in rows):
-        raise ValueError(
-            "字符／音节对齐全部失败；原始结果已保留："
-            + "; ".join(row.get("error") or "未知错误" for row in rows)
-        )
-    return {"type": "native-alignment", "model": model, "rows": rows}
+    return archived_module("native-alignment").run(payload, jid)

@@ -1,4 +1,5 @@
 from pathlib import Path
+from test_revision_workflows import import_dialogue
 
 import pytest
 from test_samples import library as library  # noqa: PLC0414
@@ -27,6 +28,8 @@ def test_source_without_subtitles_and_immutable_revisions(library, tmp_path):
     prep.configure(db, root["source_id"], subtitle_path=str(p), op_review="skipped")
     preview = prep.preview(db, root["source_id"])
     first = prep.ingest(db, root["source_id"], preview["token"])
+    assert not prep.selected_materials(db, source_ids=[root["source_id"]])
+    import_dialogue(db, root)
     ids = set(prep.selected_materials(db, source_ids=[root["source_id"]]))
     assert len(ids) == 2
     prep.ingest(db, root["source_id"], preview["token"])
@@ -39,7 +42,7 @@ def test_source_without_subtitles_and_immutable_revisions(library, tmp_path):
     assert first["version_id"] != second["version_id"]
     assert not ids & set(prep.selected_materials(db, source_ids=[root["source_id"]]))
     for mid in ids:
-        assert materials.get(db, mid)["cue_id"] == mid
+        assert materials.get(db, mid)["cue_id"] != mid
     versions = db.execute(
         "SELECT path FROM subtitle_versions WHERE source_id=?", (root["source_id"],)
     ).fetchall()
@@ -60,6 +63,8 @@ def test_review_gate_exclusion_and_manual_cut(library, tmp_path):
     preview = prep.preview(db, root["source_id"])
     assert preview["counts"]["excluded"] == 1 and preview["boundary_count"] == 1
     prep.ingest(db, root["source_id"], preview["token"])
+    assert not prep.selected_materials(db, source_ids=[root["source_id"]])
+    import_dialogue(db, root)
     assert len(prep.selected_materials(db, source_ids=[root["source_id"]])) == 1
     child = sample_ops.source_selection(db, root["id"], 0.1, 0.2, role="raw")
     assert child["id"] in materials.query_ids(db)
@@ -74,10 +79,11 @@ def test_single_default_model_and_scope(library, monkeypatch):
         ("c", root["source_id"], 1, 0, 0.9, "あ", "あ", "あ", "あ", None, "dialogue", "[]"),
     )
     materials.sync_cues(db)
-    report = preparation_jobs.inspect(db, material_ids=["c"])
-    assert report["backends"] == ["narabas"] and report["material_ids"] == ["c"]
+    mid = import_dialogue(db, root)[0]
+    report = preparation_jobs.inspect(db, material_ids=[mid])
+    assert report["backends"] == ["narabas"] and report["material_ids"] == [mid]
     source_regions.confirm(db, root["source_id"], 0.2, 0.4)
-    assert preparation_jobs.inspect(db, material_ids=["c"])["total"] == 0
+    assert preparation_jobs.inspect(db, material_ids=[mid])["total"] == 0
 
 
 def test_fresh_workspace_concurrent_connections(tmp_path, monkeypatch):

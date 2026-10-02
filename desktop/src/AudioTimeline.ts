@@ -107,6 +107,25 @@ export function audioTimeline(options: any) {
     zIndex: "4",
   });
   container.appendChild(canvas);
+  const pitchTip = document.createElement('span');
+  Object.assign(pitchTip.style,{position:'absolute',pointerEvents:'none',zIndex:'8',background:'#141d2e',padding:'3px 6px',borderRadius:'4px',display:'none'});
+  container.appendChild(pitchTip);
+  const pitchHover=(event:MouseEvent)=>{
+    if(!frames?.times?.length)return;
+    const rect=canvas.getBoundingClientRect(),x=event.clientX-rect.left,yy=event.clientY-rect.top;
+    if(yy<0||yy>height){pitchTip.style.display='none';return;}
+    const pps=Math.max(container.clientWidth/(w.getDuration()||base.duration),w.options.minPxPerSec||0);
+    const time=(x+w.getScroll())/pps;
+    let lo=0,hi=frames.times.length-1;
+    while(lo<hi){const mid=(lo+hi)>>>1;if(frames.times[mid]<time)lo=mid+1;else hi=mid;}
+    const m=pitchMidi[lo];if(m==null){pitchTip.style.display='none';return;}
+    const cents=Math.round((m-Math.round(m))*100);
+    pitchTip.textContent=`${noteName(Math.round(m))} ${cents>=0?'+':''}${cents} 音分 · ${frames.times[lo].toFixed(2)}s`;
+    Object.assign(pitchTip.style,{display:'block',left:Math.min(Math.max(40,x+8),Math.max(40,container.clientWidth-190))+'px',top:'4px'});
+  };
+  const pitchLeave=()=>{pitchTip.style.display='none'};
+  container.addEventListener('mousemove',pitchHover);container.addEventListener('mouseleave',pitchLeave);
+  w.on('destroy',()=>{container.removeEventListener('mousemove',pitchHover);container.removeEventListener('mouseleave',pitchLeave);pitchTip.remove();canvas.remove()});
   const redraw = () => {
     const width = container.clientWidth,
       scale = devicePixelRatio || 1;
@@ -131,7 +150,7 @@ export function audioTimeline(options: any) {
     }
     const y = (m: number) =>
       height - 8 - ((m - lo) / (hi - lo)) * (height - 16);
-    c.font = "9px system-ui";
+    c.font = "11px system-ui";
     let lastLabel = height + 20;
     for (let m = lo; m <= hi; m++) {
       c.strokeStyle = m % 12 === 0 ? "#bad6e066" : "#bad6e026";
@@ -140,7 +159,10 @@ export function audioTimeline(options: any) {
       c.lineTo(width, y(m));
       c.stroke();
       c.fillStyle = "#dbedefb0";
-      if (lastLabel - y(m) >= 10) {
+      if (lastLabel - y(m) >= 14) {
+        c.fillStyle = "#141d2eee";
+        c.fillRect(0,y(m)-14,36,14);
+        c.fillStyle = "#e7f1ff";
         c.fillText(noteName(m), 3, y(m) - 2);
         lastLabel = y(m);
       }
@@ -196,7 +218,7 @@ export function audioTimeline(options: any) {
   controls.className = "timeline-controls";
   container.appendChild(controls);
   const controlRoots: Root[] = [];
-  const button = (text: string, action: () => void) => {
+  const button = (text: string, action: () => void, fixedWidth?: number) => {
     const host = document.createElement("span");
     controls.appendChild(host);
     const root = createRoot(host);
@@ -213,7 +235,7 @@ export function audioTimeline(options: any) {
           },
           React.createElement(
             Button,
-            { size: "small", onClick: action },
+            { size: "small", onClick: action, style: fixedWidth ? {width:fixedWidth} : undefined },
             label,
           ),
         ),
@@ -236,7 +258,7 @@ export function audioTimeline(options: any) {
     stopAt = null;
     nativeMedia?.clearRange();
     void w.playPause().catch((e) => (status.textContent = String(e)));
-  });
+  }, 100);
   const selection = () => regions.getRegions().find((r) => !isAnnotation(r.id));
   button("播放选区", () => {
     const r = selection();
@@ -479,10 +501,31 @@ export function audioTimeline(options: any) {
     id: string;
     start: number;
     end?: number;
+    effective_start?:number;
+    effective_end?:number;
     label: string;
     color?: string;
+    layer?: string;
   };
+  let interiorChanged: ((a:number,b:number)=>void)|undefined;
+  let interiorBounds=[0,0];
+  (w as any).ottoSetInterior = (range:number[]|null,bounds?:number[],changed?:(a:number,b:number)=>void,transition?:number[]) => {
+    if(dead)return;
+    regions.getRegions().find(r=>r.id==='annotation:interior')?.remove();
+    interiorChanged=changed;
+    if(range&&bounds){interiorBounds=bounds;const region=regions.addRegion({id:'annotation:interior',start:range[0],end:range[1],color:'#f2b84b33',content:'内部拉平',resize:true,drag:false});if(region.element&&transition){const span=range[1]-range[0],a=Math.min(50,100*transition[0]/span),b=Math.max(50,100-100*transition[1]/span);region.element.style.background=`linear-gradient(to right,transparent,#f2b84b55 ${a}%,#f2b84b55 ${b}%,transparent)`;region.element.title='两侧渐变为过渡范围，中间为定高平台';}}
+  };
+  let editableAnnotationIds: Set<string>|undefined;
+  let annotationEditor: ((id:string,start:number,end:number)=>void)|null = null;
   let annotations: Annotation[] = [];
+  let extraAnnotations: Annotation[] = [];
+  let descendants: any[] = [];
+  let descendantSelect: (id:string)=>void = () => {};
+  const descendantLane = document.createElement("div");
+  descendantLane.className = "timeline-descendant-lane";
+  Object.assign(descendantLane.style,{height:"16px",position:"relative",overflow:"hidden",display:"none"});
+  container.prepend(descendantLane);
+  const layerVisible: Record<string,boolean> = {phones:true,subtitles:true,tags:true};
   const markerLane = document.createElement("div");
   markerLane.className = "timeline-marker-lane";
   Object.assign(markerLane.style, {
@@ -491,7 +534,10 @@ export function audioTimeline(options: any) {
     overflow: "hidden",
   });
   container.prepend(markerLane);
+  let closeDescendantMenu = () => {};
   const drawAnnotations = () => {
+    closeDescendantMenu();
+    if (dead) return;
     const duration = w.getDuration();
     if (!duration) return;
     const pps = Math.max(
@@ -502,14 +548,61 @@ export function audioTimeline(options: any) {
       right = left + container.clientWidth / pps;
     regions
       .getRegions()
-      .filter((r) => isAnnotation(r.id))
+      .filter((r) => isAnnotation(r.id) && r.id !== "annotation:interior")
       .forEach((r) => r.remove());
     markerLane.replaceChildren();
-    for (const item of annotations) {
+    descendantLane.replaceChildren();
+    descendantLane.style.display = descendants.length ? "block" : "none";
+    // Draw wider ranges behind shorter ones so an entire-source sample cannot
+    // cover every sentence; overlap choices are local to the clicked time.
+    for (const item of [...descendants].sort((a,b)=>(b.end-b.start)-(a.end-a.start))) {
+      if (item.end <= left || item.start >= right) continue;
+      const bar = document.createElement("button");
+      bar.title=item.title; bar.setAttribute("aria-label",item.title);
+      Object.assign(bar.style,{position:"absolute",left:`${Math.max(0,item.start*pps-w.getScroll())}px`,
+        width:`${Math.max(2,(Math.min(item.end,right)-Math.max(item.start,left))*pps)}px`,height:"10px",top:"3px",
+        padding:"0",border:"1px solid #335f56",borderRadius:"2px",background:"#67bba6",cursor:"pointer"});
+      bar.onclick=(event)=>{
+        closeDescendantMenu();
+        const at=event.detail===0 ? (item.start+item.end)/2 : (event.clientX-descendantLane.getBoundingClientRect().left+w.getScroll())/pps;
+        const overlap=descendants.filter(x=>x.start<=at && x.end>at).sort((a,b)=>(a.end-a.start)-(b.end-b.start));
+        if(!overlap.length)overlap.push(item);
+        if(overlap.length===1){descendantSelect(overlap[0].id);return;}
+        const menu=document.createElement("div");
+        menu.className="otto-descendant-menu";
+        menu.setAttribute("role","menu");
+        menu.setAttribute("aria-label","选择重叠的派生采样");
+        const rect=bar.getBoundingClientRect();
+        Object.assign(menu.style,{position:"fixed",zIndex:"2000",left:`${Math.max(8,Math.min(event.detail?event.clientX:rect.left,window.innerWidth-328))}px`,top:`${Math.max(8,Math.min(rect.bottom+4,window.innerHeight-248))}px`,width:"320px",maxHeight:"240px",overflowY:"auto",padding:"4px",background:"#202c3c",border:"1px solid #52657e",borderRadius:"6px",boxShadow:"0 4px 16px #0008"});
+        const outside=(e:PointerEvent)=>{if(!menu.contains(e.target as Node))closeDescendantMenu()};
+        const key=(e:KeyboardEvent)=>{
+          if(e.key==="Escape"){e.preventDefault();closeDescendantMenu();bar.focus();}
+          if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+            e.preventDefault();const buttons=Array.from(menu.querySelectorAll("button"));
+            const index=buttons.indexOf(document.activeElement as HTMLButtonElement);
+            buttons[(index+(e.key==="ArrowDown"?1:buttons.length-1))%buttons.length]?.focus();
+          }
+        };
+        closeDescendantMenu=()=>{menu.remove();document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",key);closeDescendantMenu=()=>{}};
+        overlap.forEach(x=>{
+          const choice=document.createElement("button");choice.textContent=x.title;choice.title=x.title;choice.setAttribute("role","menuitem");
+          Object.assign(choice.style,{display:"block",width:"100%",padding:"8px",border:"0",borderRadius:"4px",background:"transparent",color:"#e1e8f0",textAlign:"left",cursor:"pointer"});
+          choice.onfocus=()=>choice.style.background="#354760";choice.onblur=()=>choice.style.background="transparent";
+          choice.onmouseenter=()=>choice.focus();
+          choice.onclick=()=>{closeDescendantMenu();descendantSelect(x.id)};menu.append(choice);
+        });
+        document.body.append(menu);document.addEventListener("pointerdown",outside);document.addEventListener("keydown",key);
+        menu.querySelector("button")?.focus();
+      };
+      descendantLane.append(bar);
+    }
+    for (const item of [...annotations,...extraAnnotations]) {
+      const layer=item.layer || (item.id.startsWith("phone-")?"phones":item.id.startsWith("subtitle-")?"subtitles":"tags");
+      if (layerVisible[layer]===false) continue;
       if (
         (item.end ?? item.start) < left ||
         item.start > right ||
-        item.start < 0 ||
+        (item.end ?? item.start) < 0 ||
         item.start > duration
       )
         continue;
@@ -529,24 +622,43 @@ export function audioTimeline(options: any) {
         markerLane.append(mark);
       } else {
         const content = document.createElement("span");
-        content.textContent = item.label;
+        content.textContent = pps < 35 && layer === "phones" ? "" : item.label;
         content.title = title;
+        Object.assign(content.style,{fontSize:"11px",lineHeight:"14px",whiteSpace:"nowrap",position:"absolute",top:layer==="phones"?"0":layer==="subtitles"?"14px":"28px"});
         const r = regions.addRegion({
           id: "annotation:" + item.id,
-          start: item.start,
+          start: Math.max(0,item.start),
           end: Math.min(item.end, duration),
           content,
           color: item.color || "#8ab9f514",
           drag: false,
-          resize: false,
+          resize: !!annotationEditor && (!editableAnnotationIds || editableAnnotationIds.has(item.id)),
+          resizeStart: item.start >= 0,
+          resizeEnd: item.end <= duration,
         });
-        if (r.element) r.element.style.pointerEvents = "none";
+        if (r.element) r.element.style.pointerEvents = annotationEditor ? "auto" : "none";
       }
     }
+  };
+  (w as any).ottoSetAnnotationEditor = (handler: typeof annotationEditor, ids?:Set<string>) => {annotationEditor=handler;editableAnnotationIds=ids;drawAnnotations()};
+  (w as any).ottoAnnotations = () => [...annotations,...extraAnnotations];
+  (w as any).ottoPatchAnnotation = (id:string,start:number,end:number) => {
+    for (const item of [...annotations,...extraAnnotations]) if(item.id===id) Object.assign(item,{start,end});
+    drawAnnotations();
   };
   (w as any).ottoSetAnnotations = (items: Annotation[]) => {
     annotations = items;
     drawAnnotations();
+  };
+  (w as any).ottoSetLayers = (items: Annotation[], visible: Record<string,boolean>) => {
+    extraAnnotations=items;Object.assign(layerVisible,visible);drawAnnotations();
+  };
+  (w as any).ottoSetDescendants = (items:any[], onSelect:(id:string)=>void) => {
+    descendants=items;descendantSelect=onSelect;drawAnnotations();
+  };
+  (w as any).ottoViewport = () => {
+    const pps=Math.max(container.clientWidth/(w.getDuration()||1),w.options.minPxPerSec||0);
+    return [w.getScroll()/pps, Math.min(w.getDuration(),(w.getScroll()+container.clientWidth)/pps)];
   };
   const select = (start: number, end: number) => {
     if (!(end > start)) return;
@@ -564,11 +676,11 @@ export function audioTimeline(options: any) {
     onSelectionChange?.([start, end]);
   };
   const selectable = () =>
-    annotations.filter(
+    [...annotations,...extraAnnotations].filter(
       (r): r is Annotation & { end: number } =>
         r.end != null &&
         (r.id.startsWith("phone-") || r.id.startsWith("subtitle-")),
-    );
+    ).map(r=>({...r,start:r.effective_start??r.start,end:r.effective_end??r.end}));
   const wrapper = w.getWrapper();
   let gesture: {
     x: number;
@@ -648,7 +760,15 @@ export function audioTimeline(options: any) {
   wrapper.addEventListener("pointerup", up, true);
   wrapper.addEventListener("pointercancel", up, true);
   regions.on("region-updated", (r) => {
-    if (!isAnnotation(r.id)) onSelectionChange?.([r.start, r.end]);
+    if(r.id === "annotation:interior"){interiorChanged?.(Math.max(interiorBounds[0],r.start),Math.min(interiorBounds[1],r.end));return;}
+    if (isAnnotation(r.id)) {
+      const id=r.id.slice("annotation:".length);
+      const item=[...annotations,...extraAnnotations].find(a=>a.id===id);
+      // A clipped range edge is not an editable annotation boundary.
+      if(item){if(item.start>=0)item.start=r.start;if(item.end!<=w.getDuration())item.end=r.end;}
+      annotationEditor?.(id,item?.start??r.start,item?.end??r.end);
+    }
+    else onSelectionChange?.([r.start, r.end]);
   });
   regions.on("region-created", (r) => {
     if (isAnnotation(r.id)) return;
@@ -665,10 +785,12 @@ export function audioTimeline(options: any) {
   w.on("scroll", redraw);
   w.on("zoom", redraw);
   w.on("ready", redraw);
-  const ro = new ResizeObserver(redraw);
+  const ro = new ResizeObserver(()=>{redraw();drawAnnotations()});
   ro.observe(container);
   w.on("destroy", () => {
     markerLane.remove();
+    closeDescendantMenu();
+    descendantLane.remove();
     ro.disconnect();
     dead = true;
     ++requestVersion;

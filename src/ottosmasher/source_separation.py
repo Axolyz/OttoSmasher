@@ -33,8 +33,9 @@ def submit(db, action, payload):
 
     if action != "tracks":
         raise ValueError("此声音工具已移除；只支持原片三轨分离")
-    if payload.get("routes", ["bandit-v2"]) != ["bandit-v2"]:
-        raise ValueError("只保留 BandIt v2 多语言")
+    routes = payload.get("routes", [])
+    if len(routes) != 1 or routes[0] not in {m["id"] for m in models.statuses()}:
+        raise ValueError("请选择 Studio 中已下载的三轨分离模型")
     return enqueue("source-separation", {"request": payload})
 
 
@@ -57,7 +58,7 @@ def run(db, payload, jid):
     db.commit()  # Do not hold a catalog write lock throughout long model inference.
     result = infer_assets(
         db,
-        "bandit-v2",
+        req["routes"][0],
         [c[1] for c in chunks],
         folder,
         **({"device": req["device"]} if "device" in req else {}),
@@ -67,12 +68,12 @@ def run(db, payload, jid):
     tracks = build(
         db,
         d,
-        "bandit-v2",
+        req["routes"][0],
         result["outputs"],
         [c[0] for c in chunks],
         folder,
         result.get("execution"),
-        models.MODELS["bandit-v2"]["name"],
+        req["routes"][0],
     )
     return {
         "type": "source-tracks",

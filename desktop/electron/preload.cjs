@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("ottoDesktop", {
     ipcRenderer.on("otto:navigate", listener);
     return () => ipcRenderer.removeListener("otto:navigate", listener);
   },
+  zoom: (factor) => ipcRenderer.invoke("otto:zoom",factor),
   newWindow: (view, material) =>
     ipcRenderer.invoke("otto:new-window", view, material),
   open: (view, material) => ipcRenderer.invoke("otto:open", view, material),

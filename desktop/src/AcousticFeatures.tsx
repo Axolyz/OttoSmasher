@@ -85,6 +85,7 @@ export function FeatureFilters({
                   <span>
                     <UInput
                       placeholder="最小"
+                      required={false}
                       type="number"
                       step="any"
                       value={c.min ?? ""}
@@ -106,6 +107,7 @@ export function FeatureFilters({
                     />
                     <UInput
                       placeholder="最大"
+                      required={false}
                       type="number"
                       step="any"
                       value={c.max ?? ""}

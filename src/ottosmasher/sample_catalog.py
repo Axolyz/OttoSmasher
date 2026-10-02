@@ -1,4 +1,4 @@
-"""Sample identities, single-folder membership and immutable derivation edges."""
+"""Sample identities, batch review and immutable derivation edges."""
 
 import json
 import sqlite3
@@ -21,6 +21,7 @@ def migrate(db):
         migrate_history(db)
         migrate_parent_maps(db)
         migrate_alignment_choices(db)
+        retire_folders(db)
         return
     db.commit()
     filename = db.execute("PRAGMA database_list").fetchone()[2]
@@ -81,8 +82,8 @@ def migrate(db):
             parent["start"],
             parent["end"],
             parent["title"] + " · " + v["operation"],
-            parent["folder_id"],
             "confirmed",
+            nature=parent.get("nature", "unclassified"),
         )
         db.execute(
             "INSERT OR IGNORE INTO sample_edges VALUES(?,?,?,?)",
@@ -113,6 +114,7 @@ def migrate(db):
     migrate_history(db)
     migrate_parent_maps(db)
     migrate_alignment_choices(db)
+    retire_folders(db)
 
 
 def migrate_nature(db):
@@ -128,12 +130,11 @@ def migrate_nature(db):
         db.commit()
 
 
-def _insert(db, mid, parent, start, end, title, folder, status, nature=None):
-    nature = nature or parent.get("nature", "unclassified")
-    folder = "" if folder in FOLDERS else folder
+def _insert(db, mid, parent, start, end, title, status, nature=None):
+    nature = nature or "unclassified"
     inserted = db.execute(
-        """INSERT OR IGNORE INTO materials(id,source_id,start,end,audio_stream,cue_id,title,created,folder_id,status,pool,active_phone_backend,active_quantization_strategy)
-        VALUES(?,?,?,?,?,?,?,?,?,?,'library',?,?)""",
+        """INSERT OR IGNORE INTO materials(id,source_id,start,end,audio_stream,cue_id,title,created,status,pool,active_phone_backend,active_quantization_strategy)
+        VALUES(?,?,?,?,?,?,?,?,?,'library',?,?)""",
         (
             mid,
             parent["source_id"],
@@ -143,7 +144,6 @@ def _insert(db, mid, parent, start, end, title, folder, status, nature=None):
             parent.get("cue_id"),
             title,
             time.time(),
-            folder,
             status,
             parent.get("active_phone_backend", "narabas"),
             parent.get("active_quantization_strategy", "acoustic"),
@@ -171,7 +171,9 @@ def bind_file(db, mid, path, provenance):
         "provenance": provenance,
         "role": provenance.get("role", "processed"),
     }
-    db.execute("INSERT OR REPLACE INTO sample_assets VALUES(?,?)", (mid, json.dumps(asset)))
+    from .asset_compat import bind
+
+    bind(db, mid, asset)
     return asset
 
 
@@ -183,7 +185,6 @@ def preferences(db, mid, **values):
     allowed = {
         "active_phone_backend",
         "active_quantization_strategy",
-        "folder_id",
         "nature",
         "starred",
         "analysis_settings",
@@ -193,50 +194,19 @@ def preferences(db, mid, **values):
             raise ValueError("未知采样属性")
         if key == "nature" and value not in ("speech", "pitched", "unpitched", "unclassified"):
             raise ValueError("未知采样性质")
-        if key == "folder_id" and value in FOLDERS:
-            value = ""
-        if (
-            key == "folder_id"
-            and value
-            and not db.execute("SELECT 1 FROM sample_folders WHERE id=?", (value,)).fetchone()
-        ):
-            raise ValueError("文件夹不存在")
         if key == "analysis_settings":
             value = json.dumps(value)
         db.execute(f"UPDATE materials SET {key}=? WHERE id=?", (value, mid))
     db.commit()
 
 
-def folder(db, name, fid=None):
-    name = name.strip()
-    if not name:
-        raise ValueError("文件夹名不能为空")
-    fid = fid or identity("folder", name, time.time_ns())
-    db.execute(
-        "INSERT INTO sample_folders VALUES(?,?,NULL) ON CONFLICT(id) DO UPDATE SET name=excluded.name",
-        (fid, name),
-    )
-    db.commit()
-    return {"id": fid, "name": name}
-
-
-def batch(db, query, target="inbox"):
-    if (
-        target
-        and target not in FOLDERS
-        and not db.execute(
-            "SELECT 1 FROM sample_folders WHERE id=? AND batch_id IS NULL", (target,)
-        ).fetchone()
-    ):
-        raise ValueError("接收目标必须是普通文件夹")
+def batch(db, query):
     bid = identity("batch", query, time.time_ns())
-    fid = "batch-" + bid
-    db.execute("INSERT INTO sample_folders VALUES(?,?,?)", (fid, "检索 " + time.strftime("%m-%d %H:%M:%S"), bid))
     db.execute(
-        "INSERT INTO sample_batches VALUES(?,?,?,?,?)", (bid, fid, target, json.dumps(query), time.time())
+        "INSERT INTO sample_batches(id,query,created) VALUES(?,?,?)", (bid, json.dumps(query), time.time())
     )
     db.commit()
-    return {"id": bid, "folder_id": fid, "target_folder": target}
+    return {"id": bid}
 
 
 def derive(
@@ -249,11 +219,11 @@ def derive(
     asset=None,
     title=None,
     locator=None,
-    folder_id="",
     nature=None,
     batch_id=None,
     parameters=None,
     input_asset=None,
+    asset_selection=None,
 ):
     import numpy as np
 
@@ -261,11 +231,12 @@ def derive(
     from .sample_audio import resolve
 
     p = get(db, parent_id)
+    supplied_asset = asset is not None
     if nature not in (None, "speech", "pitched", "unpitched", "unclassified"):
         raise ValueError("未知采样性质")
     if operation == "flatten" and nature not in (None, "pitched"):
         raise ValueError("拉平结果的性质必须是调谐单音")
-    resolved_nature = "pitched" if operation == "flatten" else nature or p.get("nature", "unclassified")
+    resolved_nature = "pitched" if operation == "flatten" else nature or "unclassified"
     source = input_asset or resolve(db, parent_id)
     duration = source["end"] - source["start"]
     end = duration if end is None else end
@@ -287,7 +258,7 @@ def derive(
     payload = {
         "nature_at_creation": {
             "value": resolved_nature,
-            "rule": "flatten" if operation == "flatten" else "explicit" if nature else "parent_snapshot",
+            "rule": "flatten" if operation == "flatten" else "explicit" if nature else "unclassified",
         },
         "parent_audio": source,
         "parent_range": [start, end],
@@ -315,13 +286,6 @@ def derive(
         b = db.execute("SELECT * FROM sample_batches WHERE id=?", (batch_id,)).fetchone()
         if not b:
             raise ValueError("批次不存在")
-        folder_id = b["folder_id"]
-    if (
-        folder_id
-        and folder_id not in FOLDERS
-        and not db.execute("SELECT 1 FROM sample_folders WHERE id=?", (folder_id,)).fetchone()
-    ):
-        raise ValueError("文件夹不存在")
     _insert(
         db,
         mid,
@@ -342,7 +306,6 @@ def derive(
                 "audio_source": "音源派生",
             }.get(operation, operation)
         ),
-        folder_id,
         "pending" if batch_id else "confirmed",
         nature=resolved_nature,
     )
@@ -378,19 +341,38 @@ def derive(
             "root_knots": cropped,
             "provenance": payload,
         }
-    db.execute(
-        "INSERT OR IGNORE INTO sample_assets VALUES(?,?)", (mid, json.dumps(asset, ensure_ascii=False))
-    )
+    from .asset_compat import bind, bind_crop, active
+
+    if not active(db):
+        bind(db, mid, asset, replace=False)
+    elif asset_selection is not None:
+        from .asset_timeline import bind_sample
+
+        bind_sample(db, mid, asset_selection)
+    elif not supplied_asset and operation in ("cut", "candidate"):
+        bind_crop(db, mid, parent_id, start, end, asset, source)
+    else:
+        from .asset_timeline import register_asset
+
+        parent_selection = register_asset(db, p["source_id"], source, legacy_mapping=True)
+        bind(
+            db,
+            mid,
+            asset,
+            replace=False,
+            parent_selection=parent_selection,
+            operation=operation,
+            parameters=parameters,
+        )
     if p.get("cue_id"):
         from .sample_analysis import measurement
 
         for kind in BACKENDS:
             measured = measurement(db, p, kind)
             if measured:
-                db.execute(
-                    "INSERT OR IGNORE INTO sample_measurements VALUES(?,?,?)",
-                    (mid, kind, json.dumps(measured)),
-                )
+                from .asset_compat import measurement as store_measurement
+
+                store_measurement(db, mid, kind, measured)
     # Inheritable labels are resolved through ancestry, never frozen onto the child.
     if batch_id:
         db.execute("INSERT OR IGNORE INTO sample_batch_items VALUES(?,?,NULL,?)", (batch_id, mid, "pending"))
@@ -431,8 +413,8 @@ def review(db, ids, accept=True):
                     accepted = duplicate["id"]
             if accepted == mid:
                 db.execute(
-                    "UPDATE materials SET status='confirmed',folder_id=? WHERE id=?",
-                    ("" if b["target_folder"] in FOLDERS else b["target_folder"], mid),
+                    "UPDATE materials SET status='confirmed' WHERE id=?",
+                    (mid,),
                 )
             else:
                 db.execute("UPDATE materials SET status='discarded' WHERE id=?", (mid,))
@@ -548,5 +530,60 @@ def migrate_parent_maps(db):
 def migrate_alignment_choices(db):
     """One-way retirement; measured media and manual tags are never deleted."""
     from .retirement import retire_alignment_records, retire_tool_records
+
     retire_alignment_records(db)
     retire_tool_records(db)
+
+
+def retire_folders(db):
+    """One-time retirement after legacy nature migration; keep samples and batch identities."""
+    if "folder_id" not in {r[1] for r in db.execute("PRAGMA table_info(materials)")}:
+        return
+    db.commit()
+    filename = db.execute("PRAGMA database_list").fetchone()[2]
+    if filename:
+        import gzip, tempfile, os, shutil
+
+        target = Path(filename).parent / "backups" / "pre-folder-retirement.sqlite3.gz"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            fd, temporary = tempfile.mkstemp(suffix=".sqlite3", dir=target.parent)
+            os.close(fd)
+            try:
+                with sqlite3.connect(temporary) as backup:
+                    db.backup(backup)
+                    if backup.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                        raise ValueError("迁移备份校验失败")
+                backup.close()
+                with (
+                    open(temporary, "rb") as source,
+                    gzip.open(str(target) + ".tmp", "wb", compresslevel=1) as dest,
+                ):
+                    shutil.copyfileobj(source, dest)
+                os.replace(str(target) + ".tmp", target)
+            finally:
+                for suffix in ("", "-shm", "-wal"):
+                    Path(temporary + suffix).unlink(missing_ok=True)
+    with db:
+        db.execute("ALTER TABLE materials DROP COLUMN folder_id")
+        db.execute("DROP TABLE IF EXISTS sample_folders")
+        db.execute("ALTER TABLE sample_batches DROP COLUMN folder_id")
+        db.execute("ALTER TABLE sample_batches DROP COLUMN target_folder")
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='saved_views'").fetchone():
+
+            def retire_scope(value):
+                if isinstance(value, dict):
+                    return {
+                        k: retire_scope(v)
+                        for k, v in value.items()
+                        if k not in {"folder_id", "folder_ids", "target_folder"}
+                    }
+                if isinstance(value, list):
+                    return [retire_scope(v) for v in value]
+                return value
+
+            for row in db.execute("SELECT id,payload FROM saved_views").fetchall():
+                db.execute(
+                    "UPDATE saved_views SET payload=? WHERE id=?",
+                    (json.dumps(retire_scope(json.loads(row["payload"]))), row["id"]),
+                )

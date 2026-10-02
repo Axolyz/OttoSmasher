@@ -2,7 +2,7 @@ from ottosmasher.inference_runtime import onnx_session
 
 """Run pinned upstream HubertFA in its isolated ONNX environment.
 
-No upstream edits: force CPU provider here and retain its raw TextGrid output.
+No upstream edits: use the shared runtime provider here and retain its raw TextGrid output.
 Input is a prepared folder containing WAVs and source.json manifest.
 """
 
@@ -12,13 +12,20 @@ import sys
 from pathlib import Path
 
 from ottosmasher.workspace import ROOT, CODE_ROOT
-sys.path.insert(0, str(ROOT / "vendor" / "HubertFA"))
+
+sys.path.insert(0, str(CODE_ROOT / "vendor" / "HubertFA"))
 import onnxruntime as ort
 import pyopenjtalk
 from onnx_infer import InferenceOnnx
 
 
-class CPUInference(InferenceOnnx):
+class RuntimeInference(InferenceOnnx):
+    def __init__(self, path):
+        from ottosmasher.model_inventory import install_support
+
+        install_support()
+        super().__init__(path)
+
     @staticmethod
     def create_session(path):
         options = ort.SessionOptions()
@@ -33,7 +40,7 @@ def main():
     parser.add_argument("--model", type=Path, required=True)
     args = parser.parse_args()
     manifest = json.loads((args.folder / "source.json").read_text())
-    engine = CPUInference(args.model)
+    engine = RuntimeInference(args.model)
     engine.load_config()
     allowed = set(engine.vocab["vocab"])
     for cue in manifest["cues"]:

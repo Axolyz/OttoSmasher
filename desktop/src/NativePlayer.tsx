@@ -104,33 +104,34 @@ function MediaControls({
 
 export const VideoPlayer = forwardRef<
   HTMLVideoElement,
-  React.VideoHTMLAttributes<HTMLVideoElement> & { subtitle?: string }
+  React.VideoHTMLAttributes<HTMLVideoElement> & { subtitle?: string; slave?: boolean; audioOnly?: boolean }
 >(function VideoPlayer(props, ref) {
-  const { src, controls, autoPlay, muted, subtitle = "", ...rest } = props;
+  const { src, controls, autoPlay, muted, subtitle = "", slave = false, audioOnly = false, ...rest } = props;
   const media = useRef<HTMLVideoElement>(null);
   useImperativeHandle(ref, () => media.current!);
   const native = !!window.ottoDesktop?.player;
   useLayoutEffect(() => {
     if (!native || !media.current) return;
     const element = media.current,
-      player = attachNativeMedia(element, true)!;
+      player = attachNativeMedia(element, !audioOnly)!;
     let previous = "",
       hidden = false;
     const geometry = () => {
       const r = element.getBoundingClientRect();
+      let left=Math.max(0,r.left),top=Math.max(0,r.top),right=Math.min(innerWidth,r.right),bottom=Math.min(innerHeight,r.bottom);
       let visible =
         !!element.getClientRects().length &&
         r.width > 1 &&
         r.height > 1 &&
         !document.hidden;
-      // Native views sit above Chromium. Never cover a modal, popup, or a clipped pane.
+      // Native views sit above Chromium: clip scrolling panes and hide for overlays.
       const overlaps = (b: DOMRect) =>
         b.right > r.left &&
         b.left < r.right &&
         b.bottom > r.top &&
         b.top < r.bottom;
       for (const overlay of document.querySelectorAll(
-        ".ant-modal-wrap, .ant-drawer-content-wrapper, .ant-select-dropdown, .ant-dropdown, .ant-popover",
+        ".ant-modal-wrap, .ant-drawer-content-wrapper, .ant-select-dropdown, .ant-dropdown, .ant-popover, .otto-descendant-menu",
       )) {
         if (
           !overlay.contains(element) &&
@@ -147,25 +148,21 @@ export const VideoPlayer = forwardRef<
       ) {
         const css = getComputedStyle(parent),
           box = parent.getBoundingClientRect();
-        if (
-          /(auto|scroll|hidden|clip)/.test(css.overflowY) &&
-          (r.top < box.top - 1 || r.bottom > box.bottom + 1)
-        )
-          visible = false;
+        if (/(auto|scroll|hidden|clip)/.test(css.overflowY)) {
+          top=Math.max(top,box.top+parent.clientTop);bottom=Math.min(bottom,box.top+parent.clientTop+parent.clientHeight);
+        }
+        if (/(auto|scroll|hidden|clip)/.test(css.overflowX)) {
+          left=Math.max(left,box.left+parent.clientLeft);right=Math.min(right,box.left+parent.clientLeft+parent.clientWidth);
+        }
       }
-      if (
-        r.top < 0 ||
-        r.bottom > innerHeight ||
-        r.left < 0 ||
-        r.right > innerWidth
-      )
-        visible = false;
+      visible=visible&&right-left>1&&bottom-top>1;
       const b = {
         x: r.left,
         y: r.top,
         width: r.width,
         height: r.height,
         visible,
+        clip:{x:left,y:top,width:Math.max(0,right-left),height:Math.max(0,bottom-top)},
       };
       const key = JSON.stringify(b);
       // Retry until create() has finished, then keep geometry in sync with scrolling/layout.
@@ -179,7 +176,7 @@ export const VideoPlayer = forwardRef<
       clearInterval(timer);
       player.destroy();
     };
-  }, [native]);
+  }, [native,audioOnly]);
   useLayoutEffect(() => {
     if (native && media.current) {
       media.current.src = src || "";
@@ -202,7 +199,7 @@ export const VideoPlayer = forwardRef<
             ? (e) => {
                 props.onKeyDown?.(e);
                 const m = media.current;
-                if (!m) return;
+                if (!m || slave) return;
                 if (e.code === "Space") {
                   e.preventDefault();
                   if (m.paused) void m.play().catch(() => {});
@@ -225,7 +222,7 @@ export const VideoPlayer = forwardRef<
             ? (e) => {
                 props.onClick?.(e);
                 const m = media.current;
-                if (m) {
+                if (m && !slave) {
                   if (m.paused) void m.play().catch(() => {});
                   else m.pause();
                 }

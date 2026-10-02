@@ -1,32 +1,44 @@
 """Versioned stereo separation before any production speech analysis."""
 
 from __future__ import annotations
-from .workspace import CODE_ROOT
 
 import hashlib
 import json
-from functools import lru_cache
 from pathlib import Path
 
 import soundfile as sf
 
-from .inference_runtime import python_path
 from .media import window
-from .workspace import DATA, ROOT, command, connect, executable, identity, set_job, write_json
+from .workspace import DATA, command, connect, executable, identity, set_job, write_json
 
 MODEL_NAME = "becruily_deux"
-VOCAL_MODELS = (MODEL_NAME, "bs_roformer_voc_hyperacev2")
 STEM = "vocals"
 
 
-@lru_cache(maxsize=4)
 def model_identity(model_name=MODEL_NAME):
-    if model_name not in VOCAL_MODELS:
-        raise ValueError("Unsupported vocal separation model")
-    paths = sorted((ROOT / "models/separation").rglob(model_name + ".*"))
-    if not {".ckpt", ".yaml"}.issubset({p.suffix for p in paths}):
-        raise RuntimeError("Missing configured pymss model/config; run the separation setup first")
-    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+    from .separation import model_identity as identify
+
+    return identify(model_name)
+
+
+class VocalModels:
+    def __iter__(self):
+        from .separation import model_names
+
+        return iter(model_names())
+
+    def __contains__(self, name):
+        from .separation import adapter
+
+        backend = adapter()
+        return any(
+            (name == m["name"] or name in m.get("aliases", []))
+            and "vocals" in [s.lower() for s in backend.stems(m)]
+            for m in backend.models()
+        )
+
+
+VOCAL_MODELS = VocalModels()
 
 
 def register_reference(cue, lineage):
@@ -174,19 +186,17 @@ def prepare_vocals(cues, session=None, model_name=MODEL_NAME, full_source=False)
         for e in pending:
             set_job(db, e["id"], e["cue_id"], "pymss-vocals", "running")
         try:
-            result = (
-                session.run(batch / "request.json")
-                if session
-                else command(
-                    [
-                        python_path(),
-                        CODE_ROOT / "scripts/vocals_worker.py",
-                        batch / "request.json",
-                    ],
-                    timeout=7200,
-                )
-            )
-            (batch / "run.log").write_text(result.stdout + "\n" + result.stderr)
+            import shutil
+
+            from .separation import separate
+
+            results = separate(model_name, [e["input_path"] for e in pending], batch / "stems", ["vocals"])
+            for entry, outputs in zip(pending, results):
+                produced = next(x for x in outputs if x["stem"].lower() == "vocals")
+                target = Path(entry["folder"]) / "stems/context_vocals.wav"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(produced["path"], target)
+                entry["provider"] = produced["provider"]
             for e in pending:
                 # The pinned worker selects the stem explicitly and records its output.
                 separated = Path(e["folder"]) / "stems" / "context_vocals.wav"
@@ -245,52 +255,13 @@ def read_aligned_input(item):
         raise ValueError("Separated vocals file is missing; rerun preprocessing")
     if hashlib.sha256(path.read_bytes()).hexdigest() != lineage["audio_sha256"]:
         raise ValueError("Vocals asset no longer matches alignment provenance")
-    y, sr = sf.read(path, dtype="float32", always_2d=True)
+    from .audio_storage import lineage_audio, read
+    y, sr = read(*lineage_audio(lineage))
     return y.mean(axis=1), sr, item["window_start"], item["window_end"]
 
 
 class PersistentVocals:
-    """A single owned pymss process for a resumable corpus job."""
-
-    def __init__(self):
-        import subprocess
-
-        DATA.mkdir(exist_ok=True)
-        self.log = (DATA / "speaker-separation.log").open("a")
-        self.process = subprocess.Popen(
-            [python_path(), CODE_ROOT / "scripts/vocals_worker.py", "--server"],
-            stdin=subprocess.PIPE,
-            stdout=self.log,
-            stderr=self.log,
-            text=True,
-        )
-
-    def run(self, request):
-        import time
-        from types import SimpleNamespace
-
-        result = request.with_suffix(".result.json")
-        result.unlink(missing_ok=True)
-        self.process.stdin.write(str(request) + "\n")
-        self.process.stdin.flush()
-        deadline = time.monotonic() + 7200
-        while not result.exists():
-            if self.process.poll() is not None:
-                raise RuntimeError("Persistent separation worker stopped; see speaker-separation.log")
-            if time.monotonic() > deadline:
-                raise RuntimeError("Separation timed out")
-            time.sleep(0.1)
-        value = json.loads(result.read_text())
-        if not value["ok"]:
-            raise RuntimeError(value["error"])
-        return SimpleNamespace(stdout="Persistent pymss session; see data/speaker-separation.log", stderr="")
+    """Compatibility context; batches use the Studio worker's shared model lifetime."""
 
     def close(self):
-        if self.process.poll() is None:
-            self.process.stdin.close()
-            try:
-                self.process.wait(timeout=15)
-            except Exception:  # noqa: BLE001 - worker must report adapter failures
-                self.process.terminate()
-                self.process.wait(timeout=15)
-        self.log.close()
+        pass

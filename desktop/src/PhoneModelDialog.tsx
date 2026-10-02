@@ -74,7 +74,7 @@ export default function PhoneModelDialog({
 
           { value: "narabas", label: "narabas" },
           { value: "phonetic", label: "HubertFA" },
-          { value: "pydomino", label: "pydomino（末位备选）" },
+          { value: "pydomino", label: "pydomino" },
         ]}
       />
       {data && (
