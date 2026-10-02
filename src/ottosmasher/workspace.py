@@ -187,8 +187,11 @@ def save_analysis(db, cue_id, kind, version, payload):
         db.commit()
         return
     db.execute(
-        "INSERT OR REPLACE INTO analyses VALUES (?,?,?,?,?)",
-        (cue_id, kind, version, json.dumps(payload, ensure_ascii=False, allow_nan=False), time.time()),
+        # Windows clocks can return the same timestamp for consecutive saves.
+        # Compute an increasing revision time in the atomic write; all legacy
+        # readers use max(created), so a failed new run cannot reveal old success.
+        "INSERT OR REPLACE INTO analyses VALUES (?,?,?,?,MAX(?,COALESCE((SELECT MAX(created) FROM analyses WHERE cue_id=? AND kind=?),0)+0.000001))",
+        (cue_id, kind, version, json.dumps(payload, ensure_ascii=False, allow_nan=False), time.time(), cue_id, kind),
     )
     db.commit()
 

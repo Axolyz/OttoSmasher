@@ -2,5 +2,5 @@
 import pyopenjtalk
 
 if __name__ == '__main__':
-    assert pyopenjtalk.g2p('\u3042'), 'OpenJTalk dictionary is unavailable'
+    assert pyopenjtalk.g2p('\u3042', use_sudachi_kanji_yomi=False, predict_nani=False), 'OpenJTalk dictionary is unavailable'
     print('OpenJTalk dictionary ready')

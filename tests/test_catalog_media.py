@@ -94,7 +94,8 @@ def test_api_validates_missing_features_and_local_access(corpus):
     assert client.get("/api/workflows").status_code == 404
 
 
-def test_failed_new_analysis_never_falls_back_to_old_success(corpus):
+def test_failed_new_analysis_never_falls_back_to_old_success(corpus, monkeypatch):
+    monkeypatch.setattr(workspace.time, "time", lambda: 1000.0)
     catalog.import_directory(corpus[0])
     with workspace.connect() as db:
         cue_id = catalog.search_text(db, "すごーい")[0]["id"]

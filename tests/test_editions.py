@@ -26,7 +26,11 @@ def test_experiment_requires_explicit_archive_selection(monkeypatch):
     monkeypatch.setenv("OTTO_ARCHIVED", "native-alignment")
     editions.require_operation("native-alignment", {})
     assert inference_runtime.python_path("torch").parent.parent.name == "inference"
-    assert inference_runtime.python_path().parent.parent.name == "onnx"
+    from pathlib import Path
+    expected = inference_runtime.ROOT / ".runtime/envs/onnx"
+    assert inference_runtime.python_path().relative_to(expected) in {
+        Path("bin/python"), Path("Scripts/python.exe"), Path("python.exe")
+    }
 
 
 def test_edition_change_restarts_same_code_service(monkeypatch):

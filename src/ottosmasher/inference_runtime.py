@@ -229,7 +229,8 @@ def probe():
 
         if not Path(os.fsdecode(pyopenjtalk.OPEN_JTALK_DICT_DIR)).is_dir():
             raise RuntimeError("Open JTalk 辞典缺失；检测不会自动下载")
-        pyopenjtalk.g2p("あ", kana=False)
+        # Probe the dictionary only; legacy yomi weights are not part of standard.
+        pyopenjtalk.g2p("あ", kana=False, use_sudachi_kanji_yomi=False, predict_nani=False)
         # Tiny bundled protobuf exercises session creation and actual execution, without model weights.
         from .runtime_probe import MODEL
         import numpy as np
