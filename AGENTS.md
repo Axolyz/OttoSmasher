@@ -32,7 +32,7 @@
 
 - Python 用 uv 建项目内环境（`.venv/`）；uv 的缓存与托管 Python 也放在项目内（`pyproject.toml` 的 `[tool.uv]` 设置 `cache-dir`，
   `uv.toml` 设置 `python-install-dir`）。不改全局 Python/shell 配置，不做全局安装（不用 `pip install --user`、`brew install`、`npm -g`）。
-- Node 依赖（如果用到）装在项目里的 `node_modules/`。
+- Node 依赖（含 Electron 二进制）装在项目里的 `node_modules/`；不用 `npm -g`。
 - 第三方二进制（libmpv、发布用的 ffmpeg/rubberband 等）由 `tools/` 下的脚本拉到 `third_party/`（gitignored），固定版本并校验 SHA-256；
   **首次拉取某个第三方二进制前，先向所有者说明文件名、来源与大小并获得同意。**
 - 开发期使用本机已有的 Homebrew ffmpeg / rubberband 4.0.0（只调用，不改动）。
@@ -68,7 +68,7 @@
 
 ## 9. 代码约定（阶段 1 起生效，细节随实现补充）
 
-- 用户可见文案一律走文案资源（`src/ottosmasher/i18n/locales/<lang>/*.ftl`），不在代码里写死中文；后端错误返回“错误码 + 参数”。
+- 用户可见文案一律走文案资源（`app/renderer/i18n/locales/<lang>.json`，ICU MessageFormat），不在代码里写死中文；Core 错误返回“错误码 + 参数”。
 - 每个时间值都要明确所属时钟（原片秒 / 资产局部秒 / 文件秒 / 采样显示坐标）；换算只走 `domain.mapping` 一处。
 - 不静默回退、不静默降级、不静默替换（P6）；未知不是零（P7）。
 - 算法按规格的【基线算法】/【基线参数】逐项复现，不顺手“优化”；改变结果的想法先写提议。
