@@ -1,0 +1,56 @@
+# --- 开发工作区（数据库、素材库、模型权重、缓存、日志）---
+/dev-workspace/
+
+# --- 本地状态文件（AGENTS.md 规定不入库）---
+/STATUS.md
+
+# --- 环境与工具缓存（全部在项目内）---
+/.venv/
+/.uv-cache/
+/.uv-python/
+/node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- 第三方二进制与源码（libmpv、ffmpeg、rubberband、pydomino 源码等，由脚本拉取）---
+/third_party/
+
+# --- 构建产物 ---
+/build/
+/dist/
+*.egg-info/
+
+# --- 媒体、模型权重与测试素材：一律不进 Git ---
+*.mkv
+*.mp4
+*.mov
+*.webm
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.ogg
+*.aac
+*.srt
+*.ass
+*.onnx
+*.npy
+*.npz
+*.sqlite3
+*.sqlite3-*
+fixtures/
+
+# --- 凭据 ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- 系统 ---
+.DS_Store
+Thumbs.db
