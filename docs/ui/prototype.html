@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OttoSmasher 界面原型 v2</title>
+<title>OttoSmasher 界面原型 v3</title>
 <style>
 :root{
   --bg:#0e1014; --rail:#0b0d10; --s1:#14171c; --s2:#1a1e25; --s3:#222731; --line:#262b34; --line2:#1f242c;
@@ -364,6 +364,51 @@ header.top{display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom
 .tools{flex:1;display:grid;grid-template-columns:300px 1fr 340px;gap:14px;padding:16px 20px}
 .tools .card pre{font-size:11.5px;background:var(--bg);border-radius:9px;padding:10px;white-space:pre-wrap;margin:0}
 .ver{position:fixed;right:12px;bottom:52px;font-size:10.5px;color:var(--faint);z-index:3}
+
+/* ===== v3 ===== */
+.item{grid-template-columns:22px 92px 1fr auto auto 22px;padding:6px 14px}
+.th{width:88px;height:50px;border-radius:7px;position:relative;flex:none;overflow:hidden}
+.th::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(0,0,0,.35))}
+.th .pbtn{position:absolute;left:5px;bottom:5px;width:24px;height:24px;font-size:9px;z-index:1;background:rgba(0,0,0,.55);border-color:transparent;color:#fff}
+.th .pbtn.on{background:var(--accent)}
+.th.sm{width:56px;height:32px}
+.pn{font-weight:700;font-size:13px}
+.hero{gap:18px;padding:16px 20px 8px}
+.hero .poster{width:400px;height:225px;border-radius:12px}
+.hero.bigv{flex-direction:column}
+.hero.bigv .poster{width:100%;height:auto;aspect-ratio:16/9;max-height:440px}
+.poster .vsz{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.45);color:#fff;border:none;padding:2px 8px;z-index:2}
+.hinfo .htitle{font-size:21px}
+.hinfo .hitnav{margin:10px 0 0}
+.layerbar{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.layerbar .seg button{font-size:11.5px;padding:2px 9px}
+.layerbar .seg button:disabled{opacity:.35}
+.lanechk{display:flex;align-items:center;gap:3px;color:var(--sub)}
+.editbar{display:none;align-items:center;gap:10px;font-size:12px;background:var(--accentbg);border:1px solid var(--accent);border-radius:9px;padding:4px 6px 4px 10px;margin-bottom:6px}
+.editing .editbar{display:flex}
+.editing .editbtn{display:none}
+.lanes{position:relative;margin-top:2px;cursor:default}
+.panels{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 20px 20px}
+.moras{display:flex;flex-wrap:wrap;gap:10px}
+.mora{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 6px;border-radius:8px;background:var(--s2)}
+.mora .kana{font-size:15px;font-weight:650}
+details.mini{position:relative}
+details.mini summary{cursor:pointer;color:var(--sub);font-size:12px;list-style:none;border:1px solid var(--line);border-radius:7px;padding:2px 8px}
+details.mini[open] summary{border-color:var(--accent)}
+details.mini>.pane{position:absolute;right:0;top:calc(100% + 6px);z-index:6;background:var(--s2);border:1px solid var(--line);border-radius:10px;padding:10px;box-shadow:var(--shadow);min-width:260px}
+.mid{font-size:18px;font-weight:650;white-space:nowrap}
+#pg-sources{flex-direction:row}
+.viewer{flex:1;min-width:0}
+.srclist{width:290px;flex:none;border-right:1px solid var(--line2);display:flex;flex-direction:column;position:relative;min-height:0}
+.srclist .sl{overflow:auto;flex:1;padding-bottom:60px}
+.srclist .sg{font-size:11px;letter-spacing:.6px;color:var(--faint);padding:10px 14px 4px;text-transform:uppercase}
+.srow{display:grid;grid-template-columns:20px 56px 1fr;gap:9px;align-items:center;padding:6px 12px;border-left:2px solid transparent;user-select:none}
+.srow:hover{background:var(--s1)}
+.srow.focus{background:var(--s2);border-left-color:var(--accent)}
+.srow.ctx{box-shadow:inset 0 0 0 1px var(--accent)}
+.srow .prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:3px}
+.srow .prog i{display:block;height:100%;background:var(--ok)}
+.transcript .th2{padding:10px 14px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px}
 </style>
 </head>
 <body>
@@ -429,7 +474,7 @@ for(let i=0;i<64;i++){
   let name,reading="",who=null,multi=false,pitch=null;
   if(nature==="speech"||nature==="pitched"){const L=LINES[Math.floor(R()*LINES.length)];name=L[0];reading=L[1];if(R()<.85){if(R()<.14){multi=true;who=chs[0]+"、"+chs[1]}else who=chs[Math.floor(R()*chs.length)]}if(nature==="pitched")pitch=NOTES[Math.floor(R()*NOTES.length)]}
   else if(nature==="unpitched")name=SFX[Math.floor(R()*SFX.length)];
-  else{const m=Math.floor(R()*23),s=(R()*59).toFixed(3);name=`${work} ${ep} · ${m}:${s.padStart(6,"0")}`}
+  else{const m=Math.floor(R()*23),s0=R()*57,s1=s0+.4+R()*2;name=`${work} ${ep} ${m}:${s0.toFixed(3).padStart(6,"0")}–${m}:${s1.toFixed(3).padStart(6,"0")}`}
   const blocks=Array.from({length:Math.max(2,Math.round(reading.length*.8))},()=>R()<.7?1:R()<.5?2:3);
   samples.push({id:"s"+(i+1),name,reading,nature,work,ep,who,multi,pitch,dur:+(.35+R()*3).toFixed(2),starred:R()<.18,local:R()<.2?["好用"]:[],blocks,
     cents:Math.round((R()-.5)*40),atk:+(2+R()*40).toFixed(1),asset:nature==="unpitched"?"bandit_v2 · effect":nature==="unclassified"?"原混音 · 音轨1":"hyperacev2 · vocals",at:`${String(Math.floor(R()*23)).padStart(2,"0")}:${String(Math.floor(R()*59)).padStart(2,"0")}.${String(Math.floor(R()*999)).padStart(3,"0")}`,dead:false});
@@ -445,7 +490,7 @@ const S={page:"library",lens:"all",chips:[["作品","Yuru Yuri"]],text:"",expr:"
   playing:null,lastVer:{},scope:"list",composer:false,cmode:null,stale:false,classified:{},pg:1,pageSize:30,
   sp:{strategy:"strict",edge:"tail",blocks:[{id:1,a:0,b:.5,v:"任意",c:"任意",p:""},{id:2,a:1,b:1.5,v:"a",c:"k",p:""},{id:3,a:1.5,b:2,v:"任意",c:"任意",p:""}],sel:2},
   pt:{blocks:[{id:1,d:.4,lo:69,hi:69},{id:2,d:.3,lo:72,hi:74}],sel:1},
-  src:{view:"viewer",focus:"e1",checked:new Set()},bpm:""};
+  src:{view:"viewer",focus:"e1",checked:new Set(),listOpen:true},bpm:"",lmode:"lane",bigVideo:false};
 
 /* ==============================================================
    工具
@@ -476,7 +521,7 @@ function renderTop(){
   if(S.page==="sources")bindSourcesHead();
 }
 function lensesHtml(){const cnt=k=>samples.filter(s=>k==="all"||s.nature===k).length;
-  return `<div class="lenses">${[["all","全部"],["speech","语音"],["pitched","调谐单音"],["unpitched","非调谐单音"],["unclassified","收件箱"]].map(([k,l])=>`<button class="lens ${S.lens===k?"on":""}" data-l="${k}">${k!=="all"?`<span class="dot" style="background:${NCOL[k]}"></span>`:""}${l}${k==="unclassified"?`<span class="c">${cnt(k)}</span>`:""}</button>`).join("")}</div>`}
+  return `<div class="lenses">${[["all","全部"],["speech","语音"],["pitched","调谐单音"],["unpitched","非调谐单音"],["unclassified","未分类"]].map(([k,l])=>`<button class="lens ${S.lens===k?"on":""}" data-l="${k}">${k!=="all"?`<span class="dot" style="background:${NCOL[k]}"></span>`:""}${l}</button>`).join("")}</div>`}
 function renderDock(){
   const p=S.playing;const s=p&&samples.find(x=>x.id===p.id);
   $("#dock").innerHTML=`<div class="np"><button class="pp" id="npBtn">${p?"❚❚":"▶"}</button>${p?`<span class="nm">${esc(s.name)}</span><span class="ver ${p.ver==="beat"?"beat":""}">${p.ver==="beat"?(S.bpm?"卡拍 · "+S.bpm+" BPM · "+(p.plan||"近快"):"原速卡拍"):"原声"}</span><div class="bar"><i id="npBar" style="width:0%"></i></div><span class="muted sm num" id="npT">0.00 / ${s.dur.toFixed(2)}</span>`:`<span class="muted sm">没有在播放 · 任何时刻只有一个声音</span>`}</div>
@@ -553,42 +598,36 @@ function rows(){const t=S.tabs.find(x=>x.id===S.tab);if(!t||t.kind==="browse")re
 function renderResults(){
   const el=$("#results");if(!el)return;const all=rows();const pages=Math.max(1,Math.ceil(all.length/S.pageSize));S.pg=Math.min(S.pg,pages);
   const vis=all.slice((S.pg-1)*S.pageSize,S.pg*S.pageSize);const t=S.tabs.find(x=>x.id===S.tab);
-  const padLens=(S.lens==="pitched"||S.lens==="unpitched")&&(!t||t.kind==="browse");
-  const huntLabel={speech:"节奏检索",pitched:"音高检索",unpitched:"瞬态筛选",all:"检索",unclassified:"检索"}[S.lens];
+  const padLens=false;
+  const huntLabel={speech:"节奏检索",pitched:"音高检索",unpitched:"瞬态筛选",all:"检索",unclassified:"节奏检索"}[S.lens];
   el.innerHTML=`<div class="rhead">${S.tabs.map(x=>x.kind==="browse"?`<button class="rtab ${S.tab==="browse"?"on":""}" data-t="browse">浏览 <span class="faint num">${filtered().length}</span></button>`:`<button class="rtab ${S.tab===x.id?"on":""}" data-t="${x.id}">${x.title} <span class="faint num">${x.members.length}</span><span class="x" data-close="${x.id}" title="关闭（只删结果集合）">×</span></button>`).join("")}
       <div class="grow"></div><div class="pager"><button class="flat" id="pp">‹</button><span class="num">${S.pg}/${pages}</span><button class="flat" id="pn">›</button></div>
       <button class="hunt" id="huntBtn">⌖ ${huntLabel} ▾</button></div>
-    <div class="rstat">${!t||t.kind==="browse"?`<span>${all.length} 个采样 · 新建在前</span>${S.lens==="unclassified"?'<span>· 收件箱：边听边按 <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 归类</span>':""}`
+    <div class="rstat">${!t||t.kind==="browse"?`<span>${all.length} 个采样 · 新建在前</span>`
         :`<span>固定结果 · ${t.members.length} 个采样 · ${t.members.reduce((a,m)=>a+m.hits.length,0)} 处命中 · ${t.ms} ms · ${t.missing} 项缺少有效分析</span>${t.kind==="pitch"?'<span class="st-w">近似检索 · 可能漏检</span>':""}<span class="grow"></span><span class="link" id="again">再搜一次</span>`}</div>
     <div class="list" id="list" tabindex="0">${vis.length?(padLens?`<div class="pads">${vis.map(r=>padHtml(r.s)).join("")}</div>`:vis.map(itemHtml).join("")):`<div class="empty">没有符合条件的采样<br><span class="sm">范围里的条件取交集，可以移除条件放宽范围</span></div>`}</div>
     <div class="floatbar ${S.checked.size?"on":""}" id="fbar"><span><b class="num">${S.checked.size}</b> 项已勾选</span><span class="link" id="selAll">全选全部 ${all.length} 个</span><button class="pri" id="bulk">批量操作 ▾</button><button class="flat" id="clr" title="Esc">✕</button></div>`;
   el.querySelectorAll("[data-t]").forEach(b=>b.onclick=e=>{if(e.target.dataset.close){closeTab(e.target.dataset.close);return}if(S.tab!==b.dataset.t&&S.checked.size){toast(`切换结果，已清空 ${S.checked.size} 项勾选`);S.checked.clear()}S.tab=b.dataset.t;S.pg=1;renderResults()});
   $("#pp").onclick=()=>{if(S.pg>1){S.pg--;renderResults()}};$("#pn").onclick=()=>{if(S.pg<pages){S.pg++;renderResults()}};
-  $("#huntBtn").onclick=e=>{if(S.composer){S.composer=false;renderResults();return}const def={speech:"speech",pitched:"pitch",unpitched:"transient"}[S.lens];if(def&&!e.altKey){openComposer(def)}else menu(e.currentTarget,"检索方式",[["语音 · 节奏/音块检索",()=>openComposer("speech")],["独立音高检索",()=>openComposer("pitch")],["单音 · 音色",()=>openComposer("timbre")],["单音 · 瞬态",()=>openComposer("transient")]])};
+  $("#huntBtn").onclick=e=>{if(S.composer){S.composer=false;renderResults();return}const def={speech:"speech",unclassified:"speech",pitched:"pitch",unpitched:"transient"}[S.lens];if(def&&!e.altKey){openComposer(def)}else menu(e.currentTarget,"检索方式",[["语音 · 节奏/音块检索",()=>openComposer("speech")],["独立音高检索",()=>openComposer("pitch")],["单音 · 音色",()=>openComposer("timbre")],["单音 · 瞬态",()=>openComposer("transient")]])};
   $("#again")&&($("#again").onclick=runSearch);
   $("#selAll").onclick=()=>{all.forEach(r=>!r.s.dead&&S.checked.add(r.s.id));renderResults()};$("#clr").onclick=()=>{S.checked.clear();renderResults()};
   $("#bulk").onclick=e=>menu(e.currentTarget,`作用于：已勾选 <b>${S.checked.size}</b> 项`,bulkItems());
   bindList();$("#composer").classList.toggle("on",!!S.composer);if(S.composer)renderComposer();
 }
 function glyph(b){let x=0;const tot=b.reduce((a,c)=>a+c,0);const W=Math.min(90,tot*9);return `<svg class="glyph" width="${W}" height="10">${b.map(c=>{const cx=x/tot*W+2;x+=c;return `<rect x="${cx}" y="2" width="${Math.max(3,c/tot*W-3)}" height="6" rx="2" fill="currentColor" opacity=".55"/><circle cx="${cx}" cy="5" r="2.2" fill="var(--sp)"/>`}).join("")}</svg>`}
-function itemHtml({s,hits,kind}){const ck=S.checked.has(s.id),pl=S.playing&&S.playing.id===s.id;const done=S.classified[s.id];
-  let meta="";if(S.lens==="speech"||(S.lens==="all"&&s.nature==="speech"))meta=`<span>${esc(s.reading)}</span>${glyph(s.blocks)}`;else if(s.nature==="pitched")meta=`<span style="color:var(--pt)">${s.pitch}</span><span>${esc(s.reading||"")}</span>`;else if(s.nature==="unpitched")meta=`<span>起音 ${s.atk} ms</span>`;else meta=`<span>${esc(s.asset)} · 手动截取</span>`;
-  const right=S.lens==="unclassified"?(done?`<span class="done">已归类为${NAT[done.to]}</span>`:`<div class="classify"><button data-cls="speech">1 语音</button><button data-cls="pitched">2 调谐</button><button data-cls="unpitched">3 非调谐</button></div>`):`<span class="who">${s.who?esc(s.who)+(s.multi?"（多人）":""):""}</span>`;
+function spark(s){const r=rng(+s.id.slice(1));return s.nature==="pitched"?`<svg width="64" height="12" viewBox="0 0 64 12"><polyline fill="none" stroke="var(--pt)" stroke-width="1.6" points="${Array.from({length:16},(_,i)=>`${i*4.2},${6+Math.sin(i/2+r()*2)*2*(i<3||i>13?2:.4)}`).join(" ")}"/></svg>`:`<svg width="64" height="12" viewBox="0 0 64 12"><path d="M0 12 L${3+r()*5} 1 L64 12 Z" fill="var(--up)" opacity=".6"/></svg>`}
+function thumbHtml(s,pl){const r=rng(+s.id.slice(1)*7);const h1=Math.floor(r()*360),h2=(h1+60)%360;return `<div class="th" style="background:linear-gradient(135deg,hsl(${h1} 30% 32%),hsl(${h2} 35% 18%))"><button class="pbtn ${pl?"on":""}" data-play="${s.id}" title="左键：原声 · 右键：默认卡拍">${pl?"❚❚":"▶"}</button></div>`}
+function itemHtml({s,hits,kind}){const ck=S.checked.has(s.id),pl=S.playing&&S.playing.id===s.id;const speechy=s.nature==="speech"||s.nature==="unclassified";
+  let meta="";if(s.nature==="pitched")meta=`<span class="pn" style="color:var(--pt)">${s.pitch}</span>${spark(s)}`;else if(s.nature==="unpitched")meta=`<span style="color:var(--up)">起音 ${s.atk} ms</span>${spark(s)}`;else if(s.reading)meta=glyph(s.blocks)+`<span>${s.blocks.length} 块</span>`;else meta=`<span>${esc(s.asset)} · 手动截取 · 未分析</span>`;
   return `<div class="item ${S.focus===s.id?"focus":""} ${s.dead?"dead":""}" data-id="${s.id}">
-    <div class="ck ${ck?"on":""}" data-ck title="勾选（⌘单击、X 键也可）">${ck?"✓":""}</div>
-    <button class="pbtn ${pl?"on":""}" data-play="${s.id}" title="左键：原声 · 右键：默认卡拍">${pl?"❚❚":"▶"}</button>
-    <div style="min-width:0"><div class="nm">${s.nature!=="unclassified"&&S.lens==="all"?`<span class="dot" style="background:${NCOL[s.nature]};margin-right:7px;vertical-align:1px"></span>`:""}${esc(s.name)}${s.dead?' <span class="st-b sm">已删除</span>':""}</div><div class="meta">${meta}</div></div>
-    ${right}<span class="dur num">${s.dur.toFixed(2)}s</span><span class="star ${s.starred?"on":""}" data-star>${s.starred?"★":"☆"}</span>
-    ${hits?`<div class="hitline"><div class="bg"></div>${hits.map((h,i)=>`<div class="h ${h.strict?"":"ap"} ${S.focusHit===s.id+":"+i?"on":""}" data-hit="${s.id}:${i}" style="left:${h.a/s.dur*85}%;width:${Math.max(2,(h.b-h.a)/s.dur*85)}%" title="${h.a.toFixed(2)}–${h.b.toFixed(2)} s · ${kind==="speech"?(h.strict?"严格":"近似")+" · "+h.speed+"× · "+h.plan:"近似检索"} · 单击定位 · 双击/Space 试听 · 右键操作"></div>`).join("")}<span class="lab">${hits.length} 处</span></div>`:""}
+    <div class="ck ${ck?"on":""}" data-ck title="勾选（⌘单击、X 键也可）">${ck?"✓":""}</div>${thumbHtml(s,pl)}
+    <div style="min-width:0"><div class="nm"><span class="dot" style="background:${NCOL[s.nature]};margin-right:7px;vertical-align:1px"></span>${esc(s.name)}${s.dead?' <span class="st-b sm">已删除</span>':""}</div><div class="meta">${meta}<span class="faint">${esc(s.work)} ${s.ep} · ${s.at}</span></div></div>
+    <span class="who">${s.who?esc(s.who)+(s.multi?"（多人）":""):""}</span><span class="dur num">${s.dur.toFixed(2)}s</span><span class="star ${s.starred?"on":""}" data-star>${s.starred?"★":"☆"}</span>
+    ${hits?`<div class="hitline"><div class="bg"></div>${hits.map((h,i)=>`<div class="h ${h.strict?"":"ap"} ${S.focusHit===s.id+":"+i?"on":""}" data-hit="${s.id}:${i}" style="left:${h.a/s.dur*85}%;width:${Math.max(2,(h.b-h.a)/s.dur*85)}%" title="${h.a.toFixed(2)}–${h.b.toFixed(2)} s · ${kind==="speech"?(h.strict?"严格":"近似")+" · "+h.speed+"× · "+h.plan:"近似检索"} · 单击定位"></div>`).join("")}<span class="lab">${hits.length} 处</span></div>`:""}
     ${hits&&S.focus===s.id?`<div class="hchips">${hits.map((h,i)=>`<span class="hc ${S.focusHit===s.id+":"+i?"on":""}" data-hit="${s.id}:${i}"><button class="pbtn" data-hplay="${s.id}:${i}" title="${kind==="pitch"?"左键：原声（音高命中没有卡拍）":"左键：原声 · 右键：卡拍（"+h.plan+"，按该命中的证据方案）"}">▶</button><span class="num">${h.a.toFixed(2)}–${h.b.toFixed(2)}s</span>${kind==="speech"?`<span class="ev ${h.strict?"":"ap"}">${h.strict?"严格":"近似"} · ${h.speed}× · ${h.plan}</span>`:""}</span>`).join("")}${kind==="speech"?'<label class="xs muted row"><input type="checkbox"> 前后 0.3 s</label>':""}</div>`:""}
   </div>`}
-function padHtml(s){const ck=S.checked.has(s.id),pl=S.playing&&S.playing.id===s.id;const r=rng(+s.id.slice(1));
-  const vis=s.nature==="pitched"?`<svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none"><polyline fill="none" stroke="var(--pt)" stroke-width="2" points="${Array.from({length:20},(_,i)=>`${i*5.2},${13+Math.sin(i/2+r()*2)*3*(i<4||i>16?2:.4)}`).join(" ")}"/></svg>`
-    :`<svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none"><path d="M0 26 L${4+r()*6} 2 L100 26 Z" fill="var(--up)" opacity=".55"/></svg>`;
-  return `<div class="pad ${S.focus===s.id?"focus":""}" data-id="${s.id}"><div class="ck ${ck?"on":""}" data-ck>${ck?"✓":""}</div>
-    <button class="pbtn pp ${pl?"on":""}" data-play="${s.id}">${pl?"❚❚":"▶"}</button>
-    <div class="note" style="color:${s.nature==="pitched"?"var(--pt)":"var(--up)"}">${s.nature==="pitched"?s.pitch:s.atk+"<span class='sm'> ms</span>"}</div>
-    ${vis}<div class="nm">${esc(s.name)}</div><div class="meta"><span class="num">${s.dur.toFixed(2)}s</span>${s.who?`<span>${esc(s.who)}</span>`:""}</div><span class="star ${s.starred?"on":""}" data-star>${s.starred?"★":"☆"}</span></div>`}
+
 function bindList(){
   const L=$("#list");L.onfocus=()=>setScope("list");
   L.querySelectorAll("[data-id]").forEach(row=>{const id=row.dataset.id,s=samples.find(x=>x.id===id);
@@ -611,11 +650,10 @@ function toggleCk(id){if(samples.find(s=>s.id===id).dead)return;S.checked.has(id
 function rangeCk(id){const ids=[...$("#list").querySelectorAll("[data-id]")].map(r=>r.dataset.id);const a=ids.indexOf(S.anchor||S.focus),b=ids.indexOf(id);if(a<0){toggleCk(id);return}ids.slice(Math.min(a,b),Math.max(a,b)+1).forEach(x=>S.checked.add(x));renderResults()}
 function focus(id){S.focus=id;S.focusHit=null;renderResults();renderStage()}
 function star(id){const s=samples.find(x=>x.id===id);s.starred=!s.starred;renderResults();if(S.focus===id)renderStage();toast(s.starred?"已加星标":"已取消星标",{undo:"星标"})}
-function classify(ids,to){ids.forEach(id=>{const s=samples.find(x=>x.id===id);if(S.lens==="unclassified")S.classified[id]={from:s.nature,to};s.nature=to});
-  if(S.lens==="unclassified"&&ids.length===1){const vis=[...$("#list").querySelectorAll("[data-id]")].map(r=>r.dataset.id);const i=vis.indexOf(ids[0]);const nx=vis.slice(i+1).find(x=>!S.classified[x]);if(nx)S.focus=nx}
-  renderResults();renderStage();renderTop();toast(`已设为「${NAT[to]}」${S.lens==="unclassified"?" · 留在原位，刷新后移出收件箱 · 焦点移到下一条":""}`,{undo:"设性质"})}
+function classify(ids,to){ids.forEach(id=>{const s=samples.find(x=>x.id===id);if(S.lens!=="all")S.classified[id]={from:s.nature,to};s.nature=to});
+  renderResults();renderStage();toast(`已设为「${NAT[to]}」${S.lens!=="all"?" · 留在当前列表，刷新后按新性质归位":""}`,{undo:"设性质"})}
 function oneItems(s){return [["试听原声",()=>play(s.id,"orig"),"Space"],["试听卡拍",()=>play(s.id,"beat"),"B"],"-",
-  ["语音分析…",()=>analysisModal(1,"sample")],["音素编辑台",()=>{focus(s.id);phonemeSheet()}],["节奏台",()=>{focus(s.id);rhythmSheet()}],["拉平…",()=>flattenSheet("list",s)],"-",
+  ["语音分析…",()=>analysisModal(1,"sample")],["编辑音素时间",()=>{focus(s.id);setTimeout(()=>stageWave&&stageWave.editTo("ph"),60)}],["拉平…",()=>flattenSheet("list",s)],"-",
   ["添加标签…",()=>tagModal([s.id],"add")],["移除标签…",()=>tagModal([s.id],"rm")],["设性质 ▸",()=>menu(null,"设性质",Object.entries(NAT).map(([k,v])=>[v,()=>classify([s.id],k)]))],["编辑资料…",()=>editModal([s.id])],["重命名",()=>{focus(s.id);setTimeout(()=>$(".htitle")?.focus(),40)},"F2"],"-",
   ["导出原声 WAV",()=>exported(s.name+"__人声__Yuru Yuri__3f9a1c2e_00-21-43.272-00-21-43.899__8ca511050f35.wav")],["导出卡拍 WAV",()=>exported(s.name+"__卡拍-180BPM__人声__….wav")],["导出视频片段…",()=>videoModal(s)],["复制 REAPER 交接",()=>toast("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")],["导出 REAPER 条目文件（试验）",()=>toast("已导出（试验）")],"-",
   ["返回原片",()=>gotoSource()],["独立化…",()=>toast("物化声音（无损切片）与画面，之后删原片仍可用")],["删除…",()=>delModal([s.id]),"⌫"]]}
@@ -711,11 +749,23 @@ function delPitch(){S.pt.blocks=S.pt.blocks.filter(z=>z.id!==S.pt.sel);S.pt.sel=
 const waves=new Set();
 function peaksFor(dur,seed){const n=Math.min(8000,Math.max(400,Math.round(dur*120)));const r=rng(seed);const a=new Float32Array(n);
   for(let i=0;i<n;i++){const t=i/n*dur;const env=Math.abs(Math.sin(t*3.1+seed))*.45+Math.abs(Math.sin(t*11.7))*.3+Math.abs(Math.sin(t*29.3+seed))*.2+.04;const gap=(Math.sin(t*1.3+seed)>.78)?.06:1;a[i]=(r()*2-1)*env*gap}return a}
+const LAYER_NAMES={ph:"音素",sub:"字幕",seg:"区段/说话人",blk:"音块"};
+const LAYER_EDIT={ph:"音素时间（保存为人工版本，自动重跑不会覆盖）",sub:"字幕边界（只改时间标注，不移动已有采样）",seg:"区段标签边界（只改时间标注）"};
 class Wave{
-  constructor(root,o){this.root=root;this.o=o;this.dur=o.dur;this.t=o.t||0;this.sel=o.sel||null;this.playing=false;this.vs=0;this.ve=o.dur;this.layers={ph:true,sub:true,seg:true};
-    root.innerHTML=`<div class="wv"><div class="ws"></div><canvas class="ov"></canvas></div><div class="lanes"><canvas></canvas></div>`;
+  /* 一个波形组件，三处共用（舞台、原片时间线、工作台）。
+     覆盖层：恰好一个图层以区间形式盖在整个波形上（可编辑的也只有它）；
+     车道：其余勾选的图层在波形下方各占一条细车道（只读），悬停时把区间投影到波形上。 */
+  constructor(root,o){this.root=root;this.o=o;this.dur=o.dur;this.t=o.t||0;this.sel=o.sel||null;this.playing=false;this.vs=0;this.ve=o.dur;
+    this.L=o.layers||{};this.overlay=o.overlay&&this.L[o.overlay]?o.overlay:(Object.keys(this.L).find(k=>this.L[k].length)||null);
+    this.lmode=S.lmode||"lane";this.lanesOn=new Set(Object.keys(this.L).filter(k=>k!==this.overlay&&this.L[k].length));this.editing=false;this.hover=null;this.drag=null;
+    const keys=Object.keys(this.L);
+    root.innerHTML=`${keys.length?`<div class="layerbar"><span class="muted xs">覆盖</span><div class="seg ovseg">${keys.map(k=>`<button data-ov="${k}" class="${k===this.overlay?"on":""}" ${this.L[k].length?"":"disabled"}>${LAYER_NAMES[k]}</button>`).join("")}<button data-ov="" class="${!this.overlay?"on":""}">无</button></div>
+        <span class="muted xs" style="margin-left:8px">车道</span>${keys.map(k=>`<label class="xs lanechk" data-lk="${k}"><input type="checkbox" data-lane="${k}" ${this.lanesOn.has(k)?"checked":""} ${k===this.overlay||!this.L[k].length?"disabled":""}> ${LAYER_NAMES[k]}</label>`).join("")}
+        <span class="muted xs" style="margin-left:8px">其他图层</span><div class="seg lmseg">${[["lane","车道"],["ghost","淡线"],["band","分带"]].map(([k,l])=>`<button data-lm="${k}" class="${k===(S.lmode||"lane")?"on":""}">${l}</button>`).join("")}</div><div class="grow"></div><button class="flat sm editbtn" title="编辑覆盖层的区间边界">✎ 编辑${this.overlay?LAYER_NAMES[this.overlay]:""}</button></div>
+      <div class="editbar"><b>正在编辑：<span class="edl"></span></b><span class="muted">拖动覆盖层上的边界；车道只读</span><div class="grow"></div><button class="flat sm edDis">放弃</button><button class="pri sm edSave">保存</button></div>`:""}
+      <div class="wv"><div class="ws"></div><canvas class="ov"></canvas></div><div class="lanes"><canvas></canvas></div>`;
     this.wsEl=root.querySelector(".ws");this.ov=root.querySelector("canvas.ov");this.ln=root.querySelector(".lanes canvas");this.lanesEl=root.querySelector(".lanes");
-    this.lanesEl.style.height=(o.lanes||3)*15+"px";const css=getComputedStyle(document.documentElement);
+    const css=getComputedStyle(document.documentElement);
     if(WaveSurfer){
       this.regions=RegionsPlugin.create();
       this.ws=WaveSurfer.create({container:this.wsEl,height:o.height||110,waveColor:css.getPropertyValue("--wave").trim(),progressColor:css.getPropertyValue("--wave").trim(),cursorColor:"transparent",
@@ -724,32 +774,58 @@ class Wave{
       this.regions.enableDragSelection({color:css.getPropertyValue("--sel").trim(),drag:false},3);
       this.regions.on("region-created",r=>{if(this._prog){this.region=r;return}this.regions.getRegions().forEach(x=>{if(x!==r)x.remove()});this.region=r;r.setOptions({drag:false});this.sel=[r.start,r.end];this.afterSel()});
       this.regions.on("region-updated",r=>{this.sel=[r.start,r.end];this.afterSel()});
-      this.ws.on("scroll",(a,b)=>{this.vs=a;this.ve=b;this.drawOv()});this.ws.on("zoom",()=>setTimeout(()=>this.syncView(),0));this.ws.on("redrawcomplete",()=>{this.syncView()});
+      this.ws.on("scroll",(a,b)=>{this.vs=a;this.ve=b;this.drawOv()});this.ws.on("zoom",()=>setTimeout(()=>this.syncView(),0));this.ws.on("redrawcomplete",()=>this.syncView());
       this.ws.on("ready",()=>{this.ready=true;if(this.sel)this.setSel(...this.sel,true);this.syncView()});
     }else{this.fallback()}
-    this.bind();waves.add(this);
-    new ResizeObserver(()=>this.drawOv()).observe(root);
+    this.bindBar();this.bind();waves.add(this);new ResizeObserver(()=>this.drawOv()).observe(root);
   }
-  fallback(){const c=document.createElement("canvas");c.style.width="100%";c.style.height=(this.o.height||110)+"px";this.wsEl.append(c);this.fb=c;this.drawFb()}
+  bindBar(){const r=this.root;
+    r.querySelectorAll("[data-ov]").forEach(b=>b.onclick=()=>{if(this.editing)return toast("正在编辑，先保存或放弃");this.setOverlay(b.dataset.ov||null)});
+    r.querySelectorAll("[data-lane]").forEach(c=>c.onchange=()=>{c.checked?this.lanesOn.add(c.dataset.lane):this.lanesOn.delete(c.dataset.lane);this.drawOv()});
+    const eb=r.querySelector(".editbtn");eb&&(eb.onclick=()=>this.toggleEdit());
+    r.querySelectorAll("[data-lm]").forEach(b=>b.onclick=()=>{this.lmode=S.lmode=b.dataset.lm;r.querySelectorAll("[data-lm]").forEach(x=>x.classList.toggle("on",x===b));this.drawOv()});
+    r.querySelector(".edSave")&&(r.querySelector(".edSave").onclick=()=>{const k=this.overlay;this.toggleEdit(false);toast(k==="ph"?"人工时间版本已保存，重新分析不会覆盖":"已保存边界",{undo:"边界修改"})});
+    r.querySelector(".edDis")&&(r.querySelector(".edDis").onclick=()=>{this.L[this.overlay]=this._backup;this.toggleEdit(false);toast("已放弃修改")});}
+  setOverlay(k){const prev=this.overlay;this.overlay=k;if(prev&&this.L[prev].length)this.lanesOn.add(prev);if(k)this.lanesOn.delete(k);
+    this.root.querySelectorAll("[data-ov]").forEach(b=>b.classList.toggle("on",(b.dataset.ov||null)===k));
+    this.root.querySelectorAll("[data-lane]").forEach(c=>{const lk=c.dataset.lane;c.disabled=lk===k||!this.L[lk].length;c.checked=this.lanesOn.has(lk)});
+    const eb=this.root.querySelector(".editbtn");if(eb){eb.textContent="✎ 编辑"+(k?LAYER_NAMES[k]:"");eb.disabled=!k||!LAYER_EDIT[k];eb.title=k==="blk"?"音块由分析派生，不能拖动；拆分点在语音面板的“分组与停顿”里设":"编辑覆盖层的区间边界"}this.drawOv()}
+  toggleEdit(on){on=on??!this.editing;if(on&&(!this.overlay||!LAYER_EDIT[this.overlay]))return toast("这个图层不能拖动编辑");this.editing=on;
+    if(on)this._backup=this.L[this.overlay].map(x=>({...x}));this.root.classList.toggle("editing",on);this.ov.style.pointerEvents=on?"auto":"none";
+    const l=this.root.querySelector(".edl");l&&(l.textContent=on?LAYER_EDIT[this.overlay]:"");this.root.querySelectorAll("[data-ov]").forEach(b=>b.disabled=on&&!b.classList.contains("on"));this.drawOv()}
+  editTo(k){if(this.overlay!==k)this.setOverlay(k);this.toggleEdit(true)}
+  fallback(){const c=document.createElement("canvas");c.style.width="100%";c.style.height=(this.o.height||110)+"px";this.wsEl.append(c);this.fb=c}
   drawFb(){const c=this.fb,W=c.clientWidth,H=c.clientHeight;if(!W)return;c.width=W*devicePixelRatio;c.height=H*devicePixelRatio;const g=c.getContext("2d");g.scale(devicePixelRatio,devicePixelRatio);g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--wave");const p=peaksFor(this.dur,this.o.seed||3);for(let x=0;x<W;x++){const i=Math.floor((this.vs+(this.ve-this.vs)*x/W)/this.dur*p.length);const v=Math.abs(p[i]||0);g.fillRect(x,H/2-v*H*.45,1,Math.max(1,v*H*.9))}}
   syncView(){if(!this.ws)return;const W=this.ws.getWidth();const tot=this.ws.getWrapper().scrollWidth||W;const pps=tot/this.dur;this.vs=this.ws.getScroll()/pps;this.ve=this.vs+W/pps;this.drawOv()}
   x2t(x){return this.vs+x/this.wsEl.clientWidth*(this.ve-this.vs)} t2x(t){return (t-this.vs)/(this.ve-this.vs)*this.wsEl.clientWidth}
-  bind(){const el=this.root;
-    el.addEventListener("mousedown",e=>{setScope(this.o.scope);const r=this.wsEl.getBoundingClientRect();const y=e.clientY-r.top;
-      if(e.altKey&&e.button===0){e.stopPropagation();e.preventDefault();const t=this.x2t(e.clientX-r.left);const inSel=this.sel&&t>=this.sel[0]&&t<this.sel[1];dragOut(e,this.o.key||"sel",inSel?"选区":"标注区间");return}
-      if(e.shiftKey&&e.button===0&&y<(this.o.height||110)){e.stopPropagation();e.preventDefault();const t=this.x2t(e.clientX-r.left);const u=this.unitAt(t);if(u){this.setSel(u.a,u.b);toast(`已选中整条${u.k}「${u.l}」`)}return}
-      if(e.button===0&&y<(this.o.height||110)){const x0=e.clientX;const up=ev=>{removeEventListener("mouseup",up);if(Math.abs(ev.clientX-x0)<3){this.t=this.x2t(x0-r.left);this.drawOv();this.o.onTime&&this.o.onTime(this.t)}};addEventListener("mouseup",up)}
+  boundaries(){const it=[...(this.L[this.overlay]||[])].sort((a,b)=>a.a-b.a);const B=[];it.forEach((u,i)=>{const p=it[i-1];if(p&&Math.abs(p.b-u.a)<1e-6)B[B.length-1].items.push([u,"a"]);else B.push({t:u.a,items:[[u,"a"]]});B.push({t:u.b,items:[[u,"b"]]})});return B}
+  bind(){const el=this.root,ov=this.ov;
+    // 编辑模式：只拖覆盖层的边界（相邻区间共用的边界一起动；不能越过邻居、长度保持为正）
+    ov.addEventListener("mousemove",e=>{if(!this.editing||this.drag)return;const x=e.offsetX;const b=this.boundaries().find(b=>Math.abs(this.t2x(b.t)-x)<5);ov.style.cursor=b?"ew-resize":"default"});
+    ov.addEventListener("mousedown",e=>{if(!this.editing)return;e.stopPropagation();e.preventDefault();const x=e.offsetX;const b=this.boundaries().find(b=>Math.abs(this.t2x(b.t)-x)<5);if(!b)return;
+      const it=[...this.L[this.overlay]].sort((a,c)=>a.a-c.a);let lo=0,hi=this.dur;b.items.forEach(([u,side])=>{const i=it.indexOf(u);if(side==="a"){hi=Math.min(hi,u.b-.01);const p=it[i-1];if(p&&!b.items.some(([v])=>v===p))lo=Math.max(lo,p.b)}else{lo=Math.max(lo,u.a+.01);const n=it[i+1];if(n&&!b.items.some(([v])=>v===n))hi=Math.min(hi,n.a)}});
+      this.drag=b;const mv=ev=>{const r=ov.getBoundingClientRect();const t=Math.max(lo,Math.min(hi,this.x2t(ev.clientX-r.left)));b.items.forEach(([u,side])=>u[side]=t);b.t=t;this.drawOv()};
+      const up=()=>{removeEventListener("mousemove",mv);removeEventListener("mouseup",up);this.drag=null};addEventListener("mousemove",mv);addEventListener("mouseup",up)});
+    el.addEventListener("mousedown",e=>{if(this.editing&&e.target===ov)return;if(e.target.closest(".layerbar,.editbar"))return;setScope(this.o.scope);const r=this.wsEl.getBoundingClientRect();const y=e.clientY-r.top;const H=this.o.height||110;
+      if(e.target.closest(".lanes")){const t=this.x2t(e.clientX-r.left);const u=this.laneAt(t,e.clientY);if(u&&e.altKey){e.preventDefault();return dragOut(e,"u",u.l)}if(u){this.setSel(u.a,u.b)}return}
+      if(e.altKey&&e.button===0){e.stopPropagation();e.preventDefault();const t=this.x2t(e.clientX-r.left);const inSel=this.sel&&t>=this.sel[0]&&t<this.sel[1];const u=this.unitAt(t);dragOut(e,this.o.key||"sel",inSel?"选区":(u?u.l:"标注区间"));return}
+      if(e.shiftKey&&e.button===0&&y<H){e.stopPropagation();e.preventDefault();const u=this.unitAt(this.x2t(e.clientX-r.left));if(u){this.setSel(u.a,u.b);toast(`已选中整个${u.k}「${u.l}」`)}return}
+      if(e.button===0&&y<H){const x0=e.clientX;const up=ev=>{removeEventListener("mouseup",up);if(Math.abs(ev.clientX-x0)<3){this.t=this.x2t(x0-r.left);this.drawOv();this.o.onTime&&this.o.onTime(this.t)}};addEventListener("mouseup",up)}
       if(this.fb&&e.button===0&&!e.shiftKey&&!e.altKey){const x0=e.clientX-r.left;const mv=ev=>{const x=ev.clientX-r.left;if(Math.abs(x-x0)>3){const a=this.x2t(Math.min(x,x0)),b=this.x2t(Math.max(x,x0));this.setSel(Math.max(0,a),Math.min(this.dur,b))}};const up=()=>{removeEventListener("mousemove",mv);removeEventListener("mouseup",up)};addEventListener("mousemove",mv);addEventListener("mouseup",up)}
     },true);
-    el.addEventListener("dblclick",e=>{const r=this.wsEl.getBoundingClientRect();this.t=this.x2t(e.clientX-r.left);this.play(false)});
-    el.addEventListener("contextmenu",e=>{e.preventDefault();const r=this.wsEl.getBoundingClientRect();const t=this.x2t(e.clientX-r.left);const u=this.unitAt(t);
-      menu(e,this.sel?`作用于：选区 <b>${f3(this.sel[0])}–${f3(this.sel[1])} s</b> · ${esc(this.o.asset())}`:"没有选区",[["截取",()=>this.o.act("clip",e)],["拉平…",()=>this.o.act("flat")],["分离…",()=>this.o.act("sep")],["回导…",()=>this.o.act("reimp")],["导出选区 WAV",()=>this.o.act("wav")],["导出选区视频片段…",()=>this.o.act("vid")],"-",["设为开始",()=>this.setIn(t),"I"],["设为结束",()=>this.setOut(t),"O"],...(u?[[`选中此${u.k}「${esc(u.l)}」`,()=>this.setSel(u.a,u.b)]]:[]),["播放选区",()=>this.playSel(),"⇧Space"]])});
-    el.addEventListener("wheel",e=>{if(!this.ws)return;e.preventDefault();const W=this.ws.getWidth();const cur=(this.ws.getWrapper().scrollWidth||W)/this.dur;const r=this.wsEl.getBoundingClientRect();const tc=this.x2t(e.clientX-r.left);
+    this.lanesEl.addEventListener("mousemove",e=>{const r=this.wsEl.getBoundingClientRect();const u=this.laneAt(this.x2t(e.clientX-r.left),e.clientY);const k=u?u.a+":"+u.b+u.l:null;if(k!==(this.hover&&this.hover.key)){this.hover=u?{...u,key:k}:null;this.drawOv()}});
+    this.lanesEl.addEventListener("mouseleave",()=>{this.hover=null;this.drawOv()});
+    this.lanesEl.addEventListener("dblclick",e=>{const r=this.wsEl.getBoundingClientRect();const y=e.clientY-this.lanesEl.getBoundingClientRect().top;const k=[...this.lanesOn].filter(k=>this.L[k].length)[Math.floor(y/16)];if(k&&!this.editing){this.setOverlay(k);toast(`「${LAYER_NAMES[k]}」改为覆盖层`)}});
+    el.addEventListener("dblclick",e=>{if(e.target.closest(".lanes,.layerbar,.editbar")||this.editing)return;const r=this.wsEl.getBoundingClientRect();this.t=this.x2t(e.clientX-r.left);this.play(false)});
+    el.addEventListener("contextmenu",e=>{if(e.target.closest(".layerbar,.editbar"))return;e.preventDefault();const r=this.wsEl.getBoundingClientRect();const t=this.x2t(e.clientX-r.left);const u=this.unitAt(t)||this.laneAt(t,e.clientY);
+      menu(e,this.sel?`作用于：选区 <b>${f3(this.sel[0])}–${f3(this.sel[1])} s</b> · ${esc(this.o.asset())}`:"没有选区",[["截取",()=>this.o.act("clip",e)],["拉平…",()=>this.o.act("flat")],["分离…",()=>this.o.act("sep")],["回导…",()=>this.o.act("reimp")],["导出选区 WAV",()=>this.o.act("wav")],["导出选区视频片段…",()=>this.o.act("vid")],"-",["设为开始",()=>this.setIn(t),"I"],["设为结束",()=>this.setOut(t),"O"],...(u?[[`选中此${u.k}「${esc(u.l)}」`,()=>this.setSel(u.a,u.b)]]:[]),["播放选区",()=>this.playSel(),"⇧Space"],...(this.overlay&&LAYER_EDIT[this.overlay]?["-",[`编辑${LAYER_NAMES[this.overlay]}边界`,()=>this.toggleEdit(true)]]:[])])});
+    el.addEventListener("wheel",e=>{if(!this.ws||e.target.closest(".layerbar"))return;e.preventDefault();const W=this.ws.getWidth();const cur=(this.ws.getWrapper().scrollWidth||W)/this.dur;const r=this.wsEl.getBoundingClientRect();const tc=this.x2t(e.clientX-r.left);
       if(e.shiftKey||Math.abs(e.deltaX)>Math.abs(e.deltaY)){this.ws.setScroll(this.ws.getScroll()+(e.deltaX||e.deltaY));return}
-      const np=Math.max(W/this.dur,Math.min(4000,cur*(e.deltaY>0?1/1.2:1.2)));this.ws.zoom(np);const nx=tc*np-(e.clientX-r.left);this.ws.setScroll(Math.max(0,nx));setTimeout(()=>this.syncView(),0)},{passive:false});
+      const np=Math.max(W/this.dur,Math.min(4000,cur*(e.deltaY>0?1/1.2:1.2)));this.ws.zoom(np);this.ws.setScroll(Math.max(0,tc*np-(e.clientX-r.left)));setTimeout(()=>this.syncView(),0)},{passive:false});
   }
-  unitAt(t){const subs=this.layers.sub?(this.o.subs||[]).filter(s=>t>=s.a&&t<s.b).map(s=>({...s,k:"字幕",l:s.text})):[];const ph=this.layers.ph?(this.o.ph||[]).filter(p=>t>=p.a&&t<p.b).map(p=>({...p,k:"音素",l:p.p})):[];return subs[0]||ph[0]||null}
-  setSel(a,b,quiet){this.sel=[a,b];if(this.ws){this.regions.clearRegions();const css=getComputedStyle(document.documentElement);if(this.ready){this._prog=true;this.region=this.regions.addRegion({start:a,end:b,color:css.getPropertyValue("--sel").trim(),drag:false,resize:true});this._prog=false}}if(!quiet)this.afterSel();else this.drawOv()}
+  unitAt(t){if(!this.overlay)return null;const u=this.L[this.overlay].find(x=>t>=x.a&&t<x.b);return u?{...u,k:LAYER_NAMES[this.overlay],l:u.p||u.text}:null}
+  laneAt(t,clientY){if(this.lmode!=="lane")return null;const top=this.lanesEl.getBoundingClientRect().top;const k=[...this.lanesOn].filter(k=>this.L[k].length)[Math.floor((clientY-top)/16)];if(!k)return null;const u=this.L[k].find(x=>t>=x.a&&t<x.b);return u?{...u,k:LAYER_NAMES[k],l:u.p||u.text,lk:k}:null}
+  setSel(a,b,quiet){this.sel=[a,b];if(this.ws&&this.ready){this.regions.clearRegions();const css=getComputedStyle(document.documentElement);this._prog=true;this.region=this.regions.addRegion({start:a,end:b,color:css.getPropertyValue("--sel").trim(),drag:false,resize:true});this._prog=false}if(!quiet)this.afterSel();else this.drawOv()}
   afterSel(){this.drawOv();this.o.onSel&&this.o.onSel(this.sel)}
   setIn(t){t=t??this.t;const b=this.sel?this.sel[1]:this.dur;if(t<b)this.setSel(t,b)}
   setOut(t){t=t??this.t;const a=this.sel?this.sel[0]:0;if(t>a)this.setSel(a,t)}
@@ -763,19 +839,31 @@ class Wave{
   stop(){this.playing=false;this.o.onPlay&&this.o.onPlay(false)}
   drawOv(){const W=this.wsEl.clientWidth,H=this.o.height||110;if(!W)return;if(this.fb)this.drawFb();const dpr=devicePixelRatio;const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
     const o=this.ov;o.style.width=W+"px";o.style.height=H+"px";o.width=W*dpr;o.height=H*dpr;const g=o.getContext("2d");g.scale(dpr,dpr);
-    if(this.o.f0){g.strokeStyle=col("--gold");g.lineWidth=2;g.beginPath();let on=false;for(let x=0;x<W;x+=2){const t=this.x2t(x),r=t/this.dur;if(r<.07||(r>.45&&r<.52)||r>.94){on=false;continue}const y=H*.25+Math.sin(t*6)*5+r*8;on?g.lineTo(x,y):g.moveTo(x,y);on=true}g.stroke();
-      g.fillStyle=col("--faint");g.font="9px sans-serif";["G♯5","G5","F5"].forEach((n,i)=>{g.fillText(n,3,H*.2+i*14)})}
-    if(this.o.hit){const x1=this.t2x(this.o.hit[0]),x2=this.t2x(this.o.hit[1]);g.strokeStyle=col("--ok");g.setLineDash([4,3]);g.strokeRect(x1,1,x2-x1,H-2);g.setLineDash([])}
-    (this.o.marks||[]).forEach(m=>{const x=this.t2x(m);g.fillStyle=col("--sp");g.beginPath();g.moveTo(x,2);g.lineTo(x+4,7);g.lineTo(x,12);g.lineTo(x-4,7);g.fill()});
+    // 覆盖层：区间直接盖在整个波形上
+    if(this.overlay){const items=[...this.L[this.overlay]].sort((a,b)=>a.a-b.a);const c=this.overlay==="ph"?col("--accent"):this.overlay==="sub"?col("--wave"):this.overlay==="seg"?col("--sp"):col("--pt");
+      items.forEach((u,i)=>{const x1=this.t2x(u.a),x2=this.t2x(u.b);if(x2<0||x1>W)return;g.globalAlpha=this.editing?.16:(i%2?.07:.12);g.fillStyle=c;g.fillRect(x1,0,x2-x1,H);g.globalAlpha=this.editing?.95:.45;g.fillStyle=c;g.fillRect(x1,0,this.editing?2:1,H);g.fillRect(x2-(this.editing?2:1),0,this.editing?2:1,H);
+        if(this.editing){g.globalAlpha=1;g.fillRect(x1-3,0,6,8);g.fillRect(x2-3,0,6,8)}
+        const s=u.p||u.text||"";g.globalAlpha=1;g.font="600 11px -apple-system,sans-serif";const tw=g.measureText(s).width;if(x2-x1>tw+8){g.fillStyle="rgba(10,12,16,.55)";g.beginPath();g.roundRect(x1+3,H-18,tw+8,15,4);g.fill();g.fillStyle="#fff";g.fillText(s,x1+7,H-7)}});g.globalAlpha=1;
+      if(this.editing){g.strokeStyle=c;g.lineWidth=2;g.strokeRect(1,1,W-2,H-2)}}
+    const others=[...this.lanesOn].filter(k=>this.L[k]&&this.L[k].length);const lc=k=>k==="ph"?col("--accent"):k==="sub"?col("--wave"):k==="seg"?col("--sp"):col("--pt");
+    if(this.lmode==="ghost"){others.forEach((k,ki)=>{g.strokeStyle=lc(k);g.globalAlpha=.55;g.setLineDash([2,3]);g.lineWidth=1;this.L[k].forEach(u=>{[u.a,u.b].forEach(t=>{const x=this.t2x(t);if(x<0||x>W)return;g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke()});const x1=this.t2x(u.a),x2=this.t2x(u.b);const s=u.p||u.text||"";g.setLineDash([]);g.globalAlpha=.7;g.fillStyle=lc(k);g.font="10px -apple-system,sans-serif";if(x2-x1>g.measureText(s).width+6)g.fillText(s,x1+3,11+ki*12);g.setLineDash([2,3])});g.setLineDash([]);g.globalAlpha=1})}
+    if(this.lmode==="band"&&others.length){const bh=Math.min(18,(H-24)/(others.length+1));others.forEach((k,ki)=>{const y=ki*bh;this.L[k].forEach(u=>{const x1=this.t2x(u.a),x2=this.t2x(u.b);if(x2<0||x1>W)return;g.fillStyle=lc(k);g.globalAlpha=.3;g.beginPath();g.roundRect(x1+.5,y+1,Math.max(1,x2-x1-1),bh-2,3);g.fill();g.globalAlpha=1;g.fillStyle="#fff";g.font="10px -apple-system,sans-serif";const s=u.p||u.text||"";if(x2-x1>g.measureText(s).width+6)g.fillText(s,x1+4,y+bh-5)})})}
+    // 车道悬停：把那个区间投影到波形上
+    if(this.hover){const x1=this.t2x(this.hover.a),x2=this.t2x(this.hover.b);g.fillStyle=col("--text");g.globalAlpha=.08;g.fillRect(x1,0,x2-x1,H);g.globalAlpha=.6;g.setLineDash([3,3]);g.strokeStyle=col("--text");g.beginPath();g.moveTo(x1,0);g.lineTo(x1,H);g.moveTo(x2,0);g.lineTo(x2,H);g.stroke();g.setLineDash([]);g.globalAlpha=1}
+    if(this.o.f0){g.strokeStyle=col("--gold");g.lineWidth=2;g.beginPath();let on=false;for(let x=0;x<W;x+=2){const t=this.x2t(x),r=t/this.dur;if(r<.07||(r>.45&&r<.52)||r>.94){on=false;continue}const y=H*.22+Math.sin(t*6)*5+r*8;on?g.lineTo(x,y):g.moveTo(x,y);on=true}g.stroke();g.fillStyle=col("--faint");g.font="9px sans-serif";["G♯5","G5","F5"].forEach((n,i)=>g.fillText(n,3,H*.17+i*14))}
+    if(this.o.hit){const x1=this.t2x(this.o.hit[0]),x2=this.t2x(this.o.hit[1]);g.strokeStyle=col("--ok");g.lineWidth=1.5;g.setLineDash([4,3]);g.strokeRect(x1,1,x2-x1,H-2);g.setLineDash([])}
     const px=this.t2x(this.t);if(px>=0&&px<=W){g.fillStyle="#fff";g.fillRect(px-.5,0,1.5,H)}
-    // lanes
-    const ln=this.ln,LH=15,lanes=[this.layers.ph&&this.o.ph?["ph",this.o.ph,col("--accent")]:null,this.layers.sub&&this.o.subs?["sub",this.o.subs,col("--wave")]:null,this.layers.seg&&this.o.segs?["seg",this.o.segs,col("--sp")]:null].filter(Boolean);
-    const LHt=lanes.length*LH;this.lanesEl.style.height=LHt+"px";ln.style.width=W+"px";ln.style.height=LHt+"px";ln.width=W*dpr;ln.height=LHt*dpr;const q=ln.getContext("2d");q.scale(dpr,dpr);
-    lanes.forEach(([k,items,c],li)=>{const y=li*LH;items.forEach(u=>{const x1=this.t2x(u.a),x2=this.t2x(u.b);if(x2<0||x1>W)return;q.fillStyle=c;q.globalAlpha=.16;q.beginPath();q.roundRect(x1+.5,y+1,Math.max(1,x2-x1-1),LH-3,3);q.fill();q.globalAlpha=.9;q.fillStyle=css.getPropertyValue("--sub");q.font="10px -apple-system,sans-serif";const s=(u.p||u.text||"");if(x2-x1>q.measureText(s).width+6)q.fillText(s,x1+4,y+10.5)});q.globalAlpha=1});
-    if(this.sel){const x1=this.t2x(this.sel[0]),x2=this.t2x(this.sel[1]);q.fillStyle=col("--sel");q.fillRect(x1,0,x2-x1,LHt);if(!this.ws){g.fillStyle=col("--sel");g.fillRect(x1,0,x2-x1,H)}}
+    if(!this.ws&&this.sel){const x1=this.t2x(this.sel[0]),x2=this.t2x(this.sel[1]);g.fillStyle=col("--sel");g.fillRect(x1,0,x2-x1,H)}
+    // 车道（只读）
+    const ks=this.lmode==="lane"?[...this.lanesOn].filter(k=>this.L[k]&&this.L[k].length):[];const LH=16,LHt=ks.length*LH;this.lanesEl.style.height=LHt+"px";const ln=this.ln;ln.style.width=W+"px";ln.style.height=LHt+"px";ln.width=W*dpr;ln.height=Math.max(1,LHt)*dpr;const q=ln.getContext("2d");q.scale(dpr,dpr);
+    ks.forEach((k,li)=>{const y=li*LH;const c=k==="ph"?col("--accent"):k==="sub"?col("--wave"):k==="seg"?col("--sp"):col("--pt");q.fillStyle=col("--faint");q.font="9px sans-serif";
+      this.L[k].forEach(u=>{const x1=this.t2x(u.a),x2=this.t2x(u.b);if(x2<0||x1>W)return;const hv=this.hover&&this.hover.lk===k&&this.hover.a===u.a;q.fillStyle=c;q.globalAlpha=hv?.4:.16;q.beginPath();q.roundRect(x1+.5,y+2,Math.max(1,x2-x1-1),LH-4,3);q.fill();q.globalAlpha=.9;q.fillStyle=css.getPropertyValue("--sub");q.font="10px -apple-system,sans-serif";const s=u.p||u.text||"";if(x2-x1>q.measureText(s).width+6)q.fillText(s,x1+4,y+11.5)});q.globalAlpha=1;
+      q.fillStyle=col("--faint");q.font="9px sans-serif";q.fillText(LAYER_NAMES[k],W-q.measureText(LAYER_NAMES[k]).width-4,y+11)});
+    if(this.sel&&LHt){const x1=this.t2x(this.sel[0]),x2=this.t2x(this.sel[1]);q.fillStyle=col("--sel");q.fillRect(x1,0,x2-x1,LHt)}
   }
   destroy(){this.ws&&this.ws.destroy();waves.delete(this)}
 }
+
 function redrawWaves(){waves.forEach(w=>w.drawOv())}
 function stopAll(except){waves.forEach(w=>{if(w!==except&&w.playing)w.stop()});if(except!==true){S.playing=null;clearTimeout(window._pt);renderDock();if($("#list"))renderResults()}}
 function play(key,ver){const [id,hi]=String(key).split(":");const s=samples.find(x=>x.id===id);if(S.playing&&S.playing.key===key&&S.playing.ver===ver){stopAll();return}
@@ -786,40 +874,39 @@ function play(key,ver){const [id,hi]=String(key).split(":");const s=samples.find
    舞台（采样详情）
    ============================================================== */
 let stageWave=null;
+function phonemesFor(s){if(!s.reading)return[];const seq=[["y",.04,"や"],["a",.12,"や"],["cl",.08,"っ"],["t",.05,"た"],["a",.1,"た"],["a",.14,"ー"]];const out=[];let t=.05;seq.forEach(([p,L,m])=>{if(t+L<s.dur)out.push({a:t,b:t+L,p,m});t+=L+.01});return out}
 function renderStage(){const st=$("#stage");if(!st)return;stageWave&&stageWave.destroy();stageWave=null;const s=samples.find(x=>x.id===S.focus);
   if(!s){st.innerHTML=`<div class="empty">单击左侧采样在这里加工<br><span class="sm">单击只看不选 · 批量动作只作用于勾选的采样</span></div>`;return}
   let hit=null;if(S.focusHit){const t=S.tabs.find(x=>x.id===S.tab);const m=t&&t.members&&t.members.find(z=>z.id===s.id);if(m){const i=+S.focusHit.split(":")[1];hit={i,n:m.hits.length,h:m.hits[i]}}}
-  const inbox=S.lens==="unclassified"&&s.nature==="unclassified"||S.classified[s.id]&&S.lens==="unclassified";
   const tags=[];if(s.who)s.who.split("、").forEach(w=>tags.push(["人物",w+(s.multi?"（多人）":""),"区段"]));tags.push(["作品",s.work,"原片"]);if(s.pitch)tags.push(["音高",s.pitch,"自动"]);s.local.forEach(l=>tags.push(["",l,"本地"]));
+  const big=S.bigVideo;
   st.innerHTML=`
-   <div class="hero"><div class="poster" id="poster" title="画面：同步视频（音频为主时钟、画面静音）· 单击播放/暂停"></div>
-     <div class="grow" style="min-width:0"><div class="row"><div class="htitle" contenteditable="true" spellcheck="false" title="就地改名（F2）· 回车保存 · 可撤销">${esc(s.name)}</div><div class="grow"></div><span class="star ${s.starred?"on":""}" id="hstar" style="font-size:18px">${s.starred?"★":"☆"}</span><button id="handoff">交接 ▾</button><button class="flat" id="hmore">⋯</button></div>
-       ${s.reading?`<div class="hsub">${esc(s.reading)}</div>`:""}
+   <div class="hero ${big?"bigv":""}"><div class="poster" id="poster" title="画面：同步视频（音频为主时钟、画面静音）· 单击播放/暂停"><button class="flat vsz" id="vsz" title="${big?"缩小画面":"放大画面"}">${big?"⤡":"⤢"}</button></div>
+     <div class="grow hinfo" style="min-width:0"><div class="row"><div class="htitle" contenteditable="true" spellcheck="false" title="就地改名（F2）· 回车保存 · 可撤销">${esc(s.name)}</div><div class="grow"></div><span class="star ${s.starred?"on":""}" id="hstar" style="font-size:18px">${s.starred?"★":"☆"}</span><button id="handoff">交接 ▾</button><button class="flat" id="hmore">⋯</button></div>
        <div class="hmeta"><span class="pill" style="border-color:${NCOL[s.nature]};color:${NCOL[s.nature]}">● ${NAT[s.nature]}</span><span class="num">${s.dur.toFixed(2)} s</span><span>${esc(s.work)} ${s.ep} · <span class="num">${s.at}</span></span><span class="link" id="back">返回原片 ↗</span></div>
-       <div class="tagline">${tags.map(([f,v,src])=>`<span class="tg" title="${src==="本地"?"本地标签（可删）":"继承自"+src+"，单击跳到来源修改"}">${f?`<span class="fc">${f}</span>`:"#"}${esc(v)}${src==="本地"?'<span class="x" data-del="'+esc(v)+'">×</span>':""}</span>`).join("")}<span class="tg add" id="addTag">＋ 标签</span></div></div></div>
-   ${hit?`<div class="hitnav"><span class="link" id="hp">‹</span><b class="num">${hit.i+1}/${hit.n}</b><span class="link" id="hn">›</span><span class="muted">命中 ${hit.h.a.toFixed(2)}–${hit.h.b.toFixed(2)} s · ${hit.h.strict?"严格":"近似"} · ${hit.h.speed}× · ${hit.h.plan}</span></div>`:""}
-   ${inbox?`<div class="triage"><div class="tri sp" data-tri="speech">语音<br><span class="kbd">1</span></div><div class="tri pt" data-tri="pitched">调谐单音<br><span class="kbd">2</span></div><div class="tri up" data-tri="unpitched">非调谐单音<br><span class="kbd">3</span></div><div class="tri" data-tri="skip">跳过<br><span class="kbd">↓</span></div></div>`:""}
+       <div class="tagline">${tags.map(([f,v,src])=>`<span class="tg" title="${src==="本地"?"本地标签（可删）":"继承自"+src+"，单击跳到来源修改"}">${f?`<span class="fc">${f}</span>`:"#"}${esc(v)}${src==="本地"?'<span class="x" data-del="'+esc(v)+'">×</span>':""}</span>`).join("")}<span class="tg add" id="addTag">＋ 标签</span></div>
+       ${hit?`<div class="hitnav"><span class="link" id="hp">‹</span><b class="num">${hit.i+1}/${hit.n}</b><span class="link" id="hn">›</span><span class="muted">命中 ${hit.h.a.toFixed(2)}–${hit.h.b.toFixed(2)} s · ${hit.h.strict?"严格":"近似"} · ${hit.h.speed}× · ${hit.h.plan}</span></div>`:""}</div></div>
    <div class="wavecard" data-scope="stage" tabindex="0"><div class="wavehead"><span class="srcbtn" id="srcBtn" title="音源：本采样用来播放与加工的声音资产（默认 = 绑定资产）">音源 · ${esc(s.asset)} ▾</span>
        ${s.nature==="unclassified"?'<button class="flat sm" onclick="toast(\'已排队：测量音高\')">测量音高</button>':""}<div class="grow"></div>
-       <span class="muted xs">图层</span>${[["ph","音素"],["sub","字幕"],["seg","区段"]].map(([k,l])=>`<label class="xs"><input type="checkbox" data-ly="${k}" checked> ${l}</label>`).join("")}
        <button class="flat sm" id="fit" title="F">适合</button><button class="flat sm" id="zsel" title="Z">放大选区</button><button class="flat sm" onclick="toast('频谱：所选音频 ≤30 s · −90–0 dB')">频谱</button></div>
      <div id="sw"></div></div>
-   <div class="strip"><div class="tp"><button class="big o" id="pOrig" title="Space · 双击波形从此播放">▶ 原声</button><button class="big b" id="pBeat" title="B">♩ 卡拍</button></div>
+   <div class="strip"><div class="tp"><button class="big o" id="pOrig" title="Space · 双击波形从此播放">▶ 原声</button>${s.nature==="pitched"||s.nature==="unpitched"?"":'<button class="big b" id="pBeat" title="B">♩ 卡拍</button>'}</div>
      <div class="selbox"><span class="muted xs">选区</span><input class="mono num" id="sa"><span class="muted">→</span><input class="mono num" id="sb"><span class="muted xs num" id="slen"></span></div>
      <div class="acts"><button data-a="clip">截取</button><button data-a="flat">拉平</button><button data-a="sep">分离</button><button data-a="reimp">回导</button><button data-a="exp">导出 ▾</button></div></div>
-   <div class="cards">${contextCards(s)}</div>
-   <details class="fold"><summary>资料与来源</summary><div class="cards" style="padding:12px 0 0">
+   <div class="panels">${speechPanel(s)}${natPanel(s)}</div>
+   <details class="fold"><summary>资料与来源</summary><div class="panels" style="padding:12px 0 0;grid-template-columns:1fr 1fr">
      <div class="card"><h5>资料</h5><div class="seg natseg">${Object.entries(NAT).map(([k,v])=>`<button data-nat="${k}" class="${s.nature===k?"on":""}">${v}</button>`).join("")}</div>
        <div class="row sm"><span class="muted">评分</span>${[1,2,3,4,5].map(v=>`<span class="star ${v<=2?"on":""}">★</span>`).join("")}</div><textarea rows="2" placeholder="备注（失焦保存，可撤销）"></textarea></div>
      <div class="card"><h5>来源<span class="grow"></span><span class="link sm">技术详情</span></h5><div class="sm">↑ 父采样 <span class="link">やったー！</span> · 截取 <button class="flat sm">▶ 试听父采样</button></div><div class="sm muted">派生：子采样 1 · 拉平成品 1</div><div class="sm">画面：同步视频（原片默认） <span class="link" onclick="toast('画面绑定：恢复默认 / 同步视频 / 静态图片 / 循环动画')">更换…</span></div></div></div></details>`;
-  const ph=s.reading?[["y",.04],["a",.12],["cl",.08],["t",.05],["a",.1],["a",.14]].reduce((acc,[p,L])=>{const a=acc.length?acc[acc.length-1].b+.01:.05;if(a+L<s.dur)acc.push({a,b:a+L,p});return acc},[]):[];
-  stageWave=new Wave($("#sw"),{dur:s.dur,seed:+s.id.slice(1),height:118,f0:s.nature!=="unclassified",scope:"stage",key:s.id,ph,subs:[{a:0,b:s.dur,text:s.reading?s.name:""}].filter(x=>x.text),segs:s.who?[{a:0,b:s.dur,text:"人声 · "+s.who}]:[],marks:ph.filter(p=>/a/.test(p.p)).map(p=>p.a),hit:hit?[hit.h.a,hit.h.b]:null,
-    sel:hit?[hit.h.a,hit.h.b]:[0,s.dur],asset:()=>s.asset,act:(a,e)=>stageAct(a,e,s),onSel:updSelBox,onPlay:p=>{$("#pOrig")&&($("#pOrig").textContent=p?"❚❚ 暂停":"▶ 原声")}});
+  const ph=phonemesFor(s);const blocks=[];ph.forEach(p=>{if(/[aiueoN]/.test(p.p)){const l=blocks[blocks.length-1];if(l&&p.a-l.b<.036)l.b=p.b;else blocks.push({a:p.a,b:p.b,p:"◆"+(blocks.length+1)})}});
+  stageWave=new Wave($("#sw"),{dur:s.dur,seed:+s.id.slice(1),height:132,f0:s.nature!=="unclassified",scope:"stage",key:s.id,
+    layers:{ph,sub:s.reading?[{a:Math.max(0,.1),b:Math.max(.2,s.dur-.1),text:s.name}]:[],seg:s.who?[{a:.1,b:Math.max(.2,s.dur-.1),text:(s.multi?"参与者：":"角色：")+s.who}]:[],blk:blocks},overlay:ph.length?"ph":"sub",
+    hit:hit?[hit.h.a,hit.h.b]:null,sel:hit?[hit.h.a,hit.h.b]:[0,s.dur],asset:()=>s.asset,act:(a,e)=>stageAct(a,e,s),onSel:updSelBox,onPlay:p=>{$("#pOrig")&&($("#pOrig").textContent=p?"❚❚ 暂停":"▶ 原声")}});
   updSelBox(stageWave.sel);
-  $$("[data-ly]").forEach(c=>c.onchange=()=>{stageWave.layers[c.dataset.ly]=c.checked;stageWave.drawOv()});
-  $("#fit").onclick=()=>stageWave.fit();$("#zsel").onclick=()=>stageWave.zoomSel();$("#pOrig").onclick=()=>{S.playing=null;stageWave.toggle()};$("#pBeat").onclick=()=>play(s.id,"beat");$("#poster").onclick=()=>stageWave.toggle();
+  $("#vsz").onclick=e=>{e.stopPropagation();S.bigVideo=!S.bigVideo;renderStage()};
+  $("#fit").onclick=()=>stageWave.fit();$("#zsel").onclick=()=>stageWave.zoomSel();$("#pOrig").onclick=()=>{S.playing=null;stageWave.toggle()};$("#pBeat")&&($("#pBeat").onclick=()=>play(s.id,"beat"));$("#poster").onclick=()=>stageWave.toggle();
   $("#hstar").onclick=()=>star(s.id);$("#back").onclick=gotoSource;
-  $("#handoff").onclick=e=>menu(e.currentTarget,`整个采样 · ${esc(s.name)}`,[["导出原声 WAV",()=>exported(s.name+"__人声__Yuru Yuri__3f9a1c2e_00-21-43.272-00-21-43.899__8ca511050f35.wav")],["导出卡拍 WAV",()=>exported(s.name+"__卡拍-180BPM__人声__….wav")],["导出视频片段…",()=>videoModal(s)],"-",["复制 REAPER 交接",()=>toast("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")],["导出 REAPER 条目文件（试验）",()=>toast("已导出（试验）")]]);
+  $("#handoff").onclick=e=>menu(e.currentTarget,`整个采样 · ${esc(s.name)}`,[["导出原声 WAV",()=>exported(s.name+"__人声__Yuru Yuri__3f9a1c2e_00-21-43.272-00-21-43.899__8ca511050f35.wav")],...(s.nature==="pitched"||s.nature==="unpitched"?[]:[["导出卡拍 WAV",()=>exported(s.name+"__卡拍-180BPM__人声__….wav")]]),["导出视频片段…",()=>videoModal(s)],...(s.nature==="pitched"||s.nature==="unpitched"?[]:["-",["复制 REAPER 交接",()=>toast("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")],["导出 REAPER 条目文件（试验）",()=>toast("已导出（试验）")]])]);
   $("#hmore").onclick=e=>menu(e.currentTarget,esc(s.name),oneItems(s).slice(3));
   $("#srcBtn").onclick=e=>menu(e.currentTarget,"音源（切换后选区保留；不可用的会说明原因）",[["采样绑定："+s.asset,()=>{}],["原混音 · 音轨1 jpn",()=>toast("已切换音源 · 选区保留")],["becruily_deux · Vocals",()=>toast("已切换音源 · 选区保留")],["hyperacev2 · instrument（不覆盖此范围，不可用）",()=>{}]]);
   $("#addTag").onclick=e=>{const r=e.currentTarget.getBoundingClientRect();pop(r.left,r.bottom+6,`<div class="col gap4"><b>添加本地标签</b><input type="text" placeholder="标签名"><div class="row"><div class="grow"></div><button class="pri" onclick="hidePop();toast('已添加',{undo:'添加标签'})">添加</button></div></div>`)};
@@ -829,28 +916,46 @@ function renderStage(){const st=$("#stage");if(!st)return;stageWave&&stageWave.d
   $$(".acts button").forEach(b=>b.onclick=e=>stageAct(b.dataset.a,e,s));
   ["sa","sb"].forEach(id=>$("#"+id).onchange=()=>{const a=+$("#sa").value,b=+$("#sb").value;if(a>=0&&a<b&&b<=s.dur)stageWave.setSel(a,b);else toast("选区需满足 0 ≤ 开始 < 结束 ≤ 音源时长")});
   $$("[data-nat]").forEach(b=>b.onclick=()=>classify([s.id],b.dataset.nat));
-  $$("[data-tri]").forEach(b=>b.onclick=()=>{if(b.dataset.tri==="skip")moveFocus(1);else classify([s.id],b.dataset.tri)});
   if(hit){$("#hp").onclick=()=>hit.i>0&&locate(s.id+":"+(hit.i-1));$("#hn").onclick=()=>hit.i<hit.n-1&&locate(s.id+":"+(hit.i+1))}
-  $$("[data-open]").forEach(b=>b.onclick=()=>({ph:phonemeSheet,rh:rhythmSheet,fl:()=>flattenSheet("detail",s)})[b.dataset.open]());
   $$("[data-ana]").forEach(b=>b.onclick=()=>analysisModal(1,"sample"));
+  $$("[data-editph]").forEach(b=>b.onclick=()=>{stageWave.editTo("ph");setScope("stage")});
+  $$("[data-plan]").forEach(b=>b.onclick=()=>{$$("[data-plan]").forEach(x=>x.classList.toggle("on",x===b));drawMap(b.dataset.plan)});
+  $$("[data-ph]").forEach(b=>b.onclick=()=>{const p=ph[+b.dataset.ph];stageWave.setSel(p.a,p.b)});
+  if($("#mapsvg"))drawMap("f");
   $(".wavecard").addEventListener("mousedown",()=>setScope("stage"));
 }
 function updSelBox(sel){if(!sel||!$("#sa"))return;$("#sa").value=f3(sel[0]);$("#sb").value=f3(sel[1]);$("#slen").textContent=`${f3(sel[1]-sel[0])} s`}
-function contextCards(s){
-  if(s.nature==="speech"||(s.reading&&s.nature!=="pitched")){return `<div class="card"><h5>语音<span class="grow"></span><span class="st-ok xs">已分析 · pydomino</span></h5>
-      <div class="phs">${["y","a","cl","t","a","a"].map(p=>`<span class="ph ${/[aiueoN]/.test(p)?"v":""}">${p}</span>`).join("")}</div>
-      <div class="kv"><span>原句</span><span>${esc(s.name)}</span><span>读音</span><span>${esc(s.reading)}</span></div>
-      <div class="row"><button data-ana>语音分析…</button><button class="flat" data-open="ph">音素编辑台 ↗</button></div></div>
-    <div class="card"><h5>卡拍<span class="grow"></span><span class="muted xs">${S.bpm?"BPM "+S.bpm:"原速卡拍"}</span></h5>
-      <div class="row"><span class="bignote" style="font-size:26px">${S.bpm?"1.06×":"1.00×"}</span><span class="sub sm">近快 · 4 格/拍<br>${glyph(s.blocks)}</span></div>
-      <div class="row"><button class="flat" data-open="rh">节奏台 ↗</button></div></div>`}
-  if(s.nature==="pitched")return `<div class="card"><h5>音高</h5><div class="row" style="align-items:flex-end;gap:14px"><span class="bignote" style="color:var(--pt)">${s.pitch}</span><span class="sub sm">测得 ${s.pitch} ${s.cents>0?"+":""}${s.cents}c<br>波动 0.31 半音 · 可靠发声 0.55 s</span></div><div class="row"><button class="pri" data-open="fl">拉平台 ↗</button><span class="faint xs">拉平成品带 pitch: 标签</span></div></div>
-    <div class="card"><h5>声学</h5><div class="kv"><span>有效声音时长</span><span class="num">0.55 s</span><span>谐波能量占比</span><span class="num">0.82</span><span>高频占比</span><span class="num">0.11</span></div><span class="faint xs">用采样自己的 F0，不依赖对齐</span></div>`;
-  if(s.nature==="unpitched")return `<div class="card wide"><h5>瞬态</h5><div class="row" style="gap:28px"><div><div class="bignote" style="color:var(--up)">${s.atk}<span class="sm"> ms</span></div><span class="muted xs">起音上升</span></div><div><div class="bignote" style="font-size:28px">180<span class="sm"> ms</span></div><span class="muted xs">尾部衰减</span></div><div><div class="bignote" style="font-size:28px">14.2<span class="sm"> dB</span></div><span class="muted xs">峰均比</span></div><div><div class="bignote" style="font-size:28px">0.41</div><span class="muted xs">低频占比</span></div></div></div>`;
-  return `<div class="card wide"><h5>还没有分析</h5><div class="sub sm">手动截取的素材，没有台词文本。可以直接播放、截取、整段拉平或导出。需要节奏功能时提供实际朗读的台词：</div><div class="row"><input type="text" placeholder="输入实际朗读的台词" style="flex:1"><button class="pri" onclick="toast('已排队：提供台词并分析')">提供台词并分析</button></div></div>`}
+function speechPanel(s){const ph=phonemesFor(s);
+  if(!ph.length)return `<div class="card wide"><h5>语音<span class="grow"></span><span class="muted xs">还没有分析</span></h5><div class="sub sm">没有台词文本（手动截取的正常状态）。可以直接播放、截取、整段拉平或导出；需要节奏功能或“仅元音”拉平时，提供实际朗读的台词：</div><div class="row"><input type="text" placeholder="输入实际朗读的台词" style="flex:1"><button class="pri" onclick="toast('已排队：提供台词并分析')">提供台词并分析</button></div></div>`;
+  const groups=[];ph.forEach((p,i)=>{const g=groups[groups.length-1];if(g&&g.m===p.m)g.items.push([p,i]);else groups.push({m:p.m,items:[[p,i]]})});
+  return `<div class="card wide"><h5>语音<span class="st-ok xs" style="text-transform:none;letter-spacing:0">已分析 · pydomino</span><span class="grow"></span><select class="xs" style="padding:1px 6px"><option>当前：模型结果 · 10-05 12:01</option><option>人工版本 · 10-05 12:20</option></select></h5>
+    <div class="moras">${groups.map(g=>`<div class="mora"><span class="kana">${g.m}</span><div class="phs">${g.items.map(([p,i])=>`<span class="ph ${/[aiueoN]/.test(p.p)?"v":""}" data-ph="${i}" title="${p.a.toFixed(3)}–${p.b.toFixed(3)} s · 单击选中">${p.p}</span>`).join("")}</div></div>`).join("")}</div>
+    <div class="row"><button data-ana>语音分析…</button><button class="flat" data-editph>✎ 编辑音素时间</button><span class="grow"></span>
+      <details class="mini"><summary>对齐文本 · G2P</summary><div class="pane col gap4"><div class="row"><input type="text" value="${esc(s.name)}" style="width:200px"><button class="flat sm">预览</button><button class="flat sm">保存</button></div><span class="faint xs">原字幕不变；保存后显式语音分析才采用 · <span class="link">用户辞典…</span></span></div></details>
+      <details class="mini"><summary>分组与停顿</summary><div class="pane col gap4"><label class="row xs">停顿灵敏度 <input type="number" value="1" step=".1" style="width:60px"></label><label class="row xs">语段阈值 <input type="number" value="0.28" step=".01" style="width:60px"> s</label><label class="row xs">在音素前拆开 <input type="text" placeholder="3,7" style="width:70px"></label></div></details>
+      <details class="mini"><summary>精确时间</summary><textarea rows="5" class="pane mono xs" style="width:260px">${ph.map(p=>`${p.a.toFixed(3)}\t${p.b.toFixed(3)}\t${p.p}`).join("\n")}</textarea></details></div></div>`}
+function natPanel(s){
+  if(s.nature==="pitched")return `<div class="card wide"><h5>音高与声学<span class="grow"></span><span class="faint xs" style="text-transform:none;letter-spacing:0">采样自己的 F0，不依赖对齐</span></h5>
+    <div class="row" style="gap:28px;align-items:flex-end"><div><div class="bignote" style="color:var(--pt)">${s.pitch}</div><span class="muted xs">目标音（pitch: 标签）</span></div>
+    ${[["测得","G♯5 "+(s.cents>0?"+":"")+s.cents+"c"],["音高波动","0.31 半音"],["可靠发声","0.55 s"],["谐波能量占比","0.82"],["高阶谐波占比","0.14"],["高频占比","0.11"]].map(([k,v])=>`<div><div class="mid">${v}</div><span class="muted xs">${k}</span></div>`).join("")}</div></div>`;
+  if(s.nature==="unpitched")return `<div class="card wide"><h5>瞬态</h5><div class="row" style="gap:28px;align-items:flex-end"><div><div class="bignote" style="color:var(--up)">${s.atk}<span class="sm"> ms</span></div><span class="muted xs">起音上升</span></div>
+    ${[["尾部衰减","180 ms"],["峰均比","14.2 dB"],["有效声音时长","0.42 s"],["低频占比","0.41"],["高频占比","0.18"],["噪声倾向","0.63"]].map(([k,v])=>`<div><div class="mid">${v}</div><span class="muted xs">${k}</span></div>`).join("")}</div></div>`;
+  if(!s.reading)return "";
+  return `<div class="card wide"><h5>节奏与卡拍<span class="grow"></span><span class="muted xs" style="text-transform:none;letter-spacing:0">${S.bpm?"BPM "+S.bpm:"未填 BPM · 原速卡拍"}</span></h5>
+    <div class="row"><div class="seg">${[["f","近快","1.06×","4 格/拍"],["s","近慢","0.53×","2 格/拍"],["d","倍快","2.12×","8 格/拍"]].map(([k,n,v,g],i)=>`<button data-plan="${k}" class="${i?"":"on"}">${n} <b class="num">${v}</b> <span class="faint">${g}</span></button>`).join("")}</div><span class="grow"></span>
+      <select class="sm"><option>严格卡拍</option><option>卡拍＋节拍</option><option>卡拍起点声</option><option>原始起点声</option><option>原声＋原始起点</option></select><button class="pri" onclick="play(S.focus,'beat')">♩ 试听</button></div>
+    <svg id="mapsvg" viewBox="0 0 700 92" preserveAspectRatio="none" style="width:100%;height:96px"></svg>
+    <div class="row xs muted"><span id="maptxt"></span><span class="grow"></span><details class="mini"><summary>人工占格</summary><table class="pane tbl" style="width:260px"><tr><th>音块</th><th>目标拍</th><th>占格</th></tr>${["◆1 や","◆2 ったー"].map((m,i)=>`<tr><td>${m}</td><td class="num">${(i*.5).toFixed(2)}</td><td><input type="number" value="${i?3:1}" min="1" style="width:56px;padding:1px 4px"></td></tr>`).join("")}</table></details><details class="mini"><summary>逐音属性</summary><div class="pane xs" style="width:280px">◆1 首元音 a · 相对音高 +1.2 · 平 · 响度 −1 dB<br>◆2 首元音 a · 相对音高 −0.4 · 下降 · 响度 0 dB</div></details><details class="mini"><summary>量化路线（高级）</summary><div class="pane xs">原节奏 · 无 mora（默认）/ mora 参考校准 / 纯 mora</div></details></div></div>`}
+function drawMap(plan){const sv=$("#mapsvg");if(!sv)return;const s=samples.find(x=>x.id===S.focus);const rate={f:1.06,s:.53,d:2.12}[plan];const src=[0,.13,.28,.43,s.dur].map(t=>Math.min(t,s.dur));const tgtDur=s.dur/rate;const maxT=Math.max(s.dur,tgtDur);const X=t=>10+t/maxT*680;
+  const tgt=src.map((t,i)=>i===src.length-1?tgtDur:t/rate);
+  sv.innerHTML=`<line x1="10" y1="18" x2="${X(s.dur)}" y2="18" stroke="var(--wave)" stroke-width="3" stroke-linecap="round" opacity=".7"/><line x1="10" y1="74" x2="${X(tgtDur)}" y2="74" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+   ${src.map((t,i)=>`<line x1="${X(t)}" y1="18" x2="${X(tgt[i])}" y2="74" stroke="var(--sub)" stroke-width="1" opacity=".55"/><circle cx="${X(t)}" cy="18" r="3.5" fill="var(--wave)"/><circle cx="${X(tgt[i])}" cy="74" r="3.5" fill="var(--accent)"/>`).join("")}
+   <text x="12" y="10" font-size="10" fill="var(--muted)">原句</text><text x="12" y="90" font-size="10" fill="var(--muted)">卡拍</text>`;
+  $("#maptxt").textContent=`原句 ${s.dur.toFixed(3)} s → 卡拍 ${tgtDur.toFixed(3)} s · 同比例秒数轴 · 起音核心逐样本保留`}
 function stageAct(a,e,s){const w=stageWave;if(a==="clip"){if(!w.sel)return toast("先在波形上拖出选区");const r=(e&&e.currentTarget&&e.currentTarget.getBoundingClientRect)?e.currentTarget.getBoundingClientRect():{left:e.clientX,bottom:e.clientY};clipPop(r.left,r.bottom+8,{a:w.sel[0],b:w.sel[1],asset:s.asset,from:"detail"})}
   if(a==="flat")flattenSheet("detail",s);if(a==="sep")sepModal("sel");if(a==="reimp")reimportModal();if(a==="wav")exported(s.name+" · 片段__人声__….wav");if(a==="vid")toast("已排队：选区视频片段");
   if(a==="exp")menu(e.currentTarget,`导出选区 ${f3(w.sel[0])}–${f3(w.sel[1])} s`,[["选区 WAV",()=>exported(s.name+" · 片段__人声__….wav")],["选区视频片段…",()=>toast("已排队：选区视频片段")]])}
+
 function moveFocus(d){const ids=[...$("#list").querySelectorAll("[data-id]")].map(r=>r.dataset.id);let i=ids.indexOf(S.focus);let j=i;do{j+=d}while(j>=0&&j<ids.length&&samples.find(x=>x.id===ids[j]).dead);if(j<0||j>=ids.length)return null;return ids[j]}
 
 /* ==============================================================
@@ -861,45 +966,42 @@ const EPS=[{id:"e1",work:"Yuru Yuri",ep:"01",lines:312,ana:280,oped:2,subs:true,
 const TL=[[80.2,82.0,"京子","ちょっと待って"],[82.4,83.6,"結衣","なに？"],[84.247,172.768,"OP","♪"],[173.2,174.6,"","（足音）"],[175.0,177.1,"あかり","おーい～"],[177.6,179.2,"","そうなんだ"],[180.0,181.4,"","（殴る音）"],[182.0,184.3,"京子","やったー！"],[185.0,186.2,"ちなつ","いくよー"],[187.0,188.6,"結衣、京子","ありがとう"]];
 let srcWave=null;
 function sourcesHeadHtml(){const e=EPS.find(x=>x.id===S.src.focus);const steps=prepSteps(e);const ok=steps.filter(s=>s.ok).length;
-  return `<div class="seg"><button data-v="shelf" class="${S.src.view==="shelf"?"on":""}">片库</button><button data-v="viewer" class="${S.src.view==="viewer"?"on":""}">查看器</button></div>
-   ${S.src.view==="viewer"?`<button id="epSw" style="font-weight:600;color:var(--text)">${esc(e.work)} · ${esc(e.ep)} ▾</button>
-   <button id="prepBtn" class="row" title="准备清单：只是状态与入口，没有顺序、不强制">准备 <span class="prepbar">${steps.map(s=>`<i class="${s.ok?"ok":""}"></i>`).join("")}</span><span class="num">${ok}/${steps.length}</span> ▾</button>`:""}`}
+  return `<button class="flat" id="listTg" title="显示/收起原片列表">☰ ${S.src.listOpen?"收起列表":"原片列表"}</button><b style="font-size:14px">${esc(e.work)} · ${esc(e.ep)}</b>
+   <button id="prepBtn" class="row" title="准备清单：只是状态与入口，没有顺序、不强制">准备 <span class="prepbar">${steps.map(s=>`<i class="${s.ok?"ok":""}"></i>`).join("")}</span><span class="num">${ok}/${steps.length}</span> ▾</button><button class="flat" id="epMore">⋯</button>`}
 function prepSteps(e){return [{k:"sub",n:"字幕标记",ok:e.subs,d:e.subs?`当前版本 · ${e.lines} 行`:"未导入（没有字幕也能完整使用）",a:"导入…"},{k:"sep",n:"整轨人声分离",ok:!!e.vocal,d:e.vocal?"hyperacev2 · vocals":"未分离",a:"分离…"},{k:"dv",n:"默认人声轨",ok:!!e.vocal,d:e.vocal||"未指定",a:"指定…"},{k:"ds",n:"默认音效轨",ok:!!e.sfx,d:e.sfx||"未指定",a:"指定…"},{k:"op",n:"OP / ED",ok:e.oped>0,d:e.oped?`字幕规则 · ${e.oped} 段`:"未识别",a:"识别 / 标记…"},{k:"ln",n:"台词采样",ok:e.samples>0,d:`${e.samples} 个`,a:"从字幕导入…"},{k:"ana",n:"语音分析",ok:e.ana>0&&e.ana>=e.lines*.8,d:`${e.ana}/${e.lines}`,a:"语音分析…"}]}
-function bindSourcesHead(){$$("[data-v]").forEach(b=>b.onclick=()=>{S.src.view=b.dataset.v;renderSources();renderTop()});
-  $("#epSw")&&($("#epSw").onclick=e=>menu(e.currentTarget,"切换原片（最近）",[...EPS.map(x=>[`${x.work} · ${x.ep}`,()=>{S.src.focus=x.id;renderSources();renderTop()}]),"-",["打开片库",()=>{S.src.view="shelf";renderSources();renderTop()}]]));
-  $("#prepBtn")&&($("#prepBtn").onclick=e=>{const r=e.currentTarget.getBoundingClientRect();const ep=EPS.find(x=>x.id===S.src.focus);pop(r.left,r.bottom+8,`<div class="col"><div class="row" style="padding:2px 6px 8px"><b>准备「${esc(ep.work)} · ${esc(ep.ep)}」</b><div class="grow"></div><span class="faint xs">没有顺序 · 都可跳过</span></div>${prepSteps(ep).map(s=>`<div class="chk"><span class="st ${s.ok?"ok":""}">${s.ok?"✓":""}</span><div><div>${s.n}</div><div class="d">${esc(s.d)}</div></div><button class="flat sm" data-prep="${s.k}">${s.a}</button></div>`).join("")}</div>`);
-    $$("[data-prep]").forEach(b=>b.onclick=()=>{hidePop();({sub:subImportSheet,sep:()=>sepModal("full"),dv:tracksModal,ds:tracksModal,op:opedModal,ln:()=>subSampleSheet("line"),ana:()=>analysisModal(1,"source")})[b.dataset.prep]()})})}
-function renderSources(){const pg=$("#pg-sources");srcWave&&srcWave.destroy();srcWave=null;
-  if(S.src.view==="shelf"){const groups={};EPS.forEach(e=>(groups[e.work]=groups[e.work]||[]).push(e));
-    pg.innerHTML=`<div class="shelf" id="shelf">${Object.entries(groups).map(([w,es])=>`<div class="wg"><h3>${esc(w)}<span class="muted sm">${es.length} 集</span></h3><div class="eps">${es.map(e=>`<div class="ep ${S.src.focus===e.id?"focus":""}" data-ep="${e.id}"><div class="ck ${S.src.checked.has(e.id)?"on":""}" data-ck>${S.src.checked.has(e.id)?"✓":""}</div><div class="pv">${esc(e.ep)}</div><div class="bd"><div class="row">${e.subs?`<span>${e.lines} 句</span><span>OP/ED ${e.oped}</span>`:`<span class="pill">无字幕</span>`}${e.tracks?`<span>${e.tracks} 音轨</span>`:""}${e.ext?'<span class="pill">外部视频</span>':""}</div><div class="prog"><i style="width:${e.lines?e.ana/e.lines*100:0}%"></i></div><span>${e.lines?`语音分析 ${e.ana}/${e.lines}`:"手动截取"}</span></div></div>`).join("")}</div></div>`).join("")}
-      <div class="eps"><div class="ep add" id="addEp">＋ 添加原片<br><span class="xs">不复制 · 不转码 · 不建采样</span></div></div>
-      <div class="floatbar ${S.src.checked.size?"on":""}"><span><b>${S.src.checked.size}</b> 个原片已勾选</span><button class="pri" id="epBulk">批量操作 ▾</button><button class="flat" id="epClr">✕</button></div></div>`;
-    $$("[data-ep]").forEach(c=>{const id=c.dataset.ep,e=EPS.find(x=>x.id===id);c.onclick=ev=>{if(ev.target.closest("[data-ck]")||ev.metaKey||ev.ctrlKey){S.src.checked.has(id)?S.src.checked.delete(id):S.src.checked.add(id);renderSources();return}S.src.focus=id;renderSources()};
-      c.ondblclick=()=>{S.src.focus=id;S.src.view="viewer";renderSources();renderTop()};
-      c.oncontextmenu=ev=>{ev.preventDefault();const multi=S.src.checked.has(id)&&S.src.checked.size>=2;menu(ev,multi?`作用于：已勾选 <b>${S.src.checked.size}</b> 个原片`:`作用于：<b>${esc(e.work)} · ${esc(e.ep)}</b>`,multi?epBulk():epItems(e))}});
-    $("#addEp").onclick=()=>{toast("已登记原片（不复制、不转码、不建采样）· 打开第一个新原片");epSettingsModal()};
-    $("#epBulk")&&($("#epBulk").onclick=e=>menu(e.currentTarget,`已勾选 ${S.src.checked.size} 个原片`,epBulk()));$("#epClr")&&($("#epClr").onclick=()=>{S.src.checked.clear();renderSources()});return}
-  const e=EPS.find(x=>x.id===S.src.focus);
-  pg.innerHTML=`<div class="viewer"><div class="vid" id="vid"><div class="art">画面 · libmpv 渲染到界面里的画布（字幕画在画面内部底部）</div><div class="subt" id="subt"></div><div class="vc"><span id="vplay">▶</span><span class="num" id="vt">1:20.00</span><span class="grow"></span><span>音源：原混音 · 音轨1 jpn</span><span>🔇</span></div></div>
-    <div class="transcript"><div class="th"><b style="white-space:nowrap">台本</b><span class="muted xs" style="white-space:nowrap">跟随播放</span><i class="info" title="当前字幕版本。跟随播放（手动滚动后暂停跟随 3.5 秒）；单击 = 选区设为这句（不播放）；Shift 单击 = 扩展到这句；双击 = 播放这句">i</i><div class="grow"></div><button class="flat sm" title="编辑字幕/区段边界">编辑边界</button></div>
+function bindSourcesHead(){$("#listTg").onclick=()=>{S.src.listOpen=!S.src.listOpen;renderSources();renderTop()};
+  $("#epMore").onclick=e=>menu(e.currentTarget,"原片",epItems(EPS.find(x=>x.id===S.src.focus)).slice(11));
+  $("#prepBtn").onclick=e=>{const r=e.currentTarget.getBoundingClientRect();const ep=EPS.find(x=>x.id===S.src.focus);pop(r.left,r.bottom+8,`<div class="col"><div class="row" style="padding:2px 6px 8px"><b>准备「${esc(ep.work)} · ${esc(ep.ep)}」</b><div class="grow"></div><span class="faint xs">没有顺序 · 都可跳过</span></div>${prepSteps(ep).map(s=>`<div class="chk"><span class="st ${s.ok?"ok":""}">${s.ok?"✓":""}</span><div><div>${s.n}</div><div class="d">${esc(s.d)}</div></div><button class="flat sm" data-prep="${s.k}">${s.a}</button></div>`).join("")}</div>`);
+    $$("[data-prep]").forEach(b=>b.onclick=()=>{hidePop();({sub:subImportSheet,sep:()=>sepModal("full"),dv:tracksModal,ds:tracksModal,op:opedModal,ln:()=>subSampleSheet("line"),ana:()=>analysisModal(1,"source")})[b.dataset.prep]()})}}
+function srcListHtml(){const groups={};EPS.forEach(e=>(groups[e.work]=groups[e.work]||[]).push(e));
+  return `<div class="srclist"><div class="row" style="padding:10px 12px"><input type="text" placeholder="搜索作品/集数 ⌘F" id="srcQ" style="flex:1"><button class="pri" id="addEp" title="添加原片（多选文件；也可拖进本页）">＋</button></div>
+    <div class="sl">${Object.entries(groups).map(([w,es])=>`<div class="sg">${esc(w)}</div>${es.map(e=>{const r=rng(e.ep.length*13+e.work.length);const h=Math.floor(r()*360);return `<div class="srow ${S.src.focus===e.id?"focus":""}" data-ep="${e.id}"><div class="ck ${S.src.checked.has(e.id)?"on":""}" data-ck>${S.src.checked.has(e.id)?"✓":""}</div><div class="th sm" style="background:linear-gradient(135deg,hsl(${h} 30% 32%),hsl(${(h+60)%360} 35% 18%))"></div><div style="min-width:0"><div class="nm">${esc(e.ep)}</div><div class="meta">${e.subs?`<span>${e.lines} 句</span><span>OP/ED ${e.oped}</span>`:`<span>无字幕</span>`}${e.tracks?`<span>${e.tracks} 音轨</span>`:""}${e.ext?"<span>外部视频</span>":""}</div>${e.lines?`<div class="prog"><i style="width:${e.ana/e.lines*100}%"></i></div>`:""}</div></div>`}).join("")}`).join("")}</div>
+    <div class="floatbar ${S.src.checked.size?"on":""}" style="bottom:10px"><span><b>${S.src.checked.size}</b> 个已勾选</span><button class="pri" id="epBulk">批量 ▾</button><button class="flat" id="epClr">✕</button></div></div>`}
+function renderSources(){const pg=$("#pg-sources");srcWave&&srcWave.destroy();srcWave=null;const e=EPS.find(x=>x.id===S.src.focus);
+  pg.innerHTML=`${S.src.listOpen?srcListHtml():""}<div class="viewer"><div class="vid" id="vid"><div class="art">画面 · libmpv 渲染到界面里的画布（字幕画在画面内部底部）</div><div class="subt" id="subt"></div><div class="vc"><span id="vplay">▶</span><span class="num" id="vt">1:20.00</span><span class="grow"></span><span>音源：原混音 · 音轨1 jpn</span><span>🔇</span></div></div>
+    <div class="transcript"><div class="th2"><b style="white-space:nowrap">台本</b><span class="muted xs" style="white-space:nowrap">跟随播放</span><i class="info" title="当前字幕版本。跟随播放（手动滚动后暂停跟随 3.5 秒）；单击 = 选区设为这句（不播放）；Shift 单击 = 扩展到这句；双击 = 播放这句">i</i><div class="grow"></div></div>
       <div class="tl" id="tl">${TL.map((l,i)=>l[2]==="OP"?`<div class="opblk">♪ OP <span class="num">${l[0].toFixed(1)}–${l[1].toFixed(1)} s</span><span class="faint">· 字幕规则 · 排除字幕采样与批量分析</span></div>`:`<div class="line ${/（/.test(l[3])?"sfx":""}" data-l="${i}"><span class="t num">${Math.floor(l[0]/60)}:${(l[0]%60).toFixed(1).padStart(4,"0")}</span><span class="spk">${esc(l[2])}</span><span class="tx">${esc(l[3])}</span></div>`).join("")}</div></div>
-    <div class="timeline wavecard" data-scope="source" tabindex="0"><div class="wavehead"><span class="srcbtn" id="srcAsset">音源 · 原混音 · 音轨1 jpn ▾</span><span class="muted xs">图层</span>${[["ph","音素"],["sub","字幕"],["seg","说话人/区段"]].map(([k,l])=>`<label class="xs"><input type="checkbox" data-sly="${k}" checked> ${l}</label>`).join("")}<div class="grow"></div><button class="flat sm" id="sfit">适合</button><button class="flat sm" id="szs">放大选区</button><button class="flat sm">频谱</button><button class="flat sm">派生采样 2</button></div>
+    <div class="timeline wavecard" data-scope="source" tabindex="0"><div class="wavehead"><span class="srcbtn" id="srcAsset">音源 · 原混音 · 音轨1 jpn ▾</span><div class="grow"></div><button class="flat sm" id="sfit">适合</button><button class="flat sm" id="szs">放大选区</button><button class="flat sm">频谱</button><button class="flat sm">派生采样 2</button></div>
       <div id="tw"></div>
       <div class="strip" style="margin:8px 0 0"><div class="tp"><button class="big o" id="sPlay">▶ 播放</button><button class="flat" id="sPlaySel" title="Shift+Space">▷ 选区</button></div><div class="selbox"><span class="muted xs">选区</span><input class="mono num" id="ssa"><span class="muted">→</span><input class="mono num" id="ssb"><span class="muted xs num" id="sslen"></span></div>
         <div class="acts"><button data-sa="clip">截取</button><button data-sa="flat">拉平</button><button data-sa="sep">分离</button><button data-sa="reimp">回导</button><button data-sa="exp">导出 ▾</button></div><div class="grow"></div><span class="faint xs">⌥/Alt+拖动选区：导出音频</span></div></div></div>`;
+  if(S.src.listOpen){$$("[data-ep]").forEach(c=>{const id=c.dataset.ep,ep=EPS.find(x=>x.id===id);c.onmousedown=()=>setScope("srcList");c.onclick=ev=>{if(ev.target.closest("[data-ck]")||ev.metaKey||ev.ctrlKey){S.src.checked.has(id)?S.src.checked.delete(id):S.src.checked.add(id);renderSources();return}S.src.focus=id;renderSources();renderTop()};
+      c.oncontextmenu=ev=>{ev.preventDefault();const multi=S.src.checked.has(id)&&S.src.checked.size>=2;c.classList.add("ctx");menu(ev,multi?`作用于：已勾选 <b>${S.src.checked.size}</b> 个原片`:`作用于：<b>${esc(ep.work)} · ${esc(ep.ep)}</b>`,multi?epBulk():epItems(ep),()=>c.classList.remove("ctx"))}});
+    $("#addEp").onclick=()=>{toast("已登记原片（不复制、不转码、不建采样）");epSettingsModal()};$("#epBulk")&&($("#epBulk").onclick=ev=>menu(ev.currentTarget,`已勾选 ${S.src.checked.size} 个原片`,epBulk()));$("#epClr")&&($("#epClr").onclick=()=>{S.src.checked.clear();renderSources()})}
   const upd=sel=>{$("#ssa").value=f3(sel[0]);$("#ssb").value=f3(sel[1]);$("#sslen").textContent=f3(sel[1]-sel[0])+" s";$$(".line").forEach(el=>{const l=TL[+el.dataset.l];el.classList.toggle("sel",l[0]<sel[1]&&l[1]>sel[0])})};
-  srcWave=new Wave($("#tw"),{dur:e.dur,seed:7,height:96,minimap:true,minPx:60,scope:"source",key:"src",t:80.4,subs:TL.filter(l=>l[2]!=="OP").map(l=>({a:l[0],b:l[1],text:l[3]})),segs:[{a:84.247,b:172.768,text:"OP"},...TL.filter(l=>l[2]&&l[2]!=="OP").map(l=>({a:l[0],b:l[1],text:(l[2].includes("、")?"参与者：":"角色：")+l[2]}))],ph:[{a:80.25,b:80.33,p:"ch"},{a:80.33,b:80.45,p:"o"},{a:80.45,b:80.52,p:"cl"},{a:80.52,b:80.6,p:"t"},{a:80.6,b:80.74,p:"o"}],sel:[80.2,82.0],
+  srcWave=new Wave($("#tw"),{dur:e.dur,seed:7,height:104,minimap:true,minPx:60,scope:"source",key:"src",t:80.4,
+    layers:{sub:TL.filter(l=>l[2]!=="OP").map(l=>({a:l[0],b:l[1],text:l[3]})),ph:[{a:80.25,b:80.33,p:"ch"},{a:80.33,b:80.45,p:"o"},{a:80.45,b:80.52,p:"cl"},{a:80.52,b:80.6,p:"t"},{a:80.6,b:80.74,p:"o"}],seg:[{a:84.247,b:172.768,text:"OP"},...TL.filter(l=>l[2]&&l[2]!=="OP").map(l=>({a:l[0],b:l[1],text:(l[2].includes("、")?"参与者：":"角色：")+l[2]}))]},overlay:"sub",sel:[80.2,82.0],
     asset:()=>"原混音 · 音轨1 jpn",act:(a,ev)=>srcAct(a,ev),onSel:upd,onPlay:p=>$("#sPlay")&&($("#sPlay").textContent=p?"❚❚ 暂停":"▶ 播放"),
     onTime:t=>{$("#vt").textContent=`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,"0")}`;$("#subt").textContent=TL.filter(l=>l[2]!=="OP"&&t>=l[0]&&t<l[1]).map(l=>(l[2]?`（${l[2]}）`:"")+l[3]).join("\n");$$(".line").forEach(el=>{const l=TL[+el.dataset.l];el.classList.toggle("cur",t>=l[0]&&t<l[1])})}});
   setTimeout(()=>{if(srcWave.ws)srcWave.ws.setScrollTime(76);upd(srcWave.sel);srcWave.o.onTime(srcWave.t)},300);upd(srcWave.sel);
   $$(".line").forEach(el=>el.onclick=ev=>{const l=TL[+el.dataset.l];if(ev.shiftKey&&srcWave.sel){srcWave.setSel(Math.min(srcWave.sel[0],l[0]),Math.max(srcWave.sel[1],l[1]))}else{srcWave.t=l[0];srcWave.setSel(l[0],l[1]);srcWave.o.onTime(l[0])}if(srcWave.ws)srcWave.ws.setScrollTime(Math.max(0,l[0]-3))});
   $$(".line").forEach(el=>el.ondblclick=()=>srcWave.playSel());
   $("#vid").onclick=()=>srcWave.toggle();$("#vid").onmousedown=()=>setScope("source");$("#sPlay").onclick=()=>srcWave.toggle();$("#sPlaySel").onclick=()=>srcWave.playSel();$("#sfit").onclick=()=>srcWave.fit();$("#szs").onclick=()=>srcWave.zoomSel();
-  $$("[data-sly]").forEach(c=>c.onchange=()=>{srcWave.layers[c.dataset.sly]=c.checked;srcWave.drawOv()});
   $$("[data-sa]").forEach(b=>b.onclick=ev=>srcAct(b.dataset.sa,ev));
   ["ssa","ssb"].forEach(id=>$("#"+id).onchange=()=>{const a=+$("#ssa").value,b=+$("#ssb").value;if(a>=0&&a<b&&b<=e.dur)srcWave.setSel(a,b)});
   $("#srcAsset").onclick=ev=>menu(ev.currentTarget,"音源（容器音轨与分离声部都是资产；整轨在前；切换后选区保留）",[["原混音 · 音轨1 jpn",()=>{}],["hyperacev2 · vocals · 整轨",()=>toast("已切换音源 · 外部声部挂到原片时间轴 · 选区保留")],["hyperacev2 · instrument · 整轨",()=>{}],["becruily_deux · Vocals · 1290–1320 s",()=>toast("此音轨仅覆盖原片 1290–1320 秒")]]);
 }
+
 function epItems(e){return [["打开查看器",()=>{S.src.focus=e.id;S.src.view="viewer";renderSources();renderTop()}],"-",["整片分离…",()=>sepModal("full")],["人声/音效与默认轨…",tracksModal],["导入字幕标记…",subImportSheet],["从字幕导入台词语音…",()=>subSampleSheet("line")],["从字幕导入音效采样…",()=>subSampleSheet("sfx")],["从字幕识别 OP/ED",opedModal],["OP/ED 标记…",opedModal],["语音分析…",()=>analysisModal(1,"source")],"-",["作品与输入设置…",epSettingsModal],["原片画面绑定…",()=>{}],["重新定位文件…",()=>modal({title:"重新定位文件",say:"只改文件位置引用，不校验内容和时长；已有资产、时间、分析、OP/ED、采样都不变。",body:"<button>选择文件…</button>",ok:"重新定位"})],["打开库目录",()=>toast("Library/Tracks/src-3f9a1c2e/")],"-",["删除原片…",()=>delSrcModal(e),"⌫"]]}
 function epBulk(){const n=S.src.checked.size;return [[`导入字幕标记（${n} 个）…`,subImportSheet],[`识别 OP/ED（${n} 个）`,opedModal],[`语音分析（${n} 个原片）…`,()=>analysisModal(n,"source")],"-",[`删除 ${n} 个原片…`,()=>delSrcModal(null,n)]]}
 function srcAct(a,ev){const w=srcWave;if(a==="clip"){const r=ev.currentTarget&&ev.currentTarget.getBoundingClientRect?ev.currentTarget.getBoundingClientRect():{left:ev.clientX,bottom:ev.clientY};clipPop(r.left,r.bottom-260,{a:w.sel[0],b:w.sel[1],asset:"原混音 · 音轨1 jpn",from:"source"})}
@@ -928,21 +1030,7 @@ function flattenSheet(from,s,n){const batch=from==="batch";const dR=batch?"vowel
     after:sh=>{const vis=t=>{$("#sideRow").style.display=t==="edge"?"":"none";$("#manRow").style.display=t==="manual"?"":"none"};vis(dT);wireChoices(sh,(nm,v)=>{if(nm==="tgt")vis(v)});
       $("#man").oninput=()=>{const v=$("#man").value.trim(),o=$("#manOut");if(/^\d+(\.\d+)?$/.test(v)){o.className="xs err";o.textContent="纯数字含义不明：写音名（A4）或带单位的频率（440Hz）"}else if(/^\d+(\.\d+)?\s*hz$/i.test(v)){const m=69+12*Math.log2(parseFloat(v)/440),nr=Math.round(m),c=Math.round((m-nr)*100);o.className="xs okm";o.textContent=`→ ${noteName(nr)}${c?(c>0?"+":"")+c+"c":""}（精确换算，不吸附）`}else if(parseNote(v)!=null){o.className="xs okm";o.textContent=`→ ${noteName(parseNote(v))}`}else{o.className="xs err";o.textContent=v?"无法解析":""}};
       if(!batch)sheetWave=new Wave($("#flw"),{dur:.627,seed:5,height:150,f0:true,scope:"sheet",asset:()=>"",act:()=>{},sel:[.05,.58],ph:[{a:.03,b:.09,p:"y"},{a:.09,b:.27,p:"a"},{a:.27,b:.34,p:"cl"},{a:.34,b:.39,p:"t"},{a:.39,b:.6,p:"a"}],lanes:1})}})}
-function phonemeSheet(){const s=samples.find(x=>x.id===S.focus);sheet({title:"音素编辑台",sub:`${esc(s.name)} · ${esc(s.asset)} · 当前：模型结果 · pydomino`,
-  main:`<div class="card"><h5>拖动音素边界改时间<span class="grow"></span><span class="faint xs">只能改时间：不能增删、改标签、重排</span></h5><div id="phw"></div></div>
-    <div class="card"><h5>对齐文本 · G2P 预览</h5><div class="row"><input type="text" value="${esc(s.name)}" style="flex:1"><button>预览 G2P</button></div><div class="phs">${"y a cl t a a".split(" ").map(p=>`<span class="ph ${/[aiueo]/.test(p)?"v":""}">${p}</span>`).join("")}</div><span class="faint xs">原字幕保持不变；保存后需要显式语音分析才会采用新读音 · <span class="link">用户辞典…</span></span></div>`,
-  side:`<div class="opt"><span class="ot">版本</span>${choices("ver",[["m","模型结果 · 10-05 12:01","pydomino · 当前"],["h","人工版本 · 10-05 12:20","人工版本受保护，自动重跑不覆盖"]],"m")}</div>
-    <div class="opt"><span class="ot">分组与停顿</span><label class="row sm">停顿灵敏度 <input type="number" value="1" step=".1" style="width:70px"></label><label class="row sm">语段切分阈值 <input type="number" value="0.28" step=".01" style="width:70px"> s</label><label class="row sm">在音素前拆开 <input type="text" placeholder="如 3,7" style="width:90px"></label><span class="faint xs">改即保存，只重建派生节奏，不跑模型</span></div>
-    <details class="opt"><summary class="sm muted" style="cursor:pointer">精确时间文本（高级）</summary><textarea rows="6" class="mono xs" style="width:100%">0.050\t0.090\ty\n0.100\t0.220\ta\n0.230\t0.300\tcl</textarea></details>`,
-  ok:"保存为人工版本",onOk:()=>toast("人工时间版本已保存，重新分析不会覆盖",{undo:"音素时间"}),after:()=>{sheetWave=new Wave($("#phw"),{dur:s.dur,seed:+s.id.slice(1),height:170,f0:true,scope:"sheet",asset:()=>s.asset,act:()=>{},ph:[{a:.05,b:.09,p:"y"},{a:.1,b:.22,p:"a"},{a:.23,b:.3,p:"cl"},{a:.31,b:.36,p:"t"},{a:.37,b:.5,p:"a"},{a:.51,b:.6,p:"a"}],lanes:1})}})}
-function rhythmSheet(){const s=samples.find(x=>x.id===S.focus);const pts=[[0,0],[.09,.08],[.22,.2],[.37,.33],[.51,.47],[.6,.56]];
-  sheet({title:"节奏台",sub:`${esc(s.name)} · ${S.bpm?"BPM "+S.bpm:"原速卡拍（未填 BPM）"}`,
-  main:`<div class="card"><h5>映射 · 原句 0.627 s → 卡拍 0.590 s · 同比例秒数轴</h5><svg viewBox="0 0 640 120" style="width:100%;height:150px"><line x1="20" y1="25" x2="620" y2="25" stroke="var(--line)" stroke-width="2"/><line x1="20" y1="95" x2="${20+600*.94}" y2="95" stroke="var(--line)" stroke-width="2"/>${pts.map(([a,b])=>`<line x1="${20+a/.627*600}" y1="25" x2="${20+b/.627*600}" y2="95" stroke="var(--accent)" stroke-width="1.5"/><circle cx="${20+a/.627*600}" cy="25" r="4" fill="var(--wave)"/><circle cx="${20+b/.627*600}" cy="95" r="4" fill="var(--accent)"/>`).join("")}<text x="20" y="14" fill="var(--muted)" font-size="11">原句</text><text x="20" y="114" fill="var(--muted)" font-size="11">卡拍</text></svg></div>
-    <div class="card"><h5>人工占格<span class="grow"></span><span class="faint xs">改即保存，只重建派生节奏</span></h5><table class="tbl"><tr><th>音块</th><th>目标拍</th><th>占格</th></tr>${["ya","t-ta","a"].map((m,i)=>`<tr><td>${m}</td><td class="num">${(i*.5).toFixed(2)}</td><td><input type="number" value="${i===1?2:1}" min="1" style="width:60px;padding:1px 4px"></td></tr>`).join("")}</table></div>`,
-  side:`<div class="opt"><span class="ot">卡拍方案</span>${choices("plan",[["f","近快 · 1.06× · 4 格/拍","不慢于原速的最近一档（默认）"],["s","近慢 · 0.53× · 2 格/拍",""],["d","倍快 · 2.12× · 8 格/拍","只用于预览"]],"f")}</div>
-    <div class="opt"><span class="ot">试听方式</span>${choices("aud",[["a","严格卡拍",""],["b","卡拍＋节拍",""],["c","卡拍起点声",""],["d","原始起点声",""],["e","原声＋原始起点",""]],"a")}<button class="pri" onclick="toast('▶ 严格卡拍（在底部播放条）')">试听</button></div>
-    <details class="opt"><summary class="sm muted" style="cursor:pointer">高级：量化路线</summary><span class="sm">原节奏 · 无 mora（默认）/ mora 参考校准 / 纯 mora</span></details>`,
-  after:sh=>wireChoices(sh)})}
+
 function subImportSheet(){sheet({title:"导入字幕标记",sub:"Yuru Yuri · 01 · [VCB-Studio] Yuru Yuri [01]….srt",full:true,
   main:`<div class="big3"><div><div class="n">309</div><div class="l">可导入（默认全选）</div></div><div><div class="n" style="color:var(--warn)">41</div><div class="l">在 OP/ED 区间（仍导入，取样与批量分析跳过）</div></div><div><div class="n" style="color:var(--bad)">3</div><div class="l">无效范围（跳过并报告）</div></div></div>
    <div class="row sm"><span class="muted">时间范围</span><input type="number" style="width:90px" placeholder="起"><input type="number" style="width:90px" placeholder="止"><span class="grow"></span><span class="muted">内容与已导入的不同 → 新版本并成为当前版本</span></div>
@@ -1019,7 +1107,7 @@ function renderDrawer(){$("#drawer").innerHTML=`<div class="row" style="padding:
   $("#dX").onclick=()=>$("#drawer").classList.remove("on");
   $$("[data-ja]").forEach(b=>b.onclick=()=>{const j=jobs[+b.dataset.j],a=b.dataset.ja;if(a==="c"){j.st="cancelled";j.m="已取消（整个进程树已结束，不登记结果）";renderDrawer()}if(a==="r"){addJob(j.n,"queued");toast("已用相同业务参数新建任务（设备设置用当前值）")}if(a==="l")toast("Data/Jobs/7c1e…/job.log");
     if(a==="o"){$("#drawer").classList.remove("on");if(j.n==="语音分析")modal({title:"语音分析结果",body:`<table class="tbl"><tr><th></th><th>台词</th><th>状态</th><th>原因</th></tr><tr><td></td><td class="link">そうなんだ</td><td class="st-ok">成功</td><td></td></tr><tr><td></td><td class="link">ちょっと待って</td><td class="muted">跳过 · 已是最新</td><td></td></tr><tr><td><input type="checkbox" checked></td><td class="link">ほんとに？</td><td class="st-b">失败</td><td>pydomino 不支持的音素组合</td></tr></table>`,ok:"对勾选项再次语音分析",onOk:()=>analysisModal(1,"sample")});else toast("已打开成品")}})}
-const CMDS=[["节奏检索",()=>{go("library");setLens("speech");openComposer("speech")}],["音高检索",()=>{go("library");openComposer("pitch")}],["单音 · 瞬态",()=>{go("library");openComposer("transient")}],["收件箱（未分类）",()=>{go("library");setLens("unclassified")}],
+const CMDS=[["节奏检索",()=>{go("library");setLens("speech");openComposer("speech")}],["音高检索",()=>{go("library");openComposer("pitch")}],["单音 · 瞬态",()=>{go("library");openComposer("transient")}],["只看未分类",()=>{go("library");setLens("unclassified")}],
   ["语音分析所选采样（无勾选时：当前查看的采样）",()=>analysisModal(Math.max(1,S.checked.size),"sample")],["编辑所选资料（无勾选时：当前查看的采样）",()=>editModal(S.checked.size?[...S.checked]:[S.focus])],["撤销最近资料修改",()=>undo(),"⌘Z"],
   ["导入采样",()=>{go("library");$("#importBtn").click()}],["添加原片",()=>{go("sources");toast("系统文件选择（可多选）")}],["原片片库",()=>{go("sources");S.src.view="shelf";renderSources();renderTop()},"⌘2"],["用户辞典 / G2P 预览",()=>settingsSheet("文本前端")],
   ["全局设置",()=>settingsSheet(),"⌘,"],["任务与日志",()=>$("#drawer").classList.toggle("on"),"⌘J"],["检测环境与模型",()=>settingsSheet("推理设备")],["另开窗口",()=>toast("另开窗口"),"⌘⇧N"],["快捷键一览",showHelp,"?"]];
@@ -1069,7 +1157,7 @@ function dragOut(e,key,label){e.preventDefault();const x0=e.clientX,y0=e.clientY
 addEventListener("keydown",e=>{const mod=e.metaKey||e.ctrlKey,inI=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)||document.activeElement.isContentEditable;
   if(mod&&e.key.toLowerCase()==="k"){e.preventDefault();openPalette();return}
   if(e.key==="Escape"){if(drag)return drag.cancel();if($("#menu").classList.contains("on"))return hideMenu();if($("#pop").classList.contains("on"))return hidePop();if($("#palette").classList.contains("on"))return closePal();if($("#help").classList.contains("on"))return $("#help").classList.remove("on");if($("#modal").classList.contains("on"))return closeModal();if($("#sheet").classList.contains("on"))return closeSheet();if($("#drawer").classList.contains("on"))return $("#drawer").classList.remove("on");
-    if(S.page==="library"&&S.composer){S.composer=false;return renderResults()}if(S.page==="library"&&S.checked.size){const n=S.checked.size;S.checked.clear();renderResults();return toast(`已清空 ${n} 项勾选`)}if(S.page==="sources"&&S.src.checked.size){S.src.checked.clear();renderSources()}return}
+    {const we=[stageWave,srcWave].find(x=>x&&x.editing);if(we){we.L[we.overlay]=we._backup;we.toggleEdit(false);return toast("已退出编辑（未保存的修改已放弃）")}}if(S.page==="library"&&S.composer){S.composer=false;return renderResults()}if(S.page==="library"&&S.checked.size){const n=S.checked.size;S.checked.clear();renderResults();return toast(`已清空 ${n} 项勾选`)}if(S.page==="sources"&&S.src.checked.size){S.src.checked.clear();renderSources()}return}
   if($("#modal").classList.contains("on")||$("#palette").classList.contains("on"))return;
   if(mod&&["1","2","3"].includes(e.key)){e.preventDefault();return go(["library","sources","tools"][+e.key-1])}
   if(mod&&e.key===","){e.preventDefault();return settingsSheet()}if(mod&&e.key.toLowerCase()==="j"){e.preventDefault();return $("#drawer").classList.toggle("on")}
@@ -1088,7 +1176,7 @@ addEventListener("keydown",e=>{const mod=e.metaKey||e.ctrlKey,inI=/INPUT|TEXTARE
   if(w){const fr=1/23.976;if(e.key===" "){e.preventDefault();return e.shiftKey?w.playSel():w.toggle()}if(e.key.toLowerCase()==="i")return w.setIn();if(e.key.toLowerCase()==="o")return w.setOut();
     if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();w.t=Math.max(0,Math.min(w.dur,w.t+(e.key==="ArrowRight"?1:-1)*(e.altKey?5:e.shiftKey?.001:fr)));w.drawOv();w.o.onTime&&w.o.onTime(w.t);return}
     if(e.key.toLowerCase()==="f")return w.fit();if(e.key.toLowerCase()==="z")return w.zoomSel();if(e.key.toLowerCase()==="b"&&w===stageWave)return play(S.focus,"beat");
-    if(S.lens==="unclassified"&&w===stageWave&&["1","2","3"].includes(e.key))return classify([S.focus],{"1":"speech","2":"pitched","3":"unpitched"}[e.key])}
+}
   if(S.scope==="canvas"){if(e.key==="Delete"||e.key==="Backspace"){if(S.cmode==="speech"){S.sp.blocks=S.sp.blocks.filter(b=>b.id!==S.sp.sel);S.sp.sel=null;drawRoll()}else delPitch();return}
     if(mod&&e.key.toLowerCase()==="d"){e.preventDefault();return S.cmode==="pitch"&&dupPitch()}
     if(S.cmode==="pitch"&&(e.key==="ArrowUp"||e.key==="ArrowDown")){e.preventDefault();const b=S.pt.blocks.find(z=>z.id===S.pt.sel);if(b){const d=e.key==="ArrowUp"?1:-1;b.lo+=d;b.hi+=d;drawPitch()}}}
@@ -1101,7 +1189,7 @@ function go(p){S.page=p;stopAll();$$(".ri[data-page]").forEach(b=>b.classList.to
   if(p==="library"){setScope("list");setTimeout(()=>stageWave&&stageWave.syncView(),0)}if(p==="sources"&&!srcWave)renderSources();if(p==="sources")setScope("source")}
 function gotoSource(){go("sources");S.src.view="viewer";renderSources();renderTop();toast("已打开原片并定位到这个采样附近")}
 $$(".ri[data-page]").forEach(b=>b.onclick=()=>go(b.dataset.page));$("#rTasks").onclick=()=>$("#drawer").classList.toggle("on");$("#rSet").onclick=()=>settingsSheet();
-Object.assign(window,{toast,hidePop,showHelp,go,S,samples,flattenSheet,phonemeSheet,rhythmSheet,subImportSheet,subSampleSheet,analysisModal,sepModal,delSrcModal,openComposer,setLens,runSearch,renderSources,settingsSheet,tracksModal,opedModal});
+Object.assign(window,{toast,hidePop,showHelp,go,S,samples,flattenSheet,subImportSheet,subSampleSheet,analysisModal,sepModal,delSrcModal,openComposer,setLens,runSearch,stageWaveRef:()=>stageWave,renderSources,settingsSheet,tracksModal,opedModal});
 renderTop();renderLibrary();renderDock();renderDrawer();renderTools();setScope("list");
 setTimeout(()=>{S.stale=true;renderDock()},7000);
 </script>
