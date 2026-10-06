@@ -139,7 +139,7 @@
 ### 2.5 安全
 
 - 渲染进程只加载本地打包的页面，CSP 禁止远程脚本与远程资源；`nodeIntegration` 关闭，preload 只暴露白名单 API。
-- mpv 渲染桥只接受 Core 解析过的“播放句柄”（资产 ID + 区间 → 已核对指纹的路径），渲染进程不能让它打开任意文件或 URL（R22.7）。
+- mpv 渲染桥只接受 Core 解析过的“播放句柄”（资产 ID + 区间 → 已核对文件快照的路径），渲染进程不能让它打开任意文件或 URL（R22.7）。
 - 没有本地 HTTP 服务（R23.2 的 Host/Origin 校验因此不适用）。
 
 ---
@@ -182,26 +182,27 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 ## 4. 数据模型草案
 
 > 业务事实以规格 04 为准；下面是表结构草案（阶段 1 定稿）。ID 一律为不透明的随机 128 位十六进制串（`uuid4().hex`），
-> 内容指纹与文件位置是独立字段（规格 04 §4.6）。所有用户可编辑对象都有 `version`（乐观并发）和 `created_at`/`updated_at`。
+> 文件位置是独立字段（规格 04 §4.6）；**不做媒体内容指纹**（所有者 2026-10-06：废弃），文件是否被替换用“文件快照”判断（见 §4.1）。所有用户可编辑对象都有 `version`（乐观并发）和 `created_at`/`updated_at`。
 > 显示文字不入库：性质、角色、来源种类等存稳定的内部值（如 `speech`、`vocal`），界面按语言显示（规格 15 §15.7）。
 
 ### 4.1 原片与流
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `source` | id, kind(`media`/`standalone_audio`), path, fingerprint, size, mtime, duration, work, episode, source_type, subtitle_path, default_audio_stream, media_state(`available`/`released`), visual_binding_id, current_subtitle_version_id, version | 原片。`kind=standalone_audio` 是“独立导入的外部音频”（规格 06 §6.6）；`media_state=released` 是独立化后“媒体已释放的原片”（§4.9） |
+| `source` | id, kind(`media`/`standalone`), path, file_snapshot, duration, duration, work, episode, source_type, subtitle_path, default_audio_stream, media_state(`available`/`released`), visual_binding_id, current_subtitle_version_id, version | 原片。`kind=standalone` 是“独立导入的外部音频”（规格 06 §6.6）；`media_state=released` 是删除原片后保留独立化采样的“媒体已释放的原片”（§4.9）。两者都是原片的一种，在原片页的“独立素材”区显示（§4.10） |
 | `source_stream` | source_id, kind(audio/video), ordinal（第几条音频/视频流）, container_index, codec, sample_rate, channels, bit_depth, language, title, start_time, duration, is_attached_pic | 封面图不算视频（规格 05 §5.1）；音轨按“第几条音频流”选择（R22.2） |
 
-内容指纹：`size` + 文件头/中/尾各 1 MiB 的 SHA-256 + 流签名（快、足以判断“被替换”）；库内生成文件用全量 SHA-256。
-播放/导出/处理前用 size+mtime 快速核对，变化时重算指纹，不一致即报“音源已改变”（不替换、不回退）。
+**文件快照**（取代内容指纹，所有者 2026-10-06）：大小 + 修改时间 + 流签名（各音频/视频流的编解码、采样率、声道、时长）。不读文件内容、不算哈希。
+播放/导出/处理/测量前核对快照，不一致即报“音源已改变”（不替换、不回退；用户可“重新定位”到正确文件）。库内生成文件同样用快照。
+仍然保留的哈希只有两类（都不是媒体内容指纹）：字幕文件内容哈希（规格 06 §6.1 按内容区分字幕版本，文件很小）；模型文件 SHA-256（规格 14 的定型校验与 Studio 模型指纹）。
 
 ### 4.2 声音资产、角色、默认轨
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `sound_asset` | id, source_id, origin(`stream`/`separation`/`flatten`/`reimport`), media_file_id, stream_ordinal, duration, mapping（控制点数组）, input_asset_id, input_start, input_end, stem_name（原样大小写）, production（操作、参数、模型身份/指纹、算法版本）, language, content_key | 不可变。`content_key` = hash(文件内容指纹, 音频流, 解码规范) ——测量按它共享 |
+| `sound_asset` | id, source_id, origin(`stream`/`separation`/`flatten`/`reimport`), media_file_id, stream_ordinal, duration, mapping（控制点数组）, input_asset_id, input_start, input_end, stem_name（原样大小写）, production（操作、参数、模型身份/指纹、算法版本）, language | 不可变。测量按“资产 + 音频流”共享（同一资产内覆盖所需区间即可复用；不同资产不共享） |
 | `asset_storage` | asset_id, range_start, range_end, media_file_id, kind(`primary`/`materialized_slice`) | 资产的**物理存储**。正常只有一条 primary；独立化时增加覆盖采样区间的无损切片（§4.9）。这是规格 04 §4.2.4 允许的“显式存储迁移”：只改位置/编码，不改时间关系 |
-| `media_file` | id, path（工作区相对或绝对）, location(`external`/`library`), fingerprint, size, mtime, format, sample_rate, frames, encode_manifest | 原片文件、库内音轨、回导文件、物化切片 |
+| `media_file` | id, path（工作区相对或绝对）, location(`external`/`library`), file_snapshot, format, sample_rate, frames, encode_manifest | 原片文件、库内音轨、回导文件、物化切片 |
 | `asset_role` | asset_id, role(`vocal`/`sfx`), state(`on`/`removed_by_user`) | 角色集合；“用户显式移除”单独记，系统不再加回（R2.5） |
 | `default_track` | source_id, role, asset_id | 每原片每角色最多一条；写入时校验“完整覆盖且未变速（容差 20 ms）” |
 
@@ -230,10 +231,10 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 | 表 / 文件 | 关键字段 | 说明 |
 |---|---|---|
-| `measure_run` | id, kind(`alignment`/`f0`/`acoustic`), owner_type(`sample`/`asset_text`), owner_id, content_key, range, inputs（语言、文本版本、辞典版本、前端版本、模型身份与指纹、目标区间、窗口、容差、设备）, status(`ok`/`failed`/`cancelled`/`stale`), manual(bool), result（对齐结果 msgpack；F0 指向文件）, created_at | 不可变版本 |
+| `measure_run` | id, kind(`alignment`/`f0`/`acoustic`), owner_type(`sample`/`asset_text`), owner_id, asset_id, range, inputs（语言、文本版本、辞典版本、前端版本、模型身份与指纹、目标区间、窗口、容差、设备）, status(`ok`/`failed`/`cancelled`/`stale`), manual(bool), result（对齐结果 msgpack；F0 指向文件）, created_at | 不可变版本 |
 | `measure_head` | owner_type, owner_id, kind, run_id | 当前采用的版本；采纳规则见规格 08 §8.4 |
-| `Data/Measurements/f0/<content_key>/` | 分段的 `f0.npy`（N×3：F0、置信度、能量，float32 逐帧无损）+ 覆盖清单 | 按声音内容共享；“同一内容 + 同一流 + 同一映射 + 完整覆盖”才复用（R11.10、规格 10 §10.1） |
-| `Data/Measurements/pitch_index/<content_key>.npz` | 50 ms 摘要（可靠帧 MIDI 均值、可靠覆盖率、平均能量）+ 版本信息 | 由 F0 组成，**不当缓存删**（规格 10 §10.2.5） |
+| `Data/Measurements/f0/<asset_id>/` | 分段的 `f0.npy`（N×3：F0、置信度、能量，float32 逐帧无损）+ 覆盖清单 | 按资产共享；“同一资产（同一文件 + 同一流 + 同一映射 + 完整覆盖”才复用（R11.10、规格 10 §10.1） |
+| `Data/Measurements/pitch_index/<asset_id>.npz` | 50 ms 摘要（可靠帧 MIDI 均值、可靠覆盖率、平均能量）+ 版本信息 | 由 F0 组成，**不当缓存删**（规格 10 §10.2.5） |
 
 拉平成品的 `pitch:` 标签来自资产 `production.target`（登记时记录的目标音），不来自重测（规格 11 §11.4）。
 
@@ -274,7 +275,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 1. **声音**：对每个要独立化的采样，把它绑定资产的 `[start, end)`（两端各留 1 帧余量）解码为**无损 WAV 切片**（源是无损时用与源相同位深的整数 PCM；源是 MP3 正式音轨时用 32-bit float，与解码结果逐样本相同）写入
    `Library/Independent/<source-key>/`，作为该资产的 `asset_storage(kind=materialized_slice)`。采样的绑定（资产 + 区间）**不变**，
-   所以测量（按 `content_key` 共享）、固定结果、来源记录都继续有效——测的就是同一段声音（PCM 相同，切片无损正是为此）。
+   所以测量（按资产共享）、固定结果、来源记录都继续有效——测的就是同一段声音（PCM 相同，切片无损正是为此）。
 2. **画面**：按该采样的画面绑定生成视频片段（同步视频取原片对应区间），存入同一目录，作为采样的 `visual_binding(mode=materialized_clip)`。
 3. **原片元数据**：删除原片时，若仍有已独立化的采样，原片记录保留为 `media_state=released`：作品、集数、来源类型、字幕版本与标注、OP/ED、
    资产角色等都在，标签继承与来源追溯照常工作；原片文件引用置空，未被切片覆盖的资产区间不可播放（明确报错）。
@@ -284,6 +285,20 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 > 物化切片用无损 WAV（所有者 2026-10-05：不用 FLAC，很多软件不支持），而不是 MP3 V0，是为了让“测量随资产保留”严格成立。
 
 ---
+
+### 4.10 独立素材：独立导入与媒体已释放（所有者 2026-10-06 提议，评估后采纳）
+
+所有者的想法：独立导入的外部音频和“删除原片后保留下来的独立化采样”本质相近——都可以视作一种原片，只是全部区间都已派生为采样；
+在原片页单独划一块区域放它们，用原片的一个属性区分。
+
+评估：**合理，并且让数据模型更统一。**
+
+- 数据上两者都是 `source`：独立导入 = `kind=standalone`（一个文件、一条资产、一个覆盖整段的采样）；媒体已释放 = `kind=media` + `media_state=released`（原片记录保留，资产只剩物化切片）。
+  不需要新表，标签继承、来源追溯、截取子采样、拉平、分离、导出都走原片的同一套逻辑。
+- 原片页列表分两区：上面是可以整集浏览的原片（按作品分组），下面是“独立素材”（独立导入 + 媒体已释放）。查看器对它们显示一行说明，不显示准备清单。
+- 区别仍然要在界面上说清：独立导入的文件**留在原位置不复制**（规格 06 §6.6 / 18 D34），外部文件被移走或删除就会失效（可“重新定位”）；
+  媒体已释放的声音与画面在素材库里（`Library/Independent/`），原片文件不再需要。
+- 一个代价：独立导入多了以后“独立素材”区会变长——它按名称排序、可搜索，并且和普通原片一样可以批量删除。
 
 ## 5. 统一编辑通道
 
@@ -301,15 +316,15 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 ## 6. 用户可见存储布局（目录名一律英文）
 
 ```
-<Workspace>/                         工作区（发布版默认 ~/Documents/OttoSmasher Workspace/，可在设置里换；开发期 = 仓库内 dev-workspace/）
+<Workspace>/                         工作区：用户数据（数据库、素材库、模型）。开发期 = 仓库内 dev-workspace/；发布版默认 ~/Documents/OttoSmasher Workspace/，设置里可换
 ├── Library/                         素材库：用户可见，不是缓存，不自动清理
 │   ├── Tracks/
-│   │   └── src-<id8>/               每个原片一个目录（src- + 原片 ID 前 8 位；目录名只用 ASCII）
+│   │   └── <作品 集数> [<id8>]/      每个原片一个目录，名字可读（建立时按作品与集数取名，之后不随改名移动）
 │   │       ├── Separation/          分离声部（LAME VBR V0 MP3）
 │   │       ├── Flatten/             拉平成品（MP3 V0）
 │   │       └── Reimport/            回导成品（复制进来，保持原格式）
 │   ├── Independent/
-│   │   └── src-<id8>/               独立化物化：WAV 声音切片、视频片段
+│   │   └── <作品 集数> [<id8>]/      独立化物化：WAV 声音切片、视频片段
 │   ├── Exports/
 │   │   └── 2026-10-05/              默认导出（WAV、视频片段），按导出日期分目录
 │   └── REAPER/
@@ -327,7 +342,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
     └── Staging/                     原子发布用的临时文件（与 Library 同卷）
 ```
 
-- 文件名里的内容段（采样名、原片名）照常保留中日文；目录名只用 ASCII 英文。界面里每个原片/采样都有“打开所在目录”。
+- **长期固定的目录名一律英文**（`Library/`、`Tracks/`、`Separation/`、`Flatten/`、`Reimport/`、`Independent/`、`Exports/`、`REAPER/`、`Models/`、`Data/` 及其下各目录）；按原片、按日期生成的子目录不受限制，可以用中日文（所有者 2026-10-06）。子目录与文件名都经过可移植处理（规格 12 §12.1）。界面里每个原片/采样都有“打开所在目录”。
 - **原子发布**：先写 `Data/Staging/`，校验后 `os.replace` 到目标；导出到其他卷（自定义导出目录）时先复制为同目录下的隐藏临时名再改名，
   未完成的发布记录在数据库里，启动时清理残留——用户可见目录里不会长期留下 `.part`/`.lock`（规格 12 §12.6）。
 - **租约**：临时 PCM 等文件被任务使用时登记租约（数据库行，含进程 ID 与过期时间）；清理器跳过有租约或 15 分钟内生成的文件。
@@ -490,7 +505,7 @@ class LanguageProfile(Protocol):
 | 集成（真实素材） | 通过 `OTTO_FIXTURES` 指向交接包，**小批**跑 clips/ 与指定整集片段；不全库跑模型；输出只写临时工作区 | 阶段验收前 |
 | 界面 | Vitest + Testing Library（组件：统一选择规则、范围栏、检索画布、快捷键焦点）；Playwright 驱动 Electron（端到端、伪语言）；人工只验原生播放、拖放到 REAPER 这类自动化证明不了的 | 阶段验收前 |
 | 性能 | 1 万条分页（R8.9）、3 万条三大搜索（R14.15） | 阶段 7、8 |
-| 平台 | Windows x64：CI 构建 + 冒烟；实机验收前一律标“未验收” | 阶段 10 |
+| 平台 | Windows x64：最后用 GitHub Actions 的 Windows 机器构建（需要所有者届时授权推送）；所有者手动实机验收，验收前一律标“未验收” | 阶段 10 |
 
 各阶段的验收重点（对应规格 16）：
 
@@ -514,10 +529,10 @@ class LanguageProfile(Protocol):
 | 风险 | 验证方式 | 不行时的备选 |
 |---|---|---|
 | mpv 渲染桥：软件渲染 + 共享帧缓冲在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | 阶段 1 探针：YY1-01 整集播放、拖动、逐帧，测 CPU 占用与丢帧 | GL 渲染到共享纹理；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
-| 原生扩展在 Electron 44 / Windows x64 上构建与加载 | CI（Windows runner）构建 | 改为独立 utility 进程 + 共享内存 |
+| 原生扩展在 Electron 44 / Windows x64 上构建与加载 | 阶段 10 用 GitHub Actions 构建；之前保证构建脚本两平台通用 | 改为独立 utility 进程 + 共享内存 |
 | `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 阶段 2 探针（拖到 Finder、REAPER） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
 | mpv 对 LAME 无缝 MP3 的样本级对齐 | 合成斜坡 MP3 的偏移测试 | 正式音轨改存 FLAC（要所有者同意，涉及存储预算） |
-| pydomino C++ 扩展在 Windows 上构建 | CI 构建 | 自写最小 pybind11 包装同一份上游 C++ 源码 |
+| pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 自写最小 pybind11 包装同一份上游 C++ 源码 |
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型” | 延迟导入包装 |
 | 检索 3 万条 30 秒 | 合成库基准 | numba 热点编译 |
 | wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | 预计算多级峰值、只喂当前缩放级别需要的分辨率 | 整集时间线改用自绘画布，详情仍用 wavesurfer |

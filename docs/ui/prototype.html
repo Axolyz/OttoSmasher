@@ -409,6 +409,24 @@ details.mini>.pane{position:absolute;right:0;top:calc(100% + 6px);z-index:6;back
 .srow .prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:3px}
 .srow .prog i{display:block;height:100%;background:var(--ok)}
 .transcript .th2{padding:10px 14px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px}
+
+.scope{gap:10px}
+.scopebox{background:color-mix(in srgb,var(--accent) 7%,var(--s1));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.zl{font-size:10.5px;letter-spacing:.6px;color:var(--faint);padding:0 6px 0 4px;white-space:nowrap}
+.scopebox .zl{color:var(--accent2)}
+.mod{font-size:11.5px;color:var(--warn);white-space:nowrap}
+.chip.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11.5px}
+.findbox{flex:1.1;display:flex;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:0 8px;min-height:36px}
+.findbox:focus-within{border-color:var(--accent)}
+.findbox.bad{border-color:var(--bad)}
+.findbox input{border:none;background:transparent;padding:4px 2px;min-width:0}
+.findbox #textIn{flex:1}
+.findbox #expr{flex:1.2;font-size:12px}
+.findbox .lbl{color:var(--faint);font-size:11px;white-space:nowrap}
+.vsep{width:1px;height:18px;background:var(--line)}
+.relbanner{grid-column:1/3;margin:12px 16px 0;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,var(--s1));border-radius:10px;padding:8px 12px;font-size:12.5px;color:var(--sub)}
+.srclist .sg.sec{margin-top:10px;border-top:1px solid var(--line2);padding-top:12px;display:flex;align-items:center;gap:6px}
+.viewer:has(.relbanner){grid-template-rows:auto minmax(0,1fr) auto}
 </style>
 </head>
 <body>
@@ -538,14 +556,18 @@ function exported(name){S.exported=name;renderDock()}
 function renderLibrary(){
   $("#pg-library").innerHTML=`
    <div class="scope">
-     <div class="omni" id="omni">
-       <button class="preset" id="presetBtn" title="保存的筛选器（范围预设）">⚑ ${S.preset?esc(PRESETS.find(p=>p.id===S.preset).name):"筛选器"} ▾</button>
-       ${S.chips.map((c,i)=>`<span class="chip"><span class="k">${c[0]}</span>${esc(c[1])}<button class="x" data-rm="${i}">×</button></span>`).join("")}
-       ${S.text?`<span class="chip"><span class="k">文字</span>${esc(S.text)}<button class="x" data-rmt>×</button></span>`:""}
-       <input class="q" id="omniIn" placeholder="${S.chips.length?"再加条件…":"范围：输入作品、人物、音高、标签或文字…"}" autocomplete="off">
+     <div class="omni scopebox" id="omni" title="范围（副栏）：先圈定在哪些采样里工作，平时很少改；检索、切用途都不会动它；保存筛选器保存的就是它">
+       <span class="zl">范围</span>
+       <button class="preset" id="presetBtn" title="保存的筛选器 = 一组范围条件的命名预设">⚑ ${S.preset?esc(PRESETS.find(p=>p.id===S.preset).name):"全部采样"} ▾</button>
+       ${presetModified()?`<span class="mod">已修改 · <span class="link" id="pUpd">更新筛选器</span> · <span class="link" id="pSaveAs">另存</span></span>`:""}
+       ${S.chips.map((c,i)=>`<span class="chip ${c[0]==="范围表达式"?"mono":""}"><span class="k">${c[0]}</span>${esc(c[1])}<button class="x" data-rm="${i}">×</button></span>`).join("")}
+       <input class="q" id="omniIn" placeholder="${S.chips.length?"加条件…":"加范围条件：作品、人物、音高、原片…"}" autocomplete="off">
        <div class="suggest" id="suggest"></div>
      </div>
-     <div class="expr" id="exprBox" title='主标签表达式：只写这次要找的；NOT > AND > OR；"命名空间:*" 前缀通配。与范围取交集'><span class="lbl">表达式</span><input id="expr" class="mono" placeholder='NOT "participants:*"' value="${esc(S.expr)}" spellcheck="false"></div>
+     <div class="findbox" id="exprBox" title="查找（主栏）：这次真正要找的东西，随时改；不存进筛选器">
+       <span class="zl">查找</span><span class="muted">⌕</span><input id="textIn" placeholder="文字：名称、原句、读音、备注" value="${esc(S.text)}" autocomplete="off">
+       <span class="vsep"></span><span class="lbl">表达式</span><input id="expr" class="mono" placeholder='NOT "participants:*"' value="${esc(S.expr)}" spellcheck="false">
+     </div>
      <button id="importBtn" title="导入独立采样（也可把文件拖进本页）">导入</button>
    </div>
    <div class="lib">
@@ -556,29 +578,32 @@ function renderLibrary(){
   bindScope();renderResults();renderStage();
 }
 const FACETS={作品:WORKS,人物:[...CH["Yuru Yuri"],...CH["Kemono Friends"]],音高:NOTES,其他:["好用","尖叫","speaker-status:多人未分段"],原片:["Yuru Yuri · 01","Yuru Yuri 2 · 07","Kemono Friends · 08"],性质:Object.values(NAT)};
+function presetModified(){if(!S.preset)return false;const p=PRESETS.find(x=>x.id===S.preset);return JSON.stringify(p.conds)!==JSON.stringify(S.chips)}
 function bindScope(){
   const inp=$("#omniIn"),sg=$("#suggest");
   const show=()=>{const q=inp.value.trim();let h="";
     Object.entries(FACETS).forEach(([f,vals])=>{const m=vals.filter(v=>!q||v.includes(q)||f.includes(q));if(m.length)h+=`<div class="g">${f}</div>`+m.slice(0,5).map(v=>`<div class="it" data-f="${f}" data-v="${esc(v)}"><span>${esc(v)}</span><span class="faint">${countFor(f,v)}</span></div>`).join("")});
-    if(q)h=`<div class="it" data-text="${esc(q)}"><span>文字包含「${esc(q)}」（名称、原句、读音、备注）</span><span class="kbd">↵</span></div>`+h;
-    h+=`<div class="g">其他</div><div class="it" data-star><span>仅星标 ★</span></div><div class="it" data-rexpr><span>范围表达式…（与主表达式分开，存进筛选器）</span></div>`;
+    h+=`<div class="g">其他</div>${q?`<div class="it" data-text="${esc(q)}"><span>范围内文字包含「${esc(q)}」</span></div>`:""}<div class="it" data-star><span>仅星标 ★</span></div><div class="it" data-rexpr><span>范围表达式…（高级：与主栏表达式分开，存进筛选器）</span></div>`;
     sg.innerHTML=h;sg.classList.add("on");
-    sg.querySelectorAll(".it").forEach(it=>it.onmousedown=e=>{e.preventDefault();if(it.dataset.text!=null)S.text=it.dataset.text;else if(it.dataset.star!=null)S.chips.push(["星标","★"]);else if(it.dataset.rexpr!=null){S.chips.push(["范围表达式","work:* AND NOT pitch:*"])}else{S.chips.push([it.dataset.f,it.dataset.v])}changed()})};
+    sg.querySelectorAll(".it").forEach(it=>it.onmousedown=e=>{e.preventDefault();if(it.dataset.text!=null)S.chips.push(["文字",it.dataset.text]);else if(it.dataset.star!=null)S.chips.push(["星标","★"]);else if(it.dataset.rexpr!=null){S.chips.push(["范围表达式",'NOT "speaker-status:多人未分段"'])}else{S.chips.push([it.dataset.f,it.dataset.v])}changed()})};
   inp.onfocus=show;inp.oninput=show;inp.onblur=()=>setTimeout(()=>sg.classList.remove("on"),120);
-  inp.onkeydown=e=>{if(e.key==="Enter"&&inp.value.trim()){S.text=inp.value.trim();changed()}if(e.key==="Backspace"&&!inp.value&&S.chips.length){S.chips.pop();changed()}};
+  inp.onkeydown=e=>{if(e.key==="Backspace"&&!inp.value&&S.chips.length){S.chips.pop();changed()}};
   $$("[data-rm]").forEach(b=>b.onclick=()=>{S.chips.splice(+b.dataset.rm,1);changed()});
-  $("[data-rmt]")&&($("[data-rmt]").onclick=()=>{S.text="";changed()});
-  $("#presetBtn").onclick=e=>menu(e.currentTarget,"保存的筛选器 · 选用 = 把这组条件放进范围",[...PRESETS.map(p=>[`${p.name}  <span class="faint">${p.conds.map(c=>c.join(":")).join(" · ")}</span>`,()=>{S.preset=p.id;S.chips=p.conds.map(c=>[...c]);changed()}]),"-",["把当前范围存为筛选器…",()=>modal({title:"存为筛选器",say:`将保存当前范围里的 <b>${S.chips.length+(S.text?1:0)}</b> 个条件（不含主表达式）。`,body:`<input type="text" placeholder="名称（必填）" style="width:100%">`,ok:"保存",onOk:()=>toast("已保存筛选器",{undo:"保存筛选器"})})],["管理筛选器（排序、编辑、删除）…",()=>toast("右键筛选器：编辑、上移、下移、删除（确认、可撤销）")],...(S.preset?[["取消选用",()=>{S.preset=null;changed()}]]:[])]);
+  $("#pUpd")&&($("#pUpd").onclick=()=>{PRESETS.find(x=>x.id===S.preset).conds=S.chips.map(c=>[...c]);renderLibrary();toast("已更新筛选器（可撤销）",{undo:"更新筛选器"})});
+  $("#pSaveAs")&&($("#pSaveAs").onclick=()=>saveFilterModal());
+  $("#presetBtn").onclick=e=>menu(e.currentTarget,"范围预设（保存的筛选器）· 选用 = 用它替换当前范围",[["全部采样（清空范围）",()=>{S.preset=null;S.chips=[];changed()}],"-",...PRESETS.map(p=>[`${p.name}  <span class="faint">${p.conds.map(c=>c.join(":")).join(" · ")}</span>`,()=>{S.preset=p.id;S.chips=p.conds.map(c=>[...c]);changed()}]),"-",["把当前范围存为筛选器…",saveFilterModal],["管理筛选器（排序、改名、删除）…",()=>toast("右键筛选器：改名、上移、下移、删除（确认、可撤销）")]]);
+  const ti=$("#textIn");ti.oninput=()=>{clearTimeout(window._tx);window._tx=setTimeout(()=>{S.text=ti.value.trim();changed(true)},180)};
   const ex=$("#expr");ex.oninput=()=>{clearTimeout(window._ex);window._ex=setTimeout(()=>{try{parseExpr(ex.value);$("#exprBox").classList.remove("bad");ex.title="";S.expr=ex.value;changed(true)}catch(err){$("#exprBox").classList.add("bad");ex.title=`第 ${err.p+1} 个字符：${err.m}`;toast(`表达式第 ${err.p+1} 个字符：${err.m}`)}},250)};
-  $("#importBtn").onclick=()=>modal({title:"导入独立采样",say:"已选 2 个文件。文件按原片对待：登记位置（不复制、不转码），并为整段各建一个采样。性质在这里选，不靠文件名或音高推断。",body:natSeg("imp",S.lens==="all"?"unclassified":S.lens),ok:"导入 2 个",onOk:()=>toast("已导入 2 个独立采样")});
+  $("#importBtn").onclick=()=>modal({title:"导入独立采样",say:"已选 2 个文件。每个文件登记为一个“独立素材”（不复制、不转码），并为整段建一个采样；它们在原片页的“独立素材”区里。性质在这里选，不靠文件名或音高推断。",body:natSeg("imp",S.lens==="all"?"unclassified":S.lens),ok:"导入 2 个",onOk:()=>toast("已导入 2 个独立采样")});
 }
+function saveFilterModal(){modal({title:"把当前范围存为筛选器",say:`保存范围栏里的 <b>${S.chips.length}</b> 个条件（主栏的文字和表达式不保存）。`,body:`<input type="text" placeholder="名称（必填）" style="width:100%">`,ok:"保存",onOk:()=>toast("已保存筛选器",{undo:"保存筛选器"})})}
 function countFor(f,v){return samples.filter(s=>matchChip(s,[f,v])).length}
-function matchChip(s,[f,v]){if(f==="作品")return s.work===v;if(f==="人物")return s.who&&s.who.includes(v);if(f==="音高")return s.pitch===v;if(f==="其他")return s.local.includes(v)||(v.startsWith("speaker")&&s.multi);if(f==="星标")return s.starred;if(f==="性质")return NAT[s.nature]===v;if(f==="原片")return v.startsWith(s.work)&&v.includes(s.ep);return true}
+function matchChip(s,[f,v]){if(f==="作品")return s.work===v;if(f==="人物")return s.who&&s.who.includes(v);if(f==="音高")return s.pitch===v;if(f==="其他")return s.local.includes(v)||(v.startsWith("speaker")&&s.multi);if(f==="星标")return s.starred;if(f==="性质")return NAT[s.nature]===v;if(f==="原片")return v.startsWith(s.work)&&v.includes(s.ep);if(f==="文字")return s.name.includes(v)||s.reading.includes(v);if(f==="范围表达式"){try{const fn=parseExpr(v);return !fn||fn(tagsOf(s))}catch(e){return true}}return true}
 function tagsOf(s){const t=["work:"+s.work,"type:动画"];if(s.who){if(s.multi)s.who.split("、").forEach(w=>t.push("participants:"+w)),t.push("speaker-status:多人未分段");else t.push("character:"+s.who)}if(s.pitch)t.push("pitch:"+s.pitch);return t.concat(s.local)}
 function filtered(){let fn=null;try{fn=S.expr?parseExpr(S.expr):null}catch(e){}
   return samples.filter(s=>{const nat=S.classified[s.id]?S.classified[s.id].from:s.nature;if(S.lens!=="all"&&nat!==S.lens)return false;
     if(S.text&&!(s.name.includes(S.text)||s.reading.includes(S.text)))return false;
-    if(!S.chips.every(c=>c[0]==="范围表达式"||matchChip(s,c)))return false;if(fn&&!fn(tagsOf(s)))return false;return true})}
+    if(!S.chips.every(c=>matchChip(s,c)))return false;if(fn&&!fn(tagsOf(s)))return false;return true})}
 function changed(soft){const n=S.checked.size;if(n){S.checked.clear();toast(`条件已变化，已清空 ${n} 项勾选`)}if(S.tab!=="browse")S.tab="browse";S.focusHit=null;S.pg=1;
   if(!soft)renderLibrary();else renderResults()}
 function setLens(l){S.lens=l;S.composer=false;changed();renderTop()}
@@ -962,23 +987,25 @@ function moveFocus(d){const ids=[...$("#list").querySelectorAll("[data-id]")].ma
    原片页
    ============================================================== */
 const EPS=[{id:"e1",work:"Yuru Yuri",ep:"01",lines:312,ana:280,oped:2,subs:true,vocal:"hyperacev2 · vocals",sfx:null,samples:296,dur:1436.435},{id:"e2",work:"Yuru Yuri",ep:"02",lines:298,ana:0,oped:2,subs:true,vocal:"hyperacev2 · vocals",sfx:null,samples:0,dur:1436},
-  {id:"e3",work:"Yuru Yuri 2",ep:"07",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:4,dur:1436,tracks:2},{id:"e4",work:"Kemono Friends",ep:"08",lines:288,ana:0,oped:2,subs:true,vocal:null,sfx:null,samples:0,dur:1437.9},{id:"e5",work:"外部视频",ep:"千鹤弹吉他",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:1,dur:24.857,ext:true}];
+  {id:"e3",work:"Yuru Yuri 2",ep:"07",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:4,dur:1436,tracks:2},{id:"e4",work:"Kemono Friends",ep:"08",lines:288,ana:0,oped:2,subs:true,vocal:null,sfx:null,samples:0,dur:1437.9},{id:"e5",work:"外部视频",ep:"千鹤弹吉他",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:1,dur:24.857,ext:true},{id:"e6",kind:"standalone",work:"",ep:"番凩-2019-.mp3",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:1,dur:222.0},{id:"e7",kind:"standalone",work:"",ep:"guitar_take3.wav",lines:0,ana:0,oped:0,subs:false,vocal:null,sfx:null,samples:1,dur:0.956},{id:"e8",kind:"released",work:"Yuru Yuri",ep:"03",lines:305,ana:120,oped:2,subs:true,vocal:"hyperacev2 · vocals",sfx:null,samples:3,dur:1436}];
 const TL=[[80.2,82.0,"京子","ちょっと待って"],[82.4,83.6,"結衣","なに？"],[84.247,172.768,"OP","♪"],[173.2,174.6,"","（足音）"],[175.0,177.1,"あかり","おーい～"],[177.6,179.2,"","そうなんだ"],[180.0,181.4,"","（殴る音）"],[182.0,184.3,"京子","やったー！"],[185.0,186.2,"ちなつ","いくよー"],[187.0,188.6,"結衣、京子","ありがとう"]];
 let srcWave=null;
 function sourcesHeadHtml(){const e=EPS.find(x=>x.id===S.src.focus);const steps=prepSteps(e);const ok=steps.filter(s=>s.ok).length;
+  if(e.kind)return `<button class="flat" id="listTg">☰ ${S.src.listOpen?"收起列表":"原片列表"}</button><b style="font-size:14px">${esc(e.kind==="released"?e.work+" · "+e.ep:e.ep)}</b><span class="pill">${e.kind==="standalone"?"独立导入":"媒体已释放"}</span><button class="flat" id="epMore">⋯</button>`;
   return `<button class="flat" id="listTg" title="显示/收起原片列表">☰ ${S.src.listOpen?"收起列表":"原片列表"}</button><b style="font-size:14px">${esc(e.work)} · ${esc(e.ep)}</b>
    <button id="prepBtn" class="row" title="准备清单：只是状态与入口，没有顺序、不强制">准备 <span class="prepbar">${steps.map(s=>`<i class="${s.ok?"ok":""}"></i>`).join("")}</span><span class="num">${ok}/${steps.length}</span> ▾</button><button class="flat" id="epMore">⋯</button>`}
 function prepSteps(e){return [{k:"sub",n:"字幕标记",ok:e.subs,d:e.subs?`当前版本 · ${e.lines} 行`:"未导入（没有字幕也能完整使用）",a:"导入…"},{k:"sep",n:"整轨人声分离",ok:!!e.vocal,d:e.vocal?"hyperacev2 · vocals":"未分离",a:"分离…"},{k:"dv",n:"默认人声轨",ok:!!e.vocal,d:e.vocal||"未指定",a:"指定…"},{k:"ds",n:"默认音效轨",ok:!!e.sfx,d:e.sfx||"未指定",a:"指定…"},{k:"op",n:"OP / ED",ok:e.oped>0,d:e.oped?`字幕规则 · ${e.oped} 段`:"未识别",a:"识别 / 标记…"},{k:"ln",n:"台词采样",ok:e.samples>0,d:`${e.samples} 个`,a:"从字幕导入…"},{k:"ana",n:"语音分析",ok:e.ana>0&&e.ana>=e.lines*.8,d:`${e.ana}/${e.lines}`,a:"语音分析…"}]}
-function bindSourcesHead(){$("#listTg").onclick=()=>{S.src.listOpen=!S.src.listOpen;renderSources();renderTop()};
+function bindSourcesHead(){if(!$("#prepBtn")){$("#listTg").onclick=()=>{S.src.listOpen=!S.src.listOpen;renderSources();renderTop()};$("#epMore").onclick=e=>menu(e.currentTarget,"独立素材",[["作品与输入设置…",epSettingsModal],["重新定位文件…",()=>toast("只改文件位置引用")],["删除…",()=>toast("删除这个来源及其采样（确认框写明删什么、不删什么）")]]);return}$("#listTg").onclick=()=>{S.src.listOpen=!S.src.listOpen;renderSources();renderTop()};
   $("#epMore").onclick=e=>menu(e.currentTarget,"原片",epItems(EPS.find(x=>x.id===S.src.focus)).slice(11));
   $("#prepBtn").onclick=e=>{const r=e.currentTarget.getBoundingClientRect();const ep=EPS.find(x=>x.id===S.src.focus);pop(r.left,r.bottom+8,`<div class="col"><div class="row" style="padding:2px 6px 8px"><b>准备「${esc(ep.work)} · ${esc(ep.ep)}」</b><div class="grow"></div><span class="faint xs">没有顺序 · 都可跳过</span></div>${prepSteps(ep).map(s=>`<div class="chk"><span class="st ${s.ok?"ok":""}">${s.ok?"✓":""}</span><div><div>${s.n}</div><div class="d">${esc(s.d)}</div></div><button class="flat sm" data-prep="${s.k}">${s.a}</button></div>`).join("")}</div>`);
     $$("[data-prep]").forEach(b=>b.onclick=()=>{hidePop();({sub:subImportSheet,sep:()=>sepModal("full"),dv:tracksModal,ds:tracksModal,op:opedModal,ln:()=>subSampleSheet("line"),ana:()=>analysisModal(1,"source")})[b.dataset.prep]()})}}
-function srcListHtml(){const groups={};EPS.forEach(e=>(groups[e.work]=groups[e.work]||[]).push(e));
+function srcListHtml(){const groups={};EPS.filter(e=>!e.kind).forEach(e=>(groups[e.work]=groups[e.work]||[]).push(e));const indep=EPS.filter(e=>e.kind);
   return `<div class="srclist"><div class="row" style="padding:10px 12px"><input type="text" placeholder="搜索作品/集数 ⌘F" id="srcQ" style="flex:1"><button class="pri" id="addEp" title="添加原片（多选文件；也可拖进本页）">＋</button></div>
-    <div class="sl">${Object.entries(groups).map(([w,es])=>`<div class="sg">${esc(w)}</div>${es.map(e=>{const r=rng(e.ep.length*13+e.work.length);const h=Math.floor(r()*360);return `<div class="srow ${S.src.focus===e.id?"focus":""}" data-ep="${e.id}"><div class="ck ${S.src.checked.has(e.id)?"on":""}" data-ck>${S.src.checked.has(e.id)?"✓":""}</div><div class="th sm" style="background:linear-gradient(135deg,hsl(${h} 30% 32%),hsl(${(h+60)%360} 35% 18%))"></div><div style="min-width:0"><div class="nm">${esc(e.ep)}</div><div class="meta">${e.subs?`<span>${e.lines} 句</span><span>OP/ED ${e.oped}</span>`:`<span>无字幕</span>`}${e.tracks?`<span>${e.tracks} 音轨</span>`:""}${e.ext?"<span>外部视频</span>":""}</div>${e.lines?`<div class="prog"><i style="width:${e.ana/e.lines*100}%"></i></div>`:""}</div></div>`}).join("")}`).join("")}</div>
+    <div class="sl">${Object.entries(groups).map(([w,es])=>`<div class="sg">${esc(w)}</div>${es.map(e=>{const r=rng(e.ep.length*13+e.work.length);const h=Math.floor(r()*360);return `<div class="srow ${S.src.focus===e.id?"focus":""}" data-ep="${e.id}"><div class="ck ${S.src.checked.has(e.id)?"on":""}" data-ck>${S.src.checked.has(e.id)?"✓":""}</div><div class="th sm" style="background:linear-gradient(135deg,hsl(${h} 30% 32%),hsl(${(h+60)%360} 35% 18%))"></div><div style="min-width:0"><div class="nm">${esc(e.ep)}</div><div class="meta">${e.subs?`<span>${e.lines} 句</span><span>OP/ED ${e.oped}</span>`:`<span>无字幕</span>`}${e.tracks?`<span>${e.tracks} 音轨</span>`:""}${e.ext?"<span>外部视频</span>":""}</div>${e.lines?`<div class="prog"><i style="width:${e.ana/e.lines*100}%"></i></div>`:""}</div></div>`}).join("")}`).join("")}<div class="sg sec">独立素材<i class="info" title="不能整集浏览的来源：独立导入的外部音频（整段就是一个采样），以及删除原片后保留下来的独立化采样（媒体已释放）。数据上它们也是原片，用“种类”区分">i</i></div>${indep.map(e=>`<div class="srow ${S.src.focus===e.id?"focus":""}" data-ep="${e.id}"><div class="ck ${S.src.checked.has(e.id)?"on":""}" data-ck>${S.src.checked.has(e.id)?"✓":""}</div><div class="th sm" style="background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--muted)">${e.kind==="standalone"?"♪":"▣"}</div><div style="min-width:0"><div class="nm">${esc(e.kind==="released"?e.work+" · "+e.ep:e.ep)}</div><div class="meta">${e.kind==="standalone"?`<span>独立导入</span><span>${e.dur.toFixed(1)} s</span>`:`<span class="st-w">媒体已释放</span><span>${e.samples} 个独立化采样</span>`}</div></div></div>`).join("")}</div>
     <div class="floatbar ${S.src.checked.size?"on":""}" style="bottom:10px"><span><b>${S.src.checked.size}</b> 个已勾选</span><button class="pri" id="epBulk">批量 ▾</button><button class="flat" id="epClr">✕</button></div></div>`}
 function renderSources(){const pg=$("#pg-sources");srcWave&&srcWave.destroy();srcWave=null;const e=EPS.find(x=>x.id===S.src.focus);
-  pg.innerHTML=`${S.src.listOpen?srcListHtml():""}<div class="viewer"><div class="vid" id="vid"><div class="art">画面 · libmpv 渲染到界面里的画布（字幕画在画面内部底部）</div><div class="subt" id="subt"></div><div class="vc"><span id="vplay">▶</span><span class="num" id="vt">1:20.00</span><span class="grow"></span><span>音源：原混音 · 音轨1 jpn</span><span>🔇</span></div></div>
+  const banner=e.kind==="released"?`<div class="relbanner">媒体已释放：原片文件已删除，只保留了 ${e.samples} 个独立化采样的声音与画面；作品、字幕、说话人等标签照常继承。</div>`:e.kind==="standalone"?`<div class="relbanner">独立导入的音频：整段就是一个采样。可以在这里截取更短的子采样、拉平、分离；没有字幕与准备清单。</div>`:"";
+  pg.innerHTML=`${S.src.listOpen?srcListHtml():""}<div class="viewer">${banner}<div class="vid" id="vid"><div class="art">画面 · libmpv 渲染到界面里的画布（字幕画在画面内部底部）</div><div class="subt" id="subt"></div><div class="vc"><span id="vplay">▶</span><span class="num" id="vt">1:20.00</span><span class="grow"></span><span>音源：原混音 · 音轨1 jpn</span><span>🔇</span></div></div>
     <div class="transcript"><div class="th2"><b style="white-space:nowrap">台本</b><span class="muted xs" style="white-space:nowrap">跟随播放</span><i class="info" title="当前字幕版本。跟随播放（手动滚动后暂停跟随 3.5 秒）；单击 = 选区设为这句（不播放）；Shift 单击 = 扩展到这句；双击 = 播放这句">i</i><div class="grow"></div></div>
       <div class="tl" id="tl">${TL.map((l,i)=>l[2]==="OP"?`<div class="opblk">♪ OP <span class="num">${l[0].toFixed(1)}–${l[1].toFixed(1)} s</span><span class="faint">· 字幕规则 · 排除字幕采样与批量分析</span></div>`:`<div class="line ${/（/.test(l[3])?"sfx":""}" data-l="${i}"><span class="t num">${Math.floor(l[0]/60)}:${(l[0]%60).toFixed(1).padStart(4,"0")}</span><span class="spk">${esc(l[2])}</span><span class="tx">${esc(l[3])}</span></div>`).join("")}</div></div>
     <div class="timeline wavecard" data-scope="source" tabindex="0"><div class="wavehead"><span class="srcbtn" id="srcAsset">音源 · 原混音 · 音轨1 jpn ▾</span><div class="grow"></div><button class="flat sm" id="sfit">适合</button><button class="flat sm" id="szs">放大选区</button><button class="flat sm">频谱</button><button class="flat sm">派生采样 2</button></div>
@@ -1024,7 +1051,7 @@ function flattenSheet(from,s,n){const batch=from==="batch";const dR=batch?"vowel
       :`<div class="card"><h5>外选区<span class="grow"></span><span class="faint xs">弹窗内独立播放，关闭即释放</span></h5><div id="flw"></div><div class="row"><button class="flat">▶ 试听外选区</button><span class="grow"></span><span class="sub sm">预估目标 <b style="color:var(--pt);font-size:18px">G♯5</b> · 参考 0.00–0.10 s（缓存预估，执行时以实测为准）</span></div></div>
        <div class="card"><h5>成品</h5><div class="row"><span class="muted sm">名称</span><input type="text" value="${esc(s.name||"やったー！")}" style="flex:1"></div><span class="faint xs">名称不加音名；音高写在 pitch: 标签里。失败不留任何登记。</span></div>`,
     side:`<div class="opt"><span class="ot">处理范围</span>${choices("rng",[["whole","整段","整个外选区重合成，两端不淡化"],["vowels","仅元音","各元音/N 分别重合成，之间的辅音逐样本不变；需要对齐"],["first","从首个元音起","之前的声音原样保留；需要对齐"],...(batch?[]:[["inner","内部拉平，首尾保留","在波形上拖金色内区；两侧过渡各 0.05 s"]])],dR)}</div>
-      <div class="opt"><span class="ot">目标音高</span>${choices("tgt",[["auto","段内自动","可靠帧置信加权中位数，吸附最近半音"],["edge","交界自动","边界向内 100 ms；证据不足就报错，不换侧"],["manual","手动指定","音名，或带单位的频率（如 445Hz）"]],dT)}
+      <div class="opt"><span class="ot">目标音高</span>${choices("tgt",[["auto","段内自动","可靠帧置信加权中位数，吸附最近半音"],["edge","交界自动","边界向内 100 ms；证据不足就报错，不换侧"],...(batch?[]:[["manual","手动指定","音名，或带单位的频率（如 445Hz）"]])],dT)}${batch?'<span class="faint xs">批量只提供自动定音：每项按自己的音高定音（所有者 2026-10-06）</span>':""}
       <div class="row" id="sideRow"><div class="seg"><button class="on">左侧</button><button>右侧</button></div></div><div id="manRow" class="col gap4"><input type="text" id="man" placeholder="A4 / C#5 / 445Hz"><span id="manOut" class="xs"></span></div></div>`,
     say:batch?"":"默认值随入口不同：详情 = 首元音起 + 交界左；其他单个入口 = 整段 + 段内自动；批量 = 仅元音 + 段内自动（设置可改）",ok:batch?`开始拉平 ${n} 项`:"开始拉平",onOk:()=>toast(batch?`已排队 · 批量拉平 ${n} 项`:"已排队 · 完成后只提示“资料已更新”，不切换当前采样"),
     after:sh=>{const vis=t=>{$("#sideRow").style.display=t==="edge"?"":"none";$("#manRow").style.display=t==="manual"?"":"none"};vis(dT);wireChoices(sh,(nm,v)=>{if(nm==="tgt")vis(v)});
@@ -1161,7 +1188,7 @@ addEventListener("keydown",e=>{const mod=e.metaKey||e.ctrlKey,inI=/INPUT|TEXTARE
   if($("#modal").classList.contains("on")||$("#palette").classList.contains("on"))return;
   if(mod&&["1","2","3"].includes(e.key)){e.preventDefault();return go(["library","sources","tools"][+e.key-1])}
   if(mod&&e.key===","){e.preventDefault();return settingsSheet()}if(mod&&e.key.toLowerCase()==="j"){e.preventDefault();return $("#drawer").classList.toggle("on")}
-  if(mod&&e.key.toLowerCase()==="f"){e.preventDefault();return $("#omniIn")?.focus()}
+  if(mod&&e.key.toLowerCase()==="f"){e.preventDefault();return (e.shiftKey?$("#omniIn"):$("#textIn"))?.focus()}
   if(mod&&e.key==="Enter"&&S.composer){e.preventDefault();return runSearch()}
   if(inI)return;if(mod&&e.key.toLowerCase()==="z"){e.preventDefault();return undo()}if(e.key==="?")return showHelp();
   const w=S.scope==="stage"?stageWave:S.scope==="source"?srcWave:S.scope==="sheet"?sheetWave:null;
