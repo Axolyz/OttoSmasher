@@ -33,8 +33,8 @@
 - Python 用 uv 建项目内环境（`.venv/`）；uv 的缓存与托管 Python 也放在项目内（`pyproject.toml` 的 `[tool.uv]` 设置 `cache-dir`，
   `uv.toml` 设置 `python-install-dir`）。不改全局 Python/shell 配置，不做全局安装（不用 `pip install --user`、`brew install`、`npm -g`）。
 - Node 依赖（含 Electron 二进制）装在项目里的 `node_modules/`；不用 `npm -g`。
-- 第三方二进制（libmpv、发布用的 ffmpeg/rubberband 等）由 `tools/` 下的脚本拉到 `third_party/`（gitignored），固定版本并校验 SHA-256；
-  **首次拉取某个第三方二进制前，先向所有者说明文件名、来源与大小并获得同意。**
+- 第三方二进制（libmpv、发布用的 ffmpeg/rubberband 等）由 `tools/` 下的脚本拉到 `third_party/`（gitignored），固定版本并校验 SHA-256。
+  所有者已授权：开发需要的依赖可以直接装（2026-10-05），libmpv 从 GitHub 等来源直接下载即可；仍然只装在项目内，并在 STATUS.md 记录文件名、来源、版本、大小与 SHA-256。
 - 开发期使用本机已有的 Homebrew ffmpeg / rubberband 4.0.0（只调用，不改动）。
 
 ## 5. 不进 Git 的东西
