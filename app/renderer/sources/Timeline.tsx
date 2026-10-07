@@ -5,6 +5,7 @@
 // - 两层画布：波形与刻度（视口或峰值变化时重画）、选区与播放头（每帧）。
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
+import { beginDragOut } from "../dragout";
 import { clock } from "../format";
 import { errorText, t } from "../i18n";
 import s from "./Sources.module.css";
@@ -86,6 +87,8 @@ export const Timeline = forwardRef<
     onSelection: (s: Sel | null) => void;
     onSeek: (t: number) => void;
     onPlayFrom: (t: number) => void;
+    /** ⌥ 拖出选区：返回生成好的文件（按下时冻结选区） */
+    onDragOut?: (sel: Sel) => Promise<string[]>;
   }
 >(function Timeline(props, ref) {
   const { assetId, duration } = props;
@@ -290,7 +293,19 @@ export const Timeline = forwardRef<
   const drag = useRef<null | { kind: "new" | "a" | "b" | "overview"; x0: number; t0: number; moved: boolean }>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || e.altKey) return; // ⌥ 拖出在 2.9
+    if (e.button !== 0) return;
+    if (e.altKey) {
+      // ⌥ 拖出：只在选区内按下才接管（规格 12 §12.2），选区在按下时冻结
+      const sel = propsRef.current.selection;
+      const tt = timeAt(e.clientX);
+      const r0 = wrap.current!.getBoundingClientRect();
+      if (sel && propsRef.current.onDragOut && tt >= sel.a && tt <= sel.b && e.clientY - r0.top < r0.height - OVERVIEW_H) {
+        const frozen = { ...sel };
+        const fn = propsRef.current.onDragOut;
+        beginDragOut(e, () => fn(frozen));
+      }
+      return;
+    }
     const r = wrap.current!.getBoundingClientRect();
     const y = e.clientY - r.top;
     (e.target as Element).setPointerCapture(e.pointerId);

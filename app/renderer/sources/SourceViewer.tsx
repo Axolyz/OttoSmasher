@@ -135,6 +135,13 @@ export function SourceViewer(props: {
     if (p != null) window.otto.player.seek(Math.max(0, Math.min(duration, p + d)));
   };
 
+  const exportSelection = async (r: Sel) => {
+    if (!asset) throw new Error("no asset");
+    const content = t("sources.exportContent", { name: displayName(row), a: clock(r.a), b: clock(r.b) });
+    const out = await call<{ path: string; reused: boolean }>("exports.wav", { assetId: asset.id, start: r.a, end: r.b, content, track: t("track.original") });
+    return [out.path];
+  };
+
   const exportWav = async () => {
     if (!sel || !asset) return;
     setExporting(true);
@@ -284,6 +291,7 @@ export function SourceViewer(props: {
             window.otto.player.seek(tt);
             window.otto.player.play();
           }}
+          onDragOut={exportSelection}
         />
       </div>
 

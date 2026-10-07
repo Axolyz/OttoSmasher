@@ -1,7 +1,7 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { BrowserWindow, app, dialog, ipcMain, session, shell } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
 import type { CoreStatus } from "../shared/protocol";
@@ -115,6 +115,19 @@ ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle")
 });
 ipcMain.handle("files:reveal", (_e, path: string) => {
   if (typeof path === "string" && existsSync(path)) shell.showItemInFolder(path);
+});
+
+// 拖出（规格 12 §12.2）：页面生成好文件、鼠标仍按着时请求系统拖拽。只接受已存在的普通文件。
+let dragIcon: Electron.NativeImage | null = null;
+ipcMain.on("files:startDrag", (e, files: unknown) => {
+  if (!Array.isArray(files) || !files.length) return;
+  const ok = files.filter((f): f is string => typeof f === "string" && existsSync(f) && statSync(f).isFile());
+  if (ok.length !== files.length) return;
+  if (!dragIcon) {
+    const logo = paths.repo ? join(paths.repo, "assets", "brand", "logo-1024.png") : "";
+    dragIcon = logo && existsSync(logo) ? nativeImage.createFromPath(logo).resize({ width: 48, height: 48 }) : nativeImage.createEmpty();
+  }
+  e.sender.startDrag({ file: ok[0]!, files: ok, icon: dragIcon });
 });
 
 ipcMain.handle("core:request", (_e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}));

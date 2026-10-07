@@ -147,3 +147,31 @@ class ExportService:
         finally:
             if tmp is not None:
                 tmp.unlink(missing_ok=True)
+
+
+def track_label(asset: dict[str, Any], words: dict[str, str]) -> str:
+    """导出文件名的“音轨”段（规格 12 §12.1）：按角色写 原混音 / 人声 / 音效，加工成品写 拉平 / 回导，
+    其他声部写声部原名（大小写原样）。固定词由调用方按界面语言给出。"""
+    if asset["origin"] == "flatten":
+        return words.get("flatten", "flatten")
+    if asset["origin"] == "reimport":
+        return words.get("reimport", "reimport")
+    roles = set(asset.get("roles") or [])
+    if roles:
+        return "+".join(words.get(r, r) for r in ("vocal", "sfx") if r in roles)
+    if asset["origin"] == "separation" and asset.get("stem_name"):
+        return str(asset["stem_name"])
+    return words.get("original", "original")
+
+
+def export_samples(svc: ExportService, ids: list[str], words: dict[str, str]) -> list[str]:
+    """整个采样导出 WAV（拖出、交接）：内容 = 采样当前名称；同一请求复用同一文件。"""
+    out = []
+    for sid in dict.fromkeys(ids):
+        row = svc.conn.execute('SELECT asset_id, start, "end", name FROM sample WHERE id=?', (sid,)).fetchone()
+        if row is None:
+            raise CoreError("sample-not-found", id=sid)
+        asset = assets_mod.get(svc.conn, row[0])
+        r = svc.export_wav(row[0], row[1], row[2], content=row[3], track=track_label(asset, words))
+        out.append(r["path"])
+    return out

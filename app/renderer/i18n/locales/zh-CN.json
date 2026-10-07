@@ -380,5 +380,9 @@
   "library.stageLater": "波形、语音分析、节奏与卡拍等舞台面板从阶段 3 起陆续加入。",
   "format.sec": "{v} 秒",
   "format.secParen": "（{v} 秒）",
-  "sources.timelineHelpLabel": "时间线怎么用"
+  "sources.timelineHelpLabel": "时间线怎么用",
+  "dragout.preparing": "正在准备文件，保持按住鼠标 · Esc 取消",
+  "dragout.cancelled": "已取消拖出（已生成的文件保留在导出目录）",
+  "track.flatten": "拉平",
+  "track.reimport": "回导"
 }

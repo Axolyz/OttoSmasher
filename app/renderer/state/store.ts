@@ -42,7 +42,7 @@ interface AppState {
   setCore(s: CoreStatus): void;
   setHello(h: Hello | null): void;
   setStale(v: boolean): void;
-  toast(t: Omit<Toast, "id">): void;
+  toast(t: Omit<Toast, "id"> & { sticky?: boolean }): number;
   dismiss(id: number): void;
 }
 
@@ -72,8 +72,10 @@ export const useApp = create<AppState>((set) => ({
   setStale: (stale) => set({ stale }),
   toast: (t) => {
     const id = ++toastSeq;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { ...t, id }] }));
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), t.action ? 6000 : 3500);
+    const { sticky, ...rest } = t;
+    set((s) => ({ toasts: [...s.toasts.slice(-3), { ...rest, id }] }));
+    if (!sticky) setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), t.action ? 6000 : 3500);
+    return id;
   },
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
 }));

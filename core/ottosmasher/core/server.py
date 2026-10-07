@@ -29,7 +29,7 @@ from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
 from . import assets as assets_mod
 from . import playback as playback_mod
-from .exports import ExportService
+from .exports import ExportService, export_samples
 from .samples import SampleService
 from .sources import SourceService
 from .waveforms import WaveformService
@@ -88,6 +88,7 @@ class Core:
             ),
             "samples.get": lambda p: self.samples.get(p["id"]),
             "samples.delete": lambda p: self.samples.delete(list(p["ids"])),
+            "exports.samples": lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
                 p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],

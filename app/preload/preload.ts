@@ -47,6 +47,7 @@ const api: OttoApi = {
     pick: (kind) => ipcRenderer.invoke("files:pick", kind),
     reveal: (path) => ipcRenderer.invoke("files:reveal", path),
     pathOf: (file) => webUtils.getPathForFile(file),
+    startDrag: (files) => ipcRenderer.send("files:startDrag", files),
   },
 };
 

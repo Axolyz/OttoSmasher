@@ -11,6 +11,7 @@ import { Button } from "../components/Button";
 import { TextField } from "../components/Fields";
 import { NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
 import { ConfirmDialog } from "../components/Overlay";
+import { beginDragOut } from "../dragout";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import shell from "../shell/Shell.module.css";
@@ -19,6 +20,11 @@ import { useApp } from "../state/store";
 import s from "./Library.module.css";
 
 const PAGE = 100;
+
+/** 导出文件名“音轨”段的固定词（随界面语言，规格 12 §12.1） */
+function trackWords(): Record<string, string> {
+  return { original: t("track.original"), vocal: t("role.vocal"), sfx: t("role.sfx"), flatten: t("track.flatten"), reimport: t("track.reimport") };
+}
 type Purpose = "all" | Nature;
 const PURPOSES: Purpose[] = ["all", "speech", "pitched", "unpitched", "unclassified"];
 
@@ -302,6 +308,12 @@ export function LibraryPage() {
                 }
               }}
               onDoubleClick={() => void audition(r)}
+              onPointerDown={(e) => {
+                // ⌥ 拖出：在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
+                if ((e.target as Element).closest("button, input")) return;
+                const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
+                beginDragOut(e, () => call<string[]>("exports.samples", { ids, words: trackWords() }));
+              }}
             >
               <input
                 type="checkbox"

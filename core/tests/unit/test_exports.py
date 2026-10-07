@@ -137,3 +137,28 @@ def test_multichannel_header(tmp_path):
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=channels,bits_per_sample,codec_name", "-of", "csv=p=0", str(f)],
                            capture_output=True, text=True, check=True).stdout.strip()  # fmt: skip
     assert probe == "pcm_s24le,3,24"
+
+
+def test_track_label():
+    from ottosmasher.core.exports import track_label
+
+    w = {"original": "原混音", "vocal": "人声", "sfx": "音效", "flatten": "拉平", "reimport": "回导"}
+    assert track_label({"origin": "stream", "roles": []}, w) == "原混音"
+    assert track_label({"origin": "stream", "roles": ["vocal"]}, w) == "人声"
+    assert track_label({"origin": "separation", "roles": [], "stem_name": "Vocals"}, w) == "Vocals"  # 旧版缺陷：写成“音频”
+    assert track_label({"origin": "separation", "roles": ["sfx"], "stem_name": "effects"}, w) == "音效"
+    assert track_label({"origin": "separation", "roles": ["vocal", "sfx"]}, w) == "人声+音效"
+    assert track_label({"origin": "flatten", "roles": ["vocal"]}, w) == "拉平"
+
+
+def test_export_samples_reuses(env, db):
+    from ottosmasher.core.exports import export_samples
+    from ottosmasher.core.samples import SampleService
+
+    smp = SampleService(db)
+    a = smp.create(env["asset"], 0.5, 1.0, name="やったー")
+    b = smp.create(env["asset"], 1.0, 1.25, name="えっ")
+    w = {"original": "原混音"}
+    paths = export_samples(env["svc"], [a["id"], b["id"], a["id"]], w)
+    assert len(paths) == 2 and Path(paths[0]).name.startswith("やったー__原混音__")
+    assert export_samples(env["svc"], [a["id"]], w) == paths[:1]  # 同请求复用
