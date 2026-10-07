@@ -142,6 +142,8 @@ app.on("before-quit", (e) => {
 });
 
 app.whenReady().then(() => {
+  // 开发期 Dock 图标用所有者的 logo（发布版的 .icns/.ico 在阶段 10 生成）
+  if (process.platform === "darwin" && paths.repo) app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png"));
   installCsp();
   core.start();
   createWindow();

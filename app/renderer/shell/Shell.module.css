@@ -1,6 +1,6 @@
 .app { display: grid; grid-template-columns: 68px 1fr; height: 100vh; }
 .rail { background: var(--rail); border-right: 1px solid var(--line2); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; }
-.logo { width: 34px; height: 34px; border-radius: 10px; background: conic-gradient(from 200deg, var(--accent), var(--wave), var(--nat-pitched), var(--accent)); margin-bottom: 14px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #0b0d10; }
+.logo { width: 34px; height: 34px; border-radius: 9px; margin-bottom: 14px; display: block; }
 .ri { width: 56px; padding: 7px 0 5px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); font-size: 10.5px; position: relative; border: none; background: transparent; cursor: default; outline: none; }
 .ri svg { width: 20px; height: 20px; stroke-width: 1.6; }
 .ri[data-hovered] { color: var(--text); background: var(--s2); }

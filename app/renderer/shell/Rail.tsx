@@ -2,6 +2,7 @@ import { AudioLines, Clapperboard, Settings, SquareStack, Wrench } from "lucide-
 import type { ReactNode } from "react";
 import { Button as RacButton } from "react-aria-components";
 import { t } from "../i18n";
+import logo from "../assets/logo-136.png";
 import { type Page, useApp } from "../state/store";
 import s from "./Shell.module.css";
 
@@ -26,9 +27,7 @@ export function Rail(props: { activeJobs: number }) {
   };
   return (
     <nav className={s.rail}>
-      <div className={s.logo} aria-hidden>
-        O
-      </div>
+      <img className={s.logo} src={logo} alt="" aria-hidden draggable={false} />
       <Item testId="nav-library" on={page === "library"} icon={<SquareStack />} label={t("nav.library")} onPress={go("library")} />
       <Item testId="nav-sources" on={page === "sources"} icon={<Clapperboard />} label={t("nav.sources")} onPress={go("sources")} />
       <Item testId="nav-tools" on={page === "tools"} icon={<Wrench />} label={t("nav.tools")} onPress={go("tools")} />
