@@ -154,10 +154,12 @@ class Player : public Napi::ObjectWrap<Player> {
       cv_.wait(lk, [this] { return update_pending_ || quit_; });
       if (quit_) break;
       update_pending_ = false;
+      bool force = force_render_;  // 画布尺寸变了：即使暂停、没有新帧，也重画当前帧（否则切回页面后是黑的）
+      force_render_ = false;
       int w = width_, h = height_;
       lk.unlock();
       uint64_t flags = mpv_render_context_update(rctx_);
-      if ((flags & MPV_RENDER_UPDATE_FRAME) && w > 0 && h > 0) {
+      if (((flags & MPV_RENDER_UPDATE_FRAME) || force) && w > 0 && h > 0) {
         size_t stride = static_cast<size_t>(w) * 4;
         back_.resize(stride * h);
         int size[2] = {w, h};
@@ -239,6 +241,7 @@ class Player : public Napi::ObjectWrap<Player> {
       width_ = info[0].ToNumber().Int32Value();
       height_ = info[1].ToNumber().Int32Value();
       update_pending_ = true;
+      force_render_ = true;
     }
     cv_.notify_one();
     return info.Env().Undefined();
@@ -306,6 +309,7 @@ class Player : public Napi::ObjectWrap<Player> {
   std::condition_variable cv_;
   std::atomic<bool> quit_{false};
   bool update_pending_ = false;
+  bool force_render_ = false;
   int width_ = 0, height_ = 0;
   std::vector<uint8_t> front_, back_;
   int front_w_ = 0, front_h_ = 0;
