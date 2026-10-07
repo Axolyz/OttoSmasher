@@ -8,6 +8,7 @@ stderr 是日志。只写本任务目录；登记与否由 Core 决定（取消�
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -59,7 +60,10 @@ def _selftest_sleep(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     children = []
     for _ in range(int(params.get("children", 0))):
         children.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)"]))
-    (ctx.job_dir / "children.json").write_text(json.dumps([c.pid for c in children]))
+    # 原子写入：别人（测试、诊断）随时可能来读，不能读到写了一半的文件
+    tmp = ctx.job_dir / f"children.json.{os.getpid()}.tmp"
+    tmp.write_text(json.dumps([c.pid for c in children]))
+    os.replace(tmp, ctx.job_dir / "children.json")
     seconds = float(params.get("seconds", 1.0))
     steps = max(1, int(seconds / 0.05))
     for i in range(steps):
