@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Any
 
-from ottosmasher.domain.mapping import Mapping
+from ottosmasher.domain.mapping import FileWindow, Mapping
+from ottosmasher.media import decode as dec
 from ottosmasher.media import probe as probe_mod
 
 from .clock import new_id, now_iso
@@ -99,3 +101,63 @@ def check_default_track(conn: sqlite3.Connection, source_id: str, asset_id: str,
         raise CoreError("default-track-invalid", reason="not-full-track", asset=asset_id)
     if role not in a["roles"]:
         raise CoreError("default-track-invalid", reason="missing-role", asset=asset_id, role=role)
+
+
+# ---------------------------------------------------------------- 定位声音（导出、波形、播放共用）
+
+
+def rate_of(conn: sqlite3.Connection, asset: dict[str, Any]) -> int:
+    """资产的采样率（端点一帧容差用）。"""
+    if asset["origin"] == "stream":
+        r = conn.execute(
+            "SELECT sample_rate FROM source_stream WHERE source_id=? AND kind='audio' AND ordinal=?",
+            (asset["source_id"], asset["stream_ordinal"]),
+        ).fetchone()
+        if r and r[0]:
+            return int(r[0])
+    r = conn.execute("SELECT sample_rate FROM media_file WHERE id=?", (asset["media_file_id"],)).fetchone()
+    if r and r[0]:
+        return int(r[0])
+    raise CoreError("decode-failed", path=None, detail="unknown-sample-rate")
+
+
+def locate(
+    conn: sqlite3.Connection, workspace_root: Path, asset: dict[str, Any], start: float, end: float
+) -> tuple[dec.StreamRef, FileWindow, dict[str, Any]]:
+    """资产局部区间 [start, end) → 存放它的文件、流与文件时间窗口（主存储优先）。找不到覆盖它的存储 → 报错。"""
+    rows = conn.execute(
+        "SELECT s.range_start, s.range_end, m.id, m.path, m.location, m.file_snapshot, m.format"
+        " FROM asset_storage s JOIN media_file m ON m.id = s.media_file_id WHERE s.asset_id=?"
+        " ORDER BY s.kind='primary' DESC",
+        (asset["id"],),
+    ).fetchall()
+    for r in rows:
+        win = FileWindow(r[0], r[1])
+        if not win.covers(start, end):
+            continue
+        path = r[3] if r[4] == "external" else str(workspace_root / r[3])
+        snap = loads(r[5]) if r[5] else {}
+        if asset["origin"] == "stream":
+            st = conn.execute(
+                "SELECT sample_rate, channels, codec FROM source_stream WHERE source_id=? AND kind='audio' AND ordinal=?",
+                (asset["source_id"], asset["stream_ordinal"]),
+            ).fetchone()
+            ordinal, rate, channels, codec = asset["stream_ordinal"], st[0], st[1], st[2]
+        else:
+            check_media({"path": path, "snapshot": snap})
+            pr = probe_mod.probe(path)
+            ordinal, rate, channels, codec = 0, pr.audio[0].sample_rate, pr.audio[0].channels, pr.audio[0].codec
+        if not rate or not channels:
+            raise CoreError("decode-failed", path=path, detail="unknown-format")
+        return dec.StreamRef(path, ordinal, rate, channels, codec, r[6]), win, {"media_file_id": r[2], "path": path, "snapshot": snap}
+    raise CoreError("asset-file-missing", id=asset["id"])
+
+
+def check_media(media: dict[str, Any]) -> None:
+    """用之前核对文件：缺失 → “绑定音轨缺失”；大小/修改时间变了 → “音源已改变”。不回退到别的轨。"""
+    try:
+        probe_mod.check_unchanged(media["path"], media["snapshot"])
+    except CoreError as e:
+        if e.code == "file-missing":
+            raise CoreError("asset-file-missing", path=media["path"]) from None
+        raise

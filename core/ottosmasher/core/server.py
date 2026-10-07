@@ -30,6 +30,7 @@ from .scheduler import Scheduler
 from . import assets as assets_mod
 from .exports import ExportService
 from .sources import SourceService
+from .waveforms import WaveformService
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class Core:
         self.jobs: Scheduler
         self.sources: SourceService
         self.exports: ExportService
+        self.waveforms: WaveformService
         self.interrupted_on_start = 0
         self._stop = False
         self.commands: dict[str, Handler] = {
@@ -63,6 +65,7 @@ class Core:
             "sources.delete": lambda p: self.sources.delete(p["id"]),
             "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
             "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
+            "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
                 p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
                 local_prefix=p.get("localPrefix"), processing=p.get("processing", ""), directory=p.get("directory"),
@@ -95,6 +98,7 @@ class Core:
         self.edits = EditService(self.conn, on_change=self._on_change)
         self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
         self.exports = ExportService(self.conn, self.ws)
+        self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
             self.conn,
             self.ws.jobs,
@@ -109,6 +113,7 @@ class Core:
 
     def close(self) -> None:
         try:
+            self.waveforms.shutdown()
             self.jobs.kill_all()
         finally:
             self.conn.close()

@@ -78,6 +78,9 @@ def test_file_offset_applied_once():
     sl = FileWindow(local_start=3.0, local_end=5.0)
     assert sl.to_file(3.5) == approx(0.5)
     assert sl.covers(3.2, 4.0) and not sl.covers(2.9, 4.0)
+    assert sl.to_local(0.5) == approx(3.5) and win.to_local(0.5) == approx(0.1)
+    with pytest.raises(CoreError):
+        sl.to_local(2.5)
     with pytest.raises(CoreError):
         sl.to_file(5.5)
 

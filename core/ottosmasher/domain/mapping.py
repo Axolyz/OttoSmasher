@@ -219,5 +219,12 @@ class FileWindow:
         t = min(max(t, self.local_start), self.local_end)
         return self.file_start + (t - self.local_start)
 
+    def to_local(self, f: float) -> float:
+        """文件秒 → 资产局部秒（to_file 的逆）。"""
+        lo, hi = self.file_start, self.file_start + (self.local_end - self.local_start)
+        if f < lo - EPS or f > hi + EPS:
+            raise _out_of_range(f, lo, hi, "file")
+        return self.local_start + (min(max(f, lo), hi) - self.file_start)
+
     def covers(self, start: float, end: float) -> bool:
         return start >= self.local_start - EPS and end <= self.local_end + EPS
