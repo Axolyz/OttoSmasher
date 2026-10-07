@@ -47,6 +47,13 @@ test("播放：范围截停、代次、一个声音、试听", async () => {
   await page.waitForTimeout(300);
   expect((await states()).filter((s) => s.player === "source" && s.gen === gen && s.ended)).toHaveLength(1);
 
+  // 往回的范围：上一次停在 1.4，这次 1.0–1.2，旧位置不能让它立刻“结束”（旧版 mpv 桥的教训：跳转完成前丢弃位置）
+  gen = await page.evaluate(() => window.otto.player.playRange(1.0, 1.2));
+  end = await waitEnded("source", gen);
+  expect(end.time!).toBeCloseTo(1.2, 3);
+  const during = (await states()).filter((s) => s.player === "source" && s.gen === gen && s.playing);
+  expect(during.length).toBeGreaterThan(0); // 真的播放过，不是一开始就判为结束
+
   // 过期请求不能改终点：连续两个请求，只按最新的截停
   gen = await page.evaluate(() => {
     window.otto.player.playRange(2.0, 4.0);

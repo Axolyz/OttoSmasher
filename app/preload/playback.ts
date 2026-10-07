@@ -7,6 +7,9 @@
 // - 代次：每个请求加一；文件加载完成前的跳转/播放挂起，加载完成后按“最新请求”执行（幂等，旧加载的事件不会放错区间）；
 //   结束只通知一次；旧代次的状态不再发出。
 // - 时钟：原片播放器报原片秒，试听播放器报区间本地秒；约每 50 ms 推一次，两次之间由界面插值。
+// - 跳转发出后到引擎报 playback-restart 之前，丢弃 time-pos / eof-reached（否则跳转前的旧位置会漏出来，
+//   例如往回播一个范围时旧位置已越过新终点 → 误判结束）；结束以引擎的 eof-reached 为准，显示时间贴到范围终点。
+//   这两条借鉴旧版 mpv 桥（所有者 2026-10-07 允许只看旧版 mpv 部分代码）。
 import { ipcRenderer } from "electron";
 import type { CoreErrorWire, CoreResult, PlayerName, PlayerState } from "../shared/protocol";
 import { AudioPlayer, CanvasPlayer, type MpvEvent, type MpvLike } from "./player";
@@ -40,6 +43,8 @@ class Engine {
   private range: Range | null = null;
   private endedGen = -1;
   private time: number | null = null;
+  private eof = false;
+  private awaitingSeek = false;
   private playing = false;
   private loading = false;
   private error: CoreErrorWire | undefined;
@@ -121,7 +126,7 @@ class Engine {
         this.mpv.set("ab-loop-b", "no");
         this.mpv.set("end", String(b));
       }
-      this.mpv.command(["seek", String(a), "absolute+exact"]);
+      this.seekTo(a);
       this.start();
     });
   }
@@ -130,7 +135,7 @@ class Engine {
   play(): void {
     this.whenLoaded(() => {
       this.clearRange();
-      if (this.mpv.get("eof-reached") === "yes") this.mpv.command(["seek", String(this.time ?? 0), "absolute+exact"]);
+      if (this.mpv.get("eof-reached") === "yes") this.seekTo((this.time ?? 0) + this.offset);
       this.start();
     });
   }
@@ -146,7 +151,7 @@ class Engine {
     this.whenLoaded(() => {
       if (gen !== this.gen) return;
       this.clearRange();
-      this.mpv.command(["seek", String(t + this.offset), "absolute+exact"]);
+      this.seekTo(t + this.offset);
     });
   }
 
@@ -162,6 +167,14 @@ class Engine {
     this.mpv.set("pause", "yes");
     this.clearRange();
     this.push(true);
+  }
+
+  /** 精确跳转（文件秒）：先把时钟放到目标，直到引擎报 playback-restart 前不认位置事件。 */
+  private seekTo(fileT: number): void {
+    this.awaitingSeek = true;
+    this.eof = false;
+    this.time = fileT - this.offset;
+    this.mpv.command(["seek", String(fileT), "absolute+exact"]);
   }
 
   private start(): void {
@@ -188,7 +201,11 @@ class Engine {
       this.push(true);
     } else if (ev.type === "end-file" && ev.error && !this.loaded) {
       this.fail(this.gen, { code: "playback-failed", args: { detail: ev.error } });
+    } else if (ev.type === "playback-restart") {
+      this.awaitingSeek = false;
+      this.push(true);
     } else if (ev.type === "property-change") {
+      if (this.awaitingSeek && (ev.name === "time-pos" || ev.name === "eof-reached")) return; // 跳转前的旧值
       if (ev.name === "time-pos") {
         this.time = typeof ev.value === "number" ? ev.value - this.offset : null;
         this.push(false);
@@ -196,6 +213,7 @@ class Engine {
         this.playing = ev.value === false;
         this.push(true);
       } else if (ev.name === "eof-reached") {
+        this.eof = ev.value === true;
         this.push(true);
       }
     }
@@ -212,14 +230,13 @@ class Engine {
       this.pushTimer = null;
     }
     this.lastPush = t;
-    // 结束只通知一次：单次范围被引擎截停（暂停 + 到达终点）
+    // 结束只通知一次：本代次发出的单次范围被引擎截停（eof-reached），显示时间贴到范围终点
     let ended = false;
     const r = this.range;
-    if (r && r.gen === this.gen && !r.loop && !this.playing && this.endedGen !== this.gen && this.time !== null) {
-      if (this.time + this.offset >= r.b - 0.002) {
-        ended = true;
-        this.endedGen = this.gen;
-      }
+    if (r && r.gen === this.gen && !r.loop && this.eof && !this.awaitingSeek && this.endedGen !== this.gen) {
+      ended = true;
+      this.endedGen = this.gen;
+      this.time = r.b - this.offset;
     }
     this.emit({
       player: this.name,
