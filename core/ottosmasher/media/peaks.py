@@ -1,6 +1,7 @@
 """波形峰值（规格 05 §5.3.2、16 R22.10；ARCHITECTURE §10.2）。
 
 - 生成：整条流从头解码一次（流式读取，不在内存里放整段 PCM），每 ``BUCKET`` 个样本记一对 (最小, 最大)（各声道合并）；
+  缓存存 8 位整数（最小值向下、最大值向上取整，画出来的包络不会比真实的小）：24 分钟一条音轨约 0.54 MB（所有者 2026-10-07：每条 ≈0.5 MB）；
   结果缓存在 ``Data/Cache/Peaks``（可清理、可重建），键 = 文件路径 + 大小 + 修改时间 + 第几条音频流，同一文件的资产共用。
 - 查询：任意区间、按请求的点数（上限 ``MAX_POINTS``）把桶合并成不多于该点数的 (最小, 最大) 序列。
   峰值只做显示，不参与任何计算。
@@ -62,7 +63,7 @@ class Peaks:
 def cache_path(cache: Path, ref: StreamRef) -> Path:
     st = os.stat(ref.path)
     key = hashlib.sha256(
-        f"peaks1|{os.path.abspath(ref.path)}|{st.st_size}|{st.st_mtime_ns}|{ref.ordinal}|{BUCKET}".encode()
+        f"peaks2|{os.path.abspath(ref.path)}|{st.st_size}|{st.st_mtime_ns}|{ref.ordinal}|{BUCKET}".encode()
     ).hexdigest()[:24]
     return cache / "Peaks" / f"{key}.npz"
 
@@ -72,7 +73,19 @@ def load(cache: Path, ref: StreamRef) -> Peaks | None:
     if not p.is_file():
         return None
     with np.load(p) as z:
-        return Peaks(int(z["sample_rate"]), int(z["bucket"]), int(z["frames"]), z["mins"], z["maxs"])
+        return Peaks(int(z["sample_rate"]), int(z["bucket"]), int(z["frames"]), _dequant(z["mins"]), _dequant(z["maxs"]))
+
+
+Q = 127.0
+
+
+def _quant(x: np.ndarray, up: bool) -> np.ndarray:
+    q = np.ceil(x * Q) if up else np.floor(x * Q)
+    return np.clip(q, -128, 127).astype(np.int8)
+
+
+def _dequant(q: np.ndarray) -> np.ndarray:
+    return (q.astype(np.float32) / Q) if q.dtype == np.int8 else q.astype(np.float32)
 
 
 def _low_priority() -> dict[str, object]:
@@ -164,6 +177,7 @@ def build(ref: StreamRef, cache: Path, *, on_proc: Callable[[subprocess.Popen[by
     out = cache_path(cache, ref)
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_name(out.name + f".{os.getpid()}.tmp.npz")
-    np.savez(tmp, sample_rate=pk.sample_rate, bucket=pk.bucket, frames=pk.frames, mins=pk.mins, maxs=pk.maxs)
+    qmin, qmax = _quant(pk.mins, up=False), _quant(pk.maxs, up=True)
+    np.savez(tmp, sample_rate=pk.sample_rate, bucket=pk.bucket, frames=pk.frames, mins=qmin, maxs=qmax)
     os.replace(tmp, out)
-    return pk
+    return Peaks(pk.sample_rate, pk.bucket, pk.frames, _dequant(qmin), _dequant(qmax))

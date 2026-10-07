@@ -42,8 +42,10 @@ def test_build_and_query(steps_wav, tmp_path):
     for (a, b), amp in zip([(0.1, 0.9), (1.1, 1.9), (2.1, 2.9)], [0.0, 0.5, 0.9]):
         q = pk.query(a, b, 1)
         assert q["count"] == 1
-        assert np.frombuffer(q["max"], dtype="<f4")[0] == pytest.approx(amp, abs=1e-3)
-        assert np.frombuffer(q["min"], dtype="<f4")[0] == pytest.approx(-amp, abs=1e-3)
+        # 缓存是 8 位：最大值向上、最小值向下取整（包络不比真实的小，误差 ≤ 1/127）
+        mx, mn = np.frombuffer(q["max"], dtype="<f4")[0], np.frombuffer(q["min"], dtype="<f4")[0]
+        assert amp - 1e-3 <= mx <= amp + 1 / 127 + 1e-6
+        assert -amp - 1 / 127 - 1e-6 <= mn <= -amp + 1e-3
     q = pk.query(0.0, 3.0, 300)
     assert q["count"] <= 300 and q["start"] == 0.0
     assert q["step"] * q["count"] >= 3.0
@@ -53,6 +55,9 @@ def test_build_and_query(steps_wav, tmp_path):
     assert pk.query(1.5, 2.5, 100)["count"] <= 100
     with pytest.raises(CoreError):
         pk.query(2.0, 3.5, 10)
+    # 缓存存 8 位整数：每 256 样本 2 字节
+    import os
+    assert os.path.getsize(peaks_mod.cache_path(tmp_path, ref_of(steps_wav))) < 2 * (SR * 3 // 256) + 2000
     # 缓存：再读一次不重建；文件变了换新键
     assert peaks_mod.load(tmp_path, ref_of(steps_wav)) is not None
     with open(steps_wav, "ab") as fh:
@@ -82,7 +87,7 @@ def test_service_pending_then_ready(db, ws, steps_wav):
     q = svc.get(aid, 1.0, 2.0, 10)
     assert q["state"] == "ready" and q["count"] <= 10
     assert q["start"] == pytest.approx(1.0, abs=0.01)
-    assert np.frombuffer(q["max"], dtype="<f4").max() == pytest.approx(0.5, abs=1e-3)
+    assert 0.5 - 1e-3 <= np.frombuffer(q["max"], dtype="<f4").max() <= 0.5 + 1 / 127 + 1e-6
     with pytest.raises(CoreError):
         svc.get(aid, 2.5, 3.5, 10)
     svc.shutdown()

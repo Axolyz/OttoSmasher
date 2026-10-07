@@ -123,7 +123,7 @@ def save_index(ref: StreamRef, cache: Path, idx: FrameIndex) -> None:
     p = _index_path(cache, ref)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + f".{os.getpid()}.tmp.npz")
-    np.savez(tmp, pts_time=idx.pts_time, start=idx.start, total=np.int64(idx.total))
+    np.savez_compressed(tmp, pts_time=idx.pts_time, start=idx.start, total=np.int64(idx.total))  # 帧大小几乎都一样，压缩后很小
     os.replace(tmp, p)
 
 
