@@ -28,7 +28,8 @@ export function errorText(err: { code: string; args?: Record<string, unknown> })
       const one = `reason.${v}.one`;
       const key = err.args?.rule === undefined && hasKey(one) ? one : `reason.${v}`;
       if (hasKey(key)) args[k] = t(key, err.args as TArgs);
-    } else if (k === "setting" && typeof v === "string") args[k] = hasKey(`settings.${v}.label`) ? t(`settings.${v}.label`) : v;
+    } else if (k === "role" && typeof v === "string" && hasKey(`role.${v}`)) args[k] = t(`role.${v}`);
+    else if (k === "setting" && typeof v === "string") args[k] = hasKey(`settings.${v}.label`) ? t(`settings.${v}.label`) : v;
     else if (k === "field" && typeof v === "string") args[k] = v;
     else if (typeof v === "string" || typeof v === "number") args[k] = k === "index" ? Number(v) + 1 : v;
   }

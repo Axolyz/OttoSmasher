@@ -97,3 +97,53 @@ test("有效标签：说话人只给人声资产、列表显示人物、舞台�
   void s1;
   await app.close();
 });
+
+// 字幕采样（06 §6.4、R4.8–R4.9、S1.6）：缺默认轨就地选择（同时赋予角色）、默认不勾、表头全选、创建 N 项、名称与人物
+test("从字幕导入台词语音：就地指定默认轨、全选创建", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-ss-"));
+  const mkv = join(dir, "[Group] Line Show [01].mkv");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=8",
+    "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=8", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
+  writeFileSync(
+    join(dir, "[Group] Line Show [01].srt"),
+    "1\n00:00:01,000 --> 00:00:02,000\n（京子(きょうこ)たち）アッカリ～ン\n\n2\n00:00:02,050 --> 00:00:03,000\n（結衣）なに？\n\n3\n00:00:04,000 --> 00:00:05,000\n（足音）\n\n4\n00:00:05,500 --> 00:00:06,500\n普通の台詞\n",
+  );
+  const { app, page } = await launch();
+  await page.keyboard.press("Meta+2");
+  const sid = await page.evaluate(async (p) => {
+    const r = (await window.otto.core.request<Array<{ sourceId: string }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string }> };
+    const id = r.r[0]!.sourceId;
+    const pv = (await window.otto.core.request<{ token: string }>("subtitles.preview", { sourceId: id })) as { r: { token: string } };
+    await window.otto.core.request("subtitles.import", { sourceId: id, token: pv.r.token });
+    return id;
+  }, mkv);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("source-group").first().click();
+  await page.getByTestId("source-row").first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "从字幕导入台词语音…" }).click();
+  const sheet = page.getByTestId("subtitle-samples");
+  // 缺默认人声轨 → 就地选原混音（同时赋予人声角色）
+  await expect(sheet.getByTestId("subsample-missing")).toBeVisible();
+  await sheet.getByTestId("subsample-missing").getByRole("button").click();
+  await page.getByRole("option", { name: /同时赋予人声角色/ }).click();
+  await expect(sheet.getByTestId("subsample-missing")).toHaveCount(0);
+  await expect(sheet.getByTestId("stat-pending")).toContainText("3");
+  // 默认一项都不勾
+  await expect(sheet.getByTestId("subsample-run")).toBeDisabled();
+  await sheet.getByTestId("table-check-all").click();
+  await expect(sheet.getByTestId("subsample-run")).toHaveText("创建 3 项");
+  await expect(sheet.getByTestId("table-row").first()).toContainText("0.900–2.100");
+  await expect(sheet.getByTestId("table-row").first()).toContainText("京子(きょうこ)たち");
+  await page.screenshot({ path: ".cache/playwright-results/subtitle-samples.png" });
+  await sheet.getByTestId("subsample-run").click();
+  await expect(page.getByText(/已创建 3 个采样/)).toBeVisible();
+
+  await page.keyboard.press("Meta+1");
+  await page.getByTestId("refresh-lists").click();
+  const row = page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" });
+  await expect(row).toHaveAttribute("data-nature", "speech");
+  await expect(row).toContainText("京子(きょうこ)たち"); // 扩展部分碰到的結衣不继承
+  await expect(row).not.toContainText("結衣");
+  void sid;
+  await app.close();
+});

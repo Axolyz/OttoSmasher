@@ -16,6 +16,7 @@ import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
+import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
 
@@ -33,6 +34,7 @@ export function SourcesPage() {
   const [importFor, setImportFor] = useState<SourceRow | null>(null);
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
   const [tracksFor, setTracksFor] = useState<SourceRow | null>(null);
+  const [subSamples, setSubSamples] = useState<{ row: SourceRow; kind: "line" | "sfx" } | null>(null);
   const [opedFor, setOpedFor] = useState<{ row: SourceRow; initial: IdentifyResult | null } | null>(null);
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
@@ -180,6 +182,8 @@ export function SourcesPage() {
           items: [
             { id: "tracks", label: t("tracks.menu"), run: () => setTracksFor(r) },
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
+            { id: "subsample-line", label: t("subsample.menuLine"), run: () => setSubSamples({ row: r, kind: "line" }) },
+            { id: "subsample-sfx", label: t("subsample.menuSfx"), run: () => setSubSamples({ row: r, kind: "sfx" }) },
             { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
             { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
             "-",
@@ -264,6 +268,7 @@ export function SourcesPage() {
           </>
         ) : null}
       </TopSlot>
+      <SubtitleSampleSheet source={subSamples?.row ?? null} kind={subSamples?.kind ?? "line"} onClose={() => setSubSamples(null)} />
       <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
