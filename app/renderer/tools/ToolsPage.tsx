@@ -4,6 +4,7 @@ import { CoreFailure, call } from "../api/core";
 import { Button } from "../components/Button";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
+import { ProbePanel } from "./ProbePanel";
 import { Specimen } from "./Specimen";
 import s from "./Tools.module.css";
 
@@ -53,6 +54,7 @@ export function ToolsPage() {
             </div>
           </section>
         ) : null}
+        {dev ? <ProbePanel /> : null}
       </div>
       {showSpecimen ? <Specimen /> : null}
     </div>

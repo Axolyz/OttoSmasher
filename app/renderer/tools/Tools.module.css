@@ -12,3 +12,7 @@
 .swatch span { display: block; padding: 3px 6px; color: var(--muted); }
 .nat { display: inline-flex; align-items: center; gap: 6px; }
 .nat i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.probeCanvas { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: var(--r-md); }
+.stats { font-size: var(--fs-xs); color: var(--sub); user-select: text; }
+.probeCard { grid-column: 1 / -1; }
+.probeCard .probeCanvas { max-width: 960px; }

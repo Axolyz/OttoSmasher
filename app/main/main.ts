@@ -49,7 +49,8 @@ function createWindow(): BrowserWindow {
     webPreferences: {
       preload: paths.preload,
       contextIsolation: true,
-      sandbox: true,
+      // preload 不放进沙箱：它要加载 mpv 渲染桥（原生扩展）。页面世界仍然没有 Node，只能用白名单 API（ARCHITECTURE §2.5）
+      sandbox: false,
       nodeIntegration: false,
       additionalArguments: [`--otto-locale=${locale}`],
     },
@@ -87,6 +88,19 @@ function installCsp(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
     cb({ responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": [csp] } });
   });
+}
+
+if (isDev) {
+  // mpv 渲染桥探针：文件路径只来自主进程（环境变量或对话框），页面不能指定路径
+  ipcMain.handle("probe:pick", async () => {
+    if (process.env.OTTO_PROBE_FILE) return process.env.OTTO_PROBE_FILE;
+    const win = BrowserWindow.getFocusedWindow();
+    const res = win ? await dialog.showOpenDialog(win, { properties: ["openFile"] }) : await dialog.showOpenDialog({ properties: ["openFile"] });
+    return res.canceled ? null : (res.filePaths[0] ?? null);
+  });
+  ipcMain.handle("probe:metrics", () =>
+    app.getAppMetrics().map((m) => ({ type: m.type, cpu: m.cpu.percentCPUUsage, memoryMB: Math.round(m.memory.workingSetSize / 1024) })),
+  );
 }
 
 ipcMain.handle("core:request", (_e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}));
