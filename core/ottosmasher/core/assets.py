@@ -81,7 +81,7 @@ def list_for_source(conn: sqlite3.Connection, source_id: str) -> list[dict[str, 
     if src is None:
         raise CoreError("source-not-found", id=source_id)
     out = []
-    for (aid,) in conn.execute("SELECT id FROM sound_asset WHERE source_id=? ORDER BY created_at, stream_ordinal, id", (source_id,)):
+    for (aid,) in conn.execute("SELECT id FROM sound_asset WHERE source_id=? ORDER BY created_at, stream_ordinal, rowid", (source_id,)):
         a = get(conn, aid)
         a["isFullTrack"] = Mapping.of(a["mapping"]).is_full_track(src[0])
         out.append(a)
