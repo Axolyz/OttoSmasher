@@ -105,11 +105,13 @@ if (isDev) {
 
 // 文件对话框与“在 Finder 中显示”（页面拿不到 Node；路径只来自系统对话框或 Core 的记录）
 const MEDIA_EXT = ["mkv", "mp4", "mov", "webm", "m4v", "avi", "ts", "m2ts", "wav", "flac", "mp3", "m4a", "aac", "ogg", "opus", "aif", "aiff", "wma"];
-ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle") => {
+ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle" | "import") => {
   const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
   const filters =
     kind === "subtitle" ? [{ name: "Subtitles", extensions: ["srt", "ass"] }] : [{ name: "Media", extensions: MEDIA_EXT }, { name: "*", extensions: ["*"] }];
-  const properties: Array<"openFile" | "multiSelections"> = kind === "media" ? ["openFile", "multiSelections"] : ["openFile"];
+  // 采样库导入：文件或整个文件夹（规格 06 §6.6；macOS 的对话框可以同时选文件和文件夹）
+  const properties: Array<"openFile" | "openDirectory" | "multiSelections"> =
+    kind === "import" ? ["openFile", "openDirectory", "multiSelections"] : kind === "media" ? ["openFile", "multiSelections"] : ["openFile"];
   const res = win ? await dialog.showOpenDialog(win, { properties, filters }) : await dialog.showOpenDialog({ properties, filters });
   return res.canceled ? [] : res.filePaths;
 });

@@ -68,6 +68,10 @@ export interface SourceRow {
   version: number;
   audio_streams: number;
   has_video: boolean;
+  /** 采样库导入时选的根文件夹（ARCHITECTURE §4.10）；原片页「＋」登记的为 null */
+  import_root: string | null;
+  /** 有画面绑定（同名画面等，规格 12） */
+  has_picture: boolean;
   counts?: { lines: number; hasMarkers: boolean; oped: number; samples: number };
 }
 

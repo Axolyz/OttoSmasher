@@ -104,3 +104,17 @@
 .prepRow[data-ok] .prepDot { background: var(--ok); }
 .prepName { color: var(--text); }
 .prepState { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.faint { color: var(--muted); }
+
+/* 短音频原片（原型 .shortv） */
+.viewer[data-short] { grid-template-rows: auto auto minmax(0, 1fr); }
+.shortHead { display: flex; gap: 16px; align-items: flex-start; min-width: 0; }
+.poster { width: 320px; height: 180px; flex: none; border-radius: var(--r-lg); background: var(--s2); overflow: hidden; position: relative; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-sm); }
+.poster[data-none] { border: 1px dashed var(--line); background: transparent; }
+.poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.shortInfo { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: var(--fs-sm); }
+.shortName { font-size: var(--fs-lg); font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
+.shortSamples { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
+.shortSample { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 12px; border-radius: var(--r-lg); background: var(--s1); border: 1px solid var(--line2); font-size: var(--fs-md); }
+.shortSampleName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.shortChip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--sub); font-size: var(--fs-sm); white-space: nowrap; }

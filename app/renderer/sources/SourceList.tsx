@@ -14,21 +14,24 @@ import { Menu, type MenuSpec } from "../components/Menu";
 import { Thumb } from "../components/Thumb";
 import { basename, clock, stem } from "../format";
 import { t } from "../i18n";
+import { isShort, relDir } from "./short";
 import s from "./Sources.module.css";
 
 /** 原片的名字（用在导出文件名、菜单头等）：“作品 集数”，没有作品时用文件名。 */
-export function displayName(r: Pick<SourceRow, "work" | "episode" | "path">): string {
+export function displayName(r: Pick<SourceRow, "work" | "episode" | "path"> & { import_root?: string | null }): string {
   if (r.work && r.episode) return `${r.work} ${r.episode}`;
+  if (r.import_root) return basename(r.path); // 采样库导入的文件：显示文件名（原型 hit_01.ogg）
   return r.work || stem(r.path);
 }
 
 /** 顶栏里的原片标题：“作品 · 集数”（原型）。 */
-export function displayTitle(r: Pick<SourceRow, "work" | "episode" | "path">): string {
+export function displayTitle(r: Pick<SourceRow, "work" | "episode" | "path"> & { import_root?: string | null }): string {
   if (r.work && r.episode) return `${r.work} · ${r.episode}`;
   return displayName(r);
 }
 
 function rowTitle(r: SourceRow): string {
+  if (r.import_root && !r.episode) return basename(r.path);
   return r.episode ? t("sources.episode", { n: r.episode }) : stem(r.path);
 }
 
@@ -118,11 +121,23 @@ export function SourceList(props: {
           const m = props.menu(r, [r.id], false);
           return (
             <>
-              <SourceThumb id={r.id} hasVideo={r.has_video} />
+              <SourceThumb id={r.id} hasVideo={r.has_video || r.has_picture} />
               <div className={s.rowMain}>
                 <div className={s.rowTitle} title={basename(r.path)} data-user-data={r.episode ? undefined : ""}>
                   {rowTitle(r)}
                 </div>
+                {isShort(r) ? (
+                  // 短音频原片（原型游戏 A 组）：时长秒 · 子文件夹 · 同名画面
+                  <div className={s.rowMeta}>
+                    <span className="num">{t("format.sec", { v: r.duration.toFixed(2) })}</span>
+                    {relDir(r) ? (
+                      <span className={s.faint} data-user-data="">
+                        {relDir(r)}
+                      </span>
+                    ) : null}
+                    {r.has_picture ? <span>{t("sources.samePicture")}</span> : null}
+                  </div>
+                ) : (
                 <div className={s.rowMeta}>
                   <span className="num">{clock(r.duration, 0)}</span>
                   {/* 05 §5.8：句数 = 当前字幕版本中不在 OP/ED 的台词数；没导入过标记 = “无字幕”（有字幕文件但没导入另说明） */}
@@ -135,6 +150,7 @@ export function SourceList(props: {
                   {!r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
                   {r.audio_streams > 1 ? <span>{t("sources.nTracks", { n: r.audio_streams })}</span> : null}
                 </div>
+                )}
               </div>
               <span className={s.rowMenu} data-open={rowMenu === r.id || undefined}>
                 <Menu

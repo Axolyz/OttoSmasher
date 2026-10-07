@@ -7,6 +7,7 @@ KINDS: dict[str, str] = {
     "models.verify": "light",
     "studio.models": "light",
     "separate": "model",
+    "import.scan": "light",
 }
 
 # 开发与测试用的自检任务（只在开发模式下可提交）

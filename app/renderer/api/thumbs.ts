@@ -6,10 +6,13 @@ import type { CoreEvent } from "../../shared/protocol";
 import { call } from "./core";
 
 export type ThumbKind = "source" | "sample";
+/** list = 列表行（88×50 / 56×32）；poster = 短音频查看器的画面（320×180） */
+export type ThumbSize = "list" | "poster";
 type State = { state: "pending" | "ready" | "none" | "failed"; url?: string };
 interface Res {
   kind: ThumbKind;
   id: string;
+  size: ThumbSize;
   state: State["state"];
   data?: Uint8Array;
 }
@@ -20,7 +23,7 @@ const queue = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 let subscribed = false;
 
-const keyOf = (kind: ThumbKind, id: string) => `${kind}:${id}`;
+const keyOf = (kind: ThumbKind, id: string, size: ThumbSize = "list") => `${kind}:${size}:${id}`;
 
 function notify(key: string): void {
   for (const fn of listeners.get(key) ?? []) fn();
@@ -44,8 +47,8 @@ async function flush(): Promise<void> {
   for (const k of keys) queue.delete(k);
   if (queue.size) timer = setTimeout(() => void flush(), 16);
   const items = keys.map((k) => {
-    const i = k.indexOf(":");
-    return { kind: k.slice(0, i), id: k.slice(i + 1) };
+    const [kind, size] = k.split(":", 2);
+    return { kind, size, id: k.slice(kind!.length + size!.length + 2) };
   });
   let res: Res[];
   try {
@@ -55,7 +58,7 @@ async function flush(): Promise<void> {
     return;
   }
   for (const r of res) {
-    const k = keyOf(r.kind, r.id);
+    const k = keyOf(r.kind, r.id, r.size);
     if (r.state === "ready" && r.data) {
       const bytes = new Uint8Array(r.data.byteLength);
       bytes.set(r.data);
@@ -72,8 +75,8 @@ function subscribe(): void {
   subscribed = true;
   window.otto.core.onEvent((ev: CoreEvent) => {
     if (ev.e === "thumbs.ready") {
-      for (const it of (ev.d as { items: Array<{ kind: ThumbKind; id: string }> }).items) {
-        const k = keyOf(it.kind, it.id);
+      for (const it of (ev.d as { items: Array<{ kind: ThumbKind; id: string; size: ThumbSize }> }).items) {
+        const k = keyOf(it.kind, it.id, it.size);
         if (listeners.get(k)?.size) request(k);
         else cache.delete(k);
       }
@@ -81,10 +84,12 @@ function subscribe(): void {
       const d = ev.d as Record<string, string[]>;
       for (const kind of ["source", "sample"] as const) {
         for (const id of d[kind] ?? []) {
-          const k = keyOf(kind, id);
-          if (!cache.has(k)) continue;
-          if (listeners.get(k)?.size) request(k);
-          else cache.delete(k);
+          for (const size of ["list", "poster"] as const) {
+            const k = keyOf(kind, id, size);
+            if (!cache.has(k)) continue;
+            if (listeners.get(k)?.size) request(k);
+            else cache.delete(k);
+          }
         }
       }
     }
@@ -92,8 +97,8 @@ function subscribe(): void {
 }
 
 /** 一行的缩略图地址；没有视频 / 还在生成 / 失败时为 null。 */
-export function useThumb(kind: ThumbKind, id: string): string | null {
-  const key = keyOf(kind, id);
+export function useThumb(kind: ThumbKind, id: string, size: ThumbSize = "list"): string | null {
+  const key = keyOf(kind, id, size);
   const [, bump] = useState(0);
   useEffect(() => {
     subscribe();

@@ -2,7 +2,7 @@
 // 统一列表（CollectionList：UI_PLAN §6.1 的全部集合规则）、批量条、可拖动的分栏、右侧舞台。
 // 本页自己的键（集合区）：Space 试听焦点（左键原声；卡拍在阶段 6）· 1/2/3/0 设性质（勾选集或焦点，可撤销；改完留在原位，刷新后归位）·
 // S 星标 · ⌘F 聚焦查找栏的文字。条件变化清空勾选并提示；翻页保留勾选。
-import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Square, SquareStack, Star } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Plus, Square, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
@@ -24,6 +24,7 @@ import { errorText, t } from "../i18n";
 import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
+import { ImportDialog } from "./ImportDialog";
 import s from "./Library.module.css";
 
 const PAGE = 100;
@@ -58,6 +59,12 @@ export function LibraryPage() {
   const setSourceJump = useApp((st) => st.setSourceJump);
   const undo = useUndo();
   const [purpose, setPurpose] = useState<Purpose>("all");
+  const [importPaths, setImportPaths] = useState<string[] | null>(null);
+  const [drop, setDrop] = useState(false);
+  const pickImport = async () => {
+    const paths = await window.otto.files.pick("import");
+    if (paths.length) setImportPaths(paths);
+  };
   const [text, setText] = useState("");
   const [starredOnly, setStarredOnly] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -308,6 +315,9 @@ export function LibraryPage() {
           {t("library.browse")} <span className="num">{total}</span>
         </span>
         <span className={s.grow} />
+        <Button size="sm" variant="flat" icon={<Plus />} onPress={() => void pickImport()} data-testid="library-import">
+          {t("import.button")}
+        </Button>
         <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={pageNo <= 1} onPress={() => goto(pageNo - 1)} aria-label={t("pager.prev")} />
         <span className="num">
           {pageNo} / {pages}
@@ -478,7 +488,28 @@ export function LibraryPage() {
   );
 
   return (
-    <div className={s.page} data-testid="page-library">
+    <div
+      className={s.page}
+      data-testid="page-library"
+      data-drop={drop || undefined}
+      onDragOver={(e) => {
+        // 拖文件/文件夹进采样库 = 导入（06 §6.6）；页面内的拖拽不接
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDrop(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDrop(false);
+        const paths = [...e.dataTransfer.files].map((f) => window.otto.files.pathOf(f)).filter(Boolean);
+        if (paths.length) setImportPaths(paths);
+      }}
+    >
       <TopSlot page="library">
         <Segmented<Purpose>
           variant="lens"
@@ -493,6 +524,12 @@ export function LibraryPage() {
           }))}
         />
       </TopSlot>
+      <ImportDialog
+        paths={importPaths}
+        defaultNature={purpose === "all" ? "unclassified" : purpose}
+        onClose={() => setImportPaths(null)}
+        onImported={(ids) => ids[0] && setOpenSample(ids[0])}
+      />
       <SplitPane left={list} right={stage} ratio={split} onRatio={setSplit} label={t("library.splitter")} />
       <ConfirmDialog
         isOpen={!!deleteIds}

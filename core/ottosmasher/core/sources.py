@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import nullcontext
 import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import replace
@@ -45,6 +46,28 @@ def pick_default_audio(streams: list[probe_mod.Stream], preferred: str) -> int:
         if s.language and s.language.lower() in langs:
             return s.ordinal
     return streams[0].ordinal
+
+
+def exact_durations(path: str, pr: probe_mod.Probe, cache: Path) -> probe_mod.Probe:
+    """每条音频流从头解码一次，用确切样本数作时长（容器里的时长标签不精确：YY2-07-A 标 110.001 秒，
+    实际 110.000167 秒，差 40 个样本，超出一帧容差）。这次解码顺带生成波形峰值缓存（写进 cache）。约 0.5 秒 / 24 分钟 FLAC。"""
+    streams = []
+    for s in pr.streams:
+        if s.kind == "audio":
+            if not s.sample_rate or not s.channels:
+                raise CoreError("media-probe-failed", path=path, detail="unknown-audio-format")
+            pk = peaks_mod.build(StreamRef(path, s.ordinal, s.sample_rate, s.channels, s.codec, pr.format_name), cache)
+            s = replace(s, duration=pk.frames / s.sample_rate if pk.frames else None)
+        streams.append(s)
+    return probe_mod.Probe(pr.format_name, pr.format_duration, tuple(streams))
+
+
+def prepare(path: str, cache: Path, *, probe: Callable[[str], probe_mod.Probe] = probe_mod.probe) -> probe_mod.Probe:
+    """登记前的准备（不碰数据库，可以在任务进程里做）：探测 + 确切时长。没有音频流 → 报错。"""
+    pr = probe(path)
+    if not pr.audio:
+        raise CoreError("source-no-audio", path=path)
+    return exact_durations(path, pr, cache)
 
 
 def find_subtitle(path: Path) -> str | None:
@@ -95,27 +118,41 @@ class SourceService:
 
     def _add_one(self, raw: str, rules: list[str], preferred: str, import_root: str | None, cs: ChangeSet) -> dict[str, Any]:
         path = os.path.abspath(raw)
-        key = path_key(path)
-        row = self.conn.execute("SELECT id FROM source WHERE path_key=?", (key,)).fetchone()
+        row = self.conn.execute("SELECT id FROM source WHERE path_key=?", (path_key(path),)).fetchone()
         if row is not None:
             return {"path": path, "ok": True, "sourceId": row[0], "existing": True}
-        pr = self.probe(path)
-        if not pr.audio:
-            raise CoreError("source-no-audio", path=path)
-        pr = self._exact_durations(path, pr)
+        pr = prepare(path, self.workspace_root / "Data" / "Cache", probe=self.probe)
+        return self.insert(path, pr, rules, preferred, import_root, cs)
+
+    def insert(
+        self,
+        path: str,
+        pr: probe_mod.Probe,
+        rules: list[str],
+        preferred: str,
+        import_root: str | None,
+        cs: ChangeSet,
+        *,
+        work: str | None = None,
+        source_type: str | None = None,
+        tx: bool = True,
+    ) -> dict[str, Any]:
+        """登记一个已经 ``prepare`` 过的文件（不再探测）。work / source_type 给了就用它们（采样库导入），否则按文件名推断作品与集数。
+        tx=False：在调用方的事务里写（采样库导入把原片、整段采样、画面绑定放进同一个事务）。"""
+        key = path_key(path)
         audio = pr.audio
         default = pick_default_audio(audio, preferred)
         # 原片时间以默认音轨的音频时钟为准；探测不出时长就拒绝登记，不拿容器时长冒充（P7）
         duration = next(s.duration for s in audio if s.ordinal == default)
         if duration is None or duration <= 0:
             raise CoreError("media-probe-failed", path=path, detail="no-duration")
-        inferred = naming.infer_work_episode(path, rules)
+        inferred = naming.infer_work_episode(path, rules) if work is None else naming.WorkEpisode(work, "")
         snap = probe_mod.snapshot(path, pr)
         sid, ts = new_id(), now_iso()
-        with transaction(self.conn):
+        with transaction(self.conn) if tx else nullcontext(self.conn):
             self.conn.execute(
-                "INSERT INTO source(id, path, path_key, import_root, file_snapshot, duration, work, episode, subtitle_path,"
-                " default_audio_stream, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO source(id, path, path_key, import_root, file_snapshot, duration, work, episode, source_type, subtitle_path,"
+                " default_audio_stream, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     sid,
                     path,
@@ -125,6 +162,7 @@ class SourceService:
                     duration,
                     inferred.work or "",
                     inferred.episode or "",
+                    source_type or "",
                     find_subtitle(Path(path)),
                     default,
                     ts,
@@ -167,20 +205,6 @@ class SourceService:
             "assets": created,
         }
 
-    def _exact_durations(self, path: str, pr: probe_mod.Probe) -> probe_mod.Probe:
-        """每条音频流从头解码一次，用确切样本数作时长（容器里的时长标签不精确：YY2-07-A 标 110.001 秒，
-        实际 110.000167 秒，差 40 个样本，超出一帧容差）。这次解码顺带生成波形峰值缓存。约 0.5 秒 / 24 分钟 FLAC。"""
-        cache = self.workspace_root / "Data" / "Cache"  # 只写工作区，绝不写到原片旁边
-        streams = []
-        for s in pr.streams:
-            if s.kind == "audio":
-                if not s.sample_rate or not s.channels:
-                    raise CoreError("media-probe-failed", path=path, detail="unknown-audio-format")
-                pk = peaks_mod.build(StreamRef(path, s.ordinal, s.sample_rate, s.channels, s.codec, pr.format_name), cache)
-                s = replace(s, duration=pk.frames / s.sample_rate if pk.frames else None)
-            streams.append(s)
-        return probe_mod.Probe(pr.format_name, pr.format_duration, tuple(streams))
-
     # ------------------------------------------------------------ 查询
 
     def get(self, source_id: str) -> dict[str, Any]:
@@ -201,12 +225,12 @@ class SourceService:
         """原片列表（按登记时间倒序；分组与计数在界面阶段 2.7 补齐）。"""
         rows = self.conn.execute(
             "SELECT s.id, s.path, s.work, s.episode, s.source_type, s.duration, s.media_state, s.subtitle_path,"
-            " s.default_audio_stream, s.created_at, s.version,"
+            " s.default_audio_stream, s.created_at, s.version, s.import_root, s.visual_binding_id IS NOT NULL AS has_picture,"
             " (SELECT COUNT(*) FROM source_stream t WHERE t.source_id=s.id AND t.kind='audio') AS audio_streams,"
             " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video"
             " FROM source s ORDER BY s.created_at DESC, s.rowid DESC"
         )
-        return [dict(r) | {"has_video": bool(r["has_video"])} for r in rows]
+        return [dict(r) | {"has_video": bool(r["has_video"]), "has_picture": bool(r["has_picture"])} for r in rows]
 
     def check_file(self, source_id: str) -> None:
         """播放、导出、处理前核对原片文件（缺失或被替换 → 报错，不回退）。"""

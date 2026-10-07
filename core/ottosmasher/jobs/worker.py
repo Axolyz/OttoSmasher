@@ -195,9 +195,17 @@ def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     }
 
 
+def _import_scan(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """采样库导入的扫描（06 §6.6）：探测、确切时长、峰值（写进任务目录的 cache，登记时移进工作区缓存）、同名画面。"""
+    from ..core.imports import scan
+
+    return scan(list(params["paths"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "import-scanning"))
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "studio.models": _studio_models,
     "separate": _separate,
+    "import.scan": _import_scan,
     "models.verify": _models_verify,
     "selftest.sleep": _selftest_sleep,
     "selftest.sleep_model": _selftest_sleep,

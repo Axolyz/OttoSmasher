@@ -17,13 +17,15 @@ from ottosmasher.core.errors import CoreError
 
 from . import tools
 
-WIDTH, HEIGHT = 176, 100  # 列表 88×50 的两倍（Retina）；原片行 56×32 缩着显示
+SIZES = {"list": (176, 100), "poster": (640, 360)}  # 列表 88×50 的两倍（Retina；原片行 56×32 缩着显示）；短音频查看器的画面 320×180 的两倍
+WIDTH, HEIGHT = SIZES["list"]
 
 
-def grab(path: str, ordinal: int, t: float, out: Path, *, on_proc: Callable[[Any], None] | None = None) -> None:
+def grab(path: str, ordinal: int, t: float, out: Path, *, size: str = "list", on_proc: Callable[[Any], None] | None = None) -> None:
+    w, h = SIZES[size]
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_name(out.name + f".{os.getpid()}.tmp")
-    vf = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT}"
+    vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
     args = [
         tools.find("ffmpeg"), "-nostdin", "-v", "error", "-ss", f"{max(0.0, t):.3f}", "-i", path,
         "-map", f"0:v:{ordinal}", "-frames:v", "1", "-vf", vf, "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "-y", str(tmp),

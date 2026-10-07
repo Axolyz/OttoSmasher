@@ -17,6 +17,7 @@ import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
 import { PrepPanel } from "./PrepPanel";
+import { isShort } from "./short";
 import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
@@ -272,6 +273,11 @@ export function SourcesPage() {
             <span className={s.topName} title={currentRow.path} data-user-data="">
               {displayTitle(currentRow)}
             </span>
+            {isShort(currentRow) ? (
+              <span className={s.shortChip} data-testid="short-chip">
+                {t("sources.shortChip", { v: currentRow.duration.toFixed(2) })}
+              </span>
+            ) : (
             <PrepPanel
               source={currentRow}
               onAction={(a) => {
@@ -282,6 +288,7 @@ export function SourcesPage() {
                 else setSubSamples({ row: currentRow, kind: "line" });
               }}
             />
+            )}
             <Menu
               {...sourceMenu(currentRow, [currentRow.id], false)}
               trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="viewer-menu" />}

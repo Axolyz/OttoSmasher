@@ -37,6 +37,7 @@ from .subtitle_import import SubtitleImporter
 from .separation import SeparationService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
+from .imports import ImportService
 from .thumbnails import ThumbnailService
 from .waveforms import WaveformService
 
@@ -121,6 +122,12 @@ class Core:
             "samples.get": lambda p: self.samples.get(p["id"]),
             "samples.delete": lambda p: self.samples.delete(list(p["ids"])),
             "exports.samples": lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))),
+            "imports.scan": lambda p: self.imports.scan(list(p["paths"])),
+            "imports.preview": lambda p: self.imports.preview(p["jobId"]),
+            "imports.commit": lambda p: self.imports.commit(
+                p["jobId"], work=str(p.get("work", "")), source_type=str(p.get("sourceType", "")), nature=str(p["nature"]),
+                bind_pictures=bool(p.get("bindPictures", True)),
+            ),
             "thumbs.get": lambda p: self.thumbs.get(list(p["items"])),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
@@ -172,6 +179,7 @@ class Core:
         )
         self.jobs.adopters["models.verify"] = self._adopt_hashes
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
+        self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.interrupted_on_start = self.jobs.recover()
 
     def close(self) -> None:

@@ -70,6 +70,15 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("sample-row").first().click();
   expect(await unbracketed(page)).toEqual([]);
 
+  // 导入独立采样框（预览出来以后）
+  await app.evaluate(({ dialog }, d) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
+  }, wav);
+  await page.getByTestId("library-import").click();
+  await expect(page.getByTestId("import-preview")).toBeVisible({ timeout: 15000 });
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+
   await page.keyboard.press("Meta+j");
   await page.waitForTimeout(200);
   expect(await unbracketed(page)).toEqual([]);

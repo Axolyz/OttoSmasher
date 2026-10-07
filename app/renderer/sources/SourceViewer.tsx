@@ -2,15 +2,17 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, ChevronDown, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { ArrowUpRight, AudioLines, ChevronDown, ImageOff, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { AssetInfo, SourceDetail, SourceRow } from "../api/types";
+import { useThumb } from "../api/thumbs";
+import type { AssetInfo, Nature, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
+import { NatureDot } from "../components/NaturePicker";
 import { Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
@@ -19,6 +21,7 @@ import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
 import type { SeparationInput } from "./SeparationDialog";
 import { displayName } from "./SourceList";
+import { isShort, relDir } from "./short";
 import s from "./Sources.module.css";
 import { type Layer, type Sel, Timeline, type TimelineHandle } from "./Timeline";
 import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
@@ -110,6 +113,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       live = false;
     };
   }, [row.id, annNonce]);
+  const short = isShort(row);
   const [overlayId, setOverlayId] = useState<LayerId>("sub");
   const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "derived"]));
   const layer = (id: LaneId): Layer => {
@@ -139,9 +143,10 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       ],
     };
   };
-  const overlay = overlayId === "none" ? null : layer(overlayId);
-  const lanes = (["sub", "seg", "derived"] as const)
-    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0))
+  // 短音频原片没有字幕：只有派生采样车道
+  const overlay = short || overlayId === "none" ? null : layer(overlayId);
+  const lanes = (short ? (["derived"] as const) : (["sub", "seg", "derived"] as const))
+    .filter((id) => (short || (laneIds.has(id) && id !== overlayId)) && (id !== "derived" || derived.length > 0))
     .map(layer);
 
   const setPage = useApp((st) => st.setPage);
@@ -362,8 +367,33 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   };
 
   return (
-    <section className={s.viewer} ref={root} tabIndex={0} onKeyDown={onKey} data-testid="source-viewer" aria-label={displayName(row)}>
-      <div className={s.stageRow}>
+    <section
+      className={s.viewer}
+      ref={root}
+      tabIndex={0}
+      onKeyDown={onKey}
+      data-testid="source-viewer"
+      data-short={short || undefined}
+      aria-label={displayName(row)}
+    >
+      {short ? (
+        // 短音频原片（UI_PLAN §4；原型 shortViewerHtml）：画面（若绑定）+ 文件信息；不显示空的台本与准备清单
+        <div className={s.shortHead} data-testid="short-head">
+          <ShortPoster sourceId={row.id} hasPicture={row.has_picture} />
+          <div className={s.shortInfo}>
+            <b className={s.shortName} data-user-data="">
+              {basename(row.path)}
+            </b>
+            <span className={s.muted} data-user-data="">
+              {[row.work, relDir(row), t("sources.audioOnly"), t("format.sec", { v: row.duration.toFixed(3) })].filter(Boolean).join(" · ")}
+            </span>
+            {openError ? <span className={s.warn}>{openError}</span> : null}
+            <span className={s.faint}>{t("sources.shortNote")}</span>
+          </div>
+        </div>
+      ) : null}
+      {/* 短音频时整行藏起来但不卸载：原片播放器的画布整个窗口只有一个 */}
+      <div className={s.stageRow} style={short ? { display: "none" } : undefined}>
         <div className={s.video} data-audio-only={!hasVideo || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
           {/* 原片播放器的画布：整个窗口只有一个（preload 用 data-otto-video 找到它） */}
           <canvas data-otto-video="" style={{ display: hasVideo ? "block" : "none" }} />
@@ -463,7 +493,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
         </div>
-        <div className={s.layerBar} data-testid="layer-bar">
+        <div className={s.layerBar} data-testid="layer-bar" style={short ? { display: "none" } : undefined}>
           <span className={s.groupLabel}>{t("layers.overlay")}</span>
           <Segmented<LayerId>
             size="sm"
@@ -554,6 +584,51 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           <span className={s.hint}>{t("sources.dragHint")}</span>
         </div>
       </div>
+      {short ? (
+        <div className={s.shortSamples} data-testid="short-samples">
+          <span className={s.groupLabel}>{t("sources.itsSamples")}</span>
+          {derived.length ? (
+            derived.map((d) => (
+              <div key={d.id} className={s.shortSample} data-testid="short-sample">
+                <NatureDot nature={d.nature as Nature} />
+                <span className={s.shortSampleName} data-user-data="">
+                  {d.name}
+                </span>
+                <span className={`${s.faint} num`}>
+                  {Math.abs(d.start) < 1e-6 && Math.abs(d.end - row.duration) < 1e-3
+                    ? t("sources.wholeRange", { a: d.start.toFixed(3), b: d.end.toFixed(3) })
+                    : t("sources.range", { a: d.start.toFixed(3), b: d.end.toFixed(3) })}
+                  {" · "}
+                  {t(`nature.${d.nature}`)}
+                </span>
+                <span className={s.grow} />
+                <Button size="sm" variant="flat" icon={<ArrowUpRight />} onPress={() => openSample(d.id)} data-testid="short-open">
+                  {t("sources.openInLibrary")}
+                </Button>
+              </div>
+            ))
+          ) : (
+            <span className={s.faint}>{t("sources.noSamples")}</span>
+          )}
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+/** 短音频查看器的画面（320×180）：有画面绑定时取帧（图片 / 动图第一帧、同步视频的中点帧）；没有就写“没有画面” */
+function ShortPoster(props: { sourceId: string; hasPicture: boolean }) {
+  const url = useThumb("source", props.sourceId, "poster");
+  return (
+    <div className={s.poster} data-none={!props.hasPicture || undefined} data-testid="short-poster">
+      {props.hasPicture && url ? (
+        <img src={url} alt="" draggable={false} />
+      ) : (
+        <>
+          <ImageOff size={22} strokeWidth={1.4} />
+          <span>{props.hasPicture ? t("sources.pictureLoading") : t("sources.noPicture")}</span>
+        </>
+      )}
+    </div>
   );
 }
