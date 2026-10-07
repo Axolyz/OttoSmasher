@@ -312,10 +312,13 @@ export const Timeline = forwardRef<
         const xa = X(band.a);
         const xb = X(band.b);
         if (band.id === props.editFocus) ctx.strokeRect(xa + 1, waveTop + 1, xb - xa - 2, waveH - 2);
+        // 区间太窄（整集视图下几百句）时只画细线，放大后才画把手——不然整片波形被涂满
         ctx.fillStyle = cssVar("--accent");
+        const wide = xb - xa >= 12;
+        if (xb - xa < 4) continue; // 太密：不额外画，放大后再编辑
         for (const x of [xa, xb]) {
-          ctx.fillRect(Math.round(x) - 1, waveTop, 2, waveH);
-          ctx.fillRect(Math.round(x) - 3, waveTop, 6, 10);
+          ctx.fillRect(Math.round(x) - (wide ? 1 : 0), waveTop, wide ? 2 : 1, waveH);
+          if (wide) ctx.fillRect(Math.round(x) - 3, waveTop, 6, 10);
         }
       }
       ctx.lineWidth = 1;

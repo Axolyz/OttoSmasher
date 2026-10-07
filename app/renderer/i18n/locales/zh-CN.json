@@ -801,7 +801,7 @@
   "sources.pictureLoading": "正在取画面…",
   "clip.menu": "截取…",
   "edit.editing": "正在编辑：{layer}边界",
-  "edit.hint": "拖动覆盖层上的边界（相邻共用的一起动，不越过邻居）；单击区间可在这里改时间；车道只读；Esc 放弃",
+  "edit.hint": "拖边界（共用的一起动、不越过邻居）· 单击区间在这里改时间 · Esc 放弃",
   "edit.discard": "放弃",
   "edit.saveBounds": "保存边界",
   "edit.button": "编辑{layer}边界",
@@ -857,5 +857,7 @@
   "promote.scopeAsset": "只作用于这个资产（资产局部秒）",
   "promote.preview": "预览：新建区段标注（作用于 {scope}，{a}–{b}，标签 {tags}）；从本采样移除这些本地标签",
   "promote.apply": "提升",
-  "promote.done": "已把 {n} 个本地标签提升为区段标签"
+  "promote.done": "已把 {n} 个本地标签提升为区段标签",
+  "sources.cannotOpen": "打不开这个原片（原因见时间线上方）",
+  "sources.fileMissing": "文件找不到"
 }

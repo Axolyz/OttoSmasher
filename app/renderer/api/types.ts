@@ -72,6 +72,8 @@ export interface SourceRow {
   import_root: string | null;
   /** 有画面绑定（同名画面等，规格 12） */
   has_picture: boolean;
+  /** 原片文件找不到（只看在不在） */
+  missing: boolean;
   counts?: { lines: number; hasMarkers: boolean; oped: number; samples: number };
 }
 

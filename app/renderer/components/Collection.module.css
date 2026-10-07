@@ -24,7 +24,7 @@
 .splitter:hover::after, .splitter:focus-visible::after { background: var(--accent); width: 2px; left: 2.5px; }
 
 /* 动作列表（台本） */
-.actionWrap { flex: 1; min-height: 0; overflow: auto; }
+.actionWrap { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
 .actionList { outline: none; display: flex; flex-direction: column; }
 .actionRow { display: grid; grid-template-columns: 52px 64px 1fr; gap: 8px; align-items: baseline; padding: 6px 12px; cursor: default; outline: none; border-left: 2px solid transparent; font-size: var(--fs-md); color: var(--text); }
 .actionRow[data-hovered] { background: var(--s2); }
@@ -46,3 +46,8 @@
 .thumbPlay svg { width: 11px; height: 11px; }
 .thumb:not([data-has-img]) .thumbPlay { background: var(--s1); border-color: var(--line); color: var(--sub); }
 .thumb:not([data-has-img]) .thumbPlay[data-playing] { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* 窄（850×600 窗口里的台本）：去掉第二列（说话人），文字占满 */
+@container (max-width: 280px) {
+  .actionRow { grid-template-columns: 44px 1fr; }
+  .actionRow > :nth-child(2) { display: none; }
+}

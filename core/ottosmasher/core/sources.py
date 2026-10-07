@@ -230,7 +230,11 @@ class SourceService:
             " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video"
             " FROM source s ORDER BY s.created_at DESC, s.rowid DESC"
         )
-        return [dict(r) | {"has_video": bool(r["has_video"]), "has_picture": bool(r["has_picture"])} for r in rows]
+        # 文件找不到（只看在不在，不核对快照；媒体已释放的另算）：列表里标出来（原型 st-w “文件找不到”）
+        return [
+            dict(r) | {"has_video": bool(r["has_video"]), "has_picture": bool(r["has_picture"]), "missing": r["media_state"] == "available" and not os.path.exists(r["path"])}
+            for r in rows
+        ]
 
     def check_file(self, source_id: str) -> None:
         """播放、导出、处理前核对原片文件（缺失或被替换 → 报错，不回退）。"""

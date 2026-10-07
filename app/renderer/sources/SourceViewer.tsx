@@ -2,7 +2,7 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { ArrowUpRight, AudioLines, ChevronDown, ImageOff, Pencil, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { ArrowUpRight, AudioLines, ChevronDown, ImageOff, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
@@ -473,10 +473,16 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       ) : null}
       {/* 短音频时整行藏起来但不卸载：原片播放器的画布整个窗口只有一个 */}
       <div className={s.stageRow} style={short ? { display: "none" } : undefined}>
-        <div className={s.video} data-audio-only={!hasVideo || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
+        <div className={s.video} data-audio-only={!hasVideo || !!openError || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
           {/* 原片播放器的画布：整个窗口只有一个（preload 用 data-otto-video 找到它） */}
-          <canvas data-otto-video="" style={{ display: hasVideo ? "block" : "none" }} />
-          {!hasVideo ? (
+          <canvas data-otto-video="" style={{ display: hasVideo && !openError ? "block" : "none" }} />
+          {openError ? (
+            <div className={s.audioOnly} data-testid="video-error">
+              <TriangleAlert size={26} strokeWidth={1.4} />
+              {t("sources.cannotOpen")}
+            </div>
+          ) : null}
+          {!hasVideo && !openError ? (
             <div className={s.audioOnly}>
               <AudioLines size={28} strokeWidth={1.3} />
               {t("sources.audioOnly")}
@@ -545,7 +551,6 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             prefix={t("sources.audioSource")}
             options={sourceOptions.map((a) => ({ id: a.id, label: assetLabel(a) }))}
           />
-          {openError ? <span className={s.warn}>{openError}</span> : null}
           <span className={s.grow} />
           {!short ? (
             <Button size="sm" variant="flat" icon={<Pencil />} isDisabled={!baseOverlay || editing} onPress={startEdit} data-testid="edit-bounds">
@@ -577,6 +582,11 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
         </div>
+        {openError ? (
+          <div className={s.tlError} data-testid="open-error">
+            {openError}
+          </div>
+        ) : null}
         {editing ? (
           <div className={s.editBar} data-testid="edit-bar">
             <b>{t("edit.editing", { layer: t(`layers.${overlayId}`) })}</b>
@@ -590,7 +600,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
                 <TimeField value={focusBand.b} onCommit={commitEdge("b")} label={t("sources.selEnd")} testId="edit-end" />
               </>
             ) : (
-              <span className={s.muted}>{t("edit.hint")}</span>
+              <span className={`${s.muted} ${s.editHint}`}>{t("edit.hint")}</span>
             )}
             <span className={s.grow} />
             <Button
@@ -624,7 +634,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
               {t(`layers.${id}`)}
             </Checkbox>
           ))}
-          <span className={s.muted}>{t("layers.hint")}</span>
+          <span className={`${s.muted} ${s.layerHint}`}>{t("layers.hint")}</span>
         </div>
         )}
         <Timeline

@@ -38,8 +38,8 @@ export function TopBar() {
         <input className="num" placeholder={t("top.bpm.placeholder")} aria-label={t("top.bpm")} disabled />
         <span className={s.tempoUnit}>{t("top.bpm")}</span>
       </label>
-      <Button variant="secondary" isDisabled icon={<Command />}>
-        {t("top.command")} <kbd className={s.kbd}>⌘K</kbd>
+      <Button variant="secondary" isDisabled icon={<Command />} aria-label={t("top.command")}>
+        <span className={s.cmdLabel}>{t("top.command")}</span> <kbd className={s.kbd}>⌘K</kbd>
       </Button>
       <Tip content={peek ? t("top.undo.tip", { label: describeLabel(peek.label) }) : t("top.undo.none")}>
         <Button variant="flat" isDisabled={!peek} onPress={() => void undo()} icon={<Undo2 />} aria-label={t("top.undo")} data-testid="undo" />

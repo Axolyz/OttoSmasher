@@ -1,5 +1,6 @@
-.page { flex: 1; display: grid; grid-template-columns: 300px 1fr; min-width: 0; min-height: 0; }
-.page[data-list-hidden] { grid-template-columns: 0 1fr; }
+.page { flex: 1; display: grid; grid-template-columns: 300px minmax(0, 1fr); min-width: 0; min-height: 0; }
+@media (max-width: 1100px) { .page { grid-template-columns: 240px minmax(0, 1fr); } }
+.page[data-list-hidden] { grid-template-columns: 0 minmax(0, 1fr); }
 .page[data-drop] { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* 列表 */
@@ -9,16 +10,18 @@
 .groupCount { color: var(--muted); font-size: var(--fs-xs); }
 .rowMain { min-width: 0; flex: 1; }
 .rowTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rowMeta { font-size: var(--fs-xs); color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+.rowMeta { font-size: var(--fs-xs); color: var(--muted); display: flex; gap: 8px; white-space: nowrap; overflow: hidden; min-width: 0; }
+.rowMeta > * { flex: none; }
+.rowMeta > :last-child { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
 .rowMenu { opacity: 0; flex: none; }
 [data-hovered] > .rowMenu, [data-focus] > .rowMenu, .rowMenu[data-open] { opacity: 1; }
 .topName { font-size: var(--fs-lg); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* 查看器 */
-.viewer { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; outline: none; padding: 12px 14px 12px; gap: 12px; }
+.viewer { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(150px, 1fr) auto; overflow-y: auto; min-width: 0; min-height: 0; outline: none; padding: 12px 14px 12px; gap: 12px; }
 .viewer:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 .grow { flex: 1; }
-.stageRow { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; min-height: 0; }
+.stageRow { display: grid; grid-template-columns: minmax(0, 1fr) clamp(200px, 30%, 300px); gap: 12px; min-height: 0; min-width: 0; }
 .video { position: relative; background: #000; border-radius: var(--r-lg); overflow: hidden; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .video canvas { width: 100%; height: 100%; display: block; }
 .video[data-audio-only] { background: var(--s2); }
@@ -31,7 +34,7 @@
 .transcriptHead { color: var(--sub); font-weight: 600; }
 .tlCard { border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--s1); display: flex; flex-direction: column; min-width: 0; }
 .tlCard:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
-.tlBar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; }
+.tlBar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; flex-wrap: wrap; row-gap: 4px; }
 .timeline { position: relative; height: 150px; margin: 0 10px; border: 1px solid var(--line2); border-radius: var(--r-md); background: var(--bg); overflow: hidden; touch-action: none; cursor: text; user-select: none; }
 .tlCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tlStatus { position: absolute; inset: 20px 0 18px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-sm); pointer-events: none; }
@@ -109,7 +112,7 @@
 /* 短音频原片（原型 .shortv） */
 .viewer[data-short] { grid-template-rows: auto auto minmax(0, 1fr); }
 .shortHead { display: flex; gap: 16px; align-items: flex-start; min-width: 0; }
-.poster { width: 320px; height: 180px; flex: none; border-radius: var(--r-lg); background: var(--s2); overflow: hidden; position: relative; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-sm); }
+.poster { width: min(320px, 45%); aspect-ratio: 16 / 9; flex: none; border-radius: var(--r-lg); background: var(--s2); overflow: hidden; position: relative; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-sm); }
 .poster[data-none] { border: 1px dashed var(--line); background: transparent; }
 .poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .shortInfo { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: var(--fs-sm); }
@@ -123,3 +126,9 @@
 .editBar b { color: var(--accent); font-weight: 600; }
 .editName { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .timeline[data-editing] { box-shadow: inset 0 0 0 1px var(--accent); }
+.tlError { padding: 0 12px 6px; color: var(--warn); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+/* 矮窗口（850×600）：去掉图层栏的说明，让画面留出高度 */
+@media (max-height: 760px) {
+  .layerHint { display: none; }
+}
+.editHint { flex-basis: 100%; order: 10; }

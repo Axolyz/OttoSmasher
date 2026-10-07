@@ -136,6 +136,7 @@ export function SourceList(props: {
                       </span>
                     ) : null}
                     {r.has_picture ? <span>{t("sources.samePicture")}</span> : null}
+                    {r.missing ? <span className={s.warn}>{t("sources.fileMissing")}</span> : null}
                   </div>
                 ) : (
                 <div className={s.rowMeta}>
@@ -149,6 +150,7 @@ export function SourceList(props: {
                   {r.counts?.oped ? <span className="num">{t("sources.opedN", { n: r.counts.oped })}</span> : null}
                   {!r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
                   {r.audio_streams > 1 ? <span>{t("sources.nTracks", { n: r.audio_streams })}</span> : null}
+                  {r.missing ? <span className={s.warn}>{t("sources.fileMissing")}</span> : null}
                 </div>
                 )}
               </div>
