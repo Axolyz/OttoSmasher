@@ -94,6 +94,16 @@ def test_parse_durations_and_languages():
     assert pr.audio[2].duration is None  # 未知就是未知，不拿容器时长冒充
 
 
+@needs_ffmpeg
+def test_packet_duration_when_stream_has_no_duration(media):
+    # 有的片源（KF08）流上没有任何时长信息：扫描包时间戳得到时长
+    f = two_audio_mkv(media / "p.mkv", seconds=2.5)
+    pr = probe_mod.probe(f)
+    s = pr.audio[1]
+    assert probe_mod.packet_duration(f, s) == pytest.approx(2.5, abs=0.03)
+    assert probe_mod.packet_duration(f, pr.video[0]) == pytest.approx(2.0, abs=0.05)
+
+
 # ---------------------------------------------------------------- 登记
 
 

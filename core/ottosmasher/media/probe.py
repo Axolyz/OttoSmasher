@@ -2,7 +2,8 @@
 
 - 音频流按“第几条音频流”编号（``ordinal`` 从 0 起，与 ffmpeg ``-map 0:a:N`` 一致；mpv 的 ``aid`` = ordinal + 1）；
 - 音频文件里的封面图（``disposition.attached_pic``）记为视频流但标 ``is_attached_pic``，不算视频；
-- 流时长依次取 ``duration`` → ``duration_ts × time_base`` → Matroska 的 ``DURATION`` 标签；都没有就是未知（None），不拿容器时长冒充；
+- 流时长依次取 ``duration`` → ``duration_ts × time_base`` → Matroska 的 ``DURATION`` 标签 → 扫描该流的包时间戳（最后一包结束 − 第一包开始，
+  只读容器、不解码；KF08 这类没有时长标签的片源）；都没有就是未知（None），不拿容器时长冒充；
 - 文件快照（取代内容指纹，QUESTIONS D3）：大小 + 修改时间 + 流签名，不读内容、不算哈希。
 """
 
@@ -12,7 +13,7 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -135,9 +136,48 @@ def probe(path: str | Path) -> Probe:
         detail = out.stderr.decode("utf-8", "replace").strip().splitlines()
         raise CoreError("media-probe-failed", path=str(p), detail=detail[-1] if detail else f"exit {out.returncode}")
     try:
-        return parse(json.loads(out.stdout.decode("utf-8", "replace")))
+        pr = parse(json.loads(out.stdout.decode("utf-8", "replace")))
     except (json.JSONDecodeError, TypeError) as e:
         raise CoreError("media-probe-failed", path=str(p), detail=str(e)) from None
+    if any(s.duration is None and not s.is_attached_pic for s in pr.streams):
+        pr = Probe(
+            pr.format_name,
+            pr.format_duration,
+            tuple(
+                replace(s, duration=packet_duration(p, s)) if s.duration is None and not s.is_attached_pic else s
+                for s in pr.streams
+            ),
+        )
+    return pr
+
+
+def packet_duration(path: Path, s: Stream) -> float | None:
+    """扫描一条流的包时间戳得到时长（最后一包结束 − 第一包开始）；读不出就是未知。"""
+    sel = f"{'a' if s.kind == 'audio' else 'v'}:{s.ordinal}"
+    cmd = [
+        tools.find("ffprobe"), "-v", "error", "-select_streams", sel,
+        "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", "-i", str(path),
+    ]  # fmt: skip
+    try:
+        out = subprocess.run(cmd, capture_output=True, timeout=PROBE_TIMEOUT, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return None
+    if out.returncode != 0:
+        return None
+    first: float | None = None
+    end: float | None = None
+    for line in out.stdout.decode("ascii", "replace").splitlines():
+        parts = line.strip().split(",")
+        pts = _num(parts[0]) if parts else None
+        if pts is None:
+            continue
+        dur = _num(parts[1]) if len(parts) > 1 else None
+        first = pts if first is None else min(first, pts)
+        e = pts + (dur or 0.0)
+        end = e if end is None else max(end, e)
+    if first is None or end is None or end <= first:
+        return None
+    return end - first
 
 
 # ---------------------------------------------------------------- 文件快照

@@ -100,7 +100,8 @@ class SourceService:
         if not audio:
             raise CoreError("source-no-audio", path=path)
         default = pick_default_audio(audio, preferred)
-        duration = next(s.duration for s in audio if s.ordinal == default) or pr.format_duration
+        # 原片时间以默认音轨的音频时钟为准；探测不出时长就拒绝登记，不拿容器时长冒充（P7）
+        duration = next(s.duration for s in audio if s.ordinal == default)
         if duration is None or duration <= 0:
             raise CoreError("media-probe-failed", path=path, detail="no-duration")
         inferred = naming.infer_work_episode(path, rules)
