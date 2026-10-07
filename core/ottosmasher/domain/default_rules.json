@@ -1,5 +1,5 @@
 {
-  "_comment": "用户可编辑规则的默认值（P10）。source.infer_rules：原片文件名（不含扩展名）从上到下 search，第一条匹配生效；命名组 work / episode。",
+  "_comment": "用户可编辑规则的默认值（P10）。source.infer_rules：原片文件名（不含扩展名）从上到下 search，第一条匹配生效；命名组 work / episode。 subtitle.*_rule：字幕规则（规格 06 §6.2.1，默认正则逐字照抄）；split / clean 默认为空（不拆、不清理）；subtitle.rule_samples 是保存时试跑的样例（规格表格里的写法）；subtitle.rule_stress 是保存时的压力样例 [片段, 重复次数, 结尾]（含 R4.6 的 10 万字符）。",
   "source.infer_rules": [
     "^\\[[^\\]]*\\]\\s*(?P<work>[^\\[\\]]+?)\\s*\\[(?P<episode>(?!(?:19|20)\\d\\d[\\]】])\\d{1,4})(?:v\\d+)?(?:\\s*END)?\\]",
     "^[\\[【][^\\]】]*[\\]】]\\s*[\\[【](?P<work>[^\\]】]+)[\\]】]\\s*[\\[【](?P<episode>(?!(?:19|20)\\d\\d[\\]】])\\d{1,4})(?:v\\d+)?(?:\\s*END)?[\\]】]",
@@ -14,5 +14,45 @@
     "[DBD-Raws][Kemono Friends][02][1080P]",
     "[Kemono Friends][01]",
     "作品名 - 01"
+  ],
+  "subtitle.sfx_rule": "\\s*(?:(?P<b>[（(](?:[^（）()]|(?&b))*[）)])\\s*)+",
+  "subtitle.note_rule": "(?P<b>[（(](?P<content>(?:[^（）()]|(?&b))*)[）)])",
+  "subtitle.speaker_rule": "(?P<b>[（(](?P<name>(?:[^（）()]|(?&b))*)[）)])",
+  "subtitle.speaker_split": "",
+  "subtitle.speaker_clean": "",
+  "subtitle.split_example": "[･・＆&、/／]",
+  "subtitle.clean_example": "[（(][^（）()]*[）)]",
+  "subtitle.rule_samples": [
+    "（ドア）（足音）",
+    "（京子）こんにちは",
+    "台詞（結衣）続き",
+    "（yy（zzz））aaa（xxx）yyy",
+    "（京子(きょうこ)たち）アッカリ～ン",
+    "歳納(としのう)京子！",
+    "（ドアチャイム）\nウワーッ！",
+    "普通の台詞",
+    "（足音(走る)）（扉）"
+  ],
+  "subtitle.rule_stress": [
+    [
+      "a",
+      100000,
+      "!"
+    ],
+    [
+      "（",
+      60,
+      "ああああああああああああああああああああ"
+    ],
+    [
+      "（あ",
+      200,
+      ""
+    ],
+    [
+      "（a）",
+      500,
+      ""
+    ]
   ]
 }

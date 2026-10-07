@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .. import __version__
-from ..domain import naming
+from ..domain import naming, subtitle_rules
 from ..models import registry
 from ..store.db import connect, current_version, migrate, transaction
 from ..store.workspace import Workspace, WorkspaceLock
@@ -60,6 +60,7 @@ class Core:
             "core.hello": self._hello,
             "settings.list": lambda p: settings_mod.read_all(self.conn),
             "sources.inferTest": self._infer_test,
+            "subtitles.ruleTest": self._subtitle_rule_test,
             "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
             "sources.list": lambda p: self.sources.list(),
             "sources.get": lambda p: self.sources.get(p["id"]),
@@ -257,6 +258,16 @@ class Core:
             rules = naming.validate_rules(rules)
         r = naming.infer_work_episode(str(p["filename"]), rules)
         return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
+
+    def _subtitle_rule_test(self, p: dict[str, Any]) -> dict[str, Any]:
+        """设置里的字幕规则试算框（规格 06 §6.2.2）：草稿规则先做保存时的同样校验（逐条 + 整套在样例上跑一遍），再分类一行。"""
+        current = settings_mod.values(self.conn)
+        draft = p.get("rules")
+        if draft is None:
+            rs = subtitle_rules.SubtitleRules.build(current)
+        else:
+            rs = subtitle_rules.SubtitleRules.build({k: draft.get(k, current[k]) for k in subtitle_rules.KEYS}, check=True)
+        return subtitle_rules.classify(str(p["text"]), rs).wire()
 
     def _ui_get(self, p: dict[str, Any]) -> dict[str, Any]:
         rows = self.conn.execute(

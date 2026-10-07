@@ -11,6 +11,7 @@ import {
   Select as RacSelect,
   SelectValue,
   Switch as RacSwitch,
+  TextArea as RacTextArea,
   TextField as RacTextField,
 } from "react-aria-components";
 import { useEffect, useState } from "react";
@@ -173,6 +174,21 @@ export function TimeField(props: { value: number | null; onCommit: (v: number) =
       }}
     >
       <Input className={`${s.timeInput} num mono`} spellCheck={false} autoComplete="off" placeholder="—" data-testid={props.testId} />
+    </RacTextField>
+  );
+}
+
+/** 多行文字输入（试算框、对齐文本、备注）：Enter 换行；lang 用于日文字形。 */
+export function TextArea(props: { value: string; onChange: (v: string) => void; label: string; rows?: number; lang?: string; mono?: boolean; testId?: string }) {
+  return (
+    <RacTextField value={props.value} onChange={props.onChange} aria-label={props.label} className={s.text}>
+      <RacTextArea
+        className={`${s.textInput} ${s.textArea} ${props.mono ? "mono" : ""}`}
+        rows={props.rows ?? 2}
+        lang={props.lang}
+        spellCheck={false}
+        data-testid={props.testId}
+      />
     </RacTextField>
   );
 }

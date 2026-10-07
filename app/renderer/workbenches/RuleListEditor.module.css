@@ -13,3 +13,16 @@
 .error { color: var(--bad); word-break: break-all; }
 .warn { color: var(--warn); }
 .dialect { color: var(--faint); font-size: var(--fs-xs); }
+/* 字幕规则编辑器 */
+.fields { display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.fieldHead { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.fieldLabel { color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.fieldHint { color: var(--muted); font-size: var(--fs-xs); }
+.fieldRow { display: flex; gap: 6px; align-items: center; }
+.field[data-invalid] .fieldLabel { color: var(--bad); }
+.classified { display: grid; grid-template-columns: 72px 1fr; gap: 3px 12px; margin: 0; }
+.classified dt { color: var(--muted); }
+.classified dd { margin: 0; color: var(--text); }
+.pre { white-space: pre-wrap; }
+.note { color: var(--muted); margin-left: 8px; font-size: var(--fs-xs); }

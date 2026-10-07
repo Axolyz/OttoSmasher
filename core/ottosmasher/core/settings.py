@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ottosmasher.domain import naming
+from ottosmasher.domain import naming, subtitle_rules
 
 from .errors import CoreError
 
@@ -77,6 +77,8 @@ SPECS: dict[str, SettingSpec] = {
         # 字幕采样前后扩展（所有者 2026-10-05：0.1 / 0.1 秒）
         SettingSpec("subtitle.pad_before", 0.1, _float_range(0.0, 5.0), "subtitle"),
         SettingSpec("subtitle.pad_after", 0.1, _float_range(0.0, 5.0), "subtitle"),
+        # 字幕规则（规格 06 §6.2：音效整行、注释括号、说话人提取、可选的拆分与清理；P10 可编辑，只作用于之后导入的标记）
+        *[SettingSpec(k, subtitle_rules.default_value(k), subtitle_rules.validate_setting(k), "subtitle") for k in subtitle_rules.KEYS],
         # 语音分析：对齐前/后容差
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),

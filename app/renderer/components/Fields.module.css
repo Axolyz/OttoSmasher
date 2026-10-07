@@ -35,3 +35,4 @@
 .timeInput[data-disabled] { opacity: 0.4; }
 .selectPrefix { color: var(--muted); }
 .selectValue { flex: 1; text-align: left; }
+.textArea { resize: vertical; min-height: 44px; line-height: 1.5; font-family: inherit; }

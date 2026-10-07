@@ -23,7 +23,12 @@ export type { TArgs };
 export function errorText(err: { code: string; args?: Record<string, unknown> }): string {
   const args: TArgs = {};
   for (const [k, v] of Object.entries(err.args ?? {})) {
-    if (k === "reason" && typeof v === "string" && hasKey(`reason.${v}`)) args[k] = t(`reason.${v}`, err.args as TArgs);
+    if (k === "reason" && typeof v === "string") {
+      // 没有规则序号时（单条规则，如字幕规则）用不带“第 N 条”的说法
+      const one = `reason.${v}.one`;
+      const key = err.args?.rule === undefined && hasKey(one) ? one : `reason.${v}`;
+      if (hasKey(key)) args[k] = t(key, err.args as TArgs);
+    } else if (k === "setting" && typeof v === "string") args[k] = hasKey(`settings.${v}.label`) ? t(`settings.${v}.label`) : v;
     else if (k === "field" && typeof v === "string") args[k] = v;
     else if (typeof v === "string" || typeof v === "number") args[k] = k === "index" ? Number(v) + 1 : v;
   }

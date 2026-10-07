@@ -10,6 +10,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ModelsPanel } from "./ModelsPanel";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
+import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
 const GROUPS = ["general", "inference", "source", "subtitle", "analysis", "jobs", "storage", "models"] as const;
@@ -82,19 +83,24 @@ export function SettingsSheet() {
     if ((d as Record<string, string[]>).setting) reload();
   });
 
-  const save = async (key: string, value: unknown) => {
-    const cur = settings[key];
-    if (!cur) return;
+  /** 一次保存一项或多项（字幕规则五条一起，一个编辑记录、一次撤销） */
+  const saveMany = async (values: Record<string, unknown>, name: string) => {
+    const keys = Object.keys(values).filter((k) => settings[k]);
+    if (!keys.length) return;
     try {
       await call("edits.apply", {
-        batch: { label: { code: "setting", args: { key } }, ops: [{ entity: "setting", id: key, version: cur.version, fields: { value } }] },
+        batch: {
+          label: { code: "setting", args: { key: keys[0] } },
+          ops: keys.map((k) => ({ entity: "setting", id: k, version: settings[k]!.version, fields: { value: values[k] } })),
+        },
       });
-      toast({ text: t("settings.saved", { name: t(`settings.${key}.label`) }), action: { label: t("common.undo"), run: () => void undo() } });
+      toast({ text: t("settings.saved", { name }), action: { label: t("common.undo"), run: () => void undo() } });
     } catch (e) {
       if (e instanceof CoreFailure) toast({ text: errorText(e.wire), tone: "error" });
       reload();
     }
   };
+  const save = (key: string, value: unknown) => saveMany({ [key]: value }, t(`settings.${key}.label`));
 
   const keys = Object.keys(settings).filter((k) => settings[k]!.group === group);
   return (
@@ -113,6 +119,17 @@ export function SettingsSheet() {
           ) : (
             keys.map((key) => {
               const e = settings[key]!;
+              if ((SUBTITLE_RULE_KEYS as readonly string[]).includes(key)) {
+                // 五条字幕规则合成一个编辑器，放在第一条的位置
+                if (key !== SUBTITLE_RULE_KEYS[0]) return null;
+                return (
+                  <div className={s.itemWide} key="subtitle-rules">
+                    <div className={s.label}>{t("settings.subtitle.rules.label")}</div>
+                    <div className={s.hint}>{t("settings.subtitle.rules.hint")}</div>
+                    <SubtitleRulesEditor settings={settings} onSave={(changed) => saveMany(changed, t("settings.subtitle.rules.label"))} />
+                  </div>
+                );
+              }
               if (RULE_LISTS.has(key)) {
                 return (
                   <div className={s.itemWide} key={key} data-testid={`setting-${key}`}>

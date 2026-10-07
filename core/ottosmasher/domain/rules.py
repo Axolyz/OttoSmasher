@@ -45,29 +45,35 @@ def compile_rule(
     samples: Iterable[str] = (),
     index: int | None = None,
     stress: bool = True,
+    stress_samples: Iterable[str] | None = None,
+    code: str = "rule-invalid",
+    where: dict[str, Any] | None = None,
 ) -> regex.Pattern[str]:
-    """编译并校验一条规则（``stress=False`` 用于运行时：已在保存时测过超时）；不合格抛 ``rule-invalid``（reason：not-text / too-long / syntax / missing-group / timeout）。"""
-    where = {} if index is None else {"rule": index + 1}
+    """编译并校验一条规则（``stress=False`` 用于运行时：已在保存时测过超时）；不合格抛 ``code``（默认 ``rule-invalid``；
+    reason：not-text / too-long / syntax / missing-group / timeout）。``stress_samples`` 替换默认（文件名）压力样例；
+    ``where`` 是报错时附带的定位参数（默认是规则序号）。"""
+    where = where if where is not None else ({} if index is None else {"rule": index + 1})
     if not isinstance(pattern, str) or not pattern:
-        raise CoreError("rule-invalid", reason="not-text", **where)
+        raise CoreError(code, reason="not-text", **where)
     if len(pattern) > MAX_PATTERN_CHARS:
-        raise CoreError("rule-invalid", reason="too-long", max=MAX_PATTERN_CHARS, **where)
+        raise CoreError(code, reason="too-long", max=MAX_PATTERN_CHARS, **where)
     try:
         pat = regex.compile(pattern)
     except regex.error as e:
-        raise CoreError("rule-invalid", reason="syntax", detail=str(e), **where) from None
+        raise CoreError(code, reason="syntax", detail=str(e), **where) from None
     groups = set(pat.groupindex)
     for g in required:
         if g not in groups:
-            raise CoreError("rule-invalid", reason="missing-group", group=g, **where)
+            raise CoreError(code, reason="missing-group", group=g, **where)
     any_of = list(any_of)
     if any_of and not groups.intersection(any_of):
-        raise CoreError("rule-invalid", reason="missing-group", group=" / ".join(any_of), **where)
-    for s in [*samples, *(_STRESS if stress else ())]:
+        raise CoreError(code, reason="missing-group", group=" / ".join(any_of), **where)
+    pressure = list(_STRESS if stress_samples is None else stress_samples) if stress else []
+    for s in [*samples, *pressure]:
         try:
             pat.search(s, timeout=MATCH_TIMEOUT)
         except TimeoutError:
-            raise CoreError("rule-invalid", reason="timeout", sample=s[:40], **where) from None
+            raise CoreError(code, reason="timeout", sample=s[:40], **where) from None
     return pat
 
 
