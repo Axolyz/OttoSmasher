@@ -3,6 +3,7 @@
 .groups > * { justify-content: flex-start; }
 .list { display: flex; flex-direction: column; max-width: 860px; }
 .item { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line2); align-items: center; }
+.itemWide { padding: 12px 0; border-bottom: 1px solid var(--line2); }
 .label { font-weight: 560; }
 .hint { color: var(--muted); font-size: var(--fs-sm); margin-top: 2px; }
 .control { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }

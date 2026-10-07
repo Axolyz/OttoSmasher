@@ -11,6 +11,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from ottosmasher.domain import naming
+
 from .errors import CoreError
 
 
@@ -70,6 +72,8 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("inference.directml_device", 0, _int_range(0, None), "inference"),
         # 原片
         SettingSpec("source.sample_language", "ja", _choice("ja"), "source"),
+        # 作品/集数推断规则：有序正则列表，第一条匹配生效（P10；所有者 2026-10-07）
+        SettingSpec("source.infer_rules", naming.default_rules(), naming.validate_rules, "source"),
         # 字幕采样前后扩展（所有者 2026-10-05：0.1 / 0.1 秒）
         SettingSpec("subtitle.pad_before", 0.1, _float_range(0.0, 5.0), "subtitle"),
         SettingSpec("subtitle.pad_after", 0.1, _float_range(0.0, 5.0), "subtitle"),

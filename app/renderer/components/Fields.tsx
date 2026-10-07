@@ -1,4 +1,4 @@
-// 输入件：开关、数字输入、选择框（React Aria）。
+// 输入件：开关、数字输入、文字输入、选择框（React Aria）。
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import {
   Button as RacButton,
@@ -11,6 +11,7 @@ import {
   Select as RacSelect,
   SelectValue,
   Switch as RacSwitch,
+  TextField as RacTextField,
 } from "react-aria-components";
 import s from "./Fields.module.css";
 
@@ -57,6 +58,36 @@ export function NumberField(props: {
         </RacButton>
       </Group>
     </RacNumberField>
+  );
+}
+
+export function TextField(props: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+  mono?: boolean;
+  invalid?: boolean;
+  isDisabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <RacTextField
+      value={props.value}
+      onChange={props.onChange}
+      aria-label={props.label}
+      isDisabled={props.isDisabled}
+      isInvalid={props.invalid}
+      className={s.text}
+    >
+      <Input
+        className={`${s.textInput} ${props.mono ? "mono" : ""}`}
+        placeholder={props.placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        data-testid={props.testId}
+      />
+    </RacTextField>
   );
 }
 

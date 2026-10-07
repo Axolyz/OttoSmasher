@@ -174,3 +174,20 @@ def test_change_set_is_reported(db, sample_id):
     svc = EditService(db, on_change=lambda cs: seen.append(cs.to_wire()))
     svc.apply({"ops": [upd("sample", sample_id, 1, starred=True)]})
     assert seen == [{"sample": [sample_id]}]
+
+
+# 原片推断规则（P10，所有者 2026-10-07）：有序正则列表也走编辑通道，保存时校验
+def test_infer_rules_setting(db, svc):
+    from ottosmasher.core import settings as settings_mod
+    from ottosmasher.domain.naming import default_rules
+
+    assert settings_mod.values(db)["source.infer_rules"] == default_rules()
+    with pytest.raises(CoreError) as ei:
+        svc.apply({"ops": [upd("setting", "source.infer_rules", 0, value=[r"(?P<work>a)", r"(?P<work>"])]})
+    assert ei.value.code == "edit-invalid"
+    assert (ei.value.args_["reason"], ei.value.args_["rule"]) == ("syntax", 2)
+    mine = [r"^(?P<work>.+?)_(?P<episode>\d+)$"]
+    svc.apply({"ops": [upd("setting", "source.infer_rules", 0, value=mine)]})
+    assert settings_mod.values(db)["source.infer_rules"] == mine
+    svc.undo()
+    assert settings_mod.values(db)["source.infer_rules"] == default_rules()

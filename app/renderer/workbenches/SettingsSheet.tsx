@@ -9,6 +9,7 @@ import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ModelsPanel } from "./ModelsPanel";
+import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import s from "./Settings.module.css";
 
 const GROUPS = ["general", "inference", "source", "subtitle", "analysis", "jobs", "storage", "models"] as const;
@@ -32,6 +33,29 @@ const CHOICES: Record<string, string[]> = {
   "general.ui_language": ["zh-CN"],
   "source.sample_language": ["ja"],
 };
+
+/** 有序正则列表类设置（P10）：整行宽的规则编辑器 + 试算框。 */
+const RULE_LISTS = new Set(["source.infer_rules"]);
+
+interface InferTest {
+  work: string | null;
+  episode: string | null;
+  rule: number | null;
+  timedOut: number[];
+}
+
+async function inferTrial(sample: string, rules: string[]): Promise<TrialResult> {
+  const r = await call<InferTest>("source.inferTest", { filename: sample, rules });
+  const unknown = t("rules.unknown");
+  return {
+    rule: r.rule,
+    timedOut: r.timedOut,
+    text:
+      r.rule === null
+        ? t("rules.infer.none")
+        : t("rules.infer.hit", { n: r.rule + 1, work: r.work ?? unknown, episode: r.episode ?? unknown }),
+  };
+}
 
 function shown(key: string, v: unknown): string {
   if (typeof v === "boolean") return v ? t("common.on") : t("common.off");
@@ -89,6 +113,22 @@ export function SettingsSheet() {
           ) : (
             keys.map((key) => {
               const e = settings[key]!;
+              if (RULE_LISTS.has(key)) {
+                return (
+                  <div className={s.itemWide} key={key} data-testid={`setting-${key}`}>
+                    <div className={s.label}>{t(`settings.${key}.label`)}</div>
+                    <div className={s.hint}>{t(`settings.${key}.hint`)}</div>
+                    <RuleListEditor
+                      label={t(`settings.${key}.label`)}
+                      value={e.value as string[]}
+                      defaultValue={e.default as string[]}
+                      onSave={(v) => save(key, v)}
+                      trial={inferTrial}
+                      sample={t("rules.infer.sample")}
+                    />
+                  </div>
+                );
+              }
               return (
                 <div className={s.item} key={key} data-testid={`setting-${key}`}>
                   <div className={s.text}>

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .. import __version__
+from ..domain import naming
 from ..models import registry
 from ..store.db import connect, current_version, migrate, transaction
 from ..store.workspace import Workspace, WorkspaceLock
@@ -48,6 +49,7 @@ class Core:
         self.commands: dict[str, Handler] = {
             "core.hello": self._hello,
             "settings.list": lambda p: settings_mod.read_all(self.conn),
+            "source.inferTest": self._infer_test,
             "edits.preview": lambda p: self.edits.preview(p["batch"]),
             "edits.apply": lambda p: self.edits.apply(p["batch"]),
             "edits.undo": lambda p: self.edits.undo(),
@@ -196,6 +198,16 @@ class Core:
                     (path, h["size"], h["mtime_ns"], h["sha256"], ts),
                 )
         self.emit("models.changed", {})
+
+    def _infer_test(self, p: dict[str, Any]) -> dict[str, Any]:
+        """设置里的试算框：用草稿规则（未保存，先做保存时的同样校验）或当前设置推断一个文件名。"""
+        rules = p.get("rules")
+        if rules is None:
+            rules = settings_mod.values(self.conn)["source.infer_rules"]
+        else:
+            rules = naming.validate_rules(rules)
+        r = naming.infer_work_episode(str(p["filename"]), rules)
+        return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
 
     def _ui_get(self, p: dict[str, Any]) -> dict[str, Any]:
         rows = self.conn.execute(

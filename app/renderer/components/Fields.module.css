@@ -14,6 +14,12 @@
 .stepBtn[data-hovered] { color: var(--text); background: var(--s3); }
 .stepBtn[data-disabled] { opacity: 0.3; }
 
+.text { display: flex; flex: 1; min-width: 0; }
+.textInput { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--s2); padding: 4px 8px; outline: none; }
+.textInput[data-focused] { border-color: var(--accent); }
+.text[data-invalid] .textInput { border-color: var(--bad); }
+.textInput[data-disabled] { opacity: 0.4; }
+
 .select { display: inline-flex; }
 .selectBtn { display: inline-flex; align-items: center; gap: 8px; min-width: 140px; justify-content: space-between; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--s2); padding: 4px 9px; color: var(--text); cursor: default; outline: none; }
 .selectBtn[data-focus-visible] { border-color: var(--accent); }

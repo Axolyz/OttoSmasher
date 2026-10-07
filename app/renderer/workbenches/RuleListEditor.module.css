@@ -1,0 +1,15 @@
+.editor { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; outline: none; }
+.rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rule { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: var(--r-md); border: 1px solid transparent; }
+.rule[data-hit] { background: var(--accentbg); border-color: var(--accent); }
+.rule[data-timeout] { border-color: var(--warn); }
+.no { width: 20px; text-align: right; color: var(--muted); font-size: var(--fs-sm); margin-right: 4px; }
+.bar { display: flex; align-items: center; gap: 8px; }
+.grow { flex: 1; }
+.trial { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.trialLabel { color: var(--sub); font-size: var(--fs-sm); white-space: nowrap; }
+.result { min-height: 22px; font-size: var(--fs-sm); color: var(--sub); padding-left: 2px; user-select: text; }
+.result[data-state="none"] { color: var(--muted); }
+.error { color: var(--bad); word-break: break-all; }
+.warn { color: var(--warn); }
+.dialect { color: var(--faint); font-size: var(--fs-xs); }
