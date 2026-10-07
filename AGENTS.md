@@ -2,7 +2,8 @@
 
 > 所有在本仓库工作的开发者（人或 AI 代理）都必须遵守本文件。`CLAUDE.md` 只是指向这里。
 > 需求来源只有交接包：`~/Documents/OttoSmasher-Rewrite-Handoff/`（README.md、docs/01–19、fixtures/）。
-> 架构见 `docs/ARCHITECTURE.md`，界面方案见 `docs/UI_PLAN.md`。
+> 架构见 `docs/ARCHITECTURE.md`，界面方案见 `docs/UI_PLAN.md`（所有者已确认），所有者的每条答复与基线变更见 `docs/QUESTIONS.md`。
+> 新会话开工顺序：本文件 → 本地 `STATUS.md`（进度与下一步）→ 需要时再读上面三份文档和交接包的相关规格。
 
 ## 1. 禁区
 
@@ -21,6 +22,8 @@
 - 想改变基线：按 docs/02 §2.7 的模板写提议，**等所有者确认**再动手。
 - 规格没写清、互相矛盾、或实现中发现规格有错：**先问所有者，不要猜**。疑问记录在 `docs/QUESTIONS.md`。
 - 技术定型（docs/14）不换：对齐只用 pydomino；文本前端 pyopenjtalk-plus + tsqyomi；音高 FCPE；拉平 PC-NSF-HiFiGAN；分离调用 PyMSS Studio。
+  其余技术（桌面框架、后端语言、数据库、进程模型、IPC）可以自选（现行选择见 ARCHITECTURE），但必须满足交接包 docs/15：
+  含“三大搜索”在约 3 万条 × 3 秒采样上常见查询 30 秒内完成的目标，以及界面国际化预留。
 
 ## 3. 提交与授权
 
