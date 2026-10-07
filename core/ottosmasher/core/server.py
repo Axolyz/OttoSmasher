@@ -30,6 +30,7 @@ from .scheduler import Scheduler
 from . import assets as assets_mod
 from . import playback as playback_mod
 from .exports import ExportService
+from .samples import SampleService
 from .sources import SourceService
 from .waveforms import WaveformService
 
@@ -52,6 +53,7 @@ class Core:
         self.sources: SourceService
         self.exports: ExportService
         self.waveforms: WaveformService
+        self.samples: SampleService
         self.interrupted_on_start = 0
         self._stop = False
         self.commands: dict[str, Handler] = {
@@ -70,6 +72,22 @@ class Core:
             "playback.resolveAsset": lambda p: playback_mod.resolve_asset(
                 self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])
             ),
+            "samples.suggest": lambda p: self.samples.suggest(
+                p["assetId"], float(p["start"]), float(p["end"]), local_marker=p.get("localMarker", "")
+            ),
+            "samples.create": lambda p: self.samples.create(
+                p["assetId"], float(p["start"]), float(p["end"]), name=p["name"], nature=p.get("nature"),
+                created_via=p.get("createdVia", "manual"), parent_sample_id=p.get("parentSampleId"),
+            ),
+            "samples.list": lambda p: self.samples.list(
+                offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
+                starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"), sort=p.get("sort", "created"),
+            ),
+            "samples.ids": lambda p: self.samples.ids(
+                natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId")
+            ),
+            "samples.get": lambda p: self.samples.get(p["id"]),
+            "samples.delete": lambda p: self.samples.delete(list(p["ids"])),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
                 p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
@@ -103,6 +121,7 @@ class Core:
         self.edits = EditService(self.conn, on_change=self._on_change)
         self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
         self.exports = ExportService(self.conn, self.ws)
+        self.samples = SampleService(self.conn, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
             self.conn,

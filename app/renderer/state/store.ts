@@ -12,8 +12,20 @@ export interface Toast {
   action?: { label: string; run: () => void };
 }
 
+/** 跨页跳转：截取后在采样库打开新采样；「返回原片」带着区间回到原片页。 */
+export interface SourceJump {
+  sourceId: string;
+  ordinal: number | null;
+  a: number;
+  b: number;
+}
+
 interface AppState {
   page: Page;
+  openSample: string | null;
+  sourceJump: SourceJump | null;
+  setOpenSample(id: string | null): void;
+  setSourceJump(j: SourceJump | null): void;
   tasksOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
@@ -38,6 +50,10 @@ let toastSeq = 0;
 
 export const useApp = create<AppState>((set) => ({
   page: "library",
+  openSample: null,
+  sourceJump: null,
+  setOpenSample: (openSample) => set({ openSample }),
+  setSourceJump: (sourceJump) => set({ sourceJump }),
   tasksOpen: false,
   settingsOpen: false,
   shortcutsOpen: false,

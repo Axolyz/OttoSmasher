@@ -46,7 +46,7 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await page.mouse.up();
   await expect(page.getByTestId("readout")).toContainText("→");
   const readout = await page.getByTestId("readout").textContent();
-  const [a, b] = readout!.split("·")[1]!.split("(")[0]!.split("→").map((x) => Number(x.trim().split(":")[1]));
+  const [a, b] = readout!.split("·")[1]!.split("（")[0]!.split("→").map((x) => Number(x.trim().split(":")[1]));
   expect(a).toBeGreaterThan(1.4);
   expect(b).toBeLessThan(3.4);
 

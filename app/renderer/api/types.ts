@@ -117,3 +117,45 @@ export interface DeletePreview {
   oped: number;
   activeJobs: string[];
 }
+
+// ---------- 采样（阶段 2）
+
+export type Nature = "speech" | "pitched" | "unpitched" | "unclassified";
+
+export interface SampleRow {
+  id: string;
+  asset_id: string;
+  start: number;
+  end: number;
+  duration: number;
+  name: string;
+  nature: Nature;
+  starred: boolean;
+  rating: number | null;
+  language: string | null;
+  created_via: string;
+  parent_sample_id: string | null;
+  parent_label: string | null;
+  created_at: string;
+  version: number;
+  source_id: string;
+  source_name: string;
+  source_path: string;
+  source_start: number | null;
+  stream_ordinal: number | null;
+  media_state: string;
+}
+
+export interface SamplePage {
+  total: number;
+  offset: number;
+  rows: SampleRow[];
+}
+
+export interface SampleSuggestion {
+  name: string;
+  nature: Nature;
+  roles: string[];
+  start: number;
+  end: number;
+}

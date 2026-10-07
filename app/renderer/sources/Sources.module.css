@@ -55,3 +55,10 @@
 .impact { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .keep { color: var(--ok); }
 .warn { color: var(--warn); }
+
+/* 截取面板 */
+.clipPopover { background: var(--s2); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow); width: 420px; }
+.clipPanel { outline: none; padding: 14px; }
+.clipForm { display: flex; flex-direction: column; gap: 8px; }
+.clipHint { color: var(--muted); font-size: var(--fs-xs); }
+.clipActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

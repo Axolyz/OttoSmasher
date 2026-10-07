@@ -52,6 +52,16 @@ export function SourcesPage() {
   useEffect(() => remember("expanded", expanded), [expanded]);
   useEffect(() => remember("listHidden", listHidden), [listHidden]);
 
+  // 「返回原片」：打开该原片（区间由查看器接手）
+  const jump = useApp((st) => st.sourceJump);
+  useEffect(() => {
+    if (!jump || !rows) return;
+    const row = rows.find((r) => r.id === jump.sourceId);
+    if (!row) return;
+    setCurrent(row.id);
+    setExpanded((e) => (e.includes(row.work) ? e : [...e, row.work]));
+  }, [jump, rows]);
+
   // 离开原片页清空勾选（UI_PLAN §4）
   useEffect(() => {
     if (page !== "sources") setChecked(new Set());

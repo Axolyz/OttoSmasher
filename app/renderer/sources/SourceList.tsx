@@ -128,7 +128,9 @@ export function SourceList(props: {
             <div key={work || "\u0000"}>
               <button type="button" className={s.group} onClick={() => props.onToggleGroup(work)} data-testid="source-group" data-work={work}>
                 {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <span className={s.groupName}>{work || t("sources.noWork")}</span>
+                <span className={s.groupName} data-user-data={work ? "" : undefined}>
+                  {work || t("sources.noWork")}
+                </span>
                 <span className="num">{t("sources.groupCount", { n: rs.length })}</span>
               </button>
               {open
@@ -165,7 +167,7 @@ export function SourceList(props: {
                         />
                         <span className={s.kind}>{r.has_video ? <Film /> : <AudioLines />}</span>
                         <div className={s.rowMain}>
-                          <div className={s.rowTitle} title={basename(r.path)}>
+                          <div className={s.rowTitle} title={basename(r.path)} data-user-data={r.episode ? undefined : ""}>
                             {rowTitle(r)}
                           </div>
                           <div className={s.rowMeta}>

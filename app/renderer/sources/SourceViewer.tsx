@@ -1,7 +1,7 @@
 // 原片查看器（UI_PLAN §4）：顶栏、画面（原生播放画到画布）、台本（阶段 3）、时间线、动作条。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, Download, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pause, Play, Repeat, Scissors, SquarePlay } from "lucide-react";
+import { AudioLines, Download, Info, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pause, Play, Repeat, SquarePlay } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
@@ -12,6 +12,7 @@ import { Menu, Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
+import { ClipPanel } from "./ClipPanel";
 import { displayName } from "./SourceList";
 import s from "./Sources.module.css";
 import { type Sel, Timeline, type TimelineHandle } from "./Timeline";
@@ -38,6 +39,7 @@ export function SourceViewer(props: {
   const [state, setState] = useState<PlayerState | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [clipOpen, setClipOpen] = useState(false);
   const stamp = useRef({ time: null as number | null, at: 0, playing: false, gen: -1 });
   const tl = useRef<TimelineHandle>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -51,6 +53,20 @@ export function SourceViewer(props: {
     stamp.current = { time: null, at: 0, playing: false, gen: -1 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id]);
+
+  // 「返回原片 ↗」带来的区间：选区 = 该区间，音源 = 该采样的音轨，时间线放大到它并把播放头放到起点
+  const jump = useApp((st) => st.sourceJump);
+  const setJump = useApp((st) => st.setSourceJump);
+  const pendingZoom = useRef<Sel | null>(null);
+  const [zoomNonce, setZoomNonce] = useState(0);
+  useEffect(() => {
+    if (!jump || jump.sourceId !== row.id) return;
+    setSel({ a: jump.a, b: jump.b });
+    if (jump.ordinal != null) setOrdinal(jump.ordinal);
+    pendingZoom.current = { a: jump.a, b: jump.b };
+    setZoomNonce((n) => n + 1); // 音轨已经加载时也要放大（资产没变，下面的效果不会因资产重跑）
+    setJump(null);
+  }, [jump, row.id, setJump]);
 
   // 资料
   useEffect(() => {
@@ -99,6 +115,16 @@ export function SourceViewer(props: {
 
   const asset = useMemo(() => assets.find((a) => a.origin === "stream" && a.stream_ordinal === ordinal) ?? null, [assets, ordinal]);
   const duration = asset?.duration ?? row.duration;
+  useEffect(() => {
+    const z = pendingZoom.current;
+    if (!z || !asset) return;
+    pendingZoom.current = null;
+    // 时间线换资产时会回到整段，等它先完成再放大
+    setTimeout(() => {
+      tl.current?.zoomTo(z.a, z.b);
+      window.otto.player.seek(z.a);
+    }, 0);
+  }, [asset, zoomNonce]);
   const audioStreams = (detail?.streams ?? []).filter((x) => x.kind === "audio");
   const playing = state?.playing ?? false;
 
@@ -190,8 +216,10 @@ export function SourceViewer(props: {
           onPress={props.onToggleList}
           aria-label={props.listHidden ? t("sources.showList") : t("sources.hideList")}
         />
-        <span className={s.vtitle}>{displayName(row)}</span>
-        <span className={s.vsub} title={row.path}>
+        <span className={s.vtitle} data-user-data="">
+          {displayName(row)}
+        </span>
+        <span className={s.vsub} title={row.path} data-user-data="">
           {basename(row.path)}
         </span>
         <span className={s.grow} />
@@ -237,7 +265,7 @@ export function SourceViewer(props: {
           <span className={s.grow} />
           {openError ? <span className={s.warn}>{openError}</span> : null}
           <Tip content={t("sources.timelineHelp")}>
-            <span className={s.tlLabel}>ⓘ</span>
+            <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
         </div>
         <Timeline
@@ -272,16 +300,12 @@ export function SourceViewer(props: {
           {sel ? (
             <>
               {"  ·  "}
-              {clock(sel.a)} → {clock(sel.b)} ({seconds(sel.b - sel.a)} s)
+              {clock(sel.a)} → {clock(sel.b)} {t("format.secParen", { v: seconds(sel.b - sel.a) })}
             </>
           ) : null}
         </span>
         <span className={s.grow} />
-        <Tip content={t("sources.clipLater")}>
-          <Button variant="secondary" icon={<Scissors />} isDisabled>
-            {t("sources.clip")}
-          </Button>
-        </Tip>
+        <ClipPanel assetId={asset?.id ?? null} sel={sel} isOpen={clipOpen} onOpenChange={setClipOpen} />
         <Button variant="primary" icon={<Download />} onPress={() => void exportWav()} isDisabled={!sel || !asset || exporting} data-testid="export-wav">
           {t("sources.exportWav")}
         </Button>

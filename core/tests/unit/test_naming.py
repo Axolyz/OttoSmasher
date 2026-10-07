@@ -101,3 +101,32 @@ def test_recursive_dialect_supported():
     # 字幕规则要用的递归括号写法在同一方言下可用（规格 06 §6.2.2）
     pat = rules_mod.compile_rule(r"(?P<b>[（(](?P<content>(?:[^（）()]|(?&b))*)[）)])", required=["content"])
     assert pat.search("（京子(きょうこ)たち）台詞").group("content") == "京子(きょうこ)たち"
+
+
+# ---------------------------------------------------------------- 采样建议名与性质预填（04 §4.7、R2.6、R7.5）
+from ottosmasher.domain.naming import clock_label, nature_for_roles, suggest_sample_name  # noqa: E402
+
+
+def test_clock_label():
+    assert clock_label(80.2) == "1:20.200"
+    assert clock_label(3725.0004) == "1:02:05.000"
+    assert clock_label(0) == "0:00.000"
+
+
+def test_suggest_name_priority():
+    base = dict(source_name="Yuru Yuri 01", start=80.2, end=82.0)
+    assert suggest_sample_name(**base) == "Yuru Yuri 01 1:20.200–1:22.000"
+    assert suggest_sample_name(**base, mapped=False, local_marker="局部 ") == "Yuru Yuri 01 · 局部 1:20.200–1:22.000"
+    # R7.5：与音效标注交叠 → 用清洗后的文字
+    assert suggest_sample_name(**base, overlapping_texts=["足音"]) == "足音"
+    assert suggest_sample_name(**base, overlapping_texts=["ちょっと待って", " ", "足音", "足音"]) == "ちょっと待って / 足音"
+    # 对齐结果优先
+    assert suggest_sample_name(**base, aligned=("待って", "まって"), overlapping_texts=["足音"]) == "待って — まって"
+
+
+@pytest.mark.parametrize(
+    "roles,nature",
+    [(["vocal"], "speech"), (["sfx"], "unpitched"), (["vocal", "sfx"], "unclassified"), ([], "unclassified")],
+)
+def test_nature_for_roles(roles, nature):
+    assert nature_for_roles(roles) == nature
