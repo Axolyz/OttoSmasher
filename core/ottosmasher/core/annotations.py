@@ -3,6 +3,8 @@
 - 台本 / 时间线车道：当前字幕版本的台词、音效、（用户标的）歌词标记，加上手动建立的标注（没有版本，始终参与）；未删除；按时间。
   每条带说话人（显示层：只给名字）、区段标签、是否在已确认 OP/ED 里（端点相接不算）。
 - 派生轨（规格 03 §3.9 / 16 R7.6）：该原片的所有用户采样（跨音轨和资产），区间经各自资产的映射换到原片时间（分段映射，首尾分别换算）。
+- 本地标签提升为区段标签（规格 07 §7.4、04 §4.3、16 R5.6）：只生成编辑批次（新建区段标注 + 移除这些本地标签），由编辑通道预览、原子应用、可撤销。
+  作用域默认取资产的角色（一个角色 → 该角色；两个 → 必须选；没有 → 资产作用域，时间用资产局部秒）；时间默认 = 采样选区换算到对应坐标，可改。
 - 原片列表统计（05 §5.8）：句数 = 当前字幕版本中、不在 OP/ED 区间内的台词标记数；“无字幕” = 没有导入过标记；OP/ED 区间数。
   “已分析”在语音分析（阶段 4）之后补。
 - 准备清单：字幕标记、整轨人声分离、默认人声轨、默认音效轨、OP/ED、台词采样（语音分析在阶段 4 加入）。每项给现状，没有顺序、不强制。
@@ -28,10 +30,10 @@ def list_for_source(conn: sqlite3.Connection, source_id: str) -> dict[str, Any]:
     src = conn.execute("SELECT current_subtitle_version_id FROM source WHERE id=?", (source_id,)).fetchone()
     if src is None:
         raise CoreError("source-not-found", id=source_id)
-    opeds = [dict(r) for r in conn.execute('SELECT id, kind, start, "end" FROM oped WHERE source_id=? AND deleted=0 ORDER BY start', (source_id,))]
+    opeds = [dict(r) for r in conn.execute('SELECT id, version, kind, start, "end" FROM oped WHERE source_id=? AND deleted=0 ORDER BY start', (source_id,))]
     rows = conn.execute(
-        'SELECT id, kind, scope, scope_role, start, "end", raw_text, clean_text, tags, subtitle_version_id FROM annotation'
-        " WHERE source_id=? AND deleted=0 AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?) ORDER BY start, rowid",
+        'SELECT id, version, kind, scope, scope_role, start, "end", raw_text, clean_text, tags, subtitle_version_id FROM annotation'
+        " WHERE source_id=? AND deleted=0 AND scope<>'asset' AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?) ORDER BY start, rowid",
         (source_id, src[0]),
     )
     out = []
@@ -41,8 +43,10 @@ def list_for_source(conn: sqlite3.Connection, source_id: str) -> dict[str, Any]:
         out.append(
             {
                 "id": r["id"],
+                "version": r["version"],
                 "kind": r["kind"],
                 "scope": r["scope"],
+                "scopeRole": r["scope_role"],
                 "start": r["start"],
                 "end": r["end"],
                 "text": r["raw_text"],
@@ -130,3 +134,46 @@ def prep(conn: sqlite3.Connection, source_id: str) -> dict[str, Any]:
         "oped": {"ok": c["oped"] > 0, "count": c["oped"]},
         "lineSamples": {"ok": line_samples > 0, "count": line_samples},
     }
+
+
+def promote_batch(
+    conn: sqlite3.Connection, sample_id: str, tags: list[str], *, role: str | None = None, start: float | None = None, end: float | None = None
+) -> dict[str, Any]:
+    """本地标签提升为区段标签的编辑批次（R5.6）。返回 {batch, scope, role, assetId, start, end, roles}；不写库。"""
+    s = conn.execute('SELECT id, asset_id, start, "end", version FROM sample WHERE id=?', (sample_id,)).fetchone()
+    if s is None:
+        raise CoreError("sample-not-found", id=sample_id)
+    local = [r[0] for r in conn.execute("SELECT tag FROM sample_tag WHERE sample_id=? ORDER BY tag", (sample_id,))]
+    tags = sorted({t.strip() for t in tags if t.strip()})
+    if not tags or any(t not in local for t in tags):
+        raise CoreError("promote-invalid", reason="not-local-tags")
+    a = conn.execute("SELECT source_id, mapping FROM sound_asset WHERE id=?", (s["asset_id"],)).fetchone()
+    roles = [r[0] for r in conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on' ORDER BY role", (s["asset_id"],))]
+    if not roles:
+        scope, role = "asset", None
+        a0, b0 = s["start"], s["end"]
+    else:
+        if role is None:
+            if len(roles) > 1:
+                raise CoreError("promote-invalid", reason="role-required", roles=roles)
+            role = roles[0]
+        if role not in roles:
+            raise CoreError("promote-invalid", reason="role-not-on-asset", role=role, roles=roles)
+        scope = "role"
+        m = Mapping.of(loads(a["mapping"]))
+        a0, b0 = m.to_source(s["start"]), m.to_source(s["end"])
+    start = a0 if start is None else float(start)
+    end = b0 if end is None else float(end)
+    fields: dict[str, Any] = {"source_id": a["source_id"], "kind": "tag", "scope": scope, "start": start, "end": end, "tags": tags}
+    if scope == "role":
+        fields["scope_role"] = role
+    else:
+        fields["scope_asset_id"] = s["asset_id"]
+    batch = {
+        "label": {"code": "tags-promote", "args": {"n": len(tags)}},
+        "ops": [
+            {"entity": "annotation", "op": "create", "fields": fields},
+            {"entity": "sample", "id": sample_id, "version": s["version"], "fields": {"local_tags": [t for t in local if t not in tags]}},
+        ],
+    }
+    return {"batch": batch, "scope": scope, "role": role, "roles": roles, "assetId": s["asset_id"], "start": start, "end": end}

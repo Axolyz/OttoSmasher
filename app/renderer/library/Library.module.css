@@ -45,3 +45,4 @@
 .fileList li { overflow-wrap: anywhere; }
 .footNote { color: var(--muted); font-size: var(--fs-sm); }
 .page[data-drop] { box-shadow: inset 0 0 0 2px var(--accent); }
+.inline { display: flex; gap: 6px; align-items: center; min-width: 0; }

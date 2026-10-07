@@ -73,11 +73,25 @@ export function TextField(props: {
   invalid?: boolean;
   isDisabled?: boolean;
   testId?: string;
+  /** 回车 */
+  onSubmit?: () => void;
+  autoFocus?: boolean;
 }) {
   return (
     <RacTextField
       value={props.value}
       onChange={props.onChange}
+      autoFocus={props.autoFocus}
+      onKeyDown={
+        props.onSubmit
+          ? (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                props.onSubmit!();
+              }
+            }
+          : undefined
+      }
       aria-label={props.label}
       isDisabled={props.isDisabled}
       isInvalid={props.invalid}

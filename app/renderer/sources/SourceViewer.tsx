@@ -2,7 +2,7 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { ArrowUpRight, AudioLines, ChevronDown, ImageOff, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { ArrowUpRight, AudioLines, ChevronDown, ImageOff, Pencil, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
@@ -16,6 +16,7 @@ import { NatureDot } from "../components/NaturePicker";
 import { Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
+import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
@@ -23,7 +24,9 @@ import type { SeparationInput } from "./SeparationDialog";
 import { displayName } from "./SourceList";
 import { isShort, relDir } from "./short";
 import s from "./Sources.module.css";
-import { type Layer, type Sel, Timeline, type TimelineHandle } from "./Timeline";
+import { AnnotationDialog, type AnnTarget } from "./AnnotationDialog";
+import { boundaries, limits, moveBoundary } from "./bounds";
+import { type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "./Timeline";
 import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
 
 type LayerId = "sub" | "seg" | "none";
@@ -124,7 +127,9 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       return {
         id,
         label: t("layers.sub"),
-        bands: anns.filter((a) => a.kind !== "tag").map((a) => ({ a: a.start, b: a.end, label: a.name || a.text, tone: a.kind === "sfx" ? "sfx" : "line" })),
+        bands: anns
+          .filter((a) => a.kind !== "tag")
+          .map((a) => ({ a: a.start, b: a.end, label: a.name || a.text, tone: a.kind === "sfx" ? "sfx" : "line", id: `annotation:${a.id}` })),
       };
     // 区段 / 说话人：说话人显示层“角色：名”（R5.5，底层标签不变）、手动区段标签、OP/ED
     return {
@@ -136,18 +141,85 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           .map((a) => ({
             a: a.start,
             b: a.end,
-            label: a.speakers.length ? t("layers.speaker", { names: a.speakers.join(t("settings.subtitle.speakerSep")) }) : a.name || a.text,
+            label: a.speakers.length
+              ? t("layers.speaker", { names: a.speakers.join(t("settings.subtitle.speakerSep")) })
+              : a.name || a.text || a.tags.join(t("settings.subtitle.speakerSep")),
             tone: "seg" as const,
+            id: `annotation:${a.id}`,
           })),
-        ...opeds.map((o) => ({ a: o.start, b: o.end, label: o.kind, tone: "oped" as const })),
+        ...opeds.map((o) => ({ a: o.start, b: o.end, label: o.kind, tone: "oped" as const, id: `oped:${o.id}` })),
       ],
     };
   };
+  // 编辑覆盖层边界（UI_PLAN §3.1、03 §3.5.4）：工作副本在本地，保存 = 一次可撤销的编辑（只改时间标注 / OP/ED，不移动采样 R4.11）
+  const [editBands, setEditBands] = useState<LayerBand[] | null>(null);
+  const [editFocus, setEditFocus] = useState<string | null>(null);
+  const editing = editBands != null;
   // 短音频原片没有字幕：只有派生采样车道
-  const overlay = short || overlayId === "none" ? null : layer(overlayId);
+  const baseOverlay = short || overlayId === "none" ? null : layer(overlayId);
+  const overlay = baseOverlay && editBands ? { ...baseOverlay, bands: editBands } : baseOverlay;
   const lanes = (short ? (["derived"] as const) : (["sub", "seg", "derived"] as const))
     .filter((id) => (short || (laneIds.has(id) && id !== overlayId)) && (id !== "derived" || derived.length > 0))
     .map(layer);
+
+  const startEdit = () => {
+    if (!baseOverlay) return;
+    setEditBands(baseOverlay.bands);
+    setEditFocus(null);
+  };
+  const stopEdit = () => {
+    setEditBands(null);
+    setEditFocus(null);
+  };
+  const editRef = (id: string) => {
+    const [entity, key] = id.split(":") as ["annotation" | "oped", string];
+    const version = entity === "annotation" ? anns.find((a) => a.id === key)?.version : opeds.find((o) => o.id === key)?.version;
+    return { entity, id: key, version };
+  };
+  const saveEdit = async () => {
+    if (!editBands || !baseOverlay) return;
+    const before = new Map(baseOverlay.bands.map((b) => [b.id, b]));
+    const ops: Array<Record<string, unknown>> = [];
+    const done = new Set<string>();
+    for (const b of editBands) {
+      const o = b.id ? before.get(b.id) : undefined;
+      if (!b.id || !o || done.has(b.id) || (o.a === b.a && o.b === b.b)) continue;
+      done.add(b.id);
+      const r = editRef(b.id);
+      const fields: Record<string, number> = {};
+      if (o.a !== b.a) fields.start = b.a;
+      if (o.b !== b.b) fields.end = b.b;
+      ops.push({ entity: r.entity, id: r.id, version: r.version, fields });
+    }
+    if (!ops.length) return stopEdit();
+    try {
+      await call("edits.apply", { batch: { label: { code: "bounds-edit", args: { n: ops.length } }, ops } });
+      stopEdit();
+      toast({ text: t("edit.boundsSaved", { n: ops.length }), action: { label: t("edit.boundsUndo"), run: () => void undo() } });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+  const focusBand = editing ? (editBands.find((b) => b.id === editFocus) ?? null) : null;
+  // 表单里改开始/结束：与拖动同一套规则（共用边界一起动、不越过邻居）
+  const commitEdge = (side: "a" | "b") => (v: number) => {
+    if (!editBands || !focusBand?.id) return false;
+    const eb = editBands.filter((x) => x.id).map((x) => ({ key: x.id!, a: x.a, b: x.b }));
+    const all = boundaries(eb);
+    const i = all.findIndex((x) => x.items.some((it) => it.key === focusBand.id && it.side === side));
+    if (i < 0) return false;
+    const lim = limits(all, i, eb, duration);
+    if (v < lim[0] - 1e-9 || v > lim[1] + 1e-9) return false;
+    const moved = new Map(moveBoundary(eb, all[i]!, v, lim).map((x) => [x.key, x]));
+    setEditBands(editBands.map((x) => (x.id && moved.has(x.id) ? { ...x, a: moved.get(x.id)!.a, b: moved.get(x.id)!.b } : x)));
+    return true;
+  };
+  useEffect(() => stopEdit(), [row.id, overlayId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 标注对话框与时间线右键菜单（03 §3.5.4：波形右键与选区操作栏同源，另含“设为开始 / 设为结束”）
+  const [annTarget, setAnnTarget] = useState<AnnTarget | null>(null);
+  const tlMenu = useContextMenu("timeline-menu");
+  const undo = useUndo();
 
   const setPage = useApp((st) => st.setPage);
   const setOpenSample = useApp((st) => st.setOpenSample);
@@ -301,6 +373,13 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       e.preventDefault();
       e.stopPropagation();
     };
+    if (editing && k === "Escape") {
+      // Esc = 放弃（UI_PLAN §3.1）
+      handled();
+      stopEdit();
+      toast({ text: t("edit.boundsDiscarded") });
+      return;
+    }
     if (k === " " && e.shiftKey) {
       handled();
       playSel(false);
@@ -468,6 +547,11 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           />
           {openError ? <span className={s.warn}>{openError}</span> : null}
           <span className={s.grow} />
+          {!short ? (
+            <Button size="sm" variant="flat" icon={<Pencil />} isDisabled={!baseOverlay || editing} onPress={startEdit} data-testid="edit-bounds">
+              {baseOverlay ? t("edit.button", { layer: t(`layers.${overlayId}`) }) : t("edit.buttonNone")}
+            </Button>
+          ) : null}
           <Button size="sm" variant="flat" onPress={() => tl.current?.fit()} title={t("sources.fitTip")}>
             {t("sources.fit")}
           </Button>
@@ -493,6 +577,38 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
         </div>
+        {editing ? (
+          <div className={s.editBar} data-testid="edit-bar">
+            <b>{t("edit.editing", { layer: t(`layers.${overlayId}`) })}</b>
+            {focusBand ? (
+              <>
+                <span className={s.editName} lang="ja" data-user-data="">
+                  {focusBand.label}
+                </span>
+                <TimeField value={focusBand.a} onCommit={commitEdge("a")} label={t("sources.selStart")} testId="edit-start" />
+                <span className={s.arrow}>→</span>
+                <TimeField value={focusBand.b} onCommit={commitEdge("b")} label={t("sources.selEnd")} testId="edit-end" />
+              </>
+            ) : (
+              <span className={s.muted}>{t("edit.hint")}</span>
+            )}
+            <span className={s.grow} />
+            <Button
+              size="sm"
+              variant="flat"
+              onPress={() => {
+                stopEdit();
+                toast({ text: t("edit.boundsDiscarded") });
+              }}
+              data-testid="edit-discard"
+            >
+              {t("edit.discard")}
+            </Button>
+            <Button size="sm" variant="primary" onPress={() => void saveEdit()} data-testid="edit-save">
+              {t("edit.saveBounds")}
+            </Button>
+          </div>
+        ) : (
         <div className={s.layerBar} data-testid="layer-bar" style={short ? { display: "none" } : undefined}>
           <span className={s.groupLabel}>{t("layers.overlay")}</span>
           <Segmented<LayerId>
@@ -510,11 +626,48 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           ))}
           <span className={s.muted}>{t("layers.hint")}</span>
         </div>
+        )}
         <Timeline
           ref={tl}
           overlay={overlay}
           lanes={lanes}
           onLaneDoubleClick={(id) => id !== "derived" && setOverlayId(id as LayerId)}
+          editing={editing}
+          editFocus={editFocus}
+          onEditBands={setEditBands}
+          onEditFocus={setEditFocus}
+          onContextMenu={(tt, hits, at) => {
+            const anns_ = [...hits.overlay, ...(hits.lane?.bands ?? [])]
+              .filter((b) => b.id?.startsWith("annotation:"))
+              .map((b) => anns.find((a) => `annotation:${a.id}` === b.id)!)
+              .filter((a, k, arr) => a && arr.indexOf(a) === k)
+              .slice(0, 5);
+            const derivedHits = hits.lane?.id === "derived" ? hits.lane.bands.slice(0, 5) : [];
+            const setEdge = (side: "a" | "b") => {
+              const a = side === "a" ? tt : (sel?.a ?? 0);
+              const b = side === "b" ? tt : (sel?.b ?? duration);
+              if (b > a) setSel({ a, b });
+            };
+            tlMenu.open(at, {
+              head: t("sources.atTime", { t: clock(tt) }),
+              items: [
+                { id: "in", label: t("sources.setStart"), shortcut: "I", run: () => setEdge("a") },
+                { id: "out", label: t("sources.setEnd"), shortcut: "O", run: () => setEdge("b") },
+                "-",
+                { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
+                { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
+                "-",
+                { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create", sourceId: row.id, start: sel.a, end: sel.b }) },
+                ...anns_.map((a) => ({
+                  id: `ann:${a.id}`,
+                  label: t("ann.editMenu", { name: a.name || a.text || a.tags.join(" ") }),
+                  disabled: editing,
+                  run: () => setAnnTarget({ mode: "edit", ann: a }),
+                })),
+                ...derivedHits.map((b) => ({ id: `smp:${b.id}`, label: t("sources.openSample", { name: b.label }), run: () => openSample(b.id!) })),
+              ],
+            });
+          }}
           onBandPress={(laneId, bands, at) => {
             if (laneId !== "derived") return false;
             if (bands.length === 1) openSample(bands[0]!.id!);
@@ -540,6 +693,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           onDragOut={exportSelection}
         />
         {pick.node}
+        {tlMenu.node}
         <div className={s.actions}>
           <div className={s.group}>
             <Button variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">
@@ -612,6 +766,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           )}
         </div>
       ) : null}
+      <AnnotationDialog target={annTarget} duration={duration} onClose={() => setAnnTarget(null)} />
     </section>
   );
 }

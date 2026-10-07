@@ -5,7 +5,7 @@
 import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Plus, Square, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
-import { CoreFailure, call } from "../api/core";
+import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
 import type { EffectiveTag, Nature, SamplePage, SampleRow } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
@@ -15,6 +15,7 @@ import { type ChipItem, Chips, EmptyState, Segmented } from "../components/Contr
 import { TextField } from "../components/Fields";
 import { Menu, type MenuItems, type MenuSpec } from "../components/Menu";
 import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
+import { AnchoredPanel } from "../components/Panel";
 import { ConfirmDialog } from "../components/Overlay";
 import { SplitPane } from "../components/SplitPane";
 import { Thumb } from "../components/Thumb";
@@ -25,6 +26,7 @@ import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ImportDialog } from "./ImportDialog";
+import { PromoteDialog } from "./PromoteDialog";
 import s from "./Library.module.css";
 
 const PAGE = 100;
@@ -60,6 +62,9 @@ export function LibraryPage() {
   const undo = useUndo();
   const [purpose, setPurpose] = useState<Purpose>("all");
   const [importPaths, setImportPaths] = useState<string[] | null>(null);
+  const [promoteFor, setPromoteFor] = useState<SampleRow | null>(null);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState("");
   const [drop, setDrop] = useState(false);
   const pickImport = async () => {
     const paths = await window.otto.files.pick("import");
@@ -214,6 +219,27 @@ export function LibraryPage() {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
       void load(offset);
     }
+  };
+
+  // 舞台跟着资料变化（撤销、提升、原片属性）重读焦点采样；列表不自动重排（P8：底部提示“刷新浏览列表”）
+  useCoreEvent("data.changed", (d) => {
+    const c = d as Record<string, string[]>;
+    if (focus && (c.sample?.includes(focus) || c.annotation || c.source || c.asset)) {
+      void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
+    }
+  });
+
+  const addLocalTag = () => {
+    const v = tagDraft.trim();
+    if (!v || !focusRow) return;
+    const local = (focusRow.tags ?? []).filter((x) => x.provenance === "local").map((x) => x.tag);
+    if (!local.includes(v)) void edit([focusRow.id], { local_tags: [...local, v] }, "sample-tags");
+    setTagOpen(false);
+    setTagDraft("");
+  };
+  const refreshAfterPromote = () => {
+    void load(offset);
+    if (focus) void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
   };
 
   const checkAllMatching = async () => setChecked(new Set(await call<string[]>("samples.ids", query)));
@@ -451,17 +477,43 @@ export function LibraryPage() {
               {t("library.backToSource")}
             </Button>
           </div>
-          {focusRow.tags?.length ? (
-            <Chips
-              label={t("library.tags")}
-              testId="stage-tags"
-              items={focusRow.tags.map((tg) => tagChip(tg))}
-              onRemove={(tag) => {
-                const local = (focusRow.tags ?? []).filter((x) => x.provenance === "local" && x.tag !== tag).map((x) => x.tag);
-                void edit([focusRow.id], { local_tags: local }, "sample-tags");
-              }}
-            />
-          ) : null}
+          {/* 标签行（03 §3.6）：有效标签，只有本地的可删；「+」加本地标签；「提升为区段标签…」（R5.6） */}
+          <Chips
+            label={t("library.tags")}
+            testId="stage-tags"
+            items={(focusRow.tags ?? []).map((tg) => tagChip(tg))}
+            onRemove={(tag) => {
+              const local = (focusRow.tags ?? []).filter((x) => x.provenance === "local" && x.tag !== tag).map((x) => x.tag);
+              void edit([focusRow.id], { local_tags: local }, "sample-tags");
+            }}
+            trailing={
+              <>
+                <AnchoredPanel
+                  title={t("library.addTag")}
+                  isOpen={tagOpen}
+                  onOpenChange={(o) => {
+                    setTagOpen(o);
+                    setTagDraft("");
+                  }}
+                  width={300}
+                  testId="add-tag-panel"
+                  trigger={<Button size="sm" variant="flat" icon={<Plus />} aria-label={t("library.addTag")} data-testid="add-tag" />}
+                  footer={
+                    <Button size="sm" variant="primary" isDisabled={!tagDraft.trim()} onPress={addLocalTag}>
+                      {t("library.addTagOk")}
+                    </Button>
+                  }
+                >
+                  <TextField value={tagDraft} onChange={setTagDraft} onSubmit={addLocalTag} autoFocus label={t("library.addTag")} placeholder={t("ann.tagHint")} testId="add-tag-input" />
+                </AnchoredPanel>
+                {(focusRow.tags ?? []).some((x) => x.provenance === "local") ? (
+                  <Button size="sm" variant="flat" onPress={() => setPromoteFor(focusRow)} data-testid="promote">
+                    {t("promote.menu")}
+                  </Button>
+                ) : null}
+              </>
+            }
+          />
           <div className={s.stageActions}>
             <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
@@ -524,6 +576,7 @@ export function LibraryPage() {
           }))}
         />
       </TopSlot>
+      <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={refreshAfterPromote} />
       <ImportDialog
         paths={importPaths}
         defaultNature={purpose === "all" ? "unclassified" : purpose}

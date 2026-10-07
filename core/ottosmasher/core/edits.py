@@ -106,6 +106,15 @@ def v_opt_id(v: Any) -> str | None:
     return v
 
 
+def v_opt_enum(*options: str) -> Validator:
+    def check(v: Any) -> str | None:
+        if v is not None and v not in options:
+            raise _Invalid("not-an-option", options=list(options))
+        return v
+
+    return check
+
+
 def v_number(v: Any) -> float:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         raise _Invalid("not-number")
@@ -214,12 +223,15 @@ _register(
             "align_text_manual": FieldSpec(v_text(max_len=10_000, strip=False)),
             "tags": FieldSpec(v_tags(512), json=True),
             "deleted": FieldSpec(v_bool),
+            # 种类：字幕来的台词/音效可以改成歌词（规格 04 §4.2.2：歌词只能由用户手动标）；作用域可改（04：标注可编辑时间、文字、标签、作用域）
+            "kind": FieldSpec(v_enum("line", "sfx", "song", "tag")),
+            "scope": FieldSpec(v_enum("source", "role", "asset")),
+            "scope_role": FieldSpec(v_opt_enum("vocal", "sfx")),
+            # 用户改过（字幕重新导入只补登、不改写用户改过的标注；编辑时自动置上，撤销时恢复）
+            "user_edited": FieldSpec(v_bool),
         },
         creatable={
             "source_id": FieldSpec(v_text(min_len=1, max_len=64)),
-            "kind": FieldSpec(v_enum("line", "sfx", "song", "tag")),
-            "scope": FieldSpec(v_enum("source", "role", "asset")),
-            "scope_role": FieldSpec(v_enum("vocal", "sfx")),
             "scope_asset_id": FieldSpec(v_text(min_len=1, max_len=64)),
             # 字幕导入（规格 06 §6.1）：来自哪个字幕版本的哪一行、按当时规则得到的自动对齐文本
             "subtitle_version_id": FieldSpec(v_text(min_len=1, max_len=64)),
@@ -395,8 +407,14 @@ class EditService:
             if expected != version:
                 raise CoreError("edit-conflict", index=i, entity=entity, id=entity_id, expected=expected, actual=version)
             diffs = {n: (before[n], v) for n, v in new.items() if before[n] != v}
+            if spec.name == "annotation" and diffs and "user_edited" not in new:
+                flag = self._read(spec, entity_id, ["user_edited"])
+                if flag and not flag[0]["user_edited"]:
+                    diffs["user_edited"] = (False, True)
             if spec.name in ("annotation", "oped") and ("start" in new or "end" in new):
                 self._check_range(i, spec, entity_id, new)
+            if spec.name == "annotation" and ({"scope", "scope_role"} & set(new)):
+                self._check_scope(i, entity_id, new)
             if spec.name == "source":
                 self._check_source(i, entity_id, new)
             plan.append(
@@ -473,6 +491,37 @@ class EditService:
                 end = cur[0]["end"] if end is None else end
         if start is not None and end is not None and not end > start:
             raise CoreError("edit-invalid", index=i, entity=spec.name, field="end", reason="end-not-after-start")
+        # 不超出坐标范围（R4.3）：原片 / 角色作用域按原片时长，资产作用域按资产时长
+        if entity_id is not None:
+            row = self.conn.execute(f"SELECT * FROM {spec.table} WHERE id=?", (entity_id,)).fetchone()
+            src, asset = row["source_id"], (row["scope_asset_id"] if spec.name == "annotation" and row["scope"] == "asset" else None)
+        else:
+            src = new.get("source_id")
+            asset = new.get("scope_asset_id") if new.get("scope") == "asset" else None
+        limit = None
+        if asset is not None:
+            r = self.conn.execute("SELECT duration FROM sound_asset WHERE id=?", (asset,)).fetchone()
+            limit = r[0] if r else None
+        elif src is not None:
+            r = self.conn.execute("SELECT duration FROM source WHERE id=?", (src,)).fetchone()
+            limit = r[0] if r else None
+        if start is not None and start < -1e-9:
+            raise CoreError("edit-invalid", index=i, entity=spec.name, field="start", reason="out-of-bounds")
+        if end is not None and limit is not None and end > limit + 1e-6:
+            raise CoreError("edit-invalid", index=i, entity=spec.name, field="end", reason="out-of-bounds")
+
+    def _check_scope(self, i: int, entity_id: str | None, new: dict[str, Any]) -> None:
+        """作用域与角色要配对：角色作用域必须给角色，其他作用域不能带角色。资产作用域只能在新建时定（时间坐标不同）。"""
+        cur = {"scope": None, "scope_role": None}
+        if entity_id is not None:
+            r = self.conn.execute("SELECT scope, scope_role FROM annotation WHERE id=?", (entity_id,)).fetchone()
+            cur = {"scope": r["scope"], "scope_role": r["scope_role"]}
+            if ("scope" in new and new["scope"] != cur["scope"]) and "asset" in (new["scope"], cur["scope"]):
+                raise CoreError("edit-invalid", index=i, entity="annotation", field="scope", reason="asset-scope-fixed")
+        scope = new.get("scope", cur["scope"])
+        role = new.get("scope_role", cur["scope_role"])
+        if (scope == "role") != (role is not None):
+            raise CoreError("edit-invalid", index=i, entity="annotation", field="scope_role", reason="scope-role-mismatch")
 
     def _plan_create(self, i: int, spec: EntitySpec, fields: dict[str, Any]) -> dict[str, Any]:
         if spec.soft_delete_column is None:
@@ -490,6 +539,7 @@ class EditService:
             self._check_range(i, spec, None, values)
         if spec.name == "annotation":
             self._check_range(i, spec, None, values)
+            self._check_scope(i, None, values)
             exists = self.conn.execute("SELECT 1 FROM source WHERE id=?", (values["source_id"],)).fetchone()
             if exists is None:
                 raise CoreError("edit-invalid", index=i, entity="annotation", field="source_id", reason="no-such-source")

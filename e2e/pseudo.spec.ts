@@ -66,9 +66,26 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("viewer-menu").click();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
+  // 时间线右键菜单与「新增区段标签」框
+  await page.mouse.click(tl.x + tl.width * 0.3, tl.y + 50, { button: "right" });
+  await expect(page.getByTestId("timeline-menu")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.getByTestId("timeline-menu").getByRole("menuitem").nth(4).click();
+  await expect(page.getByTestId("annotation-dialog")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
   await page.getByTestId("nav-library").click();
   await page.getByTestId("sample-row").first().click();
   expect(await unbracketed(page)).toEqual([]);
+  // 加本地标签 → 「提升为区段标签」框
+  await page.getByTestId("add-tag").click();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.getByTestId("add-tag-input").fill("t1");
+  await page.getByTestId("add-tag-input").press("Enter");
+  await page.getByTestId("promote").click();
+  await expect(page.getByTestId("promote-preview")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
 
   // 导入独立采样框（预览出来以后）
   await app.evaluate(({ dialog }, d) => {

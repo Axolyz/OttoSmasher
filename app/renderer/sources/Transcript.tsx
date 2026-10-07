@@ -13,7 +13,11 @@ import s from "./Sources.module.css";
 
 export interface Ann {
   id: string;
+  version: number;
   kind: "line" | "sfx" | "song" | "tag";
+  scope: "source" | "role" | "asset";
+  scopeRole: "vocal" | "sfx" | null;
+  tags: string[];
   start: number;
   end: number;
   text: string;
@@ -23,6 +27,7 @@ export interface Ann {
 }
 export interface Oped {
   id: string;
+  version: number;
   kind: "OP" | "ED";
   start: number;
   end: number;

@@ -8,6 +8,7 @@ import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { beginDragOut } from "../dragout";
 import { clock } from "../format";
 import { errorText, t } from "../i18n";
+import { type Boundary, type EditBand, boundaries, boundaryNear, limits, moveBoundary } from "./bounds";
 import { bandAt, bandsAt, snapExtend } from "./snap";
 import s from "./Sources.module.css";
 
@@ -118,6 +119,14 @@ export const Timeline = forwardRef<
     onLaneDoubleClick?: (id: string) => void;
     /** 车道上单击：返回 true 表示调用方处理了（派生轨 = 打开采样），不再选中区间。bands = 该处所有区间（重叠时多个） */
     onBandPress?: (laneId: string, bands: LayerBand[], at: { clientX: number; clientY: number }) => boolean;
+    /** 编辑覆盖层边界（UI_PLAN §3.1）：只有带 id 的覆盖层区间可拖；相邻共用的边界一起动，不越过邻居。编辑期间不建选区、不跳播放头 */
+    editing?: boolean;
+    /** 正在编辑的那条（边界表单显示它） */
+    editFocus?: string | null;
+    onEditBands?: (bands: LayerBand[]) => void;
+    onEditFocus?: (id: string | null) => void;
+    /** 右键：光标处的时间、覆盖层上的区间、车道（若在车道上）与其区间 */
+    onContextMenu?: (t: number, hits: { overlay: LayerBand[]; lane: { id: string; bands: LayerBand[] } | null }, at: { clientX: number; clientY: number }) => void;
   }
 >(function Timeline(props, ref) {
   const { assetId, duration } = props;
@@ -294,6 +303,23 @@ export const Timeline = forwardRef<
         ctx.restore();
       }
     }
+    // 编辑模式：可拖的边界画成把手，正在编辑的那条描边
+    if (props.editing) {
+      ctx.strokeStyle = cssVar("--accent");
+      ctx.lineWidth = 2;
+      for (const band of props.overlay?.bands ?? []) {
+        if (!band.id || band.b < v0 || band.a > v1) continue;
+        const xa = X(band.a);
+        const xb = X(band.b);
+        if (band.id === props.editFocus) ctx.strokeRect(xa + 1, waveTop + 1, xb - xa - 2, waveH - 2);
+        ctx.fillStyle = cssVar("--accent");
+        for (const x of [xa, xb]) {
+          ctx.fillRect(Math.round(x) - 1, waveTop, 2, waveH);
+          ctx.fillRect(Math.round(x) - 3, waveTop, 6, 10);
+        }
+      }
+      ctx.lineWidth = 1;
+    }
     // 车道：每层一条细带
     lanes.forEach((lane, i) => {
       const y = laneTop + i * LANE_H;
@@ -344,7 +370,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.lanes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.lanes, props.editing, props.editFocus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {
@@ -413,6 +439,13 @@ export const Timeline = forwardRef<
     return Math.max(0, Math.min(duration, v0 + ((clientX - r.left) / r.width) * (v1 - v0)));
   };
   const drag = useRef<null | { kind: "new" | "a" | "b" | "overview"; x0: number; t0: number; moved: boolean; shift: boolean }>(null);
+  const edge = useRef<null | { all: Boundary[]; i: number; lim: [number, number]; bands: EditBand[] }>(null);
+  const editable = (): EditBand[] => (propsRef.current.overlay?.bands ?? []).filter((x) => x.id).map((x) => ({ key: x.id!, a: x.a, b: x.b }));
+  const toX = (tt: number) => {
+    const r = wrap.current!.getBoundingClientRect();
+    const [v0, v1] = viewRef.current;
+    return r.left + ((tt - v0) / (v1 - v0)) * r.width;
+  };
   const laneAt = (clientY: number): number => {
     const r = wrap.current!.getBoundingClientRect();
     const y = clientY - r.top;
@@ -436,6 +469,20 @@ export const Timeline = forwardRef<
     const r = wrap.current!.getBoundingClientRect();
     const y = e.clientY - r.top;
     (e.target as Element).setPointerCapture(e.pointerId);
+    if (propsRef.current.editing && y >= waveTop && y < waveTop + waveH) {
+      // 编辑模式：按在边界上 = 拖边界；按在区间里 = 让表单显示它
+      const bands = editable();
+      const all = boundaries(bands);
+      const i = boundaryNear(all, e.clientX, toX, HANDLE_PX);
+      if (i >= 0) {
+        edge.current = { all, i, lim: limits(all, i, bands, duration), bands };
+        propsRef.current.onEditFocus?.(all[i]!.items[0]!.key);
+      } else {
+        const hit = bandAt(timeAt(e.clientX), propsRef.current.overlay?.bands.filter((x) => x.id) ?? []);
+        propsRef.current.onEditFocus?.(hit?.id ?? null);
+      }
+      return;
+    }
     const li = laneAt(e.clientY);
     if (li >= 0) {
       // 车道上单击 = 选中那个区间（不移动播放头）
@@ -468,6 +515,20 @@ export const Timeline = forwardRef<
     drag.current = { kind: "new", x0: e.clientX, t0: tt, moved: false, shift: e.shiftKey };
   };
   const onPointerMove = (e: React.PointerEvent) => {
+    const ed = edge.current;
+    if (ed) {
+      const moved = moveBoundary(ed.bands, ed.all[ed.i]!, timeAt(e.clientX), ed.lim);
+      const byKey = new Map(moved.map((x) => [x.key, x]));
+      propsRef.current.onEditBands?.((propsRef.current.overlay?.bands ?? []).map((x) => (x.id && byKey.has(x.id) ? { ...x, a: byKey.get(x.id)!.a, b: byKey.get(x.id)!.b } : x)));
+      return;
+    }
+    if (propsRef.current.editing && !drag.current) {
+      const r = wrap.current!.getBoundingClientRect();
+      const y = e.clientY - r.top;
+      const near = y >= waveTop && y < waveTop + waveH && boundaryNear(boundaries(editable()), e.clientX, toX, HANDLE_PX) >= 0;
+      wrap.current!.style.cursor = near ? "ew-resize" : "default";
+      return;
+    }
     const d = drag.current;
     if (!d) {
       const li = laneAt(e.clientY);
@@ -509,6 +570,7 @@ export const Timeline = forwardRef<
     }
   };
   const onPointerUp = () => {
+    edge.current = null;
     const d = drag.current;
     drag.current = null;
     if (!d) return;
@@ -521,7 +583,20 @@ export const Timeline = forwardRef<
     const sel = propsRef.current.selection;
     if (sel && sel.b - sel.a < 0.001) propsRef.current.onSelection(null); // 太短的选区当作没选
   };
+  const onContextMenu = (e: React.MouseEvent) => {
+    const fn = propsRef.current.onContextMenu;
+    if (!fn) return;
+    e.preventDefault();
+    const r = wrap.current!.getBoundingClientRect();
+    const y = e.clientY - r.top;
+    const tt = timeAt(e.clientX);
+    const li = laneAt(e.clientY);
+    const overlay = y >= waveTop && y < waveTop + waveH ? bandsAt(tt, propsRef.current.overlay?.bands ?? []) : [];
+    const lane = li >= 0 ? { id: lanes[li]!.id, bands: bandsAt(tt, lanes[li]!.bands) } : null;
+    fn(tt, { overlay, lane }, { clientX: e.clientX, clientY: e.clientY });
+  };
   const onDoubleClick = (e: React.MouseEvent) => {
+    if (propsRef.current.editing) return;
     const li = laneAt(e.clientY);
     if (li >= 0) return propsRef.current.onLaneDoubleClick?.(lanes[li]!.id);
     propsRef.current.onPlayFrom(timeAt(e.clientX));
@@ -561,6 +636,8 @@ export const Timeline = forwardRef<
       onPointerUp={onPointerUp}
       onPointerLeave={() => (hover.current = null)}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      data-editing={props.editing || undefined}
       style={{ height: 150 + lanesH }}
     >
       <canvas ref={base} className={s.tlCanvas} />

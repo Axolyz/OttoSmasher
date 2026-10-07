@@ -128,6 +128,9 @@ class Core:
                 p["jobId"], work=str(p.get("work", "")), source_type=str(p.get("sourceType", "")), nature=str(p["nature"]),
                 bind_pictures=bool(p.get("bindPictures", True)),
             ),
+            "tags.promoteBatch": lambda p: annotations_mod.promote_batch(
+                self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")
+            ),
             "thumbs.get": lambda p: self.thumbs.get(list(p["items"])),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
