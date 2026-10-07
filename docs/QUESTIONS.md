@@ -156,3 +156,6 @@
 | 同名字幕优先 .srt | `SUBTITLE_EXTS = (.srt, .ass)` |
 | **一次性例外**：只为“MKV 截取偏几个样本”看旧版 mpv 那块代码，不许看其他部分 | 只读了旧仓库 `desktop/native/player.mm`、`player_win.cpp`（仅搜索）、`desktop/electron/player.cjs`、`playback-range.cjs`、`desktop/src/NativeMedia.ts`、`NativePlayer.tsx`（仅搜索）、`desktop/tests/player-bridge.test.cjs`。结论：旧版的 mpv 偏移问题是播放时钟/终点（跳转完成前漏出旧位置、最后一次位置比终点早一帧），不是解码样本；已借鉴“跳转完成前丢弃位置、以 eof-reached 判结束并贴到终点”。导出解码的帧索引法不变。 |
 | wavesurfer 缩放不是会重新渲染、也能只画可见部分吗？找找 peaks.js 等替代 | 渲染不是瓶颈，数据是：这些库都只吃覆盖全程的一份固定分辨率峰值，没有按可见范围取数的接口（peaks.js 放大受数据精度下限限制、数据须覆盖全程、LGPL、4.0 长期 beta；wavesurfer v8 深放大时元素宽度超浏览器上限；waveform-playlist 固定档位且很重）。整集时间线保留自绘画布，采样详情仍用 wavesurfer；ARCHITECTURE §13 |
+| peaks.js 可用 audiowaveform 预计算提高精度、专注标记，评估迁移 | 实测 YY1-01：放大下限 = 预计算精度（32 样本/像素 4.3 MB、一屏 1 秒；2 → 69 MB、打开 41 秒）；所有者限每条音轨缓存 ≈0.5 MB → peaks.js 只能一屏约 8 秒；自研同条件可到样本级、缓存已瘦身到 0.54 + 0.08 MB |
+| 最后再找一遍现成组件，没有就全换自研（放大后的细化显示是刚需） | 第二轮调研（语音标注工具、网页 DAW、通用图表库）：无一同时满足按范围取数 + 区段编辑/车道 + 宽松许可。**全部用自研组件**（整集时间线、舞台、工作台），不引入 wavesurfer；ARCHITECTURE §1.2、§10.1、§13 |
+| 和 libmpv 的联动会不会更顺滑 | 会：播放头每帧取引擎逐帧位置（非阻塞）并防小幅后退，实测抖动与后退大幅下降（ARCHITECTURE §10.1） |

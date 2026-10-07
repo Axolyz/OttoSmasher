@@ -45,6 +45,8 @@ export interface PlayerApi {
   playRange(a: number, b: number, loop?: boolean): number;
   audition(assetId: string, start: number, end: number, loop?: boolean): Promise<number>;
   stopAudition(): void;
+  /** 每帧读引擎当前位置（原片秒 / 试听为区间本地秒）；没有加载时为 null */
+  position(player: PlayerName): number | null;
   onState(cb: (s: PlayerState) => void): () => void;
 }
 

@@ -43,6 +43,8 @@ class Engine {
   private range: Range | null = null;
   private endedGen = -1;
   private time: number | null = null;
+  private timeAt = 0;
+  private shown: number | null = null; // 上一次给出的播放头位置
   private eof = false;
   private awaitingSeek = false;
   private playing = false;
@@ -64,6 +66,18 @@ class Engine {
     ] as const)
       mpv.observe(prop, fmt);
     mpv.on((ev) => this.onEvent(ev));
+  }
+
+  /** 每帧取播放位置：用引擎逐帧推来的最新 time-pos（不节流）加上到现在的流逝时间。
+   *  不在这里同步读 mpv 属性——那会等 mpv 内部的锁，打开文件、跳转时会把页面卡住（实测）。跳转未完成时返回目标位置。 */
+  position(): number | null {
+    if (!this.loaded || this.time == null) return null;
+    if (this.awaitingSeek || !this.playing) return (this.shown = this.time);
+    let t = this.time + (performance.now() - this.timeAt) / 1000;
+    // 引擎按视频帧（约 42 ms 一次）报位置，外推偶尔略超前、下一次报告又拉回：正常播放中不小幅后退，原地等真实位置追上
+    if (this.shown != null && t < this.shown && this.shown - t < 0.08) t = this.shown;
+    const end = this.range && !this.range.loop ? this.range.b - this.offset : Infinity;
+    return (this.shown = Math.min(t, end));
   }
 
   /** 新请求：代次加一，清掉上一个请求挂起的动作。 */
@@ -208,8 +222,11 @@ class Engine {
       if (this.awaitingSeek && (ev.name === "time-pos" || ev.name === "eof-reached")) return; // 跳转前的旧值
       if (ev.name === "time-pos") {
         this.time = typeof ev.value === "number" ? ev.value - this.offset : null;
+        this.timeAt = performance.now();
         this.push(false);
       } else if (ev.name === "pause") {
+        if (this.playing && ev.value === true && this.time != null) this.time += (performance.now() - this.timeAt) / 1000;
+        this.timeAt = performance.now();
         this.playing = ev.value === false;
         this.push(true);
       } else if (ev.name === "eof-reached") {
@@ -360,6 +377,11 @@ export class Playback {
       e.fail(gen, err as CoreErrorWire);
       throw err;
     }
+  }
+
+  position(player: PlayerName): number | null {
+    const e = player === "source" ? this.sourceEng : this.auditionEng;
+    return e ? e.position() : null;
   }
 
   stopAudition(): void {

@@ -8,13 +8,13 @@
 
 ## 0. 一页总览
 
-> 2026-10-05 修订：按所有者意见重新权衡后，界面层从 PySide6 改为 **Electron + TypeScript/React + wavesurfer.js**（理由与取舍见 §1.1）。
+> 2026-10-05 修订：按所有者意见重新权衡后，界面层从 PySide6 改为 **Electron + TypeScript/React + wavesurfer.js**（理由与取舍见 §1.1）。（2026-10-07 起波形不用 wavesurfer，见下表“波形”行与 §13）
 > Python 核心、数据模型、存储、任务与检索方案不变。
 
 | 层面 | 选择 | 一句话理由 |
 |---|---|---|
-| 界面 | **Electron 44 + TypeScript + React 19 + Vite** | Web 生态最大：波形（wavesurfer.js）、图表等都有成熟上游可跟进；所有平台同一个 Chromium，渲染一致 |
-| 波形 | **wavesurfer.js 8**（Regions、Timeline、Minimap、Spectrogram 插件）+ 自绘叠加层 | 所有者用过、认可；峰值由 Core 预计算后喂给它（不在浏览器里解码整集）；音素/字幕/区段车道、F0 线、命中框画在同步的叠加层上 |
+| 界面 | **Electron 44 + TypeScript + React 19 + Vite** | Web 生态最大：图表、交互等都有成熟上游可跟进（波形最终自研，见下一行）；所有平台同一个 Chromium，渲染一致 |
+| 波形 | **自研画布组件**（所有者 2026-10-07 定：整集时间线、舞台、工作台同一个组件，不用 wavesurfer） | 放大后的细化显示是刚需：按视口向 Core 取峰值（≤32000 点），≤30 秒细节窗精确解码到样本级；wavesurfer / peaks.js / waveform-playlist 都只吃覆盖全程的固定分辨率数据，语音标注工具都在浏览器里整段解码，图表库没有区段编辑与车道（两轮调研，§13）；车道、F0 线、命中框、区段编辑都画在同一组件的图层上 |
 | 视频/音频播放 | **libmpv**（播放引擎）+ **render API 把画面画进页面里的 `<canvas>`** | 保留旧版验证过的 libmpv（HEVC Main10 + FLAC、引擎侧样本级截停、外挂声部 + 音频延迟、硬解）；不再用“原生视图叠在网页上”，画面是普通 DOM 元素，遮挡/裁剪/缩放问题整体消失（§10.1） |
 | 核心 | **Python 3.12 Core 进程**（领域、SQLite、任务调度、检索协调） | 定型模型与文本前端都在 Python 生态；Core 是唯一写库者 |
 | 进程 | Electron 主进程 + 渲染进程 + Python Core + 检索进程池 + 任务进程（§2） | 界面永不被计算阻塞；模型与检索可整树取消 |
@@ -59,7 +59,6 @@
 | electron | 44.x | 桌面外壳 |
 | react / react-dom | 19.x | 界面 |
 | vite（界面）+ esbuild（主进程与 preload） | 8.3 / 0.28 | 构建（electron-vite 5 不支持 Vite 8，改用两者直接组合） |
-| wavesurfer.js | 8.0.x | 波形、选区、时间轴、总览、频谱 |
 | react-aria-components | 1.21.x | 无样式的交互基础件：列表/表格（勾选与键盘）、菜单（含子菜单）、弹层、对话框、提示、选择框、组合框、标签块、数字输入、工具栏；样式全部用自己的设计令牌（§1.3） |
 | lucide-react | 1.x | 线条图标（ISC 许可） |
 | zustand | 5.x | 前端界面状态 |
@@ -105,7 +104,7 @@
 ```
 ┌──────────── Electron 渲染进程（React 界面）─────────────┐   ┌──────── Electron 主进程 ────────┐
 │ 三页常驻（隐藏不卸载）· 视图状态（zustand）              │   │ 窗口、菜单、全局快捷键            │
-│ wavesurfer 波形 · 分页列表 · 检索画布                    │◀─▶│ 拖出（startDrag）· REAPER 剪贴板   │
+│ 自研波形 · 分页列表 · 检索画布                          │◀─▶│ 拖出（startDrag）· REAPER 剪贴板   │
 │ 视频 <canvas>：从 mpv 渲染桥拿帧（共享内存）            │IPC│ 启动/看护 Core；转发请求与事件     │
 │ PlaybackCoordinator：全应用同一时刻只有一个声音          │   │ 工作区锁、退出时取消全部任务       │
 └───────────────────────▲─────────────────────────────┘   └──────────────┬──────────────────┘
@@ -182,7 +181,7 @@ app/                     Electron + 前端（TypeScript）
     library/             用途视图（统一列表）、查找栏与范围行、检索编辑器、舞台（采样详情）
     sources/             原片列表（按作品分组折叠）、查看器（画面 + 台本 + 时间线；短音频简化）、准备清单
     workbenches/         拉平台、字幕导入、设置（全屏工作台面板）
-    components/          自有组件清单（§1.3，交互基础用 React Aria 包装）：Wave（wavesurfer 封装 + 覆盖层 + 车道）、BlockCanvas、Collection（统一选择规则）、Menu、Popover、Modal、Sheet…
+    components/          自有组件清单（§1.3，交互基础用 React Aria 包装）：Wave（自研画布：峰值按视口取、细节窗样本级、选区、区段、车道、叠加曲线）、BlockCanvas、Collection（统一选择规则）、Menu、Popover、Modal、Sheet…
     i18n/                t()、locales/zh-CN.json、伪语言生成
     api/                 由 Core 命令定义生成的 TypeScript 类型与客户端
   native/mpv-bridge/     C++（node-addon-api）：libmpv 播放器、render API（软件或 GL）、共享帧缓冲
@@ -478,11 +477,10 @@ class LanguageProfile(Protocol):
 - 范围播放：mpv 的 `ab-loop-a/b`（循环）与 `end`（单次）让**引擎**截停；任何普通跳转或播放/暂停先清除范围（规格 05 §5.3.1）。
 - 外挂声部：`audio-files` + `aid` + `audio-delay`（= 原片范围起点 − 资产选区起点），加载期间原音轨静音；不转码不代理（R22.1）。
 - 字幕：mpv 自带字幕关闭（`sid=no`）；当前字幕版本的原文用 HTML 叠加在画面 `<canvas>` 上（纯文本、白字黑边、按画面高度缩放）。
-- 时钟：桥每 ~50 ms 推送一次播放位置，两次之间按速率插值；换源时用代次号丢弃旧事件。界面的波形光标、台本跟随都读这个时钟。
-- **wavesurfer.js 与 mpv 的关系**：wavesurfer 只做显示与交互（峰值由 Core 预计算，`peaks` + `duration` 加载，不在浏览器解码音频）；
-  播放全部交给 mpv。选区用 Regions 插件（禁止整体拖动、只能拖两端），刻度用 Timeline，长音频用 Minimap；
-  音素/字幕/区段车道、F0 金线、命中框、播放头画在与 wavesurfer 滚动/缩放同步的叠加画布上（原型 `docs/ui/prototype.html` 已演示这种接法）。
-  Shift 吸附、⌥ 拖出等规格要求的手势在叠加层上实现，不改 wavesurfer 源码，便于跟进上游。
+- 时钟：状态（播放/暂停/结束/代次）约每 50 ms 推送；**播放头每帧取 `player.position()`**：preload 里保存引擎逐帧推来的最新 time-pos（不节流）加流逝时间，正常播放中不小幅后退（实测 YY2-07-A 4 秒：每帧偏差 P95 7.2 ms、最大 15.7 ms、后退 0 次；旧的 50 ms 外推为 10.9 / 34.5 ms、后退 45 次）。不在每帧同步读 mpv 属性——会等 mpv 内部锁，打开/跳转时卡住页面（实测）。换源时用代次号丢弃旧事件。
+- **波形组件与 mpv 的关系**：波形只做显示与交互（峰值与细节窗样本由 Core 按视口给出，不在浏览器解码音频）；播放全部交给 mpv。
+  选区只能拖两端、不能整体拖；刻度、总览条、播放头、音素/字幕/区段车道、F0 金线、命中框都是同一组件的图层。
+  Shift 吸附、⌥ 拖出（越过 4 px 才生成）等规格要求的手势直接在组件里实现。
 - **libmpv 来源**（所有者同意直接下载，Q2）：macOS arm64 用 GitHub media-kit/libmpv-darwin-build v0.7.3 的 `video-full` 包（mpv 0.36.0 + FFmpeg 6.0，含 VideoToolbox；SHA-256 固定在 `tools/third_party.json`）；头文件取 mpv 官方 v0.36.0。Windows 的来源到阶段 10 定。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
 - **实现要点**（阶段 1 探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=videotoolbox-copy`、`sws-fast=yes`、`zimg-fast=yes`。
 
@@ -568,7 +566,7 @@ class LanguageProfile(Protocol):
 | pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 自写最小 pybind11 包装同一份上游 C++ 源码 |
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型” | 延迟导入包装 |
 | 检索 3 万条 30 秒 | 合成库基准 | numba 热点编译 |
-| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **阶段 2 已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 QUESTIONS 第五节） | **已采用**：整集时间线为自绘画布，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；采样详情（短声音）仍用 wavesurfer |
+| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **阶段 2 已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
 
 ---
 

@@ -107,7 +107,10 @@ export function SourceViewer(props: {
       }),
     [],
   );
+  // 播放头：每帧直接读引擎位置；读不到时才用最近一次推送外推
   const playhead = useCallback(() => {
+    const live = window.otto.player.position("source");
+    if (live != null) return live;
     const c = stamp.current;
     if (c.time == null) return null;
     return c.playing ? c.time + (performance.now() - c.at) / 1000 : c.time;
