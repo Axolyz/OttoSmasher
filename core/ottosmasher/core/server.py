@@ -27,6 +27,7 @@ from .edits import ChangeSet, EditService, dumps, loads
 from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
+from .sources import SourceService
 
 log = logging.getLogger(__name__)
 
@@ -44,12 +45,19 @@ class Core:
         self.conn: sqlite3.Connection
         self.edits: EditService
         self.jobs: Scheduler
+        self.sources: SourceService
         self.interrupted_on_start = 0
         self._stop = False
         self.commands: dict[str, Handler] = {
             "core.hello": self._hello,
             "settings.list": lambda p: settings_mod.read_all(self.conn),
-            "source.inferTest": self._infer_test,
+            "sources.inferTest": self._infer_test,
+            "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
+            "sources.list": lambda p: self.sources.list(),
+            "sources.get": lambda p: self.sources.get(p["id"]),
+            "sources.relocate": lambda p: self.sources.relocate(p["id"], p["path"]),
+            "sources.deletePreview": lambda p: self.sources.delete_preview(p["id"]),
+            "sources.delete": lambda p: self.sources.delete(p["id"]),
             "edits.preview": lambda p: self.edits.preview(p["batch"]),
             "edits.apply": lambda p: self.edits.apply(p["batch"]),
             "edits.undo": lambda p: self.edits.undo(),
@@ -76,6 +84,7 @@ class Core:
         if report.backup:
             log.info("schema migrated %s -> %s, backup %s", report.from_version, report.to_version, report.backup)
         self.edits = EditService(self.conn, on_change=self._on_change)
+        self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
         self.jobs = Scheduler(
             self.conn,
             self.ws.jobs,

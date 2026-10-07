@@ -128,3 +128,25 @@ def test_models_status_reports_files_runtime_separately(tmp_path):
     assert st["probes"] == []
     c.p.stdin.close()
     c.p.wait(timeout=10)
+
+
+@pytest.mark.skipif(not __import__("shutil").which("ffmpeg"), reason="ffmpeg not on PATH")
+def test_sources_over_rpc(tmp_path):
+    media = tmp_path / "媒体 [x]"
+    media.mkdir()
+    f = media / "[Kemono Friends][02].wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=duration=1", str(f)], check=True)
+    c = CoreProc(tmp_path / "ws")
+    r = c.call("sources.add", paths=[str(f)])["r"]
+    assert r[0]["ok"] and (r[0]["work"], r[0]["episode"]) == ("Kemono Friends", "02")
+    sid = r[0]["sourceId"]
+    c.wait_event(lambda e: e.get("e") == "data.changed" and sid in e["d"].get("source", []))
+    src = c.call("sources.get", id=sid)["r"]
+    assert src["work"] == "Kemono Friends" and src["streams"][0]["kind"] == "audio"
+    assert [s["id"] for s in c.call("sources.list")["r"]] == [sid]
+    bad = c.call("sources.get", id="nope")
+    assert not bad["ok"] and bad["e"]["code"] == "source-not-found"
+    assert c.call("sources.delete", id=sid)["ok"]
+    assert c.call("sources.list")["r"] == []
+    c.p.stdin.close()
+    c.p.wait(timeout=10)

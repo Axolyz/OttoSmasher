@@ -45,7 +45,7 @@ interface InferTest {
 }
 
 async function inferTrial(sample: string, rules: string[]): Promise<TrialResult> {
-  const r = await call<InferTest>("source.inferTest", { filename: sample, rules });
+  const r = await call<InferTest>("sources.inferTest", { filename: sample, rules });
   const unknown = t("rules.unknown");
   return {
     rule: r.rule,
