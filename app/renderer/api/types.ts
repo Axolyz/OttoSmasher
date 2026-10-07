@@ -51,3 +51,69 @@ export interface Hello {
   interrupted_on_start: number;
   dev: boolean;
 }
+
+// ---------- 原片与资产（阶段 2）
+
+export interface SourceRow {
+  id: string;
+  path: string;
+  work: string;
+  episode: string;
+  source_type: string;
+  duration: number;
+  media_state: "available" | "released";
+  subtitle_path: string | null;
+  default_audio_stream: number;
+  created_at: string;
+  version: number;
+  audio_streams: number;
+  has_video: boolean;
+}
+
+export interface SourceStream {
+  kind: "audio" | "video";
+  ordinal: number;
+  codec: string | null;
+  sample_rate: number | null;
+  channels: number | null;
+  language: string | null;
+  title: string | null;
+  duration: number | null;
+  is_attached_pic: boolean;
+}
+
+export interface SourceDetail extends Omit<SourceRow, "audio_streams" | "has_video"> {
+  streams: SourceStream[];
+}
+
+export interface AssetInfo {
+  id: string;
+  source_id: string;
+  origin: "stream" | "separation" | "flatten" | "reimport";
+  stream_ordinal: number | null;
+  duration: number;
+  language: string | null;
+  roles: string[];
+  isFullTrack: boolean;
+}
+
+export interface AddResult {
+  path: string;
+  ok: boolean;
+  sourceId?: string;
+  existing?: boolean;
+  error?: { code: string; args: Record<string, unknown> };
+  inferTimedOut?: number[];
+}
+
+export interface DeletePreview {
+  sourceId: string;
+  path: string;
+  samples: number;
+  independentSamples: number;
+  generatedAssets: number;
+  annotations: number;
+  subtitleVersions: number;
+  oped: number;
+  activeJobs: string[];
+}

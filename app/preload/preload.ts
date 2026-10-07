@@ -1,5 +1,5 @@
 // 白名单 API（ARCHITECTURE §2.5）：渲染进程只能经这里调用 Core 的公开命令，不能直接碰文件或进程。
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { CoreEvent, CoreStatus, OttoApi, PlayerApi, ProbeApi } from "../shared/protocol";
 import { CanvasPlayer } from "./player";
 import { Playback } from "./playback";
@@ -43,6 +43,11 @@ const api: OttoApi = {
     locale: localeArg ? localeArg.slice("--otto-locale=".length) : "zh-CN",
   },
   player,
+  files: {
+    pick: (kind) => ipcRenderer.invoke("files:pick", kind),
+    reveal: (path) => ipcRenderer.invoke("files:reveal", path),
+    pathOf: (file) => webUtils.getPathForFile(file),
+  },
 };
 
 contextBridge.exposeInMainWorld("otto", api);

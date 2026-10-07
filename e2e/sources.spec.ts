@@ -1,0 +1,102 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { expect, test } from "@playwright/test";
+import type { PlayerState } from "../app/shared/protocol";
+import { launch } from "./helpers";
+
+// 原片页（UI_PLAN §4、§6.1、§6.2）：分组折叠、打开、时间线选区与缩放、播放选区（引擎截停）、导出 WAV、作品与输入设置、删除。
+test("原片页：列表、时间线、导出、设置、删除", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-src-"));
+  const mkv = join(dir, "[Group] Test Show [01].mkv");
+  const wav = join(dir, "效果音 ♪.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=8",
+    "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=8", "-f", "lavfi", "-i", "sine=f=660:sample_rate=48000:duration=8",
+    "-map", "0", "-map", "1", "-map", "2", "-c:v", "libx264", "-c:a", "flac", "-metadata:s:a:1", "language=jpn", mkv]);  // prettier-ignore
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=440:duration=2", wav]);
+  const { app, page, workspace } = await launch();
+  await page.keyboard.press("Meta+2");
+  await expect(page.getByTestId("page-sources")).toBeVisible();
+  await expect(page.getByTestId("sources-add-empty")).toBeVisible();
+
+  await page.evaluate(async (paths) => window.otto.core.request("sources.add", { paths }), [mkv, wav]);
+  const groups = page.getByTestId("source-group");
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0)).toContainText("Test Show");
+  await expect(groups.nth(1)).toContainText("未指定作品");
+  await expect(page.getByTestId("source-row")).toHaveCount(0); // 默认折叠
+  await groups.nth(0).click();
+  await page.getByTestId("source-row").first().click();
+  const viewer = page.getByTestId("source-viewer");
+  await expect(viewer).toContainText("Test Show 01");
+  await expect(viewer).toContainText("第 2 条音轨 · jpn"); // 默认分析音轨 = 日语那条
+
+  // 波形生成后状态提示消失
+  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+
+  // 拖出选区（20% → 40% ≈ 1.6–3.2 秒）
+  const tl = page.getByTestId("timeline");
+  const box = (await tl.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width * 0.2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, y, { steps: 4 });
+  await page.mouse.move(box.x + box.width * 0.4, y, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByTestId("readout")).toContainText("→");
+  const readout = await page.getByTestId("readout").textContent();
+  const [a, b] = readout!.split("·")[1]!.split("(")[0]!.split("→").map((x) => Number(x.trim().split(":")[1]));
+  expect(a).toBeGreaterThan(1.4);
+  expect(b).toBeLessThan(3.4);
+
+  // 播放选区：引擎在终点截停（静音输出）
+  await page.evaluate(() => {
+    (window as unknown as { __st: PlayerState[] }).__st = [];
+    window.otto.player.onState((s) => (window as unknown as { __st: PlayerState[] }).__st.push(s));
+  });
+  await page.getByTestId("play-selection").click();
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __st: PlayerState[] }).__st.some((s) => s.player === "source" && s.ended)), { timeout: 8000 })
+    .toBe(true);
+
+  // 缩放：Z 放大选区、F 适合窗口
+  await viewer.focus();
+  await page.keyboard.press("z");
+  const zoomed = (await tl.getAttribute("data-view"))!.split(",").map(Number);
+  expect(zoomed[1]! - zoomed[0]!).toBeLessThan(3);
+  await page.keyboard.press("f");
+  await expect(tl).toHaveAttribute("data-view", /^0\.000,8\.0/);
+  await page.screenshot({ path: ".cache/playwright-results/sources-page.png" });
+
+  // 导出 WAV：在素材库导出目录
+  await page.getByTestId("export-wav").click();
+  await expect(page.getByText(/已导出：/)).toBeVisible();
+  const exports = join(workspace, "Library", "Exports");
+  const day = readdirSync(exports)[0]!;
+  const files = readdirSync(join(exports, day));
+  expect(files).toHaveLength(1);
+  expect(files[0]).toMatch(/^Test Show 01 0_0\d\.\d{3}–0_0\d\.\d{3} · 片段__原混音__\[Group\] Test Show \[01\]__[0-9a-f]{8}_00-00-0\d\.\d{3}-00-00-0\d\.\d{3}__[0-9a-f]{12}\.wav$/);
+
+  // 作品与输入设置：改作品名 → 分组跟着变；可撤销
+  await page.getByTestId("viewer-menu").click();
+  await page.getByRole("menuitem", { name: "作品与输入设置…" }).click();
+  const dlg = page.getByTestId("source-settings");
+  await expect(dlg.getByTestId("field-work").locator("input").or(dlg.getByTestId("field-work"))).toHaveValue("Test Show");
+  await dlg.getByTestId("field-work").fill("Renamed Show");
+  await dlg.getByTestId("confirm-ok").click();
+  await expect(groups.nth(0)).toContainText("Renamed Show");
+  await expect(viewer).toContainText("Renamed Show 01");
+
+  // 删除纯音频原片：确认框写清删什么、不删什么；文件保留
+  await groups.nth(1).click();
+  const wavRow = page.getByTestId("source-row").filter({ hasText: "效果音" });
+  await wavRow.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "删除原片…" }).click();
+  const del = page.getByTestId("source-delete");
+  await expect(del).toContainText("不会删除：磁盘上的原片文件");
+  await del.getByTestId("confirm-ok").click();
+  await expect(page.getByTestId("source-row").filter({ hasText: "效果音" })).toHaveCount(0);
+  expect(existsSync(wav)).toBe(true);
+  await app.close();
+});

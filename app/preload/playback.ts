@@ -257,6 +257,7 @@ class Engine {
 
 export class Playback {
   private sourceEng: Engine | null = null;
+  private canvas: HTMLCanvasElement | null = null;
   private auditionEng: Engine | null = null;
   private listeners = new Set<(s: PlayerState) => void>();
 
@@ -277,9 +278,12 @@ export class Playback {
 
   /** 原片播放器绑定到页面里的 canvas[data-otto-video]（画面是普通 DOM 元素）。 */
   attachVideo(): boolean {
-    if (this.sourceEng) return true;
     const canvas = document.querySelector<HTMLCanvasElement>("canvas[data-otto-video]");
+    if (this.sourceEng && canvas === this.canvas && canvas?.isConnected) return true;
     if (!canvas) return false;
+    // 画布换了（页面重新挂载）：旧引擎连同它的画面一起结束，绑到新画布上
+    this.sourceEng?.destroy();
+    this.canvas = canvas;
     this.sourceEng = new Engine("source", new CanvasPlayer(canvas, MPV_OPTIONS), this.emit, this.exclusive);
     return true;
   }
@@ -290,7 +294,7 @@ export class Playback {
   }
 
   private sourceEngine(): Engine {
-    if (!this.sourceEng && !this.attachVideo()) throw { code: "player-not-attached", args: {} } as CoreErrorWire;
+    if (!this.attachVideo()) throw { code: "player-not-attached", args: {} } as CoreErrorWire;
     return this.sourceEng!;
   }
 

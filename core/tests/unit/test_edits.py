@@ -191,3 +191,31 @@ def test_infer_rules_setting(db, svc):
     assert settings_mod.values(db)["source.infer_rules"] == mine
     svc.undo()
     assert settings_mod.values(db)["source.infer_rules"] == default_rules()
+
+
+# 「作品与输入设置」：分析音轨必须存在；字幕文件必须是存在的 .srt/.ass，可清除
+def test_source_input_settings(db, svc, tmp_path):
+    sid = make_source(db)
+    db.execute(
+        "INSERT INTO source_stream(source_id, kind, ordinal, container_index) VALUES (?, 'audio', 0, 1), (?, 'audio', 1, 2)",
+        (sid, sid),
+    )
+    svc.apply({"ops": [upd("source", sid, 1, default_audio_stream=1)]})
+    assert row(db, "source", sid)["default_audio_stream"] == 1
+    srt = tmp_path / "字幕 [x].srt"
+    srt.write_text("1\n", encoding="utf-8")
+    txt = tmp_path / "a.txt"
+    txt.write_text("x", encoding="utf-8")
+    for fields, reason in [
+        ({"default_audio_stream": 5}, "no-such-stream"),
+        ({"default_audio_stream": None}, "no-such-stream"),
+        ({"subtitle_path": str(tmp_path / "gone.srt")}, "file-missing"),
+        ({"subtitle_path": str(txt)}, "not-subtitle"),
+    ]:
+        with pytest.raises(CoreError) as ei:
+            svc.apply({"ops": [upd("source", sid, 2, **fields)]})
+        assert ei.value.args_["reason"] == reason
+    svc.apply({"ops": [upd("source", sid, 2, subtitle_path=str(srt))]})
+    assert row(db, "source", sid)["subtitle_path"] == str(srt)
+    svc.apply({"ops": [upd("source", sid, 3, subtitle_path=None)]})
+    assert row(db, "source", sid)["subtitle_path"] is None

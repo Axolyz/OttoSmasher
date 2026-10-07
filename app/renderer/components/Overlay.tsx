@@ -28,14 +28,21 @@ export interface MenuEntry {
   run: () => void;
 }
 
-export function Menu(props: { trigger: ReactNode; head?: string; items: Array<MenuEntry | "-"> }) {
+export function Menu(props: {
+  trigger: ReactNode;
+  head?: string;
+  items: Array<MenuEntry | "-">;
+  /** 受控打开（右键菜单用：右键时打开同一个菜单） */
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const groups: MenuEntry[][] = [[]];
   for (const it of props.items) {
     if (it === "-") groups.push([]);
     else groups[groups.length - 1]!.push(it);
   }
   return (
-    <MenuTrigger>
+    <MenuTrigger isOpen={props.isOpen} onOpenChange={props.onOpenChange}>
       {props.trigger}
       <Popover className={s.popover} placement="bottom start" offset={4}>
         <RacMenu
@@ -94,6 +101,44 @@ export function Sheet(props: { isOpen: boolean; onClose: () => void; title: stri
             </Button>
           </div>
           <div className={s.sheetBody}>{props.children}</div>
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
+/** 确认框（UI_PLAN §5）：居中、小；写清做什么、不做什么。Esc / 取消关闭。 */
+export function ConfirmDialog(props: {
+  isOpen: boolean;
+  title: string;
+  children: ReactNode;
+  confirmLabel: string;
+  danger?: boolean;
+  busy?: boolean;
+  confirmDisabled?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+  testId?: string;
+}) {
+  return (
+    <ModalOverlay isOpen={props.isOpen} onOpenChange={(o) => !o && props.onClose()} isDismissable className={s.dialogOverlay}>
+      <Modal className={s.dialog}>
+        <Dialog className={s.dialogInner} aria-label={props.title} data-testid={props.testId}>
+          <h2 className={s.dialogTitle}>{props.title}</h2>
+          <div className={s.dialogBody}>{props.children}</div>
+          <div className={s.dialogActions}>
+            <Button variant="flat" onPress={props.onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant={props.danger ? "danger" : "primary"}
+              onPress={props.onConfirm}
+              isDisabled={props.busy || props.confirmDisabled}
+              data-testid="confirm-ok"
+            >
+              {props.confirmLabel}
+            </Button>
+          </div>
         </Dialog>
       </Modal>
     </ModalOverlay>

@@ -1,7 +1,7 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { BrowserWindow, app, dialog, ipcMain, session } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
 import type { CoreStatus } from "../shared/protocol";
@@ -102,6 +102,20 @@ if (isDev) {
     app.getAppMetrics().map((m) => ({ type: m.type, cpu: m.cpu.percentCPUUsage, memoryMB: Math.round(m.memory.workingSetSize / 1024) })),
   );
 }
+
+// 文件对话框与“在 Finder 中显示”（页面拿不到 Node；路径只来自系统对话框或 Core 的记录）
+const MEDIA_EXT = ["mkv", "mp4", "mov", "webm", "m4v", "avi", "ts", "m2ts", "wav", "flac", "mp3", "m4a", "aac", "ogg", "opus", "aif", "aiff", "wma"];
+ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle") => {
+  const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+  const filters =
+    kind === "subtitle" ? [{ name: "Subtitles", extensions: ["srt", "ass"] }] : [{ name: "Media", extensions: MEDIA_EXT }, { name: "*", extensions: ["*"] }];
+  const properties: Array<"openFile" | "multiSelections"> = kind === "media" ? ["openFile", "multiSelections"] : ["openFile"];
+  const res = win ? await dialog.showOpenDialog(win, { properties, filters }) : await dialog.showOpenDialog({ properties, filters });
+  return res.canceled ? [] : res.filePaths;
+});
+ipcMain.handle("files:reveal", (_e, path: string) => {
+  if (typeof path === "string" && existsSync(path)) shell.showItemInFolder(path);
+});
 
 ipcMain.handle("core:request", (_e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}));
 ipcMain.handle("core:status", () => core.status);

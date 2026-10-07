@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import os
+
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -83,6 +85,17 @@ def v_opt_int(lo: int, hi: int) -> Validator:
         return v
 
     return check
+
+
+def v_opt_path(v: Any) -> str | None:
+    """文件路径或 None（清除）。存在性等在 _check_source 里查。"""
+    if v is None:
+        return None
+    if not isinstance(v, str) or not v.strip():
+        raise _Invalid("not-text")
+    if len(v) > 4096:
+        raise _Invalid("too-long", max=4096)
+    return v
 
 
 def v_number(v: Any) -> float:
@@ -164,6 +177,9 @@ _register(
             "work": FieldSpec(v_text(max_len=200)),
             "episode": FieldSpec(v_text(max_len=200)),
             "source_type": FieldSpec(v_text(max_len=100)),
+            # 「作品与输入设置」（规格 05 §5.2）：分析音轨 = 第几条音频流；字幕文件只关联不导入，可清除
+            "default_audio_stream": FieldSpec(v_opt_int(0, 999)),
+            "subtitle_path": FieldSpec(v_opt_path),
         },
     )
 )
@@ -314,6 +330,8 @@ class EditService:
             diffs = {n: (before[n], v) for n, v in new.items() if before[n] != v}
             if spec.name == "annotation" and ("start" in new or "end" in new):
                 self._check_range(i, spec, entity_id, new)
+            if spec.name == "source":
+                self._check_source(i, entity_id, new)
             plan.append(
                 {"index": i, "entity": entity, "id": entity_id, "op": "update", "version": version, "diffs": diffs}
             )
@@ -331,6 +349,20 @@ class EditService:
             return fspec.validate(value)
         except _Invalid as bad:
             raise CoreError("edit-invalid", index=i, entity=spec.name, field=name, reason=bad.reason, **bad.args_) from None
+
+    def _check_source(self, i: int, source_id: str, new: dict[str, Any]) -> None:
+        if "default_audio_stream" in new:
+            o = new["default_audio_stream"]
+            if o is None or self.conn.execute(
+                "SELECT 1 FROM source_stream WHERE source_id=? AND kind='audio' AND ordinal=?", (source_id, o)
+            ).fetchone() is None:
+                raise CoreError("edit-invalid", index=i, entity="source", field="default_audio_stream", reason="no-such-stream")
+        p = new.get("subtitle_path")
+        if p is not None:
+            if not os.path.isfile(p):
+                raise CoreError("edit-invalid", index=i, entity="source", field="subtitle_path", reason="file-missing")
+            if os.path.splitext(p)[1].lower() not in (".srt", ".ass"):
+                raise CoreError("edit-invalid", index=i, entity="source", field="subtitle_path", reason="not-subtitle")
 
     def _check_range(self, i: int, spec: EntitySpec, entity_id: str | None, new: dict[str, Any]) -> None:
         start, end = new.get("start"), new.get("end")
