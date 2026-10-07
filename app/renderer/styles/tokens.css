@@ -3,7 +3,8 @@
 :root {
   --bg: #0e1014; --rail: #0b0d10; --s1: #14171c; --s2: #1a1e25; --s3: #222731; --line: #262b34; --line2: #1f242c;
   --text: #e7eaf0; --sub: #aab2bf; --muted: #7c8594; --faint: #555e6c;
-  --accent: #8d7bff; --accent2: #b3a7ff; --accentbg: #8d7bff22; --sel: #8d7bff1c;
+  /* 强调色 = logo 蓝（logo-1024.png 为 Display P3 #3871e0，换成 sRGB 即 #1b73e8）；accent2 为悬停/深底文字用的浅一级 */
+  --accent: #1b73e8; --accent2: #3d88f0; --accentbg: #1b73e822; --sel: #1b73e81c;
   --wave: #4fc3c3; --wave2: #2c6f73; --gold: #f2c14e;
   /* 性质四色：语音、调谐单音、非调谐单音、未分类 */
   --nat-speech: #6aa7ff; --nat-pitched: #f5b041; --nat-unpitched: #f07167; --nat-unclassified: #9aa4b2;
@@ -24,7 +25,7 @@
 :root[data-theme="light"] {
   --bg: #f3f4f7; --rail: #e9ebf0; --s1: #ffffff; --s2: #f7f8fa; --s3: #eef0f4; --line: #e1e4ea; --line2: #eceef2;
   --text: #161a21; --sub: #3e4654; --muted: #6c7584; --faint: #a3abb8;
-  --accentbg: #8d7bff1c; --sel: #8d7bff26; --wave: #2a9d9d; --wave2: #a9d6d6;
+  --accentbg: #1b73e81c; --sel: #1b73e826; --wave: #2a9d9d; --wave2: #a9d6d6;
   --shadow: 0 18px 50px rgba(20, 25, 40, 0.18);
 }
 * { box-sizing: border-box; }
