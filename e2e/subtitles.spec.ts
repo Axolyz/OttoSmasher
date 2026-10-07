@@ -49,8 +49,11 @@ test("导入字幕标记：预览、部分导入、补登、撤销", async () =>
   const samples = await page.evaluate(async () => ((await window.otto.core.request<{ total: number }>("samples.list", { offset: 0, limit: 1 })) as { r: { total: number } }).r.total);
   expect(samples).toBe(0);
 
-  // 再打开：同一内容 → 只补登；已登记的两行不可勾选
-  await page.getByTestId("transcript-import").click();
+  // 台本里出现导入的两句
+  await expect(page.getByTestId("transcript-row")).toHaveCount(2);
+  // 再打开（导入后台本有内容，从 ⋯ 菜单进）：同一内容 → 只补登；已登记的两行不可勾选
+  await page.getByTestId("viewer-menu").click();
+  await page.getByRole("menuitem", { name: "导入字幕标记…" }).click();
   await expect(sheet.getByTestId("stat-registered")).toContainText("2");
   await expect(sheet.getByTestId("subimport-version")).toContainText("只补登");
   await expect(sheet.getByTestId("subimport-run")).toHaveText("导入 1 条标记");

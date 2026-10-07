@@ -6,9 +6,6 @@
 .resultTab .num { color: var(--muted); }
 .status { display: flex; gap: 6px; padding: 5px 14px; font-size: var(--fs-xs); color: var(--muted); border-bottom: 1px solid var(--line2); }
 .grow { flex: 1; }
-.play { width: 28px; height: 28px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--s1); color: var(--sub); display: flex; align-items: center; justify-content: center; cursor: default; padding: 0; }
-.play:hover { color: var(--text); border-color: var(--accent); }
-.play[data-playing] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .nameLine { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 .nameLine > span:first-child { transform: translateY(-1px); }

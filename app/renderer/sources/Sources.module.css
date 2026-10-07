@@ -7,8 +7,6 @@
 .listHead { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--line2); align-items: center; }
 .groupName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .groupCount { color: var(--muted); font-size: var(--fs-xs); }
-.kind { width: 28px; height: 20px; border-radius: 4px; background: var(--s3); display: flex; align-items: center; justify-content: center; color: var(--muted); flex: none; }
-.kind svg { width: 13px; height: 13px; }
 .rowMain { min-width: 0; flex: 1; }
 .rowTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rowMeta { font-size: var(--fs-xs); color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
@@ -86,3 +84,23 @@
 .tracksDefault { display: flex; align-items: center; gap: 6px; }
 .trackName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .defaultBadge { margin-left: 4px; font-size: var(--fs-xs); color: var(--accent2); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; }
+
+/* 台本、画面内字幕、图层栏 */
+.transcriptHead { display: flex; align-items: center; gap: 8px; padding: 2px 0 6px; }
+.transcriptSub { color: var(--muted); font-size: var(--fs-xs); font-weight: 400; }
+.infoDot { display: inline-flex; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--faint); color: var(--muted); font-size: 10px; align-items: center; justify-content: center; cursor: help; font-style: normal; }
+.who { color: var(--nat-speech); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); }
+.sfxLine { font-style: italic; color: var(--sub); }
+.opedBlock { grid-column: 1 / -1; display: flex; gap: 10px; align-items: baseline; border: 1px dashed var(--line); border-radius: var(--r-md); padding: 4px 8px; font-size: var(--fs-sm); }
+.opedNote { color: var(--warn); }
+.videoSub { position: absolute; left: 8%; right: 8%; bottom: 44px; text-align: center; white-space: pre-line; color: #fff; font-size: clamp(14px, 2.2vw, 26px); text-shadow: 0 0 3px #000, 0 0 6px #000, 0 1px 2px #000; pointer-events: none; }
+.layerBar { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; flex-wrap: wrap; }
+
+/* 准备清单 */
+.prepList { display: flex; flex-direction: column; }
+.prepRow { display: grid; grid-template-columns: 10px 96px 1fr auto; gap: 10px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--line2); font-size: var(--fs-sm); }
+.prepRow:last-child { border-bottom: none; }
+.prepDot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.prepRow[data-ok] .prepDot { background: var(--ok); }
+.prepName { color: var(--text); }
+.prepState { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

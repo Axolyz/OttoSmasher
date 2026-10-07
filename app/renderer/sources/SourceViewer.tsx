@@ -8,8 +8,9 @@ import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetInfo, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
+import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
-import { Menu } from "../components/Menu";
+import { Menu, useContextMenu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
@@ -19,7 +20,27 @@ import { ClipPanel } from "./ClipPanel";
 import type { SeparationInput } from "./SeparationDialog";
 import { displayName } from "./SourceList";
 import s from "./Sources.module.css";
-import { type Sel, Timeline, type TimelineHandle } from "./Timeline";
+import { type Layer, type Sel, Timeline, type TimelineHandle } from "./Timeline";
+import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
+
+type LayerId = "sub" | "seg" | "none";
+type LaneId = "sub" | "seg" | "derived";
+interface Derived {
+  id: string;
+  name: string;
+  nature: string;
+  assetId: string;
+  start: number;
+  end: number;
+}
+const DERIVED_MENU_MAX = 40;
+const LAYER_IDS: LayerId[] = ["sub", "seg", "none"];
+const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
+  const n = new Set(x);
+  if (on) n.add(v);
+  else n.delete(v);
+  return n;
+};
 
 function isTyping(el: Element | null): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
@@ -67,6 +88,71 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     setZoomNonce((n) => n + 1); // 音轨已经加载时也要放大（资产没变，下面的效果不会因资产重跑）
     setJump(null);
   }, [jump, row.id, setJump]);
+
+  // 标注（台本、画面内字幕、时间线图层）：当前字幕版本；导入、OP/ED、编辑后刷新
+  const [anns, setAnns] = useState<Ann[]>([]);
+  const [opeds, setOpeds] = useState<OpedRange[]>([]);
+  const [derived, setDerived] = useState<Derived[]>([]);
+  const [annNonce, setAnnNonce] = useState(0);
+  useCoreEvent("data.changed", (d) => {
+    const c = d as Record<string, string[]>;
+    if (c.annotation || c.oped || c.source || c.sample) setAnnNonce((n) => n + 1);
+  });
+  useEffect(() => {
+    let live = true;
+    void call<{ annotations: Ann[]; opeds: OpedRange[]; derived: Derived[] }>("annotations.list", { sourceId: row.id }).then((r) => {
+      if (!live) return;
+      setAnns(r.annotations);
+      setOpeds(r.opeds);
+      setDerived(r.derived);
+    });
+    return () => {
+      live = false;
+    };
+  }, [row.id, annNonce]);
+  const [overlayId, setOverlayId] = useState<LayerId>("sub");
+  const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "derived"]));
+  const layer = (id: LaneId): Layer => {
+    // 派生轨（03 §3.9、R7.6）：该原片的所有用户采样，按原片时间；单击打开（跳到采样库），重叠时弹出选择菜单
+    if (id === "derived")
+      return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id })) };
+    if (id === "sub")
+      return {
+        id,
+        label: t("layers.sub"),
+        bands: anns.filter((a) => a.kind !== "tag").map((a) => ({ a: a.start, b: a.end, label: a.name || a.text, tone: a.kind === "sfx" ? "sfx" : "line" })),
+      };
+    // 区段 / 说话人：说话人显示层“角色：名”（R5.5，底层标签不变）、手动区段标签、OP/ED
+    return {
+      id,
+      label: t("layers.seg"),
+      bands: [
+        ...anns
+          .filter((a) => a.speakers.length || a.kind === "tag")
+          .map((a) => ({
+            a: a.start,
+            b: a.end,
+            label: a.speakers.length ? t("layers.speaker", { names: a.speakers.join(t("settings.subtitle.speakerSep")) }) : a.name || a.text,
+            tone: "seg" as const,
+          })),
+        ...opeds.map((o) => ({ a: o.start, b: o.end, label: o.kind, tone: "oped" as const })),
+      ],
+    };
+  };
+  const overlay = overlayId === "none" ? null : layer(overlayId);
+  const lanes = (["sub", "seg", "derived"] as const)
+    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0))
+    .map(layer);
+
+  const setPage = useApp((st) => st.setPage);
+  const setOpenSample = useApp((st) => st.setOpenSample);
+  const openSample = (id: string) => {
+    setOpenSample(id);
+    setPage("library");
+  };
+  const pick = useContextMenu("derived-pick");
+  const derivedItems = (list: Derived[]) =>
+    list.map((d) => ({ id: d.id, label: t("sources.derivedItem", { name: d.name, at: clock(d.start) }), run: () => openSample(d.id) }));
 
   // 资料（分离完成等资产变化时刷新音源列表）
   const [assetsNonce, setAssetsNonce] = useState(0);
@@ -265,6 +351,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const trackName = asset ? assetLabel(asset) : "";
   // 导出文件名的“音轨”段（规格 12 §12.1）：原混音 / 声部名
   const exportTrack = asset && asset.origin !== "stream" ? (asset.stem_name ?? t(`track.origin.${asset.origin}`)) : t("track.original");
+  const ph = playhead();
+  const subtitleNow = ph == null ? null : anns.filter((a) => a.kind !== "tag" && ph >= a.start && ph < a.end).map((a) => a.text).join("\n") || null;
   const commitSel = (which: "a" | "b") => (v: number) => {
     const a = which === "a" ? v : (sel?.a ?? 0);
     const b = which === "b" ? v : (sel?.b ?? duration);
@@ -283,6 +371,12 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             <div className={s.audioOnly}>
               <AudioLines size={28} strokeWidth={1.3} />
               {t("sources.audioOnly")}
+            </div>
+          ) : null}
+          {/* 画面内字幕（规格 03 §3.4：纯文本画在画面内部底部，不执行样式指令） */}
+          {subtitleNow ? (
+            <div className={s.videoSub} lang="ja" data-testid="video-subtitle" data-user-data="">
+              {subtitleNow}
             </div>
           ) : null}
           {/* 画面控制条（规格 03 §3.4：播放/暂停、时间、静音；音源名） */}
@@ -309,15 +403,28 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             />
           </div>
         </div>
-        <div className={s.transcript} data-testid="transcript">
-          <div className={s.transcriptHead}>{t("sources.transcript")}</div>
-          <div>{row.subtitle_path ? t("sources.transcriptPending", { name: basename(row.subtitle_path) }) : t("sources.noSubtitleHint")}</div>
-          <div>
-            <Button size="sm" variant={row.subtitle_path ? "secondary" : "flat"} onPress={props.onImportSubtitles} data-testid="transcript-import">
-              {t("subimport.menu")}
-            </Button>
-          </div>
-        </div>
+        <Transcript
+          anns={anns}
+          opeds={opeds}
+          playhead={playhead()}
+          sel={sel}
+          hasSubtitleFile={!!row.subtitle_path}
+          onImport={props.onImportSubtitles}
+          onSelect={(a, b, mode) => {
+            // 单击 = 选区设为该句并跳到开头（不播放）；Shift 单击 = 扩展到该句
+            if (mode === "extend" && sel) setSel({ a: Math.min(sel.a, a), b: Math.max(sel.b, b) });
+            else {
+              setSel({ a, b });
+              window.otto.player.seek(a);
+            }
+            root.current?.focus({ preventScroll: true });
+          }}
+          onPlay={(a, b) => {
+            setSel({ a, b });
+            if (!covers(a, b)) return outOfCover();
+            window.otto.player.playRange(a, b);
+          }}
+        />
       </div>
 
       <div className={s.tlCard}>
@@ -337,12 +444,53 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")}>
             {t("sources.zoomSel")}
           </Button>
+          <Menu
+            head={t("sources.derivedHead", { n: derived.length })}
+            items={
+              derived.length > DERIVED_MENU_MAX
+                ? [...derivedItems(derived.slice(0, DERIVED_MENU_MAX)), "-", { id: "more", label: t("sources.derivedMore", { n: derived.length - DERIVED_MENU_MAX }), disabled: true }]
+                : derivedItems(derived)
+            }
+            placement="bottom end"
+            testId="derived-menu"
+            trigger={
+              <Button size="sm" variant="flat" isDisabled={!derived.length} data-testid="derived-button">
+                {t("sources.derivedN", { n: derived.length })}
+              </Button>
+            }
+          />
           <Tip content={t("sources.timelineHelp")}>
             <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
         </div>
+        <div className={s.layerBar} data-testid="layer-bar">
+          <span className={s.groupLabel}>{t("layers.overlay")}</span>
+          <Segmented<LayerId>
+            size="sm"
+            value={overlayId}
+            onChange={setOverlayId}
+            label={t("layers.overlay")}
+            options={LAYER_IDS.map((id) => ({ id, label: t(`layers.${id}`) }))}
+          />
+          <span className={s.groupLabel}>{t("layers.lanes")}</span>
+          {(["sub", "seg", "derived"] as const).map((id) => (
+            <Checkbox key={id} isSelected={laneIds.has(id)} isDisabled={overlayId === (id as LayerId)} onChange={(on) => setLaneIds((x) => toggleSet(x, id, on))} label={t(`layers.${id}`)}>
+              {t(`layers.${id}`)}
+            </Checkbox>
+          ))}
+          <span className={s.muted}>{t("layers.hint")}</span>
+        </div>
         <Timeline
           ref={tl}
+          overlay={overlay}
+          lanes={lanes}
+          onLaneDoubleClick={(id) => id !== "derived" && setOverlayId(id as LayerId)}
+          onBandPress={(laneId, bands, at) => {
+            if (laneId !== "derived") return false;
+            if (bands.length === 1) openSample(bands[0]!.id!);
+            else pick.open(at, { head: t("sources.derivedPick", { n: bands.length }), items: derivedItems(bands.map((b) => derived.find((d) => d.id === b.id)!)) });
+            return true;
+          }}
           assetId={asset?.id ?? null}
           duration={duration}
           offset={offset}
@@ -361,6 +509,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           }}
           onDragOut={exportSelection}
         />
+        {pick.node}
         <div className={s.actions}>
           <div className={s.group}>
             <Button variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">

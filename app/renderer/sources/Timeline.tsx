@@ -8,7 +8,24 @@ import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { beginDragOut } from "../dragout";
 import { clock } from "../format";
 import { errorText, t } from "../i18n";
+import { bandAt, bandsAt, snapExtend } from "./snap";
 import s from "./Sources.module.css";
+
+/** 图层上的一个区间（原片秒） */
+export interface LayerBand {
+  a: number;
+  b: number;
+  label: string;
+  /** 颜色：台词 / 音效 / OP·ED / 区段 / 派生采样 */
+  tone: "line" | "sfx" | "oped" | "seg" | "derived";
+  /** 派生轨：采样 ID */
+  id?: string;
+}
+export interface Layer {
+  id: string;
+  label: string;
+  bands: LayerBand[];
+}
 
 export interface Sel {
   a: number;
@@ -40,6 +57,7 @@ export interface TimelineHandle {
 const MIN_SPAN = 0.05;
 const RULER_H = 20;
 const OVERVIEW_H = 18;
+const LANE_H = 16;
 const HANDLE_PX = 5;
 const STEPS = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
@@ -93,6 +111,13 @@ export const Timeline = forwardRef<
     onPlayFrom: (t: number) => void;
     /** ⌥ 拖出选区：返回生成好的文件（按下时冻结选区） */
     onDragOut?: (sel: Sel) => Promise<string[]>;
+    /** 覆盖层（UI_PLAN §3.1：只有一个，盖住整个波形高度；Shift 吸附只对它生效） */
+    overlay?: Layer | null;
+    /** 其他图层：波形下方各一条车道；单击 = 选中那个区间，悬停投影到波形，双击 = 换成覆盖层 */
+    lanes?: Layer[];
+    onLaneDoubleClick?: (id: string) => void;
+    /** 车道上单击：返回 true 表示调用方处理了（派生轨 = 打开采样），不再选中区间。bands = 该处所有区间（重叠时多个） */
+    onBandPress?: (laneId: string, bands: LayerBand[], at: { clientX: number; clientY: number }) => boolean;
   }
 >(function Timeline(props, ref) {
   const { assetId, duration } = props;
@@ -200,8 +225,12 @@ export const Timeline = forwardRef<
     };
   }, [assetId, view, size.w, whole, duration, offset, assetDur]);
 
+  const lanes = props.lanes ?? [];
+  const lanesH = lanes.length * LANE_H;
   const waveTop = RULER_H;
-  const waveH = Math.max(10, size.h - RULER_H - OVERVIEW_H);
+  const waveH = Math.max(10, size.h - RULER_H - OVERVIEW_H - lanesH);
+  const laneTop = waveTop + waveH;
+  const hover = useRef<LayerBand | null>(null);
 
   // 底层：刻度 + 波形 + 总览条
   useEffect(() => {
@@ -240,6 +269,62 @@ export const Timeline = forwardRef<
     } else if (whole) {
       drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH);
     }
+    // 覆盖层：半透明色带盖住整个波形高度，边界线，标签贴底
+    const toneColor = (tone: LayerBand["tone"]) => cssVar(tone === "sfx" ? "--nat-unpitched" : tone === "oped" ? "--warn" : tone === "seg" ? "--nat-pitched" : tone === "derived" ? "--accent" : "--nat-speech");
+    const X = (tt: number) => ((tt - v0) / span) * size.w;
+    for (const band of props.overlay?.bands ?? []) {
+      if (band.b < v0 || band.a > v1) continue;
+      const xa = X(band.a);
+      const xb = X(band.b);
+      ctx.fillStyle = toneColor(band.tone);
+      ctx.globalAlpha = 0.14;
+      ctx.fillRect(xa, waveTop, xb - xa, waveH);
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(Math.round(xa), waveTop, 1, waveH);
+      ctx.fillRect(Math.round(xb), waveTop, 1, waveH);
+      ctx.globalAlpha = 1;
+      if (xb - xa > 28) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(xa + 2, waveTop, xb - xa - 4, waveH);
+        ctx.clip();
+        ctx.fillStyle = cssVar("--text");
+        ctx.font = `11px ${cssVar("--font-ja")}`;
+        ctx.fillText(band.label, xa + 4, waveTop + waveH - 5);
+        ctx.restore();
+      }
+    }
+    // 车道：每层一条细带
+    lanes.forEach((lane, i) => {
+      const y = laneTop + i * LANE_H;
+      ctx.fillStyle = cssVar("--s1");
+      ctx.fillRect(0, y, size.w, LANE_H);
+      for (const band of lane.bands) {
+        if (band.b < v0 || band.a > v1) continue;
+        const xa = Math.max(0, X(band.a));
+        const xb = Math.min(size.w, X(band.b));
+        ctx.fillStyle = toneColor(band.tone);
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(xa, y + 2, Math.max(2, xb - xa - 1), LANE_H - 4);
+        ctx.globalAlpha = 1;
+        if (xb - xa > 24) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(xa, y, xb - xa - 2, LANE_H);
+          ctx.clip();
+          ctx.fillStyle = cssVar("--sub");
+          ctx.font = `10px ${cssVar("--font-ja")}`;
+          ctx.fillText(band.label, xa + 3, y + LANE_H - 4);
+          ctx.restore();
+        }
+      }
+      ctx.font = `10px ${cssVar("--font")}`;
+      const w = ctx.measureText(lane.label).width;
+      ctx.fillStyle = cssVar("--s1");
+      ctx.fillRect(size.w - w - 10, y, w + 10, LANE_H);
+      ctx.fillStyle = cssVar("--muted");
+      ctx.fillText(lane.label, size.w - w - 4, y + LANE_H - 4);
+    });
     // 当前音源没有覆盖的部分：淡色遮罩（只覆盖部分范围的分离声部）
     if (covered[0] > v0 || covered[1] < Math.min(v1, duration)) {
       ctx.fillStyle = cssVar("--s2");
@@ -259,7 +344,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.lanes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {
@@ -287,6 +372,21 @@ export const Timeline = forwardRef<
           ctx.fillRect(Math.round(xa) - 1, waveTop, 2, waveH);
           ctx.fillRect(Math.round(xb) - 1, waveTop, 2, waveH);
         }
+        const hv = hover.current;
+        if (hv) {
+          // 悬停车道上的区间：投影到波形（虚线 + 淡色）
+          const xa = x(hv.a);
+          const xb = x(hv.b);
+          ctx.fillStyle = cssVar("--text");
+          ctx.globalAlpha = 0.06;
+          ctx.fillRect(xa, waveTop, xb - xa, waveH);
+          ctx.globalAlpha = 0.7;
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = cssVar("--text");
+          ctx.strokeRect(xa + 0.5, waveTop + 0.5, xb - xa - 1, waveH - 1);
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        }
         const ph = p.playhead();
         if (ph != null) {
           const px = x(ph);
@@ -312,7 +412,12 @@ export const Timeline = forwardRef<
     const [v0, v1] = viewRef.current;
     return Math.max(0, Math.min(duration, v0 + ((clientX - r.left) / r.width) * (v1 - v0)));
   };
-  const drag = useRef<null | { kind: "new" | "a" | "b" | "overview"; x0: number; t0: number; moved: boolean }>(null);
+  const drag = useRef<null | { kind: "new" | "a" | "b" | "overview"; x0: number; t0: number; moved: boolean; shift: boolean }>(null);
+  const laneAt = (clientY: number): number => {
+    const r = wrap.current!.getBoundingClientRect();
+    const y = clientY - r.top;
+    return y >= laneTop && y < laneTop + lanesH ? Math.floor((y - laneTop) / LANE_H) : -1;
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -331,8 +436,16 @@ export const Timeline = forwardRef<
     const r = wrap.current!.getBoundingClientRect();
     const y = e.clientY - r.top;
     (e.target as Element).setPointerCapture(e.pointerId);
+    const li = laneAt(e.clientY);
+    if (li >= 0) {
+      // 车道上单击 = 选中那个区间（不移动播放头）
+      const hits = bandsAt(timeAt(e.clientX), lanes[li]!.bands);
+      if (hits.length && propsRef.current.onBandPress?.(lanes[li]!.id, hits, { clientX: e.clientX, clientY: e.clientY })) return;
+      if (hits[0]) propsRef.current.onSelection({ a: hits[0].a, b: hits[0].b });
+      return;
+    }
     if (y >= r.height - OVERVIEW_H) {
-      drag.current = { kind: "overview", x0: e.clientX, t0: 0, moved: true };
+      drag.current = { kind: "overview", x0: e.clientX, t0: 0, moved: true, shift: false };
       const tt = ((e.clientX - r.left) / r.width) * duration;
       const [v0, v1] = viewRef.current;
       setView(clampView(tt - (v1 - v0) / 2, tt + (v1 - v0) / 2));
@@ -344,19 +457,23 @@ export const Timeline = forwardRef<
       const [v0, v1] = viewRef.current;
       const px = (q: number) => r.left + ((q - v0) / (v1 - v0)) * r.width;
       if (Math.abs(e.clientX - px(sel.a)) <= HANDLE_PX) {
-        drag.current = { kind: "a", x0: e.clientX, t0: tt, moved: false };
+        drag.current = { kind: "a", x0: e.clientX, t0: tt, moved: false, shift: false };
         return;
       }
       if (Math.abs(e.clientX - px(sel.b)) <= HANDLE_PX) {
-        drag.current = { kind: "b", x0: e.clientX, t0: tt, moved: false };
+        drag.current = { kind: "b", x0: e.clientX, t0: tt, moved: false, shift: false };
         return;
       }
     }
-    drag.current = { kind: "new", x0: e.clientX, t0: tt, moved: false };
+    drag.current = { kind: "new", x0: e.clientX, t0: tt, moved: false, shift: e.shiftKey };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) {
+      const li = laneAt(e.clientY);
+      const hv = li >= 0 ? bandAt(timeAt(e.clientX), lanes[li]!.bands) : null;
+      hover.current = hv;
+      if (wrap.current) wrap.current.title = hv ? `${hv.label}  ${clock(hv.a)}–${clock(hv.b)}` : "";
       // 光标提示：选区两端可拖
       const sel = propsRef.current.selection;
       const el = wrap.current;
@@ -380,7 +497,10 @@ export const Timeline = forwardRef<
     d.moved = true;
     const tt = timeAt(e.clientX);
     const sel = propsRef.current.selection;
-    if (d.kind === "new") propsRef.current.onSelection({ a: Math.min(d.t0, tt), b: Math.max(d.t0, tt) });
+    if (d.kind === "new") {
+      // Shift+拖动：扩展到与覆盖层区间交叠的边界（只一次、不级联，R22.8）
+      propsRef.current.onSelection(d.shift ? snapExtend(d.t0, tt, propsRef.current.overlay?.bands ?? []) : { a: Math.min(d.t0, tt), b: Math.max(d.t0, tt) });
+    }
     else if (sel) {
       const a = d.kind === "a" ? tt : sel.a;
       const b = d.kind === "b" ? tt : sel.b;
@@ -392,11 +512,20 @@ export const Timeline = forwardRef<
     const d = drag.current;
     drag.current = null;
     if (!d) return;
-    if (d.kind === "new" && !d.moved) propsRef.current.onSeek(d.t0);
+    if (d.kind === "new" && !d.moved) {
+      // Shift+单击：选中光标下的整个覆盖层区间（字幕优先：覆盖层默认是字幕）
+      const band = d.shift ? bandAt(d.t0, propsRef.current.overlay?.bands ?? []) : null;
+      if (band) propsRef.current.onSelection({ a: band.a, b: band.b });
+      else propsRef.current.onSeek(d.t0);
+    }
     const sel = propsRef.current.selection;
     if (sel && sel.b - sel.a < 0.001) propsRef.current.onSelection(null); // 太短的选区当作没选
   };
-  const onDoubleClick = (e: React.MouseEvent) => propsRef.current.onPlayFrom(timeAt(e.clientX));
+  const onDoubleClick = (e: React.MouseEvent) => {
+    const li = laneAt(e.clientY);
+    if (li >= 0) return propsRef.current.onLaneDoubleClick?.(lanes[li]!.id);
+    propsRef.current.onPlayFrom(timeAt(e.clientX));
+  };
 
   useEffect(() => {
     const el = wrap.current;
@@ -430,7 +559,9 @@ export const Timeline = forwardRef<
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerLeave={() => (hover.current = null)}
       onDoubleClick={onDoubleClick}
+      style={{ height: 150 + lanesH }}
     >
       <canvas ref={base} className={s.tlCanvas} />
       <canvas ref={over} className={s.tlCanvas} />

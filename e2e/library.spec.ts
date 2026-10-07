@@ -113,5 +113,19 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await page.getByTestId("sample-delete").getByTestId("confirm-ok").click();
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   await page.screenshot({ path: ".cache/playwright-results/library.png" });
+
+  // 列表缩略图（R22.11）：采样行取中点帧、原片行取整片中点帧（Core 后台生成后补上）
+  await expect(page.getByTestId("sample-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
+  const remaining = await page.getByTestId("sample-row").first().getAttribute("data-id");
+  // 派生采样（R7.6）：原片页时间线头「派生采样 n」→ 单击打开（跳到采样库）
+  await page.keyboard.press("Meta+2");
+  await expect(page.getByTestId("source-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("derived-button")).toHaveText("派生采样 1");
+  await page.getByTestId("derived-button").click();
+  await page.getByTestId("derived-menu").getByRole("menuitem").first().click();
+  await expect(page.getByTestId("page-library")).toBeVisible();
+  await expect(page.locator(`[data-testid="sample-row"][data-id="${remaining}"]`)).toHaveAttribute("data-focus", /.*/);
+  await expect(page.getByTestId("stage-title")).toBeVisible();
+  await page.screenshot({ path: ".cache/playwright-results/library-thumbs.png" });
   await app.close();
 });

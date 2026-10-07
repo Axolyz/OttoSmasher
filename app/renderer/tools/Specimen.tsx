@@ -1,5 +1,5 @@
 // 组件样张（ARCHITECTURE §1.3、AGENTS §9）：设计令牌与组件清单一页看全；页面只用这些组件，缺了先补到这里。
-import { ChevronDown, ChevronRight, Inbox, MoreHorizontal, Plus } from "lucide-react";
+import { AudioLines, ChevronDown, ChevronRight, Film, Inbox, MoreHorizontal, Plus } from "lucide-react";
 import { useState } from "react";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
@@ -12,6 +12,7 @@ import { Tip } from "../components/Overlay";
 import { PagedTable } from "../components/PagedTable";
 import { AnchoredPanel } from "../components/Panel";
 import { SplitPane } from "../components/SplitPane";
+import { Thumb } from "../components/Thumb";
 import { clock } from "../format";
 import { t } from "../i18n";
 import { useApp } from "../state/store";
@@ -36,6 +37,7 @@ const LINES = Array.from({ length: 23 }, (_, i) => ({ id: `l${i}`, i, a: 80.2 + 
 export function Specimen() {
   const toast = useApp((st) => st.toast);
   const [on, setOn] = useState(true);
+  const [thumbPlaying, setThumbPlaying] = useState(false);
   const [num, setNum] = useState(0.65);
   const [sel, setSel] = useState("speech");
   const [cb, setCb] = useState<"none" | "some" | "all">("some");
@@ -191,6 +193,11 @@ export function Specimen() {
             <ProgressBar value={null} label={t("specimen.progress")} />
           </div>
           <StepsBar steps={[true, true, true, false, true, true, true]} label={t("specimen.steps")} />
+        </div>
+        <div className={s.row}>
+          <Thumb url={null} play={{ playing: thumbPlaying, onPress: () => setThumbPlaying((x) => !x), label: t("library.audition") }} />
+          <Thumb url={null} size="sm" placeholder={<Film />} />
+          <Thumb url={null} size="sm" placeholder={<AudioLines />} />
         </div>
       </section>
       <section>

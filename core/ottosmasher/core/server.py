@@ -27,6 +27,7 @@ from .edits import ChangeSet, EditService, dumps, loads
 from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
+from . import annotations as annotations_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
 from .exports import ExportService, export_samples
@@ -36,6 +37,7 @@ from .subtitle_import import SubtitleImporter
 from .separation import SeparationService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
+from .thumbnails import ThumbnailService
 from .waveforms import WaveformService
 
 log = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ class Core:
         self.sources: SourceService
         self.exports: ExportService
         self.waveforms: WaveformService
+        self.thumbs: ThumbnailService
         self.samples: SampleService
         self.interrupted_on_start = 0
         self._stop = False
@@ -84,7 +87,9 @@ class Core:
             "oped.add": lambda p: self.oped.add(p["sourceId"], p["kind"], float(p["start"]), float(p["end"]), p.get("via", "mark"), p.get("refs")),
             "oped.delete": lambda p: self.oped.delete(p["id"]),
             "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
-            "sources.list": lambda p: self.sources.list(),
+            "sources.list": self._sources_list,
+            "sources.prep": lambda p: annotations_mod.prep(self.conn, p["id"]),
+            "annotations.list": lambda p: annotations_mod.list_for_source(self.conn, p["sourceId"]),
             "sources.get": lambda p: self.sources.get(p["id"]),
             "sources.relocate": lambda p: self.sources.relocate(p["id"], p["path"]),
             "sources.deletePreview": lambda p: self.sources.delete_preview(p["id"]),
@@ -116,6 +121,7 @@ class Core:
             "samples.get": lambda p: self.samples.get(p["id"]),
             "samples.delete": lambda p: self.samples.delete(list(p["ids"])),
             "exports.samples": lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))),
+            "thumbs.get": lambda p: self.thumbs.get(list(p["items"])),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
                 p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
@@ -154,6 +160,7 @@ class Core:
         self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
         self.subtitle_samples = SubtitleSamples(self.conn, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
+        self.thumbs = ThumbnailService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
             self.conn,
             self.ws.jobs,
@@ -170,6 +177,7 @@ class Core:
     def close(self) -> None:
         try:
             self.waveforms.shutdown()
+            self.thumbs.shutdown()
             self.jobs.kill_all()
         finally:
             self.conn.close()
@@ -288,6 +296,11 @@ class Core:
             rules = naming.validate_rules(rules)
         r = naming.infer_work_episode(str(p["filename"]), rules)
         return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
+
+    def _sources_list(self, p: dict[str, Any]) -> list[dict[str, Any]]:
+        """原片列表 + 每个原片的统计（05 §5.8：句数、OP/ED、派生采样数）。"""
+        c = annotations_mod.counts(self.conn)
+        return [r | {"counts": c.get(r["id"])} for r in self.sources.list()]
 
     def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:
         """开发期测试钩子（S1.2；只在开发模式）：把现成的分离声部文件登记为原片的整轨声部（原地引用，不复制）。

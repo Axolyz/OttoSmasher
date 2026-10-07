@@ -6,6 +6,7 @@ import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Square, 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
+import { useThumb } from "../api/thumbs";
 import type { EffectiveTag, Nature, SamplePage, SampleRow } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
@@ -16,6 +17,7 @@ import { Menu, type MenuItems, type MenuSpec } from "../components/Menu";
 import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
 import { ConfirmDialog } from "../components/Overlay";
 import { SplitPane } from "../components/SplitPane";
+import { Thumb } from "../components/Thumb";
 import { beginDragOut } from "../dragout";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
@@ -353,16 +355,15 @@ export function LibraryPage() {
         }
         renderItem={(r) => (
           <>
-            <button
-              type="button"
-              className={s.play}
-              data-playing={playing === r.id || undefined}
-              onClick={() => void audition(r)}
-              aria-label={playing === r.id ? t("library.stop") : t("library.audition")}
-              data-testid="sample-play"
-            >
-              {playing === r.id ? <Square size={12} /> : <Play size={12} />}
-            </button>
+            <SampleThumb
+              id={r.id}
+              play={{
+                playing: playing === r.id,
+                onPress: () => void audition(r),
+                label: playing === r.id ? t("library.stop") : t("library.audition"),
+                testId: "sample-play",
+              }}
+            />
             <div className={s.body} data-nature={r.nature}>
               <div className={s.nameLine}>
                 <NatureDot nature={r.nature} />
@@ -507,4 +508,8 @@ export function LibraryPage() {
       </ConfirmDialog>
     </div>
   );
+}
+
+function SampleThumb(props: { id: string; play: { playing: boolean; onPress: () => void; label: string; testId?: string } }) {
+  return <Thumb url={useThumb("sample", props.id)} play={props.play} testId="sample-thumb" />;
 }

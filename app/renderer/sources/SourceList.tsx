@@ -3,6 +3,7 @@
 // 行末 ⋯（悬停或焦点时出现）与右键是同一份菜单（所有者 2026-10-07：保留）。
 import { AudioLines, ChevronDown, ChevronRight, Film, MoreHorizontal, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useThumb } from "../api/thumbs";
 import type { SourceRow } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
@@ -10,6 +11,7 @@ import { CollectionList } from "../components/CollectionList";
 import { EmptyState } from "../components/Controls";
 import { TextField } from "../components/Fields";
 import { Menu, type MenuSpec } from "../components/Menu";
+import { Thumb } from "../components/Thumb";
 import { basename, clock, stem } from "../format";
 import { t } from "../i18n";
 import s from "./Sources.module.css";
@@ -116,16 +118,22 @@ export function SourceList(props: {
           const m = props.menu(r, [r.id], false);
           return (
             <>
-              <span className={s.kind}>{r.has_video ? <Film /> : <AudioLines />}</span>
+              <SourceThumb id={r.id} hasVideo={r.has_video} />
               <div className={s.rowMain}>
                 <div className={s.rowTitle} title={basename(r.path)} data-user-data={r.episode ? undefined : ""}>
                   {rowTitle(r)}
                 </div>
                 <div className={s.rowMeta}>
                   <span className="num">{clock(r.duration, 0)}</span>
+                  {/* 05 §5.8：句数 = 当前字幕版本中不在 OP/ED 的台词数；没导入过标记 = “无字幕”（有字幕文件但没导入另说明） */}
+                  {r.counts?.hasMarkers ? (
+                    <span className="num">{t("sources.lines", { n: r.counts.lines })}</span>
+                  ) : (
+                    <span>{r.subtitle_path ? t("sources.notImported") : t("sources.noSubtitle")}</span>
+                  )}
+                  {r.counts?.oped ? <span className="num">{t("sources.opedN", { n: r.counts.oped })}</span> : null}
                   {!r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
                   {r.audio_streams > 1 ? <span>{t("sources.nTracks", { n: r.audio_streams })}</span> : null}
-                  <span>{r.subtitle_path ? t("sources.hasSubtitle") : t("sources.noSubtitle")}</span>
                 </div>
               </div>
               <span className={s.rowMenu} data-open={rowMenu === r.id || undefined}>
@@ -155,4 +163,9 @@ export function SourceList(props: {
       />
     </aside>
   );
+}
+
+function SourceThumb(props: { id: string; hasVideo: boolean }) {
+  const url = useThumb("source", props.id);
+  return <Thumb size="sm" url={props.hasVideo ? url : null} placeholder={props.hasVideo ? <Film /> : <AudioLines />} testId="source-thumb" />;
 }

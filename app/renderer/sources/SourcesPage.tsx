@@ -16,6 +16,7 @@ import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
+import { PrepPanel } from "./PrepPanel";
 import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
@@ -271,6 +272,16 @@ export function SourcesPage() {
             <span className={s.topName} title={currentRow.path} data-user-data="">
               {displayTitle(currentRow)}
             </span>
+            <PrepPanel
+              source={currentRow}
+              onAction={(a) => {
+                if (a === "subimport") setImportFor(currentRow);
+                else if (a === "separate") void separateFull(currentRow);
+                else if (a === "tracks") setTracksFor(currentRow);
+                else if (a === "oped") setOpedFor({ row: currentRow, initial: null });
+                else setSubSamples({ row: currentRow, kind: "line" });
+              }}
+            />
             <Menu
               {...sourceMenu(currentRow, [currentRow.id], false)}
               trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="viewer-menu" />}

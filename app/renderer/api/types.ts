@@ -68,6 +68,7 @@ export interface SourceRow {
   version: number;
   audio_streams: number;
   has_video: boolean;
+  counts?: { lines: number; hasMarkers: boolean; oped: number; samples: number };
 }
 
 export interface SourceStream {
