@@ -1,0 +1,3 @@
+# uv 的缓存放在项目内（AGENTS.md §4）；托管 Python 的安装目录只能用环境变量设置，见 tools/uv
+cache-dir = ".uv-cache"
+python-preference = "only-managed"

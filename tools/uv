@@ -1,0 +1,13 @@
+#!/bin/sh
+# 项目内的 uv：托管 Python 装在 <repo>/.uv-python，缓存在 <repo>/.uv-cache（AGENTS.md §4）。
+# 用法：tools/uv sync / tools/uv run pytest …
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export UV_PYTHON_INSTALL_DIR="$ROOT/.uv-python"
+export UV_CACHE_DIR="$ROOT/.uv-cache"
+export UV_PROJECT_ENVIRONMENT="$ROOT/.venv"
+# 不往 ~/.local/bin 写 python 可执行链接
+export UV_PYTHON_BIN_DIR="$ROOT/.uv-python/bin"
+export UV_PYTHON_INSTALL_BIN=0
+export UV_TOOL_DIR="$ROOT/.uv-cache/tools"
+export UV_TOOL_BIN_DIR="$ROOT/.uv-cache/tools/bin"
+exec uv --project "$ROOT" "$@"
