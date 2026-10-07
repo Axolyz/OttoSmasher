@@ -20,16 +20,16 @@ test("三页常驻、设置走编辑通道且可撤销、任务可取消与重�
     await row.locator("input").press("Enter");
   });
   await expect(row.locator("input")).toHaveValue("3");
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: number }>>("settings.list");
     return r.ok && r.r["jobs.concurrency_light"]!.value === 3;
-  });
+  })).toBe(true);
   await page.keyboard.press("Escape");
   await page.getByTestId("undo").click();
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: number }>>("settings.list");
     return r.ok && r.r["jobs.concurrency_light"]!.value === 2;
-  });
+  })).toBe(true);
 
   // 任务：起一个带子进程的长任务，取消；再重试，再取消
   await page.getByTestId("specimen-toggle").click();

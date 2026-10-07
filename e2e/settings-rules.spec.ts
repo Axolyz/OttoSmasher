@@ -29,18 +29,18 @@ test("推断规则：试算、校验、保存与撤销", async () => {
   await last.fill("^(?P<work>no pattern) (?P<episode>here)$");
   await expect(result).toHaveText("第 8 条匹配：作品「no pattern」· 集数「here」");
   await row.getByTestId("rules-save").click();
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: string[] }>>("settings.list");
     return r.ok && r.r["source.infer_rules"]!.value.length === 8;
-  });
+  })).toBe(true);
   await page.screenshot({ path: ".cache/playwright-results/settings-rules.png" });
 
   // 撤销回到默认
   await page.keyboard.press("Escape");
   await page.getByTestId("undo").click();
-  await page.waitForFunction(async () => {
+  await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: string[]; version: number }>>("settings.list");
     return r.ok && r.r["source.infer_rules"]!.value.length === 7;
-  });
+  })).toBe(true);
   await app.close();
 });
