@@ -58,3 +58,16 @@
 .clipSource { color: var(--muted); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clipHint { color: var(--muted); font-size: var(--fs-xs); }
 .clipActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* 导入工作台 */
+.sheetMain { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; height: 100%; min-height: 0; box-sizing: border-box; }
+.sheetBar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sheetTable { flex: 1; min-height: 260px; display: flex; flex-direction: column; }
+.sheetNote { color: var(--muted); font-size: var(--fs-sm); }
+.versionNote { color: var(--sub); font-size: var(--fs-sm); }
+.cueText { white-space: pre-line; }
+.lineStatus[data-status="importable"] { color: var(--ok); }
+.lineStatus[data-status="oped"] { color: var(--warn); }
+.lineStatus[data-status="invalid"] { color: var(--bad); }
+.lineStatus[data-status="registered"] { color: var(--muted); }
+.muted { color: var(--muted); }

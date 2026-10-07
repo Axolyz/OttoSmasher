@@ -60,3 +60,12 @@
 .emptyInline { padding: 16px 12px; max-width: none; }
 .emptyInline .emptyIcon svg { width: 22px; height: 22px; }
 .emptyInline h3 { font-size: var(--fs-md); }
+
+/* 大数字统计 */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.stat { background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-xl); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.statN { font-size: 26px; font-weight: 650; line-height: 1.1; }
+.stat[data-tone="warn"] .statN { color: var(--warn); }
+.stat[data-tone="bad"] .statN { color: var(--bad); }
+.stat[data-tone="muted"] .statN { color: var(--muted); }
+.statLabel { color: var(--muted); font-size: var(--fs-sm); }

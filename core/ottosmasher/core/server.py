@@ -31,6 +31,7 @@ from . import assets as assets_mod
 from . import playback as playback_mod
 from .exports import ExportService, export_samples
 from .samples import SampleService
+from .subtitle_import import SubtitleImporter
 from .sources import SourceService
 from .waveforms import WaveformService
 
@@ -61,6 +62,10 @@ class Core:
             "settings.list": lambda p: settings_mod.read_all(self.conn),
             "sources.inferTest": self._infer_test,
             "subtitles.ruleTest": self._subtitle_rule_test,
+            "subtitles.preview": lambda p: self.subtitles.preview(p["sourceId"], p.get("path")),
+            "subtitles.import": lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("lines"), p.get("path")),
+            "subtitles.previewMany": lambda p: self.subtitles.preview_many(list(p["sourceIds"])),
+            "subtitles.importMany": lambda p: self.subtitles.import_many(list(p["items"])),
             "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
             "sources.list": lambda p: self.sources.list(),
             "sources.get": lambda p: self.sources.get(p["id"]),
@@ -124,6 +129,7 @@ class Core:
         self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
         self.exports = ExportService(self.conn, self.ws)
         self.samples = SampleService(self.conn, on_change=self._on_change)
+        self.subtitles = SubtitleImporter(self.conn, self.edits, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
             self.conn,

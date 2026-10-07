@@ -23,7 +23,7 @@ function isTyping(el: Element | null): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
 }
 
-export function SourceViewer(props: { row: SourceRow }) {
+export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void }) {
   const { row } = props;
   const toast = useApp((st) => st.toast);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
@@ -260,6 +260,11 @@ export function SourceViewer(props: { row: SourceRow }) {
         <div className={s.transcript} data-testid="transcript">
           <div className={s.transcriptHead}>{t("sources.transcript")}</div>
           <div>{row.subtitle_path ? t("sources.transcriptPending", { name: basename(row.subtitle_path) }) : t("sources.noSubtitleHint")}</div>
+          <div>
+            <Button size="sm" variant={row.subtitle_path ? "secondary" : "flat"} onPress={props.onImportSubtitles} data-testid="transcript-import">
+              {t("subimport.menu")}
+            </Button>
+          </div>
         </div>
       </div>
 

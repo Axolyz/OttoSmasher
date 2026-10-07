@@ -40,3 +40,5 @@
 .panelAux { color: var(--muted); font-size: var(--fs-sm); }
 .panelBody { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .panelFoot { display: flex; justify-content: flex-end; gap: 8px; }
+.sheetSub { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sheetFoot { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-top: 1px solid var(--line2); }

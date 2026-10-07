@@ -159,3 +159,47 @@ export interface SampleSuggestion {
   start: number;
   end: number;
 }
+
+// ---------- 字幕标记导入（阶段 3.2）
+
+export type SubtitleLineStatus = "importable" | "oped" | "invalid" | "registered";
+export interface SubtitlePreviewLine {
+  no: number;
+  ref: string;
+  start: number;
+  end: number;
+  text: string;
+  kind: "line" | "sfx";
+  name: string;
+  speakers: string[];
+  alignText: string;
+  status: SubtitleLineStatus;
+  reason?: "negative-start" | "empty" | "beyond-end";
+  oped?: "OP" | "ED";
+  opedPartial?: boolean;
+}
+export type SubtitleVersionState = "new" | "current" | "switch";
+export interface SubtitlePreview {
+  sourceId: string;
+  path: string;
+  fileName: string;
+  format: string;
+  token: string;
+  versionState: SubtitleVersionState;
+  lines: SubtitlePreviewLine[];
+  counts: Record<SubtitleLineStatus, number>;
+  problems: Array<{ line: number; reason: string }>;
+}
+export interface SubtitleImportResult {
+  sourceId: string;
+  editId: string | null;
+  imported: number;
+  versionId: string;
+  newVersion: boolean;
+  switched: boolean;
+  skipped: { invalid: number; registered: number };
+}
+export type SubtitleBatchRow =
+  | { sourceId: string; skipped: "no-subtitle" }
+  | { sourceId: string; error: { code: string; args: Record<string, unknown> } }
+  | { sourceId: string; fileName: string; token: string; versionState: SubtitleVersionState; counts: Record<SubtitleLineStatus, number>; problems: number };

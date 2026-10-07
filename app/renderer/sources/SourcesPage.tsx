@@ -13,6 +13,7 @@ import { useApp } from "../state/store";
 import { DeleteDialog, InputSettingsDialog } from "./SourceDialogs";
 import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
+import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import s from "./Sources.module.css";
 
 export function SourcesPage() {
@@ -26,6 +27,8 @@ export function SourcesPage() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
+  const [importFor, setImportFor] = useState<SourceRow | null>(null);
+  const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
 
@@ -139,10 +142,19 @@ export function SourcesPage() {
   // 单个原片的菜单：列表右键、行末 ⋯、查看器 ⋯ 共用（UI_PLAN §4、§8）；多个 = 已勾选集
   const sourceMenu = (r: SourceRow, ids: string[], multi: boolean): MenuSpec =>
     multi
-      ? { head: t("menu.checkedN", { n: ids.length }), items: [{ id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) }] }
+      ? {
+          head: t("menu.checkedN", { n: ids.length }),
+          items: [
+            { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
+            "-",
+            { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
+          ],
+        }
       : {
           head: t("menu.on", { name: displayName(r) }),
           items: [
+            { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
+            "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
             "-",
@@ -189,7 +201,7 @@ export function SourcesPage() {
         <div />
       )}
       {currentRow ? (
-        <SourceViewer row={currentRow} />
+        <SourceViewer row={currentRow} onImportSubtitles={() => setImportFor(currentRow)} />
       ) : (
         <EmptyState
           icon={<Clapperboard />}
@@ -224,6 +236,8 @@ export function SourcesPage() {
           </>
         ) : null}
       </TopSlot>
+      <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
+      <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
       <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />
       <DeleteDialog ids={deleteIds} rows={rows ?? []} onClose={() => setDeleteIds(null)} onDeleted={(ids) => void onDeleted(ids)} />
     </div>

@@ -195,3 +195,17 @@ export function EmptyState(props: { icon?: ReactNode; title: string; body?: Reac
     </div>
   );
 }
+
+/** 大数字统计（原型 .big3）：导入预览、字幕采样预览、语音分析确认框的 M / N / K。 */
+export function Stats(props: { items: Array<{ n: number; label: string; tone?: "default" | "warn" | "bad" | "muted"; testId?: string }> }) {
+  return (
+    <div className={s.stats}>
+      {props.items.map((it) => (
+        <div key={it.label} className={s.stat} data-tone={it.tone ?? "default"} data-testid={it.testId}>
+          <div className={`${s.statN} num`}>{it.n.toLocaleString("en-US")}</div>
+          <div className={s.statLabel}>{it.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -144,7 +144,11 @@ export function SourceList(props: {
           <BatchBar
             count={props.checked.size}
             onClear={() => props.onChecked(new Set())}
-            items={[{ id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => props.onDelete([...props.checked]) }]}
+            items={(() => {
+              const ids = [...props.checked];
+              const first = props.rows.find((r) => r.id === ids[0]);
+              return first ? props.menu(first, ids, true).items : [];
+            })()}
             testId="sources-checked"
           />
         }

@@ -24,13 +24,25 @@ export function Tip(props: { content: ReactNode; children: ReactNode; placement?
 }
 
 /** 全屏工作台：从底部升起，覆盖页面（保留左侧导航）；Esc 或“关闭”落下；同一时刻只有一个。 */
-export function Sheet(props: { isOpen: boolean; onClose: () => void; title: string; children: ReactNode; actions?: ReactNode }) {
+export function Sheet(props: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  /** 标题旁的说明（对象、文件名） */
+  sub?: ReactNode;
+  children: ReactNode;
+  actions?: ReactNode;
+  /** 底栏：左侧说明 + 右侧按钮（取消 / 主动作） */
+  footer?: ReactNode;
+  testId?: string;
+}) {
   return (
     <ModalOverlay isOpen={props.isOpen} onOpenChange={(o) => !o && props.onClose()} isDismissable className={s.sheetOverlay}>
       <Modal className={s.sheet}>
-        <Dialog className={s.sheetDialog} aria-label={props.title}>
+        <Dialog className={s.sheetDialog} aria-label={props.title} data-testid={props.testId}>
           <div className={s.sheetHead}>
             <h2 className={s.sheetTitle}>{props.title}</h2>
+            {props.sub ? <span className={s.sheetSub}>{props.sub}</span> : null}
             <div className={s.grow} />
             {props.actions}
             <Button variant="flat" onPress={props.onClose} icon={<X />}>
@@ -39,6 +51,7 @@ export function Sheet(props: { isOpen: boolean; onClose: () => void; title: stri
             </Button>
           </div>
           <div className={s.sheetBody}>{props.children}</div>
+          {props.footer ? <div className={s.sheetFoot}>{props.footer}</div> : null}
         </Dialog>
       </Modal>
     </ModalOverlay>

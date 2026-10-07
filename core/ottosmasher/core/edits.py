@@ -98,6 +98,14 @@ def v_opt_path(v: Any) -> str | None:
     return v
 
 
+def v_opt_id(v: Any) -> str | None:
+    if v is None:
+        return None
+    if not isinstance(v, str) or not 1 <= len(v) <= 64:
+        raise _Invalid("not-text")
+    return v
+
+
 def v_number(v: Any) -> float:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         raise _Invalid("not-number")
@@ -180,6 +188,8 @@ _register(
             # 「作品与输入设置」（规格 05 §5.2）：分析音轨 = 第几条音频流；字幕文件只关联不导入，可清除
             "default_audio_stream": FieldSpec(v_opt_int(0, 999)),
             "subtitle_path": FieldSpec(v_opt_path),
+            # 当前字幕版本（规格 04 §4.2.2）：只由字幕导入改（切回旧版本 = 重新导入旧文件），撤销导入时恢复
+            "current_subtitle_version_id": FieldSpec(v_opt_id),
         },
     )
 )
@@ -202,6 +212,10 @@ _register(
             "scope": FieldSpec(v_enum("source", "role", "asset")),
             "scope_role": FieldSpec(v_enum("vocal", "sfx")),
             "scope_asset_id": FieldSpec(v_text(min_len=1, max_len=64)),
+            # 字幕导入（规格 06 §6.1）：来自哪个字幕版本的哪一行、按当时规则得到的自动对齐文本
+            "subtitle_version_id": FieldSpec(v_text(min_len=1, max_len=64)),
+            "subtitle_line_id": FieldSpec(v_text(min_len=1, max_len=64)),
+            "align_text_auto": FieldSpec(v_text(max_len=10_000, strip=False)),
         },
         create_required=("source_id", "kind", "scope", "start", "end"),
         soft_delete_column="deleted",
@@ -351,6 +365,11 @@ class EditService:
             raise CoreError("edit-invalid", index=i, entity=spec.name, field=name, reason=bad.reason, **bad.args_) from None
 
     def _check_source(self, i: int, source_id: str, new: dict[str, Any]) -> None:
+        vid = new.get("current_subtitle_version_id")
+        if vid is not None and self.conn.execute(
+            "SELECT 1 FROM subtitle_version WHERE id=? AND source_id=?", (vid, source_id)
+        ).fetchone() is None:
+            raise CoreError("edit-invalid", index=i, entity="source", field="current_subtitle_version_id", reason="other-source")
         if "default_audio_stream" in new:
             o = new["default_audio_stream"]
             if o is None or self.conn.execute(
@@ -421,6 +440,19 @@ class EditService:
         if self.on_change:
             self.on_change(changes)
         return {"edit_id": edit_id, "changes": [_wire(p) for p in real]}
+
+    def apply_within(self, batch: dict[str, Any]) -> tuple[str | None, ChangeSet]:
+        """在调用方已开的写事务里应用一个编辑批次（与别的写入同一事务，例如字幕导入同时写入只读的字幕版本快照）。
+        调用方提交后负责发出变更通知。"""
+        label = batch.get("label") or {"code": "edit", "args": {}}
+        plan = [p for p in self._plan(batch) if p["diffs"]]
+        changes = ChangeSet()
+        if not plan:
+            return None, changes
+        edit_id = self._write(plan, label, undo_of=None)
+        for p in plan:
+            changes.add(p["entity"], p["id"])
+        return edit_id, changes
 
     def _write(self, plan: list[dict[str, Any]], label: dict[str, Any], undo_of: str | None) -> str:
         edit_id = new_id()

@@ -59,10 +59,10 @@ class SampleService:
         texts: list[str] = []
         if mapping is not None:
             s0, s1 = mapping.to_source(start), mapping.to_source(end)
-            # 正长度交叠（端点相接不算，04 §4.3.3）；当前字幕版本；台词与音效；不受角色限制（推定 A23）
+            # 正长度交叠（端点相接不算，04 §4.3.3）；当前字幕版本；台词与音效；文字不受角色限制（推定 A23：台词标注的作用域是“人声”角色，只约束它的说话人标签）
             rows = self.conn.execute(
                 "SELECT clean_text FROM annotation WHERE source_id=? AND deleted=0 AND kind IN ('line','sfx')"
-                " AND scope='source' AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)"
+                " AND scope IN ('source','role') AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)"
                 ' AND start < ? AND "end" > ? ORDER BY start, rowid',
                 (src["id"], src["current_subtitle_version_id"], s1 - EPS, s0 + EPS),
             ).fetchall()
