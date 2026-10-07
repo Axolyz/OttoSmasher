@@ -80,3 +80,9 @@
 .opedVia { color: var(--muted); }
 .opedVia[data-via="rule"] { color: var(--ok); }
 .errList { margin: 4px 0 0; padding-left: 18px; }
+
+/* 人声／音效与默认轨 */
+.tracksDefaults { display: flex; gap: 16px; flex-wrap: wrap; }
+.tracksDefault { display: flex; align-items: center; gap: 6px; }
+.trackName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.defaultBadge { margin-left: 4px; font-size: var(--fs-xs); color: var(--accent2); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; }

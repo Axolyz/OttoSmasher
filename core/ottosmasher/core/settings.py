@@ -63,6 +63,12 @@ def _choice(*options: str) -> Callable[[Any], Any]:
     return check
 
 
+def _role_aliases(v: Any) -> Any:
+    from .assets import validate_role_aliases  # 避免循环导入
+
+    return validate_role_aliases(v)
+
+
 def _markers(v: Any) -> Any:
     from .oped import validate_markers  # 避免循环导入
 
@@ -89,6 +95,8 @@ SPECS: dict[str, SettingSpec] = {
         # OP/ED 开始/结束标记（规格 05 §5.6.1：可各填多个；换一种字幕写法时改这里，程序里不加特判）
         SettingSpec("subtitle.oped_start", list(rules_defaults()["subtitle.oped_start"]), _markers, "subtitle"),
         SettingSpec("subtitle.oped_end", list(rules_defaults()["subtitle.oped_end"]), _markers, "subtitle"),
+        # 分离声部名 → 角色别名表（规格 05 §5.4、推定 A9；不分大小写）
+        SettingSpec("separation.role_aliases", [list(x) for x in rules_defaults()["separation.role_aliases"]], _role_aliases, "studio"),
         # 语音分析：对齐前/后容差
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),

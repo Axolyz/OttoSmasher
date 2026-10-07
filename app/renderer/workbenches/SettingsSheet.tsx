@@ -9,11 +9,12 @@ import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ModelsPanel } from "./ModelsPanel";
+import { RoleAliasEditor } from "./RoleAliasEditor";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-const GROUPS = ["general", "inference", "source", "subtitle", "analysis", "jobs", "storage", "models"] as const;
+const GROUPS = ["general", "inference", "source", "subtitle", "analysis", "studio", "jobs", "storage", "models"] as const;
 type Group = (typeof GROUPS)[number];
 
 interface NumSpec {
@@ -146,6 +147,15 @@ export function SettingsSheet() {
                     <div className={s.label}>{t("settings.subtitle.rules.label")}</div>
                     <div className={s.hint}>{t("settings.subtitle.rules.hint")}</div>
                     <SubtitleRulesEditor settings={settings} onSave={(changed) => saveMany(changed, t("settings.subtitle.rules.label"))} />
+                  </div>
+                );
+              }
+              if (key === "separation.role_aliases") {
+                return (
+                  <div className={s.itemWide} key={key} data-testid={`setting-${key}`}>
+                    <div className={s.label}>{t(`settings.${key}.label`)}</div>
+                    <div className={s.hint}>{t(`settings.${key}.hint`)}</div>
+                    <RoleAliasEditor value={e.value as Array<[string, "vocal" | "sfx"]>} defaultValue={e.default as Array<[string, "vocal" | "sfx"]>} onSave={(v) => save(key, v)} />
                   </div>
                 );
               }

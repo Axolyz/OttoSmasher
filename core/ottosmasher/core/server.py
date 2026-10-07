@@ -80,6 +80,7 @@ class Core:
             "sources.delete": lambda p: self.sources.delete(p["id"]),
             "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
             "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
+            "assets.tracks": lambda p: assets_mod.tracks(self.conn, p["sourceId"]),
             "playback.resolveSource": lambda p: playback_mod.resolve_source(self.conn, p["sourceId"], p.get("ordinal")),
             "playback.resolveAsset": lambda p: playback_mod.resolve_asset(
                 self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])

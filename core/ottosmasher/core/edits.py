@@ -126,6 +126,12 @@ def v_tags(max_count: int) -> Validator:
     return check
 
 
+def v_roles(v: Any) -> list[str]:
+    if not isinstance(v, list) or any(r not in ("vocal", "sfx") for r in v):
+        raise _Invalid("not-an-option", options=["vocal", "sfx"])
+    return sorted(set(v))
+
+
 def v_json(v: Any) -> Any:
     return v
 
@@ -190,6 +196,9 @@ _register(
             "subtitle_path": FieldSpec(v_opt_path),
             # 当前字幕版本（规格 04 §4.2.2）：只由字幕导入改（切回旧版本 = 重新导入旧文件），撤销导入时恢复
             "current_subtitle_version_id": FieldSpec(v_opt_id),
+            # 默认轨（规格 04 §4.2.3）：每个角色一条，从带该角色、完整覆盖且未变速的资产里选；None = 未指定
+            "default_vocal": FieldSpec(v_opt_id, custom="default_track"),
+            "default_sfx": FieldSpec(v_opt_id, custom="default_track"),
         },
     )
 )
@@ -236,6 +245,8 @@ _register(
         soft_delete_column="deleted",
     )
 )
+# 声音资产：只有角色可改（规格 04 §4.2.3；用户移除的角色记为 removed_by_user，系统预填不再加回）
+_register(EntitySpec("asset", "sound_asset", {"roles": FieldSpec(v_roles, custom="roles")}))
 # OP/ED 区间（规格 05 §5.6）：字幕规则结果与人工标记/确认都经编辑通道新建（可撤销 = 软删除），删除也是软删除
 _register(
     EntitySpec(
@@ -282,6 +293,7 @@ class EditService:
     def __init__(self, conn: sqlite3.Connection, on_change: Callable[[ChangeSet], None] | None = None) -> None:
         self.conn = conn
         self.on_change = on_change
+        self._pending_roles: dict[str, list[str]] = {}
 
     # ---------- 读
 
@@ -308,6 +320,18 @@ class EditService:
                 v = bool(v)
             out[n] = v
         for n, f in zip(names, cols, strict=True):
+            if f.custom == "roles":
+                out[n] = [
+                    r[0]
+                    for r in self.conn.execute(
+                        "SELECT role FROM asset_role WHERE asset_id=? AND state='on' ORDER BY role", (entity_id,)
+                    )
+                ]
+            if f.custom == "default_track":
+                r = self.conn.execute(
+                    "SELECT asset_id FROM default_track WHERE source_id=? AND role=?", (entity_id, n.removeprefix("default_"))
+                ).fetchone()
+                out[n] = None if r is None else r[0]
             if f.custom == "local_tags":
                 out[n] = [
                     r[0]
@@ -325,6 +349,15 @@ class EditService:
             raise CoreError("edit-empty")
         plan: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
+        # 同一批次里先改角色、再设默认轨（「人声／音效与默认轨」里给原混音加人声角色并设为默认，一次撤销）
+        self._pending_roles: dict[str, list[str]] = {}
+        for op in ops:
+            f = op.get("fields") if isinstance(op, dict) else None
+            if isinstance(f, dict) and op.get("entity") == "asset" and isinstance(op.get("id"), str) and "roles" in f:
+                try:
+                    self._pending_roles[op["id"]] = v_roles(f["roles"])
+                except _Invalid:
+                    pass  # 下面逐项校验时会报出具体错误
         for i, op in enumerate(ops):
             entity = op.get("entity")
             spec = ENTITIES.get(entity)  # type: ignore[arg-type]
@@ -369,7 +402,25 @@ class EditService:
             plan.append(
                 {"index": i, "entity": entity, "id": entity_id, "op": "update", "version": version, "diffs": diffs}
             )
+        self._check_defaults_keep_roles(plan)
         return plan
+
+    def _check_defaults_keep_roles(self, plan: list[dict[str, Any]]) -> None:
+        """移除某资产的角色时，它若是该角色的默认轨，同一批次必须同时改掉那个默认轨（默认轨必须带该角色）。"""
+        new_defaults = {
+            (p["id"], n.removeprefix("default_")): d[1]
+            for p in plan
+            if p["entity"] == "source"
+            for n, d in p["diffs"].items()
+            if n.startswith("default_")
+        }
+        for p in plan:
+            if p["entity"] != "asset" or "roles" not in p["diffs"]:
+                continue
+            roles = p["diffs"]["roles"][1]
+            for src, role in self.conn.execute("SELECT source_id, role FROM default_track WHERE asset_id=?", (p["id"],)):
+                if role not in roles and new_defaults.get((src, role), p["id"]) == p["id"]:
+                    raise CoreError("edit-invalid", index=p["index"], entity="asset", field="roles", reason="still-default", role=role)
 
     def _validate(self, i: int, spec: EntitySpec, entity_id: str | None, name: str, fspec: FieldSpec, value: Any) -> Any:
         try:
@@ -385,6 +436,16 @@ class EditService:
             raise CoreError("edit-invalid", index=i, entity=spec.name, field=name, reason=bad.reason, **bad.args_) from None
 
     def _check_source(self, i: int, source_id: str, new: dict[str, Any]) -> None:
+        for role in ("vocal", "sfx"):
+            aid = new.get(f"default_{role}")
+            if aid is None:
+                continue
+            from . import assets as assets_mod  # 避免循环导入
+
+            try:
+                assets_mod.check_default_track(self.conn, source_id, aid, role, roles=self._pending_roles.get(aid))
+            except CoreError as exc:
+                raise CoreError("edit-invalid", index=i, entity="source", field=f"default_{role}", **exc.args_) from None
         vid = new.get("current_subtitle_version_id")
         if vid is not None and self.conn.execute(
             "SELECT 1 FROM subtitle_version WHERE id=? AND source_id=?", (vid, source_id)
@@ -561,7 +622,29 @@ class EditService:
         for n, v in values.items():
             if spec.fields[n].custom == "local_tags":
                 self._write_local_tags(entity_id, v)
+            elif spec.fields[n].custom == "roles":
+                self._write_roles(entity_id, v)
+            elif spec.fields[n].custom == "default_track":
+                role = n.removeprefix("default_")
+                self.conn.execute("DELETE FROM default_track WHERE source_id=? AND role=?", (entity_id, role))
+                if v is not None:
+                    self.conn.execute("INSERT INTO default_track(source_id, role, asset_id) VALUES (?, ?, ?)", (entity_id, role, v))
         return version + 1
+
+    def _write_roles(self, asset_id: str, roles: list[str]) -> None:
+        """开 → on；原来开着、现在关 → removed_by_user（系统预填不再加回）；从没有过的不写。"""
+        cur = {r[0]: r[1] for r in self.conn.execute("SELECT role, state FROM asset_role WHERE asset_id=?", (asset_id,))}
+        for role in ("vocal", "sfx"):
+            if role in roles:
+                self.conn.execute(
+                    "INSERT INTO asset_role(asset_id, role, state) VALUES (?, ?, 'on')"
+                    " ON CONFLICT(asset_id, role) DO UPDATE SET state='on', version=version+1",
+                    (asset_id, role),
+                )
+            elif cur.get(role) == "on":
+                self.conn.execute(
+                    "UPDATE asset_role SET state='removed_by_user', version=version+1 WHERE asset_id=? AND role=?", (asset_id, role)
+                )
 
     def _write_local_tags(self, sample_id: str, tags: list[str]) -> None:
         self.conn.execute("DELETE FROM sample_tag WHERE sample_id=?", (sample_id,))

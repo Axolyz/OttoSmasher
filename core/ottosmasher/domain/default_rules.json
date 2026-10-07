@@ -1,5 +1,5 @@
 {
-  "_comment": "用户可编辑规则的默认值（P10）。source.infer_rules：原片文件名（不含扩展名）从上到下 search，第一条匹配生效；命名组 work / episode。 subtitle.*_rule：字幕规则（规格 06 §6.2.1，默认正则逐字照抄）；split / clean 默认为空（不拆、不清理）；subtitle.rule_samples 是保存时试跑的样例（规格表格里的写法）；subtitle.rule_stress 是保存时的压力样例 [片段, 重复次数, 结尾]（含 R4.6 的 10 万字符）。 subtitle.oped_start / oped_end：OP/ED 开始/结束标记（规格 05 §5.6.1，可各填多个；比较前去空白、〜 统一成 ～）。",
+  "_comment": "用户可编辑规则的默认值（P10）。source.infer_rules：原片文件名（不含扩展名）从上到下 search，第一条匹配生效；命名组 work / episode。 subtitle.*_rule：字幕规则（规格 06 §6.2.1，默认正则逐字照抄）；split / clean 默认为空（不拆、不清理）；subtitle.rule_samples 是保存时试跑的样例（规格表格里的写法）；subtitle.rule_stress 是保存时的压力样例 [片段, 重复次数, 结尾]（含 R4.6 的 10 万字符）。 subtitle.oped_start / oped_end：OP/ED 开始/结束标记（规格 05 §5.6.1，可各填多个；比较前去空白、〜 统一成 ～）。 separation.role_aliases：分离声部名 → 角色（不分大小写；规格 05 §5.4、推定 A9）。",
   "source.infer_rules": [
     "^\\[[^\\]]*\\]\\s*(?P<work>[^\\[\\]]+?)\\s*\\[(?P<episode>(?!(?:19|20)\\d\\d[\\]】])\\d{1,4})(?:v\\d+)?(?:\\s*END)?\\]",
     "^[\\[【][^\\]】]*[\\]】]\\s*[\\[【](?P<work>[^\\]】]+)[\\]】]\\s*[\\[【](?P<episode>(?!(?:19|20)\\d\\d[\\]】])\\d{1,4})(?:v\\d+)?(?:\\s*END)?[\\]】]",
@@ -60,5 +60,35 @@
   ],
   "subtitle.oped_end": [
     "～♪"
+  ],
+  "separation.role_aliases": [
+    [
+      "vocals",
+      "vocal"
+    ],
+    [
+      "dialog",
+      "vocal"
+    ],
+    [
+      "dialogue",
+      "vocal"
+    ],
+    [
+      "speech",
+      "vocal"
+    ],
+    [
+      "effect",
+      "sfx"
+    ],
+    [
+      "effects",
+      "sfx"
+    ],
+    [
+      "sfx",
+      "sfx"
+    ]
   ]
 }

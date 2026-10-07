@@ -15,6 +15,7 @@ import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
+import { TracksDialog } from "./TracksDialog";
 import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
 
@@ -31,6 +32,7 @@ export function SourcesPage() {
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [importFor, setImportFor] = useState<SourceRow | null>(null);
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
+  const [tracksFor, setTracksFor] = useState<SourceRow | null>(null);
   const [opedFor, setOpedFor] = useState<{ row: SourceRow; initial: IdentifyResult | null } | null>(null);
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
@@ -176,6 +178,7 @@ export function SourcesPage() {
       : {
           head: t("menu.on", { name: displayName(r) }),
           items: [
+            { id: "tracks", label: t("tracks.menu"), run: () => setTracksFor(r) },
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
             { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
             { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
@@ -261,6 +264,7 @@ export function SourcesPage() {
           </>
         ) : null}
       </TopSlot>
+      <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />

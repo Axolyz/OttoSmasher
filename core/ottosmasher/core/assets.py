@@ -91,9 +91,15 @@ def list_for_source(conn: sqlite3.Connection, source_id: str) -> list[dict[str, 
     return out
 
 
-def check_default_track(conn: sqlite3.Connection, source_id: str, asset_id: str, role: str) -> None:
-    """默认轨只能从带该角色、属于该原片、完整覆盖原片且未变速（容差 20 ms）的资产里选（R2.1–R2.2）。"""
-    a = get(conn, asset_id)
+def check_default_track(conn: sqlite3.Connection, source_id: str, asset_id: str, role: str, *, roles: list[str] | None = None) -> None:
+    """默认轨只能从带该角色、属于该原片、完整覆盖原片且未变速（容差 20 ms）的资产里选（R2.1–R2.2）。
+    ``roles`` 给出时代替库里的角色（同一编辑批次里先改了角色）。"""
+    try:
+        a = get(conn, asset_id)
+    except CoreError:
+        raise CoreError("default-track-invalid", reason="other-source", asset=asset_id) from None
+    if roles is not None:
+        a["roles"] = roles
     if a["source_id"] != source_id:
         raise CoreError("default-track-invalid", reason="other-source", asset=asset_id)
     src = conn.execute("SELECT duration FROM source WHERE id=?", (source_id,)).fetchone()
@@ -161,3 +167,76 @@ def check_media(media: dict[str, Any]) -> None:
         if e.code == "file-missing":
             raise CoreError("asset-file-missing", path=media["path"]) from None
         raise
+
+
+# ---------------------------------------------------------------- 角色与默认轨（阶段 3.4）
+
+
+def validate_role_aliases(v: Any) -> list[list[str]]:
+    """设置 separation.role_aliases：[[声部名, 角色], …]；声部名不分大小写、不能重复；角色只有 vocal / sfx。"""
+    if not isinstance(v, list) or len(v) > 64:
+        raise CoreError("setting-invalid", reason="not-a-list")
+    out: list[list[str]] = []
+    seen: set[str] = set()
+    for item in v:
+        if not (isinstance(item, list) and len(item) == 2 and isinstance(item[0], str) and item[1] in ("vocal", "sfx")):
+            raise CoreError("setting-invalid", reason="not-an-option")
+        name = item[0].strip()
+        if not name or len(name) > 100:
+            raise CoreError("setting-invalid", reason="too-short" if not name else "too-long", max=100)
+        if (name.lower(), item[1]) in seen:
+            continue
+        seen.add((name.lower(), item[1]))
+        out.append([name, item[1]])
+    return out
+
+
+def roles_for_stem(stem: str, aliases: list[list[str]]) -> list[str]:
+    """分离声部的角色预填：声部名（不分大小写）在别名表里的角色；没有就不预填（可以兼两个角色）。"""
+    key = stem.strip().lower()
+    return sorted({role for name, role in aliases if name.lower() == key})
+
+
+def prefill_roles(conn: sqlite3.Connection, asset_id: str, roles: list[str]) -> list[str]:
+    """系统预填角色（分离声部按别名表、拉平/回导继承输入）：用户移除过的角色不再加回（R2.5）。在调用方事务里执行；返回实际加上的角色。"""
+    added = []
+    for role in roles:
+        cur = conn.execute("INSERT OR IGNORE INTO asset_role(asset_id, role, state) VALUES (?, ?, 'on')", (asset_id, role))
+        if cur.rowcount:
+            added.append(role)
+    return added
+
+
+def _dedupe_key(conn: sqlite3.Connection, a: dict[str, Any]) -> tuple[Any, ...]:
+    mf = conn.execute("SELECT file_snapshot FROM media_file WHERE id=?", (a["media_file_id"],)).fetchone() if a["media_file_id"] else None
+    return (a["origin"], mf[0] if mf else a["media_file_id"], a["stream_ordinal"], a["stem_name"], dumps(a["mapping"]))
+
+
+def tracks(conn: sqlite3.Connection, source_id: str) -> dict[str, Any]:
+    """「人声／音效与默认轨」：容器音频流 + 完整覆盖原片且未变速的资产（R2.1）；同内容重复登记的整轨只显示一行，
+    优先显示已设默认的那条（R2.3）；每行带角色、是否某角色的默认轨。"""
+    defaults = {r[0]: r[1] for r in conn.execute("SELECT role, asset_id FROM default_track WHERE source_id=?", (source_id,))}
+    default_ids = set(defaults.values())
+    rows: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for a in list_for_source(conn, source_id):
+        if not (a["origin"] == "stream" or a["isFullTrack"]):
+            continue
+        key = _dedupe_key(conn, a)
+        if key in rows and not (a["id"] in default_ids and rows[key]["id"] not in default_ids):
+            rows[key]["duplicates"] += 1
+            continue
+        dup = rows[key]["duplicates"] + 1 if key in rows else 0
+        rows[key] = {
+            "id": a["id"],
+            "origin": a["origin"],
+            "streamOrdinal": a["stream_ordinal"],
+            "stemName": a["stem_name"],
+            "production": a["production"],
+            "language": a["language"],
+            "isFullTrack": a["isFullTrack"],
+            "roles": a["roles"],
+            "version": a.get("version", 1),
+            "duplicates": dup,
+        }
+    src = conn.execute("SELECT version FROM source WHERE id=?", (source_id,)).fetchone()
+    return {"sourceVersion": src[0], "defaults": defaults, "tracks": list(rows.values())}
