@@ -36,7 +36,8 @@ export interface PlayerState {
 
 export interface PlayerApi {
   attachVideo(): boolean;
-  openSource(sourceId: string, ordinal?: number): Promise<{ duration: number; hasVideo: boolean }>;
+  /** ``assetId`` 给出时按该资产选音源（分离声部用外挂音轨 + 音频延迟）；``coverage`` = 这条音源覆盖的原片秒范围 */
+  openSource(sourceId: string, ordinal?: number, assetId?: string): Promise<{ duration: number; hasVideo: boolean; coverage: [number, number] }>;
   play(): void;
   pause(): void;
   /** 返回新代次（之后只认这个代次的状态） */

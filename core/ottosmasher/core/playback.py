@@ -19,8 +19,42 @@ from .edits import loads
 from .errors import CoreError
 
 
-def resolve_source(conn: sqlite3.Connection, source_id: str, ordinal: int | None = None) -> dict[str, Any]:
-    """原片播放器：原片文件 + 第几条音频流（mpv 的 aid = 序号 + 1，按音频流计数，不是容器流序号，R22.2）。"""
+HANG_TOLERANCE = 0.020
+"""挂到原片时间轴的条件（05 §5.4）：映射每个控制点的 原片秒 − 局部秒 相同（容差 20 ms），即未变速。"""
+
+
+def hang_offset(mapping: list[list[float]]) -> float | None:
+    """未变速的映射 → 原片秒 = 局部秒 + 偏移；变速了返回 None。"""
+    offs = [src - loc for loc, src in mapping]
+    return offs[0] if max(offs) - min(offs) <= HANG_TOLERANCE else None
+
+
+def resolve_source(conn: sqlite3.Connection, source_id: str, ordinal: int | None = None, *, asset_id: str | None = None, workspace_root: Path | None = None) -> dict[str, Any]:
+    """原片播放器：原片文件 + 第几条音频流（mpv 的 aid = 序号 + 1，按音频流计数，不是容器流序号，R22.2）。
+    ``asset_id`` 是分离声部等非容器音轨时：画面仍来自原片文件，声音用外挂音轨（mpv audio-files），
+    音频延迟 = 原片秒 − 局部秒（R22.1：原片 103–123、声部局部 3–23 → 延迟 100）；只接受未变速的资产；
+    声部文件缺失或被改动 → 报错，不回退原混音。返回覆盖范围（原片秒），越界由界面报错。"""
+    if asset_id is not None:
+        asset = assets_mod.get(conn, asset_id)
+        if asset["source_id"] != source_id:
+            raise CoreError("asset-not-found", id=asset_id)
+        if asset["origin"] == "stream":
+            ordinal = asset["stream_ordinal"]
+        else:
+            offset = hang_offset(asset["mapping"])
+            if offset is None:
+                raise CoreError("asset-not-hangable", id=asset_id)
+            base = resolve_source(conn, source_id, None)
+            ref, win, media = assets_mod.locate(conn, workspace_root or Path("."), asset, 0.0, asset["duration"])
+            assets_mod.check_media(media)
+            n_audio = conn.execute("SELECT COUNT(*) FROM source_stream WHERE source_id=? AND kind='audio'", (source_id,)).fetchone()[0]
+            return {
+                **base,
+                "aid": n_audio + 1,  # 外挂音轨排在容器音轨之后
+                "audioFile": ref.path,
+                "audioDelay": offset - win.file_start,
+                "coverage": [offset, offset + asset["duration"]],
+            }
     row = conn.execute("SELECT path, file_snapshot, duration, default_audio_stream FROM source WHERE id=?", (source_id,)).fetchone()
     if row is None:
         raise CoreError("source-not-found", id=source_id)
@@ -37,7 +71,7 @@ def resolve_source(conn: sqlite3.Connection, source_id: str, ordinal: int | None
         ).fetchone()
         is not None
     )
-    return {"path": path, "aid": ordinal + 1, "duration": duration, "hasVideo": has_video}
+    return {"path": path, "aid": ordinal + 1, "duration": duration, "hasVideo": has_video, "audioFile": None, "audioDelay": 0.0, "coverage": [0.0, duration]}
 
 
 def resolve_asset(conn: sqlite3.Connection, workspace_root: Path, asset_id: str, start: float, end: float) -> dict[str, Any]:

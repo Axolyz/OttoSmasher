@@ -18,6 +18,8 @@ export interface SourceJump {
   ordinal: number | null;
   a: number;
   b: number;
+  /** 采样绑定的资产（分离声部等）；没有就按 ordinal 选容器音轨 */
+  assetId?: string;
 }
 
 interface AppState {

@@ -92,7 +92,10 @@ class Core:
             "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
             "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
             "assets.tracks": lambda p: assets_mod.tracks(self.conn, p["sourceId"]),
-            "playback.resolveSource": lambda p: playback_mod.resolve_source(self.conn, p["sourceId"], p.get("ordinal")),
+            "playback.resolveSource": lambda p: playback_mod.resolve_source(
+                self.conn, p["sourceId"], p.get("ordinal"), asset_id=p.get("assetId"), workspace_root=self.ws.root
+            ),
+            "dev.registerStem": self._dev_register_stem,
             "playback.resolveAsset": lambda p: playback_mod.resolve_asset(
                 self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])
             ),
@@ -285,6 +288,47 @@ class Core:
             rules = naming.validate_rules(rules)
         r = naming.infer_work_episode(str(p["filename"]), rules)
         return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
+
+    def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:
+        """开发期测试钩子（S1.2；只在开发模式）：把现成的分离声部文件登记为原片的整轨声部（原地引用，不复制）。
+        声部名与模型名取自文件名 ``<模型>_<声部>.<扩展名>``；角色按别名表预填；时长必须与原片一致（容差 20 ms）。"""
+        if not self.dev:
+            raise CoreError("dev-only")
+        from ..core import assets as a_mod
+        from ..media import probe as pmod
+
+        sid, path = p["sourceId"], str(p["path"])
+        src = self.conn.execute("SELECT duration FROM source WHERE id=?", (sid,)).fetchone()
+        if src is None:
+            raise CoreError("source-not-found", id=sid)
+        pr = pmod.probe(path)
+        if not pr.audio or pr.audio[0].duration is None:
+            raise CoreError("source-no-audio", path=path)
+        dur = float(pr.audio[0].duration)
+        if abs(dur - float(src[0])) > 0.02:
+            raise CoreError("default-track-invalid", reason="not-full-track", asset=path)
+        stem_file = Path(path).stem
+        model, _, stem = stem_file.rpartition("_")
+        from .clock import new_id as nid
+
+        mid, aid, ts = nid(), nid(), now_iso()
+        with transaction(self.conn):
+            self.conn.execute(
+                "INSERT INTO media_file(id, path, location, file_snapshot, format, sample_rate, created_at) VALUES (?, ?, 'external', ?, ?, ?, ?)",
+                (mid, path, dumps(pmod.snapshot(path, pr)), pr.format_name, pr.audio[0].sample_rate, ts),
+            )
+            self.conn.execute(
+                "INSERT INTO sound_asset(id, source_id, origin, media_file_id, duration, mapping, stem_name, production, created_at)"
+                " VALUES (?, ?, 'separation', ?, ?, ?, ?, ?, ?)",
+                (aid, sid, mid, float(src[0]), dumps([[0.0, 0.0], [float(src[0]), float(src[0])]]), stem or stem_file, dumps({"op": "dev-register", "model": model or None}), ts),
+            )
+            self.conn.execute("INSERT INTO asset_storage(asset_id, range_start, range_end, media_file_id, kind) VALUES (?, 0, ?, ?, 'primary')", (aid, float(src[0]), mid))
+            a_mod.prefill_roles(self.conn, aid, a_mod.roles_for_stem(stem or stem_file, settings_mod.values(self.conn)["separation.role_aliases"]))
+        cs = ChangeSet()
+        cs.add("asset", aid)
+        cs.add("source", sid)
+        self._on_change(cs)
+        return {"assetId": aid, "stem": stem, "model": model}
 
     def _subtitle_rule_test(self, p: dict[str, Any]) -> dict[str, Any]:
         """设置里的字幕规则试算框（规格 06 §6.2.2）：草稿规则先做保存时的同样校验（逐条 + 整套在样例上跑一遍），再分类一行。"""

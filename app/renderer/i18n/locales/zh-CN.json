@@ -716,5 +716,10 @@
   "error.sep-stems-invalid": "模型 {model} 没有这些声部：{stems}",
   "error.sep-output-invalid": "分离输出不完整或时长不符（{reason}），没有登记任何结果",
   "error.sep-model-changed": "分离期间模型或运行环境被改动（{model}），结果不登记",
-  "error.mp3-encode-failed": "转成正式音轨（MP3）失败：{reason}"
+  "error.mp3-encode-failed": "转成正式音轨（MP3）失败：{reason}",
+  "sources.outOfCoverage": "此音轨仅覆盖原片 {a}–{b}：在覆盖范围内播放、截取或导出（不会回退原混音）",
+  "sources.partialTrack": "{name}（仅 {a}–{b}）",
+  "error.out-of-coverage": "此音轨仅覆盖原片 {a}–{b}",
+  "error.asset-not-hangable": "这条音轨有变速，不能挂到原片时间轴上播放",
+  "error.dev-only": "只在开发模式可用"
 }

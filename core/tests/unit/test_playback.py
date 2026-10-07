@@ -24,7 +24,10 @@ def mkv(db, ws, tmp_path):
 def test_source_handle_uses_audio_ordinal(db, mkv):
     f, sid = mkv
     h = playback.resolve_source(db, sid)
-    assert h == {"path": str(f), "aid": 2, "duration": pytest.approx(2.5), "hasVideo": True}  # 默认 = 日语那条 = 第 2 条
+    assert h == {
+        "path": str(f), "aid": 2, "duration": pytest.approx(2.5), "hasVideo": True,
+        "audioFile": None, "audioDelay": 0.0, "coverage": [0.0, pytest.approx(2.5)],
+    }  # 默认 = 日语那条 = 第 2 条；容器音轨没有外挂音轨  # fmt: skip
     assert playback.resolve_source(db, sid, 0)["aid"] == 1
     with pytest.raises(CoreError) as ei:
         playback.resolve_source(db, sid, 5)
@@ -57,3 +60,9 @@ def test_asset_handle(db, ws, mkv, tmp_path):
 def test_audio_only_source_has_no_video(db, ws, tmp_path):
     [r] = SourceService(db, workspace_root=ws.root).add([str(wav(tmp_path / "a.wav"))])
     assert playback.resolve_source(db, r["sourceId"])["hasVideo"] is False
+
+
+def test_hang_offset_and_external_stem(db, ws, tmp_path):
+    """R22.1：外挂分离轨按偏移挂到原片（原片 103–123、声部局部 3–23 → 音频延迟 100）；变速的不能挂。"""
+    assert playback.hang_offset([[3.0, 103.0], [23.0, 123.0]]) == 100.0
+    assert playback.hang_offset([[0.0, 0.0], [10.0, 20.0]]) is None

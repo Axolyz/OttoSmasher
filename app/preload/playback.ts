@@ -37,6 +37,7 @@ class Engine {
   loadSeq = 0; // 加载请求的序号（与代次分开：加载还没回来时用户又点了范围播放，不能把加载取消掉）
   private path: string | null = null;
   private aid = 1;
+  private audioFile = "";
   private loaded = false;
   private queue: Array<() => void> = [];
   private offset = 0; // 时钟：报出的时间 = 文件秒 − offset
@@ -90,20 +91,30 @@ class Engine {
     return this.gen;
   }
 
-  load(path: string, aid: number): void {
-    if (this.path === path && this.loaded) {
+  /** ``audioFile``：外挂声部（分离声部等），画面仍来自 ``path``；``audioDelay`` = 原片秒 − 声部文件秒（R22.1）。 */
+  load(path: string, aid: number, audioFile: string | null = null, audioDelay = 0): void {
+    const ext = audioFile ?? "";
+    if (this.path === path && this.loaded && this.audioFile === ext) {
       if (aid !== this.aid) {
         this.mpv.set("aid", String(aid));
         this.aid = aid;
       }
+      this.mpv.set("audio-delay", String(audioDelay));
       return;
     }
     this.path = path;
     this.aid = aid;
+    this.audioFile = ext;
     this.loaded = false;
     this.loading = true;
     this.mpv.set("pause", "yes");
     this.mpv.set("end", "none");
+    // 外挂音轨要在 loadfile 之前设好（随新文件一起加载）；没有外挂时清空，避免上一个声部残留。
+    // 用 change-list clr + append：路径作为单个元素加入，不按 ':' 拆分。
+    this.mpv.command(["change-list", "audio-files", "clr", ""]);
+    if (audioFile) this.mpv.command(["change-list", "audio-files", "append", audioFile]);
+    this.mpv.set("audio-delay", String(audioDelay));
+    // aid 在 loadfile 的选项里给：加载期间不会先放原音轨（R22.1“加载期间原音轨静音”）
     this.mpv.command(["loadfile", path, "replace", `aid=${aid},pause=yes`]);
     this.push(true);
   }
@@ -317,20 +328,20 @@ export class Playback {
     return this.sourceEng!;
   }
 
-  async openSource(sourceId: string, ordinal?: number): Promise<{ duration: number; hasVideo: boolean }> {
+  async openSource(sourceId: string, ordinal?: number, assetId?: string): Promise<{ duration: number; hasVideo: boolean; coverage: [number, number] }> {
     const e = this.sourceEngine();
     const seq = ++e.loadSeq;
     const gen = e.begin();
     try {
-      const h = await core<{ path: string; aid: number; duration: number; hasVideo: boolean }>("playback.resolveSource", {
-        sourceId,
-        ordinal,
-      });
+      const h = await core<{ path: string; aid: number; duration: number; hasVideo: boolean; audioFile: string | null; audioDelay: number; coverage: [number, number] }>(
+        "playback.resolveSource",
+        { sourceId, ordinal, assetId },
+      );
       if (seq === e.loadSeq) {
         e.setOffset(0);
-        e.load(h.path, h.aid);
+        e.load(h.path, h.aid, h.audioFile, h.audioDelay);
       }
-      return { duration: h.duration, hasVideo: h.hasVideo };
+      return { duration: h.duration, hasVideo: h.hasVideo, coverage: h.coverage };
     } catch (err) {
       e.fail(gen, err as CoreErrorWire);
       throw err;

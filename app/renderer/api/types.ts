@@ -95,6 +95,9 @@ export interface AssetInfo {
   language: string | null;
   roles: string[];
   isFullTrack: boolean;
+  mapping: number[][];
+  stem_name: string | null;
+  production: { model?: string | null } | null;
 }
 
 export interface AddResult {

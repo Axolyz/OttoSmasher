@@ -11,7 +11,7 @@ window.addEventListener("beforeunload", () => playback.destroy());
 // Core 返回的错误以 {code, args} 的普通对象跨过 contextBridge（不是 Error 实例）
 const player: PlayerApi = {
   attachVideo: () => playback.attachVideo(),
-  openSource: (sourceId, ordinal) => playback.openSource(sourceId, ordinal),
+  openSource: (sourceId, ordinal, assetId) => playback.openSource(sourceId, ordinal, assetId),
   play: () => playback.sourcePlay(),
   pause: () => playback.sourcePause(),
   seek: (t) => playback.sourceSeek(t),

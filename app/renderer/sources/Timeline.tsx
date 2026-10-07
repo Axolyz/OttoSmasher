@@ -80,7 +80,11 @@ export const Timeline = forwardRef<
   TimelineHandle,
   {
     assetId: string | null;
+    /** 时间线长度（原片秒） */
     duration: number;
+    /** 当前音源的资产：原片秒 = 局部秒 + offset；只覆盖 [offset, offset + assetDuration]（分离声部可能只覆盖一段） */
+    offset?: number;
+    assetDuration?: number;
     playhead: () => number | null;
     playing: boolean;
     selection: Sel | null;
@@ -92,6 +96,11 @@ export const Timeline = forwardRef<
   }
 >(function Timeline(props, ref) {
   const { assetId, duration } = props;
+  const offset = props.offset ?? 0;
+  const assetDur = props.assetDuration ?? duration;
+  const covered: [number, number] = [offset, offset + assetDur];
+  // 峰值按资产局部秒取，起点平移到原片秒
+  const shifted = (p: Peaks): Peaks => ({ ...p, start: p.start + offset });
   const wrap = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
   const over = useRef<HTMLCanvasElement>(null);
@@ -159,12 +168,12 @@ export const Timeline = forwardRef<
   useEffect(() => {
     if (!assetId || !size.w || duration <= 0) return;
     let live = true;
-    fetchPeaks(assetId, 0, duration, size.w)
+    fetchPeaks(assetId, 0, assetDur, size.w * Math.min(1, assetDur / duration))
       .then((p) => {
         if (!live) return;
         if (p === "pending") setStatus("pending");
         else {
-          setWhole(p);
+          setWhole(shifted(p));
           setStatus("ok");
         }
       })
@@ -172,21 +181,24 @@ export const Timeline = forwardRef<
     return () => {
       live = false;
     };
-  }, [assetId, duration, size.w, nonce]);
+  }, [assetId, duration, assetDur, offset, size.w, nonce]);
   useEffect(() => {
     if (!assetId || !size.w || !whole) return;
     let live = true;
     const timer = setTimeout(() => {
       const dpr = window.devicePixelRatio || 1;
-      fetchPeaks(assetId, view[0], Math.min(view[1], duration), size.w * dpr)
-        .then((p) => live && p !== "pending" && setDetail(p))
+      const a = Math.max(view[0], covered[0]) - offset;
+      const b = Math.min(view[1], duration, covered[1]) - offset;
+      if (!(b > a)) return setDetail(null);
+      fetchPeaks(assetId, a, b, size.w * dpr * ((b - a) / (view[1] - view[0])))
+        .then((p) => live && p !== "pending" && setDetail(shifted(p)))
         .catch(() => {});
     }, 60);
     return () => {
       live = false;
       clearTimeout(timer);
     };
-  }, [assetId, view, size.w, whole, duration]);
+  }, [assetId, view, size.w, whole, duration, offset, assetDur]);
 
   const waveTop = RULER_H;
   const waveH = Math.max(10, size.h - RULER_H - OVERVIEW_H);
@@ -221,10 +233,20 @@ export const Timeline = forwardRef<
     ctx.fillRect(0, waveTop + waveH / 2, size.w, 1);
     // 波形：先画粗的兜底，再画细的
     ctx.fillStyle = cssVar("--wave");
-    if (detail && detail.start <= v0 + span * 0.01 && detail.start + detail.step * detail.min.length >= Math.min(v1, duration) - span * 0.01) {
+    const cv0 = Math.max(v0, covered[0]);
+    const cv1 = Math.min(v1, duration, covered[1]);
+    if (detail && detail.start <= cv0 + span * 0.01 && detail.start + detail.step * detail.min.length >= cv1 - span * 0.01) {
       drawPeaks(ctx, detail, v0, v1, size.w, waveTop, waveH);
     } else if (whole) {
       drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH);
+    }
+    // 当前音源没有覆盖的部分：淡色遮罩（只覆盖部分范围的分离声部）
+    if (covered[0] > v0 || covered[1] < Math.min(v1, duration)) {
+      ctx.fillStyle = cssVar("--s2");
+      ctx.globalAlpha = 0.7;
+      if (covered[0] > v0) ctx.fillRect(0, waveTop, ((Math.min(covered[0], v1) - v0) / span) * size.w, waveH);
+      if (covered[1] < v1) ctx.fillRect(((Math.max(covered[1], v0) - v0) / span) * size.w, waveTop, size.w, waveH);
+      ctx.globalAlpha = 1;
     }
     // 总览条
     const oy = size.h - OVERVIEW_H;
@@ -237,7 +259,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH]);
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {

@@ -236,7 +236,7 @@ export function LibraryPage() {
   const backToSource = (r: SampleRow) => {
     if (r.source_start == null) return;
     const len = r.end - r.start;
-    setSourceJump({ sourceId: r.source_id, ordinal: r.stream_ordinal, a: r.source_start, b: r.source_start + len });
+    setSourceJump({ sourceId: r.source_id, ordinal: r.stream_ordinal, assetId: r.asset_id, a: r.source_start, b: r.source_start + len });
     setPage("sources");
   };
 
