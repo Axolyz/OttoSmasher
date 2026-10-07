@@ -23,6 +23,7 @@
   （浏览器打开，按 `?` 看快捷键），对照区域划分、信息层级、文案、按钮位置、空状态、悬停与右键行为来实现；
   做完用截图与原型并排比对，差异要么改掉，要么写进 STATUS 说明理由。原型是假数据演示：
   里面的 wavesurfer 只是演示用（正式应用的波形是自研组件，ARCHITECTURE §1.2），原型与 UI_PLAN 冲突时以 UI_PLAN 和 QUESTIONS 里所有者的最新答复为准。
+  具体怎么用、各阶段对应原型的哪里、冲突的优先级与记录方式、原型里哪些是已取消功能的残留：见 [`docs/ui/PROTOTYPE_GUIDE.md`](docs/ui/PROTOTYPE_GUIDE.md)。
 - 想改变基线：按 docs/02 §2.7 的模板写提议，**等所有者确认**再动手。
 - 规格没写清、互相矛盾、或实现中发现规格有错：**先问所有者，不要猜**。疑问记录在 `docs/QUESTIONS.md`。
 - 技术定型（docs/14）不换：对齐只用 pydomino；文本前端 pyopenjtalk-plus + tsqyomi；音高 FCPE；拉平 PC-NSF-HiFiGAN；分离调用 PyMSS Studio。
