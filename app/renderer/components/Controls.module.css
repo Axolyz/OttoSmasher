@@ -69,3 +69,8 @@
 .stat[data-tone="bad"] .statN { color: var(--bad); }
 .stat[data-tone="muted"] .statN { color: var(--muted); }
 .statLabel { color: var(--muted); font-size: var(--fs-sm); }
+
+/* 说明块 */
+.callout { background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 8px 12px; color: var(--sub); font-size: var(--fs-sm); line-height: 1.6; }
+.callout[data-tone="warn"] { border-color: var(--warn); }
+.callout[data-tone="bad"] { border-color: var(--bad); color: var(--text); }

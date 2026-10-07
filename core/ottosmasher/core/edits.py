@@ -236,6 +236,26 @@ _register(
         soft_delete_column="deleted",
     )
 )
+# OP/ED 区间（规格 05 §5.6）：字幕规则结果与人工标记/确认都经编辑通道新建（可撤销 = 软删除），删除也是软删除
+_register(
+    EntitySpec(
+        "oped",
+        "oped",
+        {
+            "kind": FieldSpec(v_enum("OP", "ED")),
+            "start": FieldSpec(v_number),
+            "end": FieldSpec(v_number),
+            "deleted": FieldSpec(v_bool),
+        },
+        creatable={
+            "source_id": FieldSpec(v_text(min_len=1, max_len=64)),
+            "origin": FieldSpec(v_enum("subtitle_rule", "manual")),
+            "evidence": FieldSpec(v_json, json=True),
+        },
+        create_required=("source_id", "kind", "start", "end", "origin"),
+        soft_delete_column="deleted",
+    )
+)
 # 设置：键值对象，ID = 设置键，唯一字段 value；没存过的取默认值（版本 0）
 _register(EntitySpec("setting", "setting", {"value": FieldSpec(v_json, json=True)}))
 
@@ -342,7 +362,7 @@ class EditService:
             if expected != version:
                 raise CoreError("edit-conflict", index=i, entity=entity, id=entity_id, expected=expected, actual=version)
             diffs = {n: (before[n], v) for n, v in new.items() if before[n] != v}
-            if spec.name == "annotation" and ("start" in new or "end" in new):
+            if spec.name in ("annotation", "oped") and ("start" in new or "end" in new):
                 self._check_range(i, spec, entity_id, new)
             if spec.name == "source":
                 self._check_source(i, entity_id, new)
@@ -405,6 +425,8 @@ class EditService:
         for req in spec.create_required:
             if req not in values:
                 raise CoreError("edit-invalid", index=i, entity=spec.name, field=req, reason="required")
+        if spec.name == "oped":
+            self._check_range(i, spec, None, values)
         if spec.name == "annotation":
             self._check_range(i, spec, None, values)
             exists = self.conn.execute("SELECT 1 FROM source WHERE id=?", (values["source_id"],)).fetchone()

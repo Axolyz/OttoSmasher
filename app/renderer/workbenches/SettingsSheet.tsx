@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { SettingEntry } from "../api/types";
 import { Button } from "../components/Button";
-import { NumberField, Select, Switch } from "../components/Fields";
+import { NumberField, Select, Switch, TextArea } from "../components/Fields";
 import { Sheet } from "../components/Overlay";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
@@ -35,6 +35,24 @@ const CHOICES: Record<string, string[]> = {
   "source.sample_language": ["ja"],
 };
 
+/** 字符串列表（一行一个）：OP/ED 开始/结束标记（规格 05 §5.6.1）。 */
+const STRING_LISTS = new Set(["subtitle.oped_start", "subtitle.oped_end"]);
+
+function LinesField(props: { value: string[]; label: string; onSave: (v: string[]) => void; testId: string }) {
+  const text = props.value.join("\n");
+  const [draft, setDraft] = useState(text);
+  useEffect(() => setDraft(text), [text]);
+  const lines = draft.split("\n").map((x) => x.trim()).filter(Boolean);
+  return (
+    <div className={s.linesField}>
+      <TextArea value={draft} onChange={setDraft} label={props.label} rows={2} lang="ja" testId={props.testId} />
+      <Button size="sm" variant="primary" isDisabled={draft === text || !lines.length} onPress={() => props.onSave(lines)}>
+        {t("common.save")}
+      </Button>
+    </div>
+  );
+}
+
 /** 有序正则列表类设置（P10）：整行宽的规则编辑器 + 试算框。 */
 const RULE_LISTS = new Set(["source.infer_rules"]);
 
@@ -59,6 +77,7 @@ async function inferTrial(sample: string, rules: string[]): Promise<TrialResult>
 }
 
 function shown(key: string, v: unknown): string {
+  if (Array.isArray(v)) return v.join(" / ");
   if (typeof v === "boolean") return v ? t("common.on") : t("common.off");
   if (CHOICES[key]) return t(`settings.lang.${String(v)}`);
   return String(v);
@@ -153,7 +172,9 @@ export function SettingsSheet() {
                     <div className={s.hint}>{t(`settings.${key}.hint`)}</div>
                   </div>
                   <div className={s.control}>
-                    {typeof e.value === "boolean" ? (
+                    {STRING_LISTS.has(key) ? (
+                      <LinesField value={e.value as string[]} label={t(`settings.${key}.label`)} onSave={(v) => void save(key, v)} testId={`lines-${key}`} />
+                    ) : typeof e.value === "boolean" ? (
                       <Switch isSelected={e.value} onChange={(v) => void save(key, v)} label={t(`settings.${key}.label`)} />
                     ) : CHOICES[key] ? (
                       <Select

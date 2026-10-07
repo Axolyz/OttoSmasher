@@ -209,3 +209,12 @@ export function Stats(props: { items: Array<{ n: number; label: string; tone?: "
     </div>
   );
 }
+
+/** 说明块（原型 .say）：弹窗、工作台里“会做什么 / 不会做什么”的一段话。tone="warn" 用于需要补选的情况（例如缺默认轨）。 */
+export function Callout(props: { children: ReactNode; tone?: "info" | "warn" | "bad"; testId?: string }) {
+  return (
+    <div className={s.callout} data-tone={props.tone ?? "info"} data-testid={props.testId}>
+      {props.children}
+    </div>
+  );
+}

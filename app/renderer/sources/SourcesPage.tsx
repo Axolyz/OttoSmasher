@@ -14,6 +14,8 @@ import { DeleteDialog, InputSettingsDialog } from "./SourceDialogs";
 import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
+import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
+import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
 
 export function SourcesPage() {
@@ -29,6 +31,7 @@ export function SourcesPage() {
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [importFor, setImportFor] = useState<SourceRow | null>(null);
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
+  const [opedFor, setOpedFor] = useState<{ row: SourceRow; initial: IdentifyResult | null } | null>(null);
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
 
@@ -113,6 +116,25 @@ export function SourcesPage() {
   };
   const pickAndAdd = async () => add(await window.otto.files.pick("media"));
   const workspace = useApp((st) => st.hello?.workspace);
+  const undo = useUndo();
+  // 从字幕识别 OP/ED（规格 05 §5.6.1）：没有错误直接登记；有错误就打开 OP/ED 弹窗逐对确认
+  const identifyOne = async (r: SourceRow) => {
+    try {
+      const res = await call<IdentifyResult>("oped.identify", { sourceId: r.id });
+      if (res.errors.length) setOpedFor({ row: r, initial: res });
+      toast({ text: identifyText(res), tone: res.errors.length ? "error" : "info", action: res.applied ? { label: t("common.undo"), run: () => void undo() } : undefined });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+  const identifyMany = async (ids: string[]) => {
+    const res = await call<Array<IdentifyResult | { sourceId: string; error: { code: string; args: Record<string, unknown> } }>>("oped.identifyMany", { sourceIds: ids });
+    const ok = res.filter((x): x is IdentifyResult => "pairs" in x);
+    const applied = ok.reduce((a, x) => a + x.applied, 0);
+    const withErrors = ok.filter((x) => x.errors.length).length;
+    const skipped = res.length - ok.length;
+    toast({ text: t("oped.batchDone", { n: res.length, applied, errors: withErrors, skipped }), tone: withErrors ? "error" : "info" });
+  };
   // 打开库目录：工作区的素材库（导出、生成的文件都在这里）
   const openLibrary = async () => {
     if (workspace) await window.otto.files.reveal(`${workspace}/Library`);
@@ -146,6 +168,7 @@ export function SourcesPage() {
           head: t("menu.checkedN", { n: ids.length }),
           items: [
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
+            { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
           ],
@@ -154,6 +177,8 @@ export function SourcesPage() {
           head: t("menu.on", { name: displayName(r) }),
           items: [
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
+            { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
+            { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
             "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
@@ -236,6 +261,7 @@ export function SourcesPage() {
           </>
         ) : null}
       </TopSlot>
+      <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
       <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />

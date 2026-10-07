@@ -31,6 +31,7 @@ from . import assets as assets_mod
 from . import playback as playback_mod
 from .exports import ExportService, export_samples
 from .samples import SampleService
+from .oped import OpedService
 from .subtitle_import import SubtitleImporter
 from .sources import SourceService
 from .waveforms import WaveformService
@@ -66,6 +67,11 @@ class Core:
             "subtitles.import": lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("lines"), p.get("path")),
             "subtitles.previewMany": lambda p: self.subtitles.preview_many(list(p["sourceIds"])),
             "subtitles.importMany": lambda p: self.subtitles.import_many(list(p["items"])),
+            "oped.list": lambda p: self.oped.list(p["sourceId"]),
+            "oped.identify": lambda p: self.oped.identify(p["sourceId"]),
+            "oped.identifyMany": lambda p: self.oped.identify_many(list(p["sourceIds"])),
+            "oped.add": lambda p: self.oped.add(p["sourceId"], p["kind"], float(p["start"]), float(p["end"]), p.get("via", "mark"), p.get("refs")),
+            "oped.delete": lambda p: self.oped.delete(p["id"]),
             "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
             "sources.list": lambda p: self.sources.list(),
             "sources.get": lambda p: self.sources.get(p["id"]),
@@ -130,6 +136,7 @@ class Core:
         self.exports = ExportService(self.conn, self.ws)
         self.samples = SampleService(self.conn, on_change=self._on_change)
         self.subtitles = SubtitleImporter(self.conn, self.edits, on_change=self._on_change)
+        self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
             self.conn,

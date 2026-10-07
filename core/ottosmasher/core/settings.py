@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ottosmasher.domain import naming, subtitle_rules
+from ottosmasher.domain.rules import defaults as rules_defaults
 
 from .errors import CoreError
 
@@ -62,6 +63,12 @@ def _choice(*options: str) -> Callable[[Any], Any]:
     return check
 
 
+def _markers(v: Any) -> Any:
+    from .oped import validate_markers  # 避免循环导入
+
+    return validate_markers(v)
+
+
 SPECS: dict[str, SettingSpec] = {
     s.key: s
     for s in [
@@ -79,6 +86,9 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("subtitle.pad_after", 0.1, _float_range(0.0, 5.0), "subtitle"),
         # 字幕规则（规格 06 §6.2：音效整行、注释括号、说话人提取、可选的拆分与清理；P10 可编辑，只作用于之后导入的标记）
         *[SettingSpec(k, subtitle_rules.default_value(k), subtitle_rules.validate_setting(k), "subtitle") for k in subtitle_rules.KEYS],
+        # OP/ED 开始/结束标记（规格 05 §5.6.1：可各填多个；换一种字幕写法时改这里，程序里不加特判）
+        SettingSpec("subtitle.oped_start", list(rules_defaults()["subtitle.oped_start"]), _markers, "subtitle"),
+        SettingSpec("subtitle.oped_end", list(rules_defaults()["subtitle.oped_end"]), _markers, "subtitle"),
         # 语音分析：对齐前/后容差
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),

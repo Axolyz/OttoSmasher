@@ -96,6 +96,30 @@ export function ConfirmDialog(props: {
   );
 }
 
+/** 居中对话框（UI_PLAN §5“确认框”一类，但没有单一的确认动作）：OP/ED、人声/音效与默认轨这类就地管理的小表。底栏默认只有“关闭”。 */
+export function DialogBox(props: { isOpen: boolean; onClose: () => void; title: string; sub?: ReactNode; children: ReactNode; footer?: ReactNode; width?: number; testId?: string }) {
+  return (
+    <ModalOverlay isOpen={props.isOpen} onOpenChange={(o) => !o && props.onClose()} isDismissable className={s.dialogOverlay}>
+      <Modal className={s.dialog} style={props.width ? { width: `min(${props.width}px, calc(100vw - 48px))` } : undefined}>
+        <Dialog className={s.dialogInner} aria-label={props.title} data-testid={props.testId}>
+          <div>
+            <h2 className={s.dialogTitle}>{props.title}</h2>
+            {props.sub ? <div className={s.dialogSub}>{props.sub}</div> : null}
+          </div>
+          <div className={s.dialogBody}>{props.children}</div>
+          <div className={s.dialogActions}>
+            {props.footer ?? (
+              <Button variant="secondary" onPress={props.onClose}>
+                {t("common.close")}
+              </Button>
+            )}
+          </div>
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
+
 /** 右侧抽屉（任务与日志）。 */
 export function Drawer(props: { isOpen: boolean; onClose: () => void; title: string; children: ReactNode }) {
   return (

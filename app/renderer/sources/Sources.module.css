@@ -71,3 +71,12 @@
 .lineStatus[data-status="invalid"] { color: var(--bad); }
 .lineStatus[data-status="registered"] { color: var(--muted); }
 .muted { color: var(--muted); }
+
+/* OP/ED 弹窗 */
+.opedBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.opedList { display: flex; flex-direction: column; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--s1); padding: 4px 10px; }
+.opedRow { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: var(--fs-sm); color: var(--text); }
+.opedRow:last-child { border-bottom: none; }
+.opedVia { color: var(--muted); }
+.opedVia[data-via="rule"] { color: var(--ok); }
+.errList { margin: 4px 0 0; padding-left: 18px; }

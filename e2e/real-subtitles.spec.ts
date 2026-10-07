@@ -25,12 +25,20 @@ test("真实字幕 YY1-01：导入、版本切换、机器转写", async () => {
   const total = await req<{ total: number }>("samples.list", { offset: 0, limit: 1 });
   expect(total.r.total).toBe(0); // S1.4
 
+  // S1.5：从字幕识别 OP/ED → OP ≈ 84.247–172.768、ED ≈ 1330.558–1419.114（来源“字幕规则”）
+  const op = await req<{ applied: number; errors: unknown[] }>("oped.identify", { sourceId: sid });
+  expect([op.r.applied, op.r.errors.length]).toEqual([2, 0]);
+  const list = await req<Array<{ kind: string; start: number; end: number; via: string }>>("oped.list", { sourceId: sid });
+  expect(list.r.map((o) => [o.kind, o.start, o.end, o.via])).toEqual([["OP", 84.247, 172.768, "rule"], ["ED", 1330.558, 1419.114, "rule"]]);
+
   // S11.3：原版未校正（整体晚 0.404 秒）→ 新版本成为当前；重新导入校正版 → 切回
   const { readdirSync } = await import("node:fs");
   const others = readdirSync(join(dir, "其他字幕版本"));
   const orig = join(dir, "其他字幕版本", others.find((f) => f.startsWith("原版未校正"))!);
   const pv2 = await req<Pv>("subtitles.preview", { sourceId: sid, path: orig });
   expect(pv2.r.versionState).toBe("new");
+  console.log("YY1-01 原版未校正 counts", JSON.stringify(pv2.r.counts));
+  expect(pv2.r.counts.oped).toBeGreaterThan(0); // OP/ED 区间内的行被标出（仍可导入）
   const imp2 = await req<{ versionId: string; newVersion: boolean }>("subtitles.import", { sourceId: sid, token: pv2.r.token, path: orig });
   expect(imp2.r.newVersion).toBe(true);
   const back = await req<Pv>("subtitles.preview", { sourceId: sid });

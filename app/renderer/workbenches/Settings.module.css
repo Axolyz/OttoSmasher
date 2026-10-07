@@ -21,3 +21,4 @@
 .ok { color: var(--ok); }
 .warn { color: var(--warn); }
 .bad { color: var(--bad); word-break: break-all; }
+.linesField { display: flex; gap: 6px; align-items: flex-start; min-width: 220px; }
