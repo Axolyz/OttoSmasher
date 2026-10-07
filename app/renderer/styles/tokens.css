@@ -7,7 +7,7 @@
   --accent: #1b73e8; --accent2: #3d88f0; --accentbg: #1b73e822; --sel: #1b73e81c;
   --wave: #4fc3c3; --wave2: #2c6f73; --gold: #f2c14e;
   /* 性质四色：语音、调谐单音、非调谐单音、未分类 */
-  --nat-speech: #6aa7ff; --nat-pitched: #f5b041; --nat-unpitched: #f07167; --nat-unclassified: #9aa4b2;
+  --nat-speech: #3ec7a6; --nat-pitched: #f5b041; --nat-unpitched: #f07167; --nat-unclassified: #9aa4b2;
   --ok: #4cc38a; --warn: #e5a54b; --bad: #f06a6a;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   /* 字号阶 */
