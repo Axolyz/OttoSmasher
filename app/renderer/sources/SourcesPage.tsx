@@ -1,15 +1,17 @@
 // 原片页（UI_PLAN §4）：左边按作品分组的原片列表（可收起），右边查看器（画面、台本、时间线、动作条）。
 // 界面状态（当前原片、展开的作品组、列表是否收起）记在 ui_state 里，重启恢复（规格 03 §3.1）。
-import { Clapperboard, Plus } from "lucide-react";
+import { Clapperboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AddResult, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
+import { EmptyState } from "../components/Controls";
+import { Menu, type MenuSpec } from "../components/Menu";
+import { TopSlot } from "../shell/TopSlot";
 import { errorText, t } from "../i18n";
-import shell from "../shell/Shell.module.css";
 import { useApp } from "../state/store";
 import { DeleteDialog, InputSettingsDialog } from "./SourceDialogs";
-import { SourceList } from "./SourceList";
+import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
 import s from "./Sources.module.css";
 
@@ -62,6 +64,11 @@ export function SourcesPage() {
     setExpanded((e) => (e.includes(row.work) ? e : [...e, row.work]));
   }, [jump, rows]);
 
+  const refreshTick = useApp((st) => st.refreshTick);
+  useEffect(() => {
+    if (refreshTick && ready) void reload();
+  }, [refreshTick, ready, reload]);
+
   // 离开原片页清空勾选（UI_PLAN §4）
   useEffect(() => {
     if (page !== "sources") setChecked(new Set());
@@ -102,6 +109,11 @@ export function SourcesPage() {
     }
   };
   const pickAndAdd = async () => add(await window.otto.files.pick("media"));
+  const workspace = useApp((st) => st.hello?.workspace);
+  // 打开库目录：工作区的素材库（导出、生成的文件都在这里）
+  const openLibrary = async () => {
+    if (workspace) await window.otto.files.reveal(`${workspace}/Library`);
+  };
 
   const relocate = async (id: string) => {
     const [path] = await window.otto.files.pick("media-one");
@@ -123,6 +135,23 @@ export function SourcesPage() {
   };
 
   const currentRow = rows?.find((r) => r.id === current) ?? null;
+
+  // 单个原片的菜单：列表右键、行末 ⋯、查看器 ⋯ 共用（UI_PLAN §4、§8）；多个 = 已勾选集
+  const sourceMenu = (r: SourceRow, ids: string[], multi: boolean): MenuSpec =>
+    multi
+      ? { head: t("menu.checkedN", { n: ids.length }), items: [{ id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) }] }
+      : {
+          head: t("menu.on", { name: displayName(r) }),
+          items: [
+            { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
+            { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
+            "-",
+            { id: "reveal", label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path) },
+            { id: "library", label: t("sources.openLibrary"), run: () => void openLibrary() },
+            "-",
+            { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
+          ],
+        };
 
   return (
     <div
@@ -150,35 +179,51 @@ export function SourcesPage() {
           expanded={expanded}
           checked={checked}
           onOpen={open}
-          onToggleGroup={(w) => setExpanded((e) => (e.includes(w) ? e.filter((x) => x !== w) : [...e, w]))}
+          onToggleGroup={(w, o) => setExpanded((e) => ((o ?? !e.includes(w)) ? (e.includes(w) ? e : [...e, w]) : e.filter((x) => x !== w)))}
           onChecked={setChecked}
           onAdd={() => void pickAndAdd()}
-          onSettings={setSettingsFor}
-          onRelocate={(id) => void relocate(id)}
+          menu={sourceMenu}
           onDelete={setDeleteIds}
         />
       ) : (
         <div />
       )}
       {currentRow ? (
-        <SourceViewer
-          row={currentRow}
-          listHidden={listHidden}
-          onToggleList={() => setListHidden((v) => !v)}
-          onSettings={() => setSettingsFor(currentRow.id)}
-          onRelocate={() => void relocate(currentRow.id)}
-          onDelete={() => setDeleteIds([currentRow.id])}
-        />
+        <SourceViewer row={currentRow} />
       ) : (
-        <div className={shell.empty}>
-          <Clapperboard size={36} strokeWidth={1.2} />
-          <h3>{rows && rows.length ? t("sources.pick.title") : t("sources.empty.title")}</h3>
-          <div>{rows && rows.length ? t("sources.pick.body") : t("sources.empty.body")}</div>
-          <Button variant="primary" icon={<Plus />} onPress={() => void pickAndAdd()} data-testid="sources-add-empty">
-            {t("sources.add")}
-          </Button>
-        </div>
+        <EmptyState
+          icon={<Clapperboard />}
+          title={rows && rows.length ? t("sources.pick.title") : t("sources.empty.title")}
+          body={rows && rows.length ? t("sources.pick.body") : t("sources.empty.body")}
+          actions={
+            <Button variant="primary" icon={<Plus />} onPress={() => void pickAndAdd()} data-testid="sources-add-empty">
+              {t("sources.add")}
+            </Button>
+          }
+        />
       )}
+      <TopSlot page="sources">
+        <Button
+          variant="flat"
+          size="sm"
+          icon={listHidden ? <PanelLeftOpen /> : <PanelLeftClose />}
+          onPress={() => setListHidden((v) => !v)}
+          data-testid="list-toggle"
+        >
+          {listHidden ? t("sources.showList") : t("sources.hideList")}
+        </Button>
+        {currentRow ? (
+          <>
+            <span className={s.topName} title={currentRow.path} data-user-data="">
+              {displayTitle(currentRow)}
+            </span>
+            <Menu
+              {...sourceMenu(currentRow, [currentRow.id], false)}
+              trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="viewer-menu" />}
+            />
+          </>
+        ) : null}
+      </TopSlot>
       <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />
       <DeleteDialog ids={deleteIds} rows={rows ?? []} onClose={() => setDeleteIds(null)} onDeleted={(ids) => void onDeleted(ids)} />
     </div>

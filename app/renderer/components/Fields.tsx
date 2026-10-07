@@ -13,6 +13,8 @@ import {
   Switch as RacSwitch,
   TextField as RacTextField,
 } from "react-aria-components";
+import { useEffect, useState } from "react";
+import { clock, parseClock } from "../format";
 import s from "./Fields.module.css";
 
 export function Switch(props: { isSelected: boolean; onChange: (v: boolean) => void; label: string; isDisabled?: boolean }) {
@@ -96,7 +98,7 @@ export interface Option {
   label: string;
 }
 
-export function Select(props: { value: string; onChange: (v: string) => void; options: Option[]; label: string; isDisabled?: boolean }) {
+export function Select(props: { value: string; onChange: (v: string) => void; options: Option[]; label: string; isDisabled?: boolean; prefix?: string }) {
   return (
     <RacSelect
       selectedKey={props.value}
@@ -106,7 +108,8 @@ export function Select(props: { value: string; onChange: (v: string) => void; op
       className={s.select}
     >
       <RacButton className={s.selectBtn}>
-        <SelectValue />
+        {props.prefix ? <span className={s.selectPrefix}>{props.prefix}</span> : null}
+        <SelectValue className={s.selectValue} />
         <ChevronDown size={14} />
       </RacButton>
       <Popover className={s.popover} offset={4}>
@@ -124,5 +127,52 @@ export function Select(props: { value: string; onChange: (v: string) => void; op
         </ListBox>
       </Popover>
     </RacSelect>
+  );
+}
+
+/**
+ * 时间输入（选区起止的精确输入，UI_PLAN §3 动作条）：显示 `M:SS.mmm`；Enter / 失焦提交，Esc 还原。
+ * 解析不了或 onCommit 拒绝（返回 false，例如越界、起点不在终点之前）时标红并还原为原值。
+ */
+export function TimeField(props: { value: number | null; onCommit: (v: number) => boolean; label: string; isDisabled?: boolean; testId?: string }) {
+  const shown = props.value == null ? "" : clock(props.value);
+  const [text, setText] = useState(shown);
+  const [bad, setBad] = useState(false);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(shown);
+  }, [shown, editing]);
+  const commit = () => {
+    setEditing(false);
+    if (text === shown) return setBad(false);
+    const v = parseClock(text);
+    const ok = v != null && props.onCommit(v);
+    setBad(!ok);
+    if (!ok) setText(shown);
+  };
+  return (
+    <RacTextField
+      value={text}
+      onChange={(v) => {
+        setEditing(true);
+        setText(v);
+      }}
+      aria-label={props.label}
+      isDisabled={props.isDisabled}
+      isInvalid={bad}
+      className={s.time}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        else if (e.key === "Escape" && editing) {
+          e.stopPropagation();
+          setEditing(false);
+          setBad(false);
+          setText(shown);
+        } else e.continuePropagation();
+      }}
+    >
+      <Input className={`${s.timeInput} num mono`} spellCheck={false} autoComplete="off" placeholder="—" data-testid={props.testId} />
+    </RacTextField>
   );
 }

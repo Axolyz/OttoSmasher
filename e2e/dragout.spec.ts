@@ -57,7 +57,7 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   expect(existsSync(first![0]!)).toBe(true);
   expect(first![0]!.startsWith(join(workspace, "Library", "Exports"))).toBe(true);
   // 选区没被这次拖动改掉（⌥ 拖动不是普通选区拖动）
-  await expect(page.getByTestId("readout")).toContainText("→");
+  await expect(page.getByTestId("readout")).toHaveAttribute("data-a", /\d/);
 
   // 采样库：两个采样都勾选，在其中一行上 ⌥ 拖 → 整个勾选集
   await page.evaluate(async (s) => {
@@ -68,7 +68,7 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   await page.keyboard.press("Meta+1");
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(2);
-  for (const i of [0, 1]) await rows.nth(i).locator("input[type=checkbox]").check();
+  for (const i of [0, 1]) await rows.nth(i).locator("label").first().click();
   const rb = (await rows.nth(1).boundingBox())!;
   await page.keyboard.down("Alt");
   await page.mouse.move(rb.x + rb.width * 0.5, rb.y + rb.height / 2);

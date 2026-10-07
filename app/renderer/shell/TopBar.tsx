@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { call, useCoreEvent } from "../api/core";
 import type { EditLabel } from "../api/types";
 import { Button } from "../components/Button";
-import { Menu, Tip } from "../components/Overlay";
+import { Menu } from "../components/Menu";
+import { Tip } from "../components/Overlay";
 import { t } from "../i18n";
 import { useApp } from "../state/store";
 import { describeLabel } from "./labels";
+import { TopSlotHost } from "./TopSlot";
 import s from "./Shell.module.css";
 import { useUndo } from "./useUndo";
 
@@ -26,7 +28,9 @@ export function TopBar() {
   return (
     <header className={s.top}>
       <div className={s.ptitle}>{t(`nav.${page}`)}</div>
-      <div className={s.grow} />
+      {(["library", "sources", "tools"] as const).map((p) => (
+        <TopSlotHost key={p} page={p} active={p === page} className={s.slot!} />
+      ))}
       <label className={s.tempo}>
         <span className={s.tempoNote} aria-hidden>
           ♩

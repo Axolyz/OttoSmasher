@@ -1,0 +1,62 @@
+/* 复选框（原型 .ck：16px、圆角 5px；勾上为强调色） */
+.checkbox { display: inline-flex; align-items: center; gap: 8px; cursor: default; outline: none; color: var(--sub); vertical-align: middle; }
+.box { width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--faint); display: flex; align-items: center; justify-content: center; color: #fff; transition: background var(--t-fast), border-color var(--t-fast); }
+.checkbox[data-hovered] .box { border-color: var(--sub); }
+.checkbox[data-selected] .box, .checkbox[data-indeterminate] .box { background: var(--accent); border-color: var(--accent); }
+.checkbox[data-focus-visible] .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.checkbox[data-disabled] { opacity: 0.35; }
+
+/* 分段选择（原型 .seg；lens = 顶栏用途切换） */
+.seg { display: inline-flex; background: var(--s2); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.segBtn { display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; color: var(--muted); border-radius: 7px; padding: 3px 10px; font-size: var(--fs-sm); cursor: default; outline: none; white-space: nowrap; }
+.segBtn[data-hovered] { color: var(--text); }
+.segBtn[data-selected] { background: var(--s3); color: var(--text); }
+.segBtn[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -1px; }
+.segBtn[data-disabled] { opacity: 0.4; }
+.segSm .segBtn { padding: 1px 8px; font-size: var(--fs-xs); }
+.lens { background: transparent; border: none; padding: 0; }
+.lens .segBtn { padding: 6px 12px; font-size: var(--fs-md); font-weight: 550; border-radius: var(--r-md); }
+.lens .segBtn[data-hovered] { background: var(--s2); }
+.lens .segBtn[data-selected] { background: var(--s3); }
+
+/* 条件块（原型 .chip） */
+.chipRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.chipGroup { display: contents; }
+.chipList { display: flex; gap: 6px; flex-wrap: wrap; outline: none; }
+.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--s3); border-radius: 7px; padding: 2px 9px; font-size: var(--fs-sm); white-space: nowrap; outline: none; cursor: default; color: var(--text); }
+.chip:has(.chipX) { padding-right: 3px; }
+.chip[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip[data-allows-removing][data-hovered] { background: color-mix(in srgb, var(--s3) 80%, var(--line)); }
+.chipK { color: var(--muted); }
+.chipPreset { background: var(--accentbg); color: var(--accent2); }
+.chipX { border: none; background: transparent; color: var(--muted); padding: 1px 4px; border-radius: 5px; display: inline-flex; cursor: default; outline: none; }
+.chipX[data-hovered] { background: var(--line); color: var(--text); }
+
+/* 进度条 */
+.progress { display: flex; align-items: center; gap: 8px; min-width: 40px; }
+.track { flex: 1; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; position: relative; }
+.progressMd .track { height: 5px; border-radius: 3px; }
+.fill { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width var(--t-med); }
+.progress[data-tone="ok"] .fill { background: var(--ok); }
+.progress[data-tone="warn"] .fill { background: var(--warn); }
+.progress[data-tone="bad"] .fill { background: var(--bad); }
+.fill[data-indeterminate] { width: 30%; position: absolute; animation: slide 1.2s ease-in-out infinite; }
+@keyframes slide { from { left: -30%; } to { left: 100%; } }
+.progressValue { font-size: var(--fs-xs); color: var(--muted); }
+
+/* 分段进度（原型准备清单 6/7） */
+.steps { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-sm); color: var(--sub); }
+.steps i { width: 16px; height: 4px; border-radius: 2px; background: var(--line); }
+.steps i[data-done] { background: var(--ok); }
+.steps .num { margin-left: 6px; }
+
+/* 空状态 */
+.empty { margin: auto; text-align: center; max-width: 460px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 32px 20px; }
+.empty h3 { color: var(--sub); font-size: var(--fs-lg); margin: 0; font-weight: 600; }
+.emptyIcon { color: var(--faint); display: flex; margin-bottom: 4px; }
+.emptyIcon svg { width: 36px; height: 36px; stroke-width: 1.2; }
+.emptyBody { line-height: 1.6; }
+.emptyActions { display: flex; gap: 8px; margin-top: 8px; }
+.emptyInline { padding: 16px 12px; max-width: none; }
+.emptyInline .emptyIcon svg { width: 22px; height: 22px; }
+.emptyInline h3 { font-size: var(--fs-md); }

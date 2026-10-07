@@ -276,6 +276,7 @@ export class Playback {
   private sourceEng: Engine | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private auditionEng: Engine | null = null;
+  private muted = false;
   private listeners = new Set<(s: PlayerState) => void>();
 
   private emit = (s: PlayerState) => {
@@ -302,6 +303,7 @@ export class Playback {
     this.sourceEng?.destroy();
     this.canvas = canvas;
     this.sourceEng = new Engine("source", new CanvasPlayer(canvas, MPV_OPTIONS), this.emit, this.exclusive);
+    if (this.muted) this.sourceEng.mpv.set("mute", "yes");
     return true;
   }
 
@@ -346,6 +348,11 @@ export class Playback {
     const gen = e.begin();
     e.seek(t);
     return gen;
+  }
+  /** 原片播放器静音（画面控制条）；换画布后保持。 */
+  sourceMute(m: boolean): void {
+    this.muted = m;
+    this.sourceEng?.mpv.set("mute", m ? "yes" : "no");
   }
   sourceStep(dir: 1 | -1): void {
     this.sourceEngine().step(dir);

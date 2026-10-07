@@ -1,78 +1,16 @@
-// 弹出物：菜单（菜单头写明作用对象）、提示、全屏工作台、右侧抽屉（UI_PLAN §5）。
+// 弹出物：提示、全屏工作台、确认框、右侧抽屉（UI_PLAN §5）。菜单在 Menu.tsx，锚定小面板在 Panel.tsx。
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Dialog,
-  Header,
-  Menu as RacMenu,
-  MenuItem,
-  MenuSection,
-  MenuTrigger,
   Modal,
   ModalOverlay,
-  Popover,
-  Separator,
   Tooltip,
   TooltipTrigger,
 } from "react-aria-components";
 import { t } from "../i18n";
 import { Button } from "./Button";
 import s from "./Overlay.module.css";
-
-export interface MenuEntry {
-  id: string;
-  label: string;
-  shortcut?: string;
-  danger?: boolean;
-  disabled?: boolean;
-  run: () => void;
-}
-
-export function Menu(props: {
-  trigger: ReactNode;
-  head?: string;
-  items: Array<MenuEntry | "-">;
-  /** 受控打开（右键菜单用：右键时打开同一个菜单） */
-  isOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
-}) {
-  const groups: MenuEntry[][] = [[]];
-  for (const it of props.items) {
-    if (it === "-") groups.push([]);
-    else groups[groups.length - 1]!.push(it);
-  }
-  return (
-    <MenuTrigger isOpen={props.isOpen} onOpenChange={props.onOpenChange}>
-      {props.trigger}
-      <Popover className={s.popover} placement="bottom start" offset={4}>
-        <RacMenu
-          className={s.menu}
-          disabledKeys={props.items.flatMap((x) => (x !== "-" && x.disabled ? [x.id] : []))}
-          onAction={(key) => {
-            for (const g of groups) for (const it of g) if (it.id === key) it.run();
-          }}
-        >
-          {props.head ? (
-            <MenuSection>
-              <Header className={s.menuHead}>{props.head}</Header>
-            </MenuSection>
-          ) : null}
-          {groups.map((g, gi) => (
-            <MenuSection key={gi}>
-              {gi > 0 ? <Separator className={s.sep} /> : null}
-              {g.map((it) => (
-                <MenuItem key={it.id} id={it.id} className={`${s.item} ${it.danger ? s.danger : ""}`} textValue={it.label}>
-                  <span>{it.label}</span>
-                  {it.shortcut ? <kbd className={s.kbd}>{it.shortcut}</kbd> : null}
-                </MenuItem>
-              ))}
-            </MenuSection>
-          ))}
-        </RacMenu>
-      </Popover>
-    </MenuTrigger>
-  );
-}
 
 export function Tip(props: { content: ReactNode; children: ReactNode; placement?: "top" | "bottom" | "start" | "end" }) {
   return (

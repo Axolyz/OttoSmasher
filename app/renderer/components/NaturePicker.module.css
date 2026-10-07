@@ -1,9 +1,4 @@
-.group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: transparent; color: var(--sub); border-radius: var(--r-md); padding: 3px 9px; cursor: default; font-size: var(--fs-sm); }
-.opt:hover { border-color: var(--faint); color: var(--text); }
-.opt[data-on] { border-color: var(--accent); background: var(--accentbg); color: var(--text); }
-.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
 .dot[data-nature="speech"] { background: var(--nat-speech); }
 .dot[data-nature="pitched"] { background: var(--nat-pitched); }
 .dot[data-nature="unpitched"] { background: var(--nat-unpitched); }

@@ -50,7 +50,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
     (window as unknown as { __st: PlayerState[] }).__st = [];
     window.otto.player.onState((s) => (window as unknown as { __st: PlayerState[] }).__st.push(s));
   });
-  await page.getByTestId("sample-list").focus();
+  await page.getByTestId("sample-row").first().focus();
   await page.keyboard.press("Space");
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __st: PlayerState[] }).__st.some((s) => s.player === "audition" && s.ended)), { timeout: 8000 })
@@ -70,7 +70,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
 
   // ⌘A 勾选全部匹配
-  await page.getByTestId("sample-list").focus();
+  await page.getByTestId("sample-row").first().focus();
   await page.keyboard.press("Meta+a");
   await expect(page.getByTestId("library-checked")).toContainText("2 项已勾选");
   await page.keyboard.press("Escape");
@@ -80,7 +80,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   const before = await page.getByTestId("stage-title").textContent();
   await page.getByTestId("back-to-source").click();
   await expect(page.getByTestId("page-sources")).toBeVisible();
-  await expect(page.getByTestId("readout")).toContainText("→");
+  await expect(page.getByTestId("readout")).toHaveAttribute("data-a", /\d/);
   // 时间线放大到该区间（不是整段）
   await expect.poll(async () => {
     const v = (await page.getByTestId("timeline").getAttribute("data-view"))!.split(",").map(Number);
@@ -108,7 +108,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   // 删除焦点采样（确认框）
   await page.keyboard.press("Meta+1");
   await expect(page.getByTestId("stage-title")).toHaveText(before!);
-  await page.getByTestId("sample-list").focus();
+  await page.getByTestId("sample-row").first().focus();
   await page.keyboard.press("Delete");
   await page.getByTestId("sample-delete").getByTestId("confirm-ok").click();
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");

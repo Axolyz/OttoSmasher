@@ -1,0 +1,17 @@
+/* 分页表格（原型 .tbl：12px、表头淡色粘顶、行线淡、不可勾选的行变淡） */
+.wrap { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--s1); overflow: hidden; }
+.scroll { flex: 1; overflow: auto; min-height: 0; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); outline: none; }
+.head { position: sticky; top: 0; z-index: 1; }
+.th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--s1); white-space: nowrap; outline: none; }
+.th[data-align="end"], .td[data-align="end"] { text-align: right; }
+.th[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tr { outline: none; cursor: default; }
+.tr[data-hovered] { background: var(--s2); }
+.tr[data-checked] { background: var(--sel); }
+.tr[data-disabled-row] .td { color: var(--faint); }
+.tr[data-focus-visible] { box-shadow: inset 2px 0 0 var(--accent); }
+.td { padding: 5px 10px; border-bottom: 1px solid var(--line2); outline: none; vertical-align: middle; }
+.td[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.foot { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--line2); color: var(--muted); font-size: var(--fs-sm); }
+.grow { flex: 1; }

@@ -32,3 +32,5 @@
 .empty h3 { color: var(--sub); font-size: var(--fs-lg); margin: 0; font-weight: 600; }
 .keys { margin: 16px 20px; border-collapse: collapse; }
 .keys td { padding: 6px 16px 6px 0; border-bottom: 1px solid var(--line2); }
+.slot { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.slot[hidden] { display: none; }

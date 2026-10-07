@@ -16,3 +16,6 @@
 .stats { font-size: var(--fs-xs); color: var(--sub); user-select: text; }
 .probeCard { grid-column: 1 / -1; }
 .probeCard .probeCanvas { max-width: 960px; }
+.ctxTarget { border: 1px dashed var(--line); border-radius: var(--r-md); padding: 10px 14px; color: var(--muted); font-size: var(--fs-sm); }
+.demoBox { height: 300px; display: flex; border: 1px solid var(--line2); border-radius: var(--r-lg); overflow: hidden; background: var(--bg); }
+.demoTable { height: 340px; display: flex; flex-direction: column; }

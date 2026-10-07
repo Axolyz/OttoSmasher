@@ -29,7 +29,7 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await groups.nth(0).click();
   await page.getByTestId("source-row").first().click();
   const viewer = page.getByTestId("source-viewer");
-  await expect(viewer).toContainText("Test Show 01");
+  await expect(page.getByTestId("top-sources")).toContainText("Test Show · 01");
   await expect(viewer).toContainText("第 2 条音轨 · jpn"); // 默认分析音轨 = 日语那条
 
   // 波形生成后状态提示消失
@@ -44,9 +44,11 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await page.mouse.move(box.x + box.width * 0.3, y, { steps: 4 });
   await page.mouse.move(box.x + box.width * 0.4, y, { steps: 4 });
   await page.mouse.up();
-  await expect(page.getByTestId("readout")).toContainText("→");
-  const readout = await page.getByTestId("readout").textContent();
-  const [a, b] = readout!.split("·")[1]!.split("（")[0]!.split("→").map((x) => Number(x.trim().split(":")[1]));
+  const readout = page.getByTestId("readout");
+  await expect(readout).toHaveAttribute("data-a", /\d/);
+  const [a, b] = [Number(await readout.getAttribute("data-a")), Number(await readout.getAttribute("data-b"))];
+  // 选区起止输入框显示同一区间
+  await expect(page.getByTestId("sel-start")).toHaveValue(/^0:0\d\.\d{3}$/);
   expect(a).toBeGreaterThan(1.4);
   expect(b).toBeLessThan(3.4);
 
@@ -70,7 +72,8 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await page.screenshot({ path: ".cache/playwright-results/sources-page.png" });
 
   // 导出 WAV：在素材库导出目录
-  await page.getByTestId("export-wav").click();
+  await page.getByTestId("export-menu").click();
+  await page.getByRole("menuitem", { name: "导出 WAV" }).click();
   await expect(page.getByText(/已导出：/)).toBeVisible();
   const exports = join(workspace, "Library", "Exports");
   const day = readdirSync(exports)[0]!;
@@ -86,7 +89,7 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await dlg.getByTestId("field-work").fill("Renamed Show");
   await dlg.getByTestId("confirm-ok").click();
   await expect(groups.nth(0)).toContainText("Renamed Show");
-  await expect(viewer).toContainText("Renamed Show 01");
+  await expect(page.getByTestId("top-sources")).toContainText("Renamed Show · 01");
 
   // 删除纯音频原片：确认框写清删什么、不删什么；文件保留
   await groups.nth(1).click();

@@ -6,7 +6,7 @@ import s from "./Shell.module.css";
 /** 全局播放条（UI_PLAN §1）：阶段 1 只有空状态与“资料已更新”。 */
 export function Dock() {
   const stale = useApp((st) => st.stale);
-  const setStale = useApp((st) => st.setStale);
+  const refreshLists = useApp((st) => st.refreshLists);
   return (
     <footer className={s.dock}>
       <div className={s.np}>
@@ -19,7 +19,7 @@ export function Dock() {
       {stale ? (
         <div className={s.note}>
           {t("dock.stale")}
-          <button type="button" className={s.noteBtn} onClick={() => setStale(false)}>
+          <button type="button" className={s.noteBtn} onClick={refreshLists} data-testid="refresh-lists">
             {t("dock.refresh")}
           </button>
         </div>

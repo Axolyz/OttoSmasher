@@ -42,6 +42,8 @@ export interface PlayerApi {
   /** 返回新代次（之后只认这个代次的状态） */
   seek(t: number): number;
   step(dir: 1 | -1): void;
+  /** 原片播放器静音（不影响试听播放器） */
+  setMuted(muted: boolean): void;
   playRange(a: number, b: number, loop?: boolean): number;
   audition(assetId: string, start: number, end: number, loop?: boolean): Promise<number>;
   stopAudition(): void;

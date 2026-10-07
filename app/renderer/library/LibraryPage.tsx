@@ -1,20 +1,25 @@
-// 采样库（UI_PLAN §2；阶段 2 最小版）：用途切换、查找栏（文字 + ★）、结果头（数量、分页）、列表、右侧最小舞台。
-// 集合规则（UI_PLAN §6.1）：单击 = 焦点，从不改变勾选；复选框 / ⌘+单击切换勾选；Shift+单击连续勾选；⌘A 勾选全部匹配（跨页）；
-// Esc 清空勾选；↑↓ 移动焦点；Space 试听焦点（左键原声；卡拍在阶段 6）；1/2/3/0 一步设性质（勾选集或焦点，可撤销，
-// 改完该行留在原位、刷新后按新性质归位）；Delete 删除（确认）。条件变化清空勾选并提示。翻页保留勾选。
-import { ArrowUpRight, ChevronLeft, ChevronRight, Play, Square, SquareStack, Star, Trash2, X } from "lucide-react";
+// 采样库（UI_PLAN §2；阶段 2 最小版 + 阶段 3.0 组件对齐）：顶栏用途切换、查找栏（文字 + ★）、结果头（浏览、分页）与状态行、
+// 统一列表（CollectionList：UI_PLAN §6.1 的全部集合规则）、批量条、可拖动的分栏、右侧舞台。
+// 本页自己的键（集合区）：Space 试听焦点（左键原声；卡拍在阶段 6）· 1/2/3/0 设性质（勾选集或焦点，可撤销；改完留在原位，刷新后归位）·
+// S 星标 · ⌘F 聚焦查找栏的文字。条件变化清空勾选并提示；翻页保留勾选。
+import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Square, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
 import type { Nature, SamplePage, SampleRow } from "../api/types";
+import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
+import { CollectionList } from "../components/CollectionList";
+import { EmptyState, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
-import { NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
+import { Menu, type MenuItems, type MenuSpec } from "../components/Menu";
+import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
 import { ConfirmDialog } from "../components/Overlay";
+import { SplitPane } from "../components/SplitPane";
 import { beginDragOut } from "../dragout";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
-import shell from "../shell/Shell.module.css";
+import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import s from "./Library.module.css";
@@ -27,10 +32,7 @@ function trackWords(): Record<string, string> {
 }
 type Purpose = "all" | Nature;
 const PURPOSES: Purpose[] = ["all", "speech", "pitched", "unpitched", "unclassified"];
-
-function isTyping(el: Element | null): boolean {
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
-}
+const KEY_OF: Record<Nature, string> = { speech: "1", pitched: "2", unpitched: "3", unclassified: "0" };
 
 export function LibraryPage() {
   const ready = useApp((st) => st.core.state === "ready");
@@ -51,14 +53,11 @@ export function LibraryPage() {
   const [playing, setPlaying] = useState<string | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [focusRow, setFocusRow] = useState<SampleRow | null>(null);
-  const anchor = useRef<string | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [split, setSplit] = useState(0.5);
+  const splitRestored = useRef(false);
   const auditionGen = useRef(-1);
 
-  const query = useMemo(
-    () => ({ natures: purpose === "all" ? undefined : [purpose], starred: starredOnly, text }),
-    [purpose, starredOnly, text],
-  );
+  const query = useMemo(() => ({ natures: purpose === "all" ? undefined : [purpose], starred: starredOnly, text }), [purpose, starredOnly, text]);
 
   const load = useCallback(
     async (off: number) => {
@@ -68,6 +67,20 @@ export function LibraryPage() {
     },
     [query],
   );
+
+  // 分栏比例：重启恢复（UI_PLAN §2）
+  useEffect(() => {
+    if (!ready) return;
+    void call<Record<string, unknown>>("ui.get", { page: "library" }).then((v) => {
+      if (typeof v.split === "number") setSplit(v.split);
+      splitRestored.current = true;
+    });
+  }, [ready]);
+  useEffect(() => {
+    if (!splitRestored.current) return;
+    const id = setTimeout(() => void call("ui.set", { page: "library", key: "split", value: split }), 300);
+    return () => clearTimeout(id);
+  }, [split]);
 
   // 条件变化：回到第一页，清空勾选并提示（UI_PLAN §6.1）
   const firstQuery = useRef(true);
@@ -92,6 +105,26 @@ export function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  // 「刷新浏览列表」：按当前条件重读当前页（勾选与焦点保留）
+  const refreshTick = useApp((st) => st.refreshTick);
+  useEffect(() => {
+    if (refreshTick && ready) void load(offset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
+
+  // ⌘F：聚焦查找栏的文字（UI_PLAN §7）
+  useEffect(() => {
+    if (page !== "library") return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [page]);
+
   // 截取后打开新采样
   useEffect(() => {
     if (!openSample || !ready) return;
@@ -104,7 +137,6 @@ export function LibraryPage() {
       setData(r);
       setFocus(openSample);
       setOpenSample(null);
-      listRef.current?.focus();
     })();
   }, [openSample, ready, setOpenSample]);
 
@@ -121,9 +153,7 @@ export function LibraryPage() {
     () =>
       window.otto.player.onState((st: PlayerState) => {
         if (st.player !== "audition" || st.gen !== auditionGen.current) return;
-        if (st.ended || st.error || !st.playing) {
-          if (st.ended || st.error) setPlaying(null);
-        }
+        if (st.ended || st.error) setPlaying(null);
       }),
     [],
   );
@@ -155,6 +185,7 @@ export function LibraryPage() {
       });
       // 就地更新，不重排（改完该行留在原位，刷新后按新条件归位）
       setData((d) => d && { ...d, rows: d.rows.map((r) => (ids.includes(r.id) ? { ...r, ...fields, version: r.version + 1 } : r)) });
+      setFocusRow((f) => (f && ids.includes(f.id) ? { ...f, ...fields, version: f.version + 1 } : f));
       toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo().then(() => load(offset)) } });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -162,56 +193,7 @@ export function LibraryPage() {
     }
   };
 
-  const targetIds = () => (checked.size ? [...checked] : focus ? [focus] : []);
-
-  const toggle = (id: string) => {
-    const next = new Set(checked);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    anchor.current = id;
-    setChecked(next);
-  };
-  const extend = (id: string) => {
-    const from = rows.findIndex((r) => r.id === (anchor.current ?? focus));
-    const to = rows.findIndex((r) => r.id === id);
-    if (from < 0 || to < 0) return toggle(id);
-    const next = new Set(checked);
-    for (const r of rows.slice(Math.min(from, to), Math.max(from, to) + 1)) next.add(r.id);
-    setChecked(next);
-  };
-
-  const onKey = async (e: React.KeyboardEvent) => {
-    if (isTyping(document.activeElement)) return;
-    const idx = rows.findIndex((r) => r.id === focus);
-    const k = e.key;
-    if (k === "ArrowDown" || k === "ArrowUp") {
-      e.preventDefault();
-      const next = rows[Math.max(0, Math.min(rows.length - 1, idx + (k === "ArrowDown" ? 1 : -1)))];
-      if (next) {
-        setFocus(next.id);
-        if (e.shiftKey) setChecked((c) => new Set(c).add(next.id));
-      }
-    } else if (k === " ") {
-      e.preventDefault();
-      const r = rows[idx];
-      if (r) void audition(r);
-    } else if (k in NATURE_KEYS && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      const ids = targetIds();
-      if (ids.length) void edit(ids, { nature: NATURE_KEYS[k] }, "sample-nature");
-    } else if (k === "Escape" && checked.size) {
-      e.preventDefault();
-      e.stopPropagation();
-      setChecked(new Set());
-    } else if ((k === "a" || k === "A") && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      setChecked(new Set(await call<string[]>("samples.ids", query)));
-    } else if (k === "Delete" || k === "Backspace") {
-      e.preventDefault();
-      const ids = targetIds();
-      if (ids.length) setDeleteIds(ids);
-    }
-  };
+  const checkAllMatching = async () => setChecked(new Set(await call<string[]>("samples.ids", query)));
 
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -244,176 +226,243 @@ export function LibraryPage() {
     setPage("sources");
   };
 
-  return (
-    <div className={s.page} data-testid="page-library">
-      <section className={s.left}>
-        <div className={s.purposes} role="tablist">
-          {PURPOSES.map((p) => (
-            <button
-              key={p}
-              type="button"
-              role="tab"
-              aria-selected={purpose === p}
-              className={s.purpose}
-              data-on={purpose === p || undefined}
-              onClick={() => setPurpose(p)}
-              data-testid={`purpose-${p}`}
-            >
-              {p !== "all" ? <NatureDot nature={p} /> : null}
-              {p === "all" ? t("library.all") : t(`nature.${p}`)}
-            </button>
-          ))}
-        </div>
-        <div className={s.find}>
-          <TextField value={text} onChange={setText} label={t("library.search")} placeholder={t("library.search")} testId="library-search" />
-          <Button
-            variant={starredOnly ? "primary" : "secondary"}
-            icon={<Star />}
-            onPress={() => setStarredOnly((v) => !v)}
-            aria-label={t("library.starredOnly")}
-            aria-pressed={starredOnly}
-          />
-        </div>
-        <div className={s.resultHead}>
-          <span data-testid="library-total">{t("library.total", { n: total })}</span>
-          <span className={s.grow} />
-          <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={pageNo <= 1} onPress={() => goto(pageNo - 1)} aria-label={t("library.prev")} />
-          <span className="num">
-            {pageNo} / {pages}
-          </span>
-          <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={pageNo >= pages} onPress={() => goto(pageNo + 1)} aria-label={t("library.next")} />
-        </div>
-        <div className={s.list} ref={listRef} tabIndex={0} onKeyDown={(e) => void onKey(e)} data-testid="sample-list">
-          {data && !rows.length ? (
-            <div className={shell.empty}>
-              <SquareStack size={36} strokeWidth={1.2} />
-              <h3>{t(total || text || starredOnly || purpose !== "all" ? "library.noMatch" : "library.empty.title")}</h3>
-              <div>{t("library.empty.body")}</div>
-            </div>
-          ) : null}
-          {rows.map((r) => (
-            <div
-              key={r.id}
-              className={s.row}
-              data-testid="sample-row"
-              data-id={r.id}
-              data-focus={r.id === focus || undefined}
-              data-nature={r.nature}
-              onClick={(e) => {
-                if (e.metaKey || e.ctrlKey) toggle(r.id);
-                else if (e.shiftKey) extend(r.id);
-                else {
-                  anchor.current = r.id;
-                  setFocus(r.id);
-                }
-              }}
-              onDoubleClick={() => void audition(r)}
-              onPointerDown={(e) => {
-                // ⌥ 拖出：在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
-                if ((e.target as Element).closest("button, input")) return;
-                const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
-                beginDragOut(e, () => call<string[]>("exports.samples", { ids, words: trackWords() }));
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={checked.has(r.id)}
-                onClick={(e) => e.stopPropagation()}
-                onChange={() => toggle(r.id)}
-                aria-label={t("library.check", { name: r.name })}
-              />
-              <button
-                type="button"
-                className={s.play}
-                data-playing={playing === r.id || undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void audition(r);
-                }}
-                aria-label={playing === r.id ? t("library.stop") : t("library.audition")}
-                data-testid="sample-play"
-              >
-                {playing === r.id ? <Square size={12} /> : <Play size={12} />}
-              </button>
-              <div className={s.body}>
-                <div className={s.name} lang={r.language ?? "ja"} title={r.name} data-user-data="">
-                  {r.name}
-                </div>
-                <div className={s.meta}>
-                  <NatureDot nature={r.nature} />
-                  <span>{r.created_via === "manual" ? t("library.manualUnanalyzed") : t(`nature.${r.nature}`)}</span>
-                  <span className={s.src} data-user-data="">
-                    {r.source_name} · {clock(r.source_start)}
-                  </span>
-                  <span className={`${s.dur} num`}>{t("format.sec", { v: seconds(r.duration) })}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className={s.star}
-                data-on={r.starred || undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void edit([r.id], { starred: !r.starred }, "sample-star");
-                }}
-                aria-label={t("library.star")}
-              >
-                <Star size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-        {checked.size ? (
-          <div className={s.checkedBar} data-testid="library-checked">
-            {t("library.checkedN", { n: checked.size })}
-            <Button size="sm" variant="flat" onPress={async () => setChecked(new Set(await call<string[]>("samples.ids", query)))}>
-              {t("library.checkAll", { n: total })}
-            </Button>
-            <span className={s.grow} />
-            <Button size="sm" variant="danger" icon={<Trash2 />} onPress={() => setDeleteIds([...checked])}>
-              {t("library.delete")}
-            </Button>
-            <Button size="sm" variant="flat" icon={<X />} onPress={() => setChecked(new Set())} aria-label={t("sources.clearChecked")} />
-          </div>
-        ) : null}
-      </section>
-      <section className={s.stage} data-testid="stage">
-        {focusRow ? (
+  // 菜单（UI_PLAN §6.1、§8）：右键、舞台 ⋯、批量操作 ▾ 共用同一组动作
+  const natureItems = (ids: string[]): MenuItems =>
+    NATURES.map((n) => ({ id: `nature-${n}`, label: t(`nature.${n}`), shortcut: KEY_OF[n], run: () => void edit(ids, { nature: n }, "sample-nature") }));
+  const groupItems = (ids: string[]): MenuItems => [
+    { id: "nature", label: t("library.setNature"), items: natureItems(ids) },
+    { id: "star", label: t("library.starOn"), shortcut: "S", run: () => void edit(ids, { starred: true }, "sample-star") },
+    { id: "unstar", label: t("library.starOff"), run: () => void edit(ids, { starred: false }, "sample-star") },
+    "-",
+    { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
+  ];
+  const sampleMenu = (r: SampleRow, ids: string[], multi: boolean): MenuSpec =>
+    multi
+      ? { head: t("menu.checkedN", { n: ids.length }), items: groupItems(ids) }
+      : {
+          head: t("menu.on", { name: r.name }),
+          items: [
+            { id: "audition", label: t("library.auditionOriginal"), shortcut: "Space", run: () => void audition(r) },
+            "-",
+            { id: "nature", label: t("library.setNature"), items: natureItems([r.id]) },
+            { id: "star", label: r.starred ? t("library.starOff") : t("library.starOn"), shortcut: "S", run: () => void edit([r.id], { starred: !r.starred }, "sample-star") },
+            "-",
+            { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
+            "-",
+            { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
+          ],
+        };
+
+  const onKey = (e: React.KeyboardEvent, it: SampleRow | null): boolean => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    const ids = checked.size ? [...checked] : it ? [it.id] : [];
+    if (e.key === " ") {
+      if (it) void audition(it);
+      return true;
+    }
+    if (e.key in NATURE_KEYS) {
+      if (ids.length) void edit(ids, { nature: NATURE_KEYS[e.key] }, "sample-nature");
+      return true;
+    }
+    if (e.key === "s" || e.key === "S") {
+      if (ids.length) {
+        const all = rows.filter((r) => ids.includes(r.id));
+        void edit(ids, { starred: !all.every((r) => r.starred) }, "sample-star");
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const list = (
+    <section className={s.left}>
+      <div className={s.find}>
+        <TextField value={text} onChange={setText} label={t("library.search")} placeholder={t("library.searchPlaceholder")} testId="library-search" />
+        <Button
+          variant={starredOnly ? "primary" : "flat"}
+          icon={<Star />}
+          onPress={() => setStarredOnly((v) => !v)}
+          aria-label={t("library.starredOnly")}
+          title={t("library.starredOnly")}
+          aria-pressed={starredOnly}
+        />
+      </div>
+      <div className={s.resultHead}>
+        <span className={s.resultTab}>
+          {t("library.browse")} <span className="num">{total}</span>
+        </span>
+        <span className={s.grow} />
+        <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={pageNo <= 1} onPress={() => goto(pageNo - 1)} aria-label={t("pager.prev")} />
+        <span className="num">
+          {pageNo} / {pages}
+        </span>
+        <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={pageNo >= pages} onPress={() => goto(pageNo + 1)} aria-label={t("pager.next")} />
+      </div>
+      <div className={s.status}>
+        <span data-testid="library-total">{t("library.total", { n: total })}</span>
+        <span>· {t("library.sortNewest")}</span>
+      </div>
+      <CollectionList<SampleRow>
+        label={t("library.listLabel")}
+        items={rows}
+        textValue={(r) => r.name}
+        focus={focus}
+        onFocus={setFocus}
+        checked={checked}
+        onChecked={setChecked}
+        onCheckAll={() => void checkAllMatching()}
+        onPrimary={(id) => {
+          const r = rows.find((x) => x.id === id);
+          if (r) void audition(r);
+        }}
+        onDelete={setDeleteIds}
+        onKey={onKey}
+        menu={(r, target) => sampleMenu(r, target.ids, target.multi)}
+        checkLabel={(r) => t("library.check", { name: r.name })}
+        testId="sample-list"
+        rowTestId="sample-row"
+        rowData={(r) => ({ "data-nature": r.nature })}
+        onRowPointerDown={(e, r) => {
+          // ⌥ 拖出：在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
+          if ((e.target as Element).closest("button, input, label")) return;
+          const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
+          beginDragOut(e, () => call<string[]>("exports.samples", { ids, words: trackWords() }));
+        }}
+        empty={
+          data ? (
+            <EmptyState
+              icon={<SquareStack />}
+              title={t(total || text || starredOnly || purpose !== "all" ? "library.noMatch" : "library.empty.title")}
+              body={total || text || starredOnly || purpose !== "all" ? undefined : t("library.empty.body")}
+            />
+          ) : null
+        }
+        renderItem={(r) => (
           <>
+            <button
+              type="button"
+              className={s.play}
+              data-playing={playing === r.id || undefined}
+              onClick={() => void audition(r)}
+              aria-label={playing === r.id ? t("library.stop") : t("library.audition")}
+              data-testid="sample-play"
+            >
+              {playing === r.id ? <Square size={12} /> : <Play size={12} />}
+            </button>
+            <div className={s.body} data-nature={r.nature}>
+              <div className={s.nameLine}>
+                <NatureDot nature={r.nature} />
+                <span className={s.name} lang={r.language ?? "ja"} title={r.name} data-user-data="">
+                  {r.name}
+                </span>
+              </div>
+              <div className={s.meta}>
+                <span>{r.created_via === "manual" ? t("library.manualUnanalyzed") : t(`nature.${r.nature}`)}</span>
+                <span className={s.src} data-user-data="">
+                  {r.source_name} · {clock(r.source_start)}
+                </span>
+                <span className={`${s.dur} num`}>{t("format.sec", { v: seconds(r.duration) })}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className={s.star}
+              data-on={r.starred || undefined}
+              onClick={() => void edit([r.id], { starred: !r.starred }, "sample-star")}
+              aria-label={t("library.star")}
+              aria-pressed={r.starred}
+            >
+              <Star size={14} />
+            </button>
+          </>
+        )}
+        footer={
+          <BatchBar
+            count={checked.size}
+            total={total}
+            onCheckAll={() => void checkAllMatching()}
+            items={groupItems([...checked])}
+            onClear={() => setChecked(new Set())}
+            testId="library-checked"
+          />
+        }
+      />
+    </section>
+  );
+
+  const stage = (
+    <section className={s.stage} data-testid="stage">
+      {focusRow ? (
+        <>
+          <div className={s.stageHead}>
             <h2 className={s.stageTitle} lang={focusRow.language ?? "ja"} data-testid="stage-title" data-user-data="">
               {focusRow.name}
             </h2>
-            <div className={s.stageMeta}>
-              <span className="num">{t("format.sec", { v: seconds(focusRow.duration) })}</span>
-              <span data-user-data="">
-                {focusRow.source_name} · {clock(focusRow.source_start)}
-              </span>
-              <Button size="sm" variant="flat" icon={<ArrowUpRight />} onPress={() => backToSource(focusRow)} isDisabled={focusRow.source_start == null} data-testid="back-to-source">
-                {t("library.backToSource")}
-              </Button>
-            </div>
-            <NaturePicker
-              value={focusRow.nature}
-              onChange={(n) => void edit([focusRow.id], { nature: n }, "sample-nature")}
-              testId="stage-nature"
+            <Button
+              variant="flat"
+              size="sm"
+              icon={<Star className={focusRow.starred ? s.starOn : undefined} />}
+              onPress={() => void edit([focusRow.id], { starred: !focusRow.starred }, "sample-star")}
+              aria-label={t("library.star")}
+              aria-pressed={focusRow.starred}
             />
-            <div className={s.stageActions}>
-              <Button variant="primary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)}>
-                {playing === focusRow.id ? t("library.stop") : t("library.audition")}
-              </Button>
-              <Button variant="danger" icon={<Trash2 />} onPress={() => setDeleteIds([focusRow.id])}>
-                {t("library.delete")}
-              </Button>
-            </div>
-            {focusRow.parent_label && !focusRow.parent_sample_id ? <div className={s.note}>{t("library.parentDeleted", { name: focusRow.parent_label })}</div> : null}
-            <div className={s.note}>{t("library.stageLater")}</div>
-          </>
-        ) : (
-          <div className={shell.empty}>
-            <div>{t("library.pickHint")}</div>
+            <Menu {...sampleMenu(focusRow, [focusRow.id], false)} placement="bottom end" trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} />} />
           </div>
-        )}
-      </section>
+          <div className={s.stageMeta}>
+            <span className={s.natBadge} data-nature={focusRow.nature}>
+              <NatureDot nature={focusRow.nature} />
+              {t(`nature.${focusRow.nature}`)}
+            </span>
+            <span className="num">{t("format.sec", { v: seconds(focusRow.duration) })}</span>
+            <span data-user-data="">
+              {focusRow.source_name} · {clock(focusRow.source_start)}
+            </span>
+            <Button size="sm" variant="flat" icon={<ArrowUpRight />} onPress={() => backToSource(focusRow)} isDisabled={focusRow.source_start == null} data-testid="back-to-source">
+              {t("library.backToSource")}
+            </Button>
+          </div>
+          <div className={s.stageActions}>
+            <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
+              {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
+            </Button>
+          </div>
+          <section className={s.card}>
+            <h3 className={s.cardTitle}>{t("library.info")}</h3>
+            <div className={s.field}>
+              <span className={s.fieldLabel}>{t("nature.label")}</span>
+              <NaturePicker value={focusRow.nature} onChange={(n) => void edit([focusRow.id], { nature: n }, "sample-nature")} testId="stage-nature" />
+            </div>
+            {focusRow.parent_label && !focusRow.parent_sample_id ? (
+              <div className={s.field}>
+                <span className={s.fieldLabel}>{t("library.origin")}</span>
+                <span className={s.note}>{t("library.parentDeleted", { name: focusRow.parent_label })}</span>
+              </div>
+            ) : null}
+          </section>
+        </>
+      ) : (
+        <EmptyState title={t("library.pickHint")} size="inline" />
+      )}
+    </section>
+  );
+
+  return (
+    <div className={s.page} data-testid="page-library">
+      <TopSlot page="library">
+        <Segmented<Purpose>
+          variant="lens"
+          value={purpose}
+          onChange={setPurpose}
+          label={t("library.purpose")}
+          options={PURPOSES.map((p) => ({
+            id: p,
+            label: p === "all" ? t("library.all") : t(`nature.${p}`),
+            mark: p !== "all" ? <NatureDot nature={p} /> : undefined,
+            data: { "data-testid": `purpose-${p}` },
+          }))}
+        />
+      </TopSlot>
+      <SplitPane left={list} right={stage} ratio={split} onRatio={setSplit} label={t("library.splitter")} />
       <ConfirmDialog
         isOpen={!!deleteIds}
         title={t("library.deleteTitle", { n: deleteIds?.length ?? 0 })}

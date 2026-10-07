@@ -33,6 +33,9 @@ interface AppState {
   core: CoreStatus;
   hello: Hello | null;
   stale: boolean;
+  /** 「刷新浏览列表」按一次加一：各页据此重新读取当前列表（P8：只提示、由用户触发刷新） */
+  refreshTick: number;
+  refreshLists(): void;
   toasts: Toast[];
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
@@ -61,6 +64,8 @@ export const useApp = create<AppState>((set) => ({
   core: { state: "starting" },
   hello: null,
   stale: false,
+  refreshTick: 0,
+  refreshLists: () => set((st) => ({ stale: false, refreshTick: st.refreshTick + 1 })),
   toasts: [],
   setPage: (page) => set({ page }),
   setTasksOpen: (tasksOpen) => set({ tasksOpen }),

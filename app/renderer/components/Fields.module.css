@@ -27,3 +27,11 @@
 .listbox { padding: 4px; outline: none; }
 .option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 8px; border-radius: var(--r-sm); cursor: default; outline: none; }
 .option[data-focused] { background: var(--s3); }
+.time { display: inline-flex; }
+.timeInput { width: 92px; border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; padding: 2px 6px; text-align: right; outline: none; color: var(--text); font-size: var(--fs-sm); }
+.timeInput[data-hovered] { border-color: var(--line); }
+.timeInput[data-focused] { border-color: var(--accent); background: var(--s2); }
+.time[data-invalid] .timeInput { border-color: var(--bad); }
+.timeInput[data-disabled] { opacity: 0.4; }
+.selectPrefix { color: var(--muted); }
+.selectValue { flex: 1; text-align: left; }

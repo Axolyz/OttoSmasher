@@ -31,3 +31,12 @@
 .dialogTitle { margin: 0; font-size: var(--fs-lg); font-weight: 650; }
 .dialogBody { overflow: auto; min-height: 0; color: var(--sub); display: flex; flex-direction: column; gap: 10px; }
 .dialogActions { display: flex; justify-content: flex-end; gap: 8px; }
+.subArrow { color: var(--muted); }
+/* 锚定小面板（原型 .pop） */
+.panelPopover { background: var(--s2); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow); max-width: calc(100vw - 32px); }
+.panel { outline: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.panelHead { display: flex; align-items: baseline; gap: 10px; }
+.panelTitle { margin: 0; font-size: var(--fs-md); font-weight: 650; flex: 1; }
+.panelAux { color: var(--muted); font-size: var(--fs-sm); }
+.panelBody { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.panelFoot { display: flex; justify-content: flex-end; gap: 8px; }

@@ -1,14 +1,16 @@
-// 原片查看器（UI_PLAN §4）：顶栏、画面（原生播放画到画布）、台本（阶段 3）、时间线、动作条。
+// 原片查看器（UI_PLAN §4）：画面（原生播放画到画布，底部控制条）、台本（阶段 3）、时间线卡片（音源、适合/放大选区、波形、动作条）。
+// 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, Download, Info, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pause, Play, Repeat, SquarePlay } from "lucide-react";
+import { AudioLines, ChevronDown, Download, Info, Pause, Play, Repeat, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
 import type { AssetInfo, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
-import { Select } from "../components/Fields";
-import { Menu, Tip } from "../components/Overlay";
+import { Select, TimeField } from "../components/Fields";
+import { Menu } from "../components/Menu";
+import { Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
@@ -21,14 +23,7 @@ function isTyping(el: Element | null): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
 }
 
-export function SourceViewer(props: {
-  row: SourceRow;
-  listHidden: boolean;
-  onToggleList: () => void;
-  onSettings: () => void;
-  onRelocate: () => void;
-  onDelete: () => void;
-}) {
+export function SourceViewer(props: { row: SourceRow }) {
   const { row } = props;
   const toast = useApp((st) => st.toast);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
@@ -40,6 +35,7 @@ export function SourceViewer(props: {
   const [openError, setOpenError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
+  const [muted, setMuted] = useState(false);
   const stamp = useRef({ time: null as number | null, at: 0, playing: false, gen: -1 });
   const tl = useRef<TimelineHandle>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -216,36 +212,17 @@ export function SourceViewer(props: {
     return parts.filter(Boolean).join(" · ");
   };
 
+  const trackName = trackLabel(ordinal);
+  const commitSel = (which: "a" | "b") => (v: number) => {
+    const a = which === "a" ? v : (sel?.a ?? 0);
+    const b = which === "b" ? v : (sel?.b ?? duration);
+    if (!(a >= 0 && b <= duration + 1e-9 && b > a)) return false;
+    setSel({ a, b });
+    return true;
+  };
+
   return (
     <section className={s.viewer} ref={root} tabIndex={0} onKeyDown={onKey} data-testid="source-viewer" aria-label={displayName(row)}>
-      <div className={s.vhead}>
-        <Button
-          variant="flat"
-          size="sm"
-          icon={props.listHidden ? <PanelLeftOpen /> : <PanelLeftClose />}
-          onPress={props.onToggleList}
-          aria-label={props.listHidden ? t("sources.showList") : t("sources.hideList")}
-        />
-        <span className={s.vtitle} data-user-data="">
-          {displayName(row)}
-        </span>
-        <span className={s.vsub} title={row.path} data-user-data="">
-          {basename(row.path)}
-        </span>
-        <span className={s.grow} />
-        <Menu
-          head={t("menu.source", { name: displayName(row) })}
-          items={[
-            { id: "settings", label: t("sources.settings"), run: props.onSettings },
-            { id: "relocate", label: t("sources.relocate"), run: props.onRelocate },
-            { id: "reveal", label: t("sources.reveal"), run: () => void window.otto.files.reveal(row.path) },
-            "-",
-            { id: "delete", label: t("sources.delete"), danger: true, run: props.onDelete },
-          ]}
-          trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="viewer-menu" />}
-        />
-      </div>
-
       <div className={s.stageRow}>
         <div className={s.video} data-audio-only={!hasVideo || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
           {/* 原片播放器的画布：整个窗口只有一个（preload 用 data-otto-video 找到它） */}
@@ -256,24 +233,53 @@ export function SourceViewer(props: {
               {t("sources.audioOnly")}
             </div>
           ) : null}
+          {/* 画面控制条（规格 03 §3.4：播放/暂停、时间、静音；音源名） */}
+          <div className={s.videoBar} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+            <Button size="sm" variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} aria-label={playing ? t("player.pause") : t("player.play")} />
+            <span className="num mono" data-testid="video-time">
+              {clock(playhead(), 2)}
+            </span>
+            <span className={s.grow} />
+            <span className={s.videoTrack} data-user-data="">
+              {t("sources.sourceIs", { track: trackName })}
+            </span>
+            <Button
+              size="sm"
+              variant="flat"
+              icon={muted ? <VolumeX /> : <Volume2 />}
+              onPress={() => {
+                window.otto.player.setMuted(!muted);
+                setMuted(!muted);
+              }}
+              aria-label={muted ? t("player.unmute") : t("player.mute")}
+              aria-pressed={muted}
+              data-testid="mute"
+            />
+          </div>
         </div>
         <div className={s.transcript} data-testid="transcript">
           <div className={s.transcriptHead}>{t("sources.transcript")}</div>
-          <div>{row.subtitle_path ? t("sources.transcriptLater", { name: basename(row.subtitle_path) }) : t("sources.noSubtitleHint")}</div>
+          <div>{row.subtitle_path ? t("sources.transcriptPending", { name: basename(row.subtitle_path) }) : t("sources.noSubtitleHint")}</div>
         </div>
       </div>
 
-      <div>
+      <div className={s.tlCard}>
         <div className={s.tlBar}>
-          <span className={s.tlLabel}>{t("sources.audioSource")}</span>
           <Select
             value={String(ordinal)}
             onChange={(v) => setOrdinal(Number(v))}
             label={t("sources.audioSource")}
+            prefix={t("sources.audioSource")}
             options={audioStreams.map((x) => ({ id: String(x.ordinal), label: trackLabel(x.ordinal) }))}
           />
-          <span className={s.grow} />
           {openError ? <span className={s.warn}>{openError}</span> : null}
+          <span className={s.grow} />
+          <Button size="sm" variant="flat" onPress={() => tl.current?.fit()} title={t("sources.fitTip")}>
+            {t("sources.fit")}
+          </Button>
+          <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")}>
+            {t("sources.zoomSel")}
+          </Button>
           <Tip content={t("sources.timelineHelp")}>
             <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
           </Tip>
@@ -296,30 +302,40 @@ export function SourceViewer(props: {
           }}
           onDragOut={exportSelection}
         />
-      </div>
-
-      <div className={s.actions}>
-        <Button variant="secondary" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">
-          {playing ? t("player.pause") : t("player.play")}
-        </Button>
-        <Button variant="secondary" icon={<SquarePlay />} onPress={() => playSel(false)} isDisabled={!sel} data-testid="play-selection">
-          {t("player.playSelection")}
-        </Button>
-        <Button variant="flat" icon={<Repeat />} onPress={() => playSel(true)} isDisabled={!sel} aria-label={t("player.loop")} />
-        <span className={s.readout} data-testid="readout">
-          <b>{clock(playhead())}</b>
-          {sel ? (
-            <>
-              {"  ·  "}
-              {clock(sel.a)} → {clock(sel.b)} {t("format.secParen", { v: seconds(sel.b - sel.a) })}
-            </>
-          ) : null}
-        </span>
-        <span className={s.grow} />
-        <ClipPanel assetId={asset?.id ?? null} sel={sel} isOpen={clipOpen} onOpenChange={setClipOpen} />
-        <Button variant="primary" icon={<Download />} onPress={() => void exportWav()} isDisabled={!sel || !asset || exporting} data-testid="export-wav">
-          {t("sources.exportWav")}
-        </Button>
+        <div className={s.actions}>
+          <div className={s.group}>
+            <Button variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">
+              {playing ? t("player.pause") : t("player.play")}
+            </Button>
+            <Button variant="flat" icon={<SquarePlay />} onPress={() => playSel(false)} isDisabled={!sel} data-testid="play-selection">
+              {t("player.selection")}
+            </Button>
+            <Button variant="flat" icon={<Repeat />} onPress={() => playSel(true)} isDisabled={!sel} aria-label={t("player.loop")} title={t("player.loop")} />
+          </div>
+          <div className={s.group} data-testid="readout" data-a={sel?.a ?? ""} data-b={sel?.b ?? ""}>
+            <span className={s.groupLabel}>{t("sources.selection")}</span>
+            <TimeField value={sel?.a ?? null} onCommit={commitSel("a")} label={t("sources.selStart")} isDisabled={!sel} testId="sel-start" />
+            <span className={s.arrow}>→</span>
+            <TimeField value={sel?.b ?? null} onCommit={commitSel("b")} label={t("sources.selEnd")} isDisabled={!sel} testId="sel-end" />
+            <span className={`${s.dur} num`}>{sel ? t("format.sec", { v: seconds(sel.b - sel.a) }) : ""}</span>
+          </div>
+          <div className={s.group}>
+            <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={sel} isOpen={clipOpen} onOpenChange={setClipOpen} />
+            <Menu
+              head={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}
+              items={[{ id: "wav", label: t("sources.exportWav"), run: () => void exportWav() }]}
+              placement="top start"
+              trigger={
+                <Button variant="flat" icon={<Download />} isDisabled={!sel || !asset || exporting} data-testid="export-menu">
+                  {t("sources.export")}
+                  <ChevronDown size={13} />
+                </Button>
+              }
+            />
+          </div>
+          <span className={s.grow} />
+          <span className={s.hint}>{t("sources.dragHint")}</span>
+        </div>
       </div>
     </section>
   );

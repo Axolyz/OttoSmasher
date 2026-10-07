@@ -16,6 +16,7 @@ const player: PlayerApi = {
   pause: () => playback.sourcePause(),
   seek: (t) => playback.sourceSeek(t),
   step: (dir) => playback.sourceStep(dir),
+  setMuted: (m) => playback.sourceMute(m),
   playRange: (a, b, loop) => playback.sourcePlayRange(a, b, loop),
   audition: (assetId, start, end, loop) => playback.audition(assetId, start, end, loop),
   stopAudition: () => playback.stopAudition(),
