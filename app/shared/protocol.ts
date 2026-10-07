@@ -20,6 +20,34 @@ export interface CoreStatus {
   exitCode?: number | null;
 }
 
+export type PlayerName = "source" | "audition";
+
+/** 播放器状态（约每 50 ms 一次）。time：原片播放器为原片秒，试听为区间本地秒；未知为 null。 */
+export interface PlayerState {
+  player: PlayerName;
+  gen: number;
+  time: number | null;
+  playing: boolean;
+  loading: boolean;
+  /** 单次范围被引擎截停：每个代次只出现一次 */
+  ended: boolean;
+  error?: CoreErrorWire;
+}
+
+export interface PlayerApi {
+  attachVideo(): boolean;
+  openSource(sourceId: string, ordinal?: number): Promise<{ duration: number; hasVideo: boolean }>;
+  play(): void;
+  pause(): void;
+  /** 返回新代次（之后只认这个代次的状态） */
+  seek(t: number): number;
+  step(dir: 1 | -1): void;
+  playRange(a: number, b: number, loop?: boolean): number;
+  audition(assetId: string, start: number, end: number, loop?: boolean): Promise<number>;
+  stopAudition(): void;
+  onState(cb: (s: PlayerState) => void): () => void;
+}
+
 export interface OttoApi {
   core: {
     request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<CoreResult<T>>;
@@ -32,6 +60,7 @@ export interface OttoApi {
     platform: string;
     locale: string;
   };
+  player: PlayerApi;
 }
 
 export interface ProbeStats {

@@ -1,9 +1,26 @@
 // 白名单 API（ARCHITECTURE §2.5）：渲染进程只能经这里调用 Core 的公开命令，不能直接碰文件或进程。
 import { contextBridge, ipcRenderer } from "electron";
-import type { CoreEvent, CoreStatus, OttoApi, ProbeApi } from "../shared/protocol";
+import type { CoreEvent, CoreStatus, OttoApi, PlayerApi, ProbeApi } from "../shared/protocol";
 import { CanvasPlayer } from "./player";
+import { Playback } from "./playback";
 
 const localeArg = process.argv.find((a) => a.startsWith("--otto-locale="));
+const playback = new Playback();
+window.addEventListener("beforeunload", () => playback.destroy());
+
+// Core 返回的错误以 {code, args} 的普通对象跨过 contextBridge（不是 Error 实例）
+const player: PlayerApi = {
+  attachVideo: () => playback.attachVideo(),
+  openSource: (sourceId, ordinal) => playback.openSource(sourceId, ordinal),
+  play: () => playback.sourcePlay(),
+  pause: () => playback.sourcePause(),
+  seek: (t) => playback.sourceSeek(t),
+  step: (dir) => playback.sourceStep(dir),
+  playRange: (a, b, loop) => playback.sourcePlayRange(a, b, loop),
+  audition: (assetId, start, end, loop) => playback.audition(assetId, start, end, loop),
+  stopAudition: () => playback.stopAudition(),
+  onState: (cb) => playback.onState((s) => cb({ ...s })),
+};
 
 const api: OttoApi = {
   core: {
@@ -25,6 +42,7 @@ const api: OttoApi = {
     platform: process.platform,
     locale: localeArg ? localeArg.slice("--otto-locale=".length) : "zh-CN",
   },
+  player,
 };
 
 contextBridge.exposeInMainWorld("otto", api);

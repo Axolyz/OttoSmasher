@@ -25,6 +25,16 @@ export interface MpvEvent {
   error?: string;
 }
 
+/** 两种播放器（带画面 / 只有声音）共同的控制面。 */
+export interface MpvLike {
+  command(args: string[]): number;
+  set(name: string, value: string): number;
+  get(name: string): string | null;
+  observe(name: string, format: "double" | "flag" | "string" | "int64"): void;
+  on(cb: (ev: MpvEvent) => void): () => void;
+  destroy(): void;
+}
+
 let binding: Binding | null = null;
 function load(): Binding {
   if (!binding) {
@@ -38,8 +48,38 @@ function load(): Binding {
 const VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = vec2((p.x+1.0)*0.5, (1.0-p.y)*0.5); gl_Position = vec4(p,0.0,1.0); }`;
 const FS = `precision mediump float; varying vec2 uv; uniform sampler2D tex; void main(){ gl_FragColor = vec4(texture2D(tex, uv).rgb, 1.0); }`;
 
+/** 只有声音的播放器（试听）：vid=no，不建渲染上下文。 */
+export class AudioPlayer implements MpvLike {
+  private native: NativePlayer;
+  private listeners = new Set<(ev: MpvEvent) => void>();
+  constructor(options: Record<string, string> = {}) {
+    this.native = new (load().Player)({ video: false, options }, (ev) => {
+      for (const l of this.listeners) l(ev);
+    });
+  }
+  on(cb: (ev: MpvEvent) => void): () => void {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  }
+  command(args: string[]): number {
+    return this.native.command(args);
+  }
+  set(name: string, value: string): number {
+    return this.native.setProperty(name, value);
+  }
+  get(name: string): string | null {
+    return this.native.getProperty(name);
+  }
+  observe(name: string, format: "double" | "flag" | "string" | "int64"): void {
+    this.native.observe(name, format);
+  }
+  destroy(): void {
+    this.native.destroy();
+  }
+}
+
 /** 一个带画面的播放器：绑定到一个 canvas。 */
-export class CanvasPlayer {
+export class CanvasPlayer implements MpvLike {
   private native: NativePlayer;
   private gl: WebGLRenderingContext;
   private tex: WebGLTexture;

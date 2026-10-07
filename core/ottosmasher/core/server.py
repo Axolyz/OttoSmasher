@@ -28,6 +28,7 @@ from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
 from . import assets as assets_mod
+from . import playback as playback_mod
 from .exports import ExportService
 from .sources import SourceService
 from .waveforms import WaveformService
@@ -65,6 +66,10 @@ class Core:
             "sources.delete": lambda p: self.sources.delete(p["id"]),
             "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
             "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
+            "playback.resolveSource": lambda p: playback_mod.resolve_source(self.conn, p["sourceId"], p.get("ordinal")),
+            "playback.resolveAsset": lambda p: playback_mod.resolve_asset(
+                self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])
+            ),
             "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
             "exports.wav": lambda p: self.exports.export_wav(
                 p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
