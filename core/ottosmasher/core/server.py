@@ -27,6 +27,7 @@ from .edits import ChangeSet, EditService, dumps, loads
 from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
+from . import assets as assets_mod
 from .sources import SourceService
 
 log = logging.getLogger(__name__)
@@ -58,6 +59,8 @@ class Core:
             "sources.relocate": lambda p: self.sources.relocate(p["id"], p["path"]),
             "sources.deletePreview": lambda p: self.sources.delete_preview(p["id"]),
             "sources.delete": lambda p: self.sources.delete(p["id"]),
+            "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
+            "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
             "edits.preview": lambda p: self.edits.preview(p["batch"]),
             "edits.apply": lambda p: self.edits.apply(p["batch"]),
             "edits.undo": lambda p: self.edits.undo(),

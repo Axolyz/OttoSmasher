@@ -244,6 +244,8 @@
   "error.source-changed": "音源已改变：{path}。请用「重新定位」指向正确的文件",
   "error.source-path-taken": "这个文件已登记为另一个原片：{path}",
   "error.source-has-active-jobs": "这个原片有正在进行或排队的任务，请先取消或等它们结束",
+  "error.asset-not-found": "声音资产不存在（可能已随原片删除）",
+  "error.default-track-invalid": "这条音轨不能当默认轨：{reason}",
   "error.source-has-independent-samples": "这个原片有 {n} 个已独立化的采样；保留它们的删除方式在后续阶段实现，暂时不能删除",
   "error.unknown-method": "未知命令：{method}",
   "error.bad-request": "请求不合法：{method}",
@@ -261,5 +263,8 @@
   "reason.timeout": "第 {rule} 条执行超时（可能有灾难性回溯）",
   "reason.not-text": "第 {rule} 条是空的",
   "reason.not-a-list": "需要规则列表",
-  "reason.too-many": "规则太多（最多 {max} 条）"
+  "reason.too-many": "规则太多（最多 {max} 条）",
+  "reason.other-source": "不属于这个原片",
+  "reason.not-full-track": "没有完整覆盖原片，或有变速（容差 20 毫秒）",
+  "reason.missing-role": "没有这个角色"
 }

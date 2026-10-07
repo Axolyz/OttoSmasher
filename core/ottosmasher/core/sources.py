@@ -20,6 +20,7 @@ from ottosmasher.domain import naming
 from ottosmasher.media import probe as probe_mod
 from ottosmasher.store.db import transaction
 
+from . import assets as assets_mod
 from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
@@ -148,6 +149,7 @@ class SourceService:
                     for s in pr.streams
                 ],
             )
+            created = assets_mod.create_stream_assets(self.conn, sid, path, snap, pr)
         cs.add("source", sid)
         return {
             "path": path,
@@ -158,6 +160,7 @@ class SourceService:
             "episode": inferred.episode,
             "inferRule": inferred.rule,
             "inferTimedOut": list(inferred.timed_out),
+            "assets": created,
         }
 
     # ------------------------------------------------------------ 查询
@@ -209,6 +212,8 @@ class SourceService:
                 "UPDATE source SET path=?, path_key=?, file_snapshot=?, updated_at=?, version=version+1 WHERE id=?",
                 (path, key, dumps(snap), now_iso(), source_id),
             )
+            for mid in assets_mod.source_media_files(self.conn, source_id):
+                self.conn.execute("UPDATE media_file SET path=?, file_snapshot=? WHERE id=?", (path, dumps(snap), mid))
         cs = ChangeSet()
         cs.add("source", source_id)
         if self.on_change:
