@@ -1,0 +1,5 @@
+.stack { position: fixed; left: 50%; bottom: 62px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; z-index: 80; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; background: var(--s3); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 7px 10px 7px 14px; box-shadow: var(--shadow); font-size: var(--fs-md); max-width: 640px; }
+.error { border-color: var(--bad); }
+.action { background: transparent; border: none; color: var(--accent2); cursor: default; padding: 2px 4px; }
+.action:hover { text-decoration: underline; }

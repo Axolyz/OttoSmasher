@@ -1,0 +1,14 @@
+.page { flex: 1; overflow: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.card { background: var(--s1); border: 1px solid var(--line2); border-radius: var(--r-xl); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.card h3 { margin: 0; font-size: var(--fs-md); }
+.card p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.spec { background: var(--s1); border: 1px solid var(--line2); border-radius: var(--r-xl); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.spec h4 { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--muted); font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.swatch { width: 92px; border-radius: var(--r-md); border: 1px solid var(--line); overflow: hidden; font-size: var(--fs-xs); }
+.swatch i { display: block; height: 34px; }
+.swatch span { display: block; padding: 3px 6px; color: var(--muted); }
+.nat { display: inline-flex; align-items: center; gap: 6px; }
+.nat i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }

@@ -1,0 +1,20 @@
+.job { border: 1px solid var(--line2); background: var(--s2); border-radius: var(--r-lg); padding: 8px 10px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.head { display: flex; align-items: center; gap: 8px; }
+.kind { font-weight: 600; }
+.chip { font-size: var(--fs-xs); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+.status { font-size: var(--fs-sm); color: var(--sub); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.queued { background: var(--faint); }
+.running { background: var(--accent); box-shadow: 0 0 0 3px var(--accentbg); }
+.succeeded { background: var(--ok); }
+.failed { background: var(--bad); }
+.cancelled { background: var(--muted); }
+.interrupted { background: var(--warn); }
+.progRow { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted); }
+.bar { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); transition: width var(--t-fast); }
+.err { font-size: var(--fs-sm); color: var(--bad); }
+.path { color: var(--muted); font-size: var(--fs-xs); word-break: break-all; user-select: text; }
+.meta { display: flex; align-items: center; gap: 10px; font-size: var(--fs-xs); color: var(--muted); }
+.grow { flex: 1; }
+.none { color: var(--muted); padding: 24px; text-align: center; }

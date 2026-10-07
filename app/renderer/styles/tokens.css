@@ -1,0 +1,45 @@
+/* 设计令牌（ARCHITECTURE §1.3）：深色工作室风格为默认，浅色可切换。
+   颜色、性质四色、字号阶、间距、圆角、阴影、动效时长；组件只用这里的变量。 */
+:root {
+  --bg: #0e1014; --rail: #0b0d10; --s1: #14171c; --s2: #1a1e25; --s3: #222731; --line: #262b34; --line2: #1f242c;
+  --text: #e7eaf0; --sub: #aab2bf; --muted: #7c8594; --faint: #555e6c;
+  --accent: #8d7bff; --accent2: #b3a7ff; --accentbg: #8d7bff22; --sel: #8d7bff1c;
+  --wave: #4fc3c3; --wave2: #2c6f73; --gold: #f2c14e;
+  /* 性质四色：语音、调谐单音、非调谐单音、未分类 */
+  --nat-speech: #6aa7ff; --nat-pitched: #f5b041; --nat-unpitched: #f07167; --nat-unclassified: #9aa4b2;
+  --ok: #4cc38a; --warn: #e5a54b; --bad: #f06a6a;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  /* 字号阶 */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 22px;
+  /* 间距 */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 28px;
+  /* 圆角 */
+  --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 14px;
+  /* 动效 */
+  --t-fast: 120ms; --t-med: 200ms;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-ja: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] {
+  --bg: #f3f4f7; --rail: #e9ebf0; --s1: #ffffff; --s2: #f7f8fa; --s3: #eef0f4; --line: #e1e4ea; --line2: #eceef2;
+  --text: #161a21; --sub: #3e4654; --muted: #6c7584; --faint: #a3abb8;
+  --accentbg: #8d7bff1c; --sel: #8d7bff26; --wave: #2a9d9d; --wave2: #a9d6d6;
+  --shadow: 0 18px 50px rgba(20, 25, 40, 0.18);
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text); font: var(--fs-md) / 1.5 var(--font);
+  overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none;
+}
+input, textarea { user-select: text; }
+button, input, select, textarea { font: inherit; color: inherit; }
+/* 采样名、台词、读音：日文字形（ARCHITECTURE §1.3） */
+:lang(ja) { font-family: var(--font-ja); }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.mono { font-family: var(--font-mono); }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

@@ -1,0 +1,23 @@
+.switch { display: inline-flex; align-items: center; cursor: default; outline: none; }
+.track { width: 30px; height: 18px; border-radius: 9px; background: var(--s3); border: 1px solid var(--line); position: relative; transition: background var(--t-fast); }
+.thumb { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--sub); transition: transform var(--t-fast), background var(--t-fast); }
+.switch[data-selected] .track { background: var(--accent); border-color: var(--accent); }
+.switch[data-selected] .thumb { transform: translateX(12px); background: #fff; }
+.switch[data-focus-visible] .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch[data-disabled] { opacity: 0.4; }
+
+.number { display: inline-flex; }
+.numberGroup { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--s2); overflow: hidden; }
+.numberGroup[data-focus-within] { border-color: var(--accent); }
+.numberInput { width: 64px; border: none; background: transparent; padding: 4px 6px; text-align: center; outline: none; }
+.stepBtn { border: none; background: transparent; color: var(--muted); padding: 4px 7px; display: inline-flex; cursor: default; }
+.stepBtn[data-hovered] { color: var(--text); background: var(--s3); }
+.stepBtn[data-disabled] { opacity: 0.3; }
+
+.select { display: inline-flex; }
+.selectBtn { display: inline-flex; align-items: center; gap: 8px; min-width: 140px; justify-content: space-between; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--s2); padding: 4px 9px; color: var(--text); cursor: default; outline: none; }
+.selectBtn[data-focus-visible] { border-color: var(--accent); }
+.popover { background: var(--s2); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); min-width: var(--trigger-width); }
+.listbox { padding: 4px; outline: none; }
+.option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 8px; border-radius: var(--r-sm); cursor: default; outline: none; }
+.option[data-focused] { background: var(--s3); }

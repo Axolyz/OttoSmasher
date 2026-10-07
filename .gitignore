@@ -9,6 +9,8 @@
 /.uv-cache/
 /.uv-python/
 /node_modules/
+/.cache/
+/out/
 __pycache__/
 *.py[cod]
 .pytest_cache/

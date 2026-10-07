@@ -1,0 +1,13 @@
+#!/bin/sh
+# 项目内的 npm：所有缓存（npm、Electron 二进制、electron-builder、node-gyp 头文件）都放在仓库内（AGENTS.md §4）。
+# 用法：tools/npm install / tools/npm run dev …
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export npm_config_cache="$ROOT/.cache/npm"
+export npm_config_logs_dir="$ROOT/.cache/npm/_logs"
+export npm_config_update_notifier=false
+export npm_config_fund=false
+export npm_config_audit=false
+export electron_config_cache="$ROOT/.cache/electron"
+export ELECTRON_BUILDER_CACHE="$ROOT/.cache/electron-builder"
+export PLAYWRIGHT_BROWSERS_PATH="$ROOT/.cache/ms-playwright"
+cd "$ROOT" && exec npm "$@"
