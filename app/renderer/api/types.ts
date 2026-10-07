@@ -144,6 +144,17 @@ export interface SampleRow {
   source_start: number | null;
   stream_ordinal: number | null;
   media_state: string;
+  /** 人物（说话人显示层：character: 在前，participants: 在后，只显示名字） */
+  people: string[];
+  /** 有效标签（只有 samples.get 返回） */
+  tags?: EffectiveTag[];
+}
+
+export interface EffectiveTag {
+  tag: string;
+  facet: "work" | "type" | "person" | "pitch" | "other";
+  provenance: "local" | "source" | "segment" | "auto";
+  ref: string | null;
 }
 
 export interface SamplePage {

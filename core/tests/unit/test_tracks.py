@@ -21,7 +21,7 @@ def src(db):
 def asset(db, sid, *, origin="stream", mapping=None, duration=DUR, ordinal=0, stem=None, snapshot="snap-a", roles=()):
     mid = new_id()
     db.execute(
-        "INSERT INTO media_file(id, path, location, file_snapshot, created_at) VALUES (?, ?, 'library', ?, ?)",
+        "INSERT INTO media_file(id, path, location, file_snapshot, sample_rate, created_at) VALUES (?, ?, 'library', ?, 48000, ?)",
         (mid, f"/lib/{mid}.mp3", snapshot, now_iso()),
     )
     aid = new_id()

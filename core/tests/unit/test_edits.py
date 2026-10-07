@@ -141,11 +141,13 @@ def test_local_tags_are_undoable_and_indexed(db, svc, sample_id):
     svc.apply({"ops": [upd("sample", sample_id, 1, local_tags=["好用", "pitch:G#5", " 好用 "])]})
     tags = [r[0] for r in db.execute("SELECT tag FROM sample_tag WHERE sample_id=? ORDER BY tag", (sample_id,))]
     assert tags == ["pitch:G#5", "好用"]
-    eff = {(r[0], r[1]) for r in db.execute("SELECT tag, facet FROM sample_effective_tag WHERE sample_id=?", (sample_id,))}
-    assert eff == {("pitch:G#5", "pitch"), ("好用", "other")}
+    eff = {(r[0], r[1], r[2]) for r in db.execute("SELECT tag, facet, provenance FROM sample_effective_tag WHERE sample_id=?", (sample_id,))}
+    # 本地标签 + 原片的 work:/type:（阶段 3.5 起有效标签完整求值）
+    assert {e for e in eff if e[2] == "local"} == {("pitch:G#5", "pitch", "local"), ("好用", "other", "local")}
+    assert {e[0] for e in eff if e[2] == "source"} == {"work:Yuru Yuri", "type:动画"}
     svc.undo()
     assert db.execute("SELECT COUNT(*) FROM sample_tag WHERE sample_id=?", (sample_id,)).fetchone()[0] == 0
-    assert db.execute("SELECT COUNT(*) FROM sample_effective_tag WHERE sample_id=?", (sample_id,)).fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM sample_effective_tag WHERE sample_id=? AND provenance='local'", (sample_id,)).fetchone()[0] == 0
 
 
 def test_settings_go_through_edit_channel(db, svc):

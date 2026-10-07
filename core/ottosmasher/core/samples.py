@@ -18,6 +18,7 @@ from ottosmasher.domain.mapping import EPS, Mapping, check_range
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
+from . import effective_tags
 from .clock import new_id, now_iso
 from .edits import ChangeSet, loads
 from .errors import CoreError
@@ -112,11 +113,13 @@ class SampleService:
                 raise CoreError("sample-not-found", id=parent_sample_id)
             parent_label = p[0]
         sid, ts = new_id(), now_iso()
-        self.conn.execute(
-            'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, parent_sample_id, parent_label,'
-            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (sid, asset_id, start, end, name, nature, asset["language"], created_via, parent_sample_id, parent_label, ts, ts),
-        )
+        with transaction(self.conn):
+            self.conn.execute(
+                'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, parent_sample_id, parent_label,'
+                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (sid, asset_id, start, end, name, nature, asset["language"], created_via, parent_sample_id, parent_label, ts, ts),
+            )
+            effective_tags.refresh(self.conn, [sid])
         self._changed("sample", [sid])
         return self.get(sid)
 
@@ -146,7 +149,10 @@ class SampleService:
         r = self.conn.execute(f"SELECT {self._COLUMNS}{self._FROM} WHERE s.id=?", (sample_id,)).fetchone()
         if r is None:
             raise CoreError("sample-not-found", id=sample_id)
-        return self._row(r)
+        d = self._row(r)
+        d["people"] = effective_tags.people(self.conn, [sample_id]).get(sample_id, [])
+        d["tags"] = effective_tags.of_sample(self.conn, sample_id)
+        return d
 
     @staticmethod
     def _where(natures: list[str] | None, starred: bool, text: str, source_id: str | None) -> tuple[str, list[Any]]:
@@ -188,7 +194,11 @@ class SampleService:
         rows = self.conn.execute(
             f"SELECT {self._COLUMNS}{self._FROM}{cond} ORDER BY {order} LIMIT ? OFFSET ?", [*args, limit, max(0, int(offset))]
         ).fetchall()
-        return {"total": total, "offset": offset, "rows": [self._row(r) for r in rows]}
+        out = [self._row(r) for r in rows]
+        ppl = effective_tags.people(self.conn, [r["id"] for r in out])
+        for r in out:
+            r["people"] = ppl.get(r["id"], [])
+        return {"total": total, "offset": offset, "rows": out}
 
     def ids(self, *, natures: list[str] | None = None, starred: bool = False, text: str = "", source_id: str | None = None) -> list[str]:
         """“全选全部匹配”（跨页）：返回全部 ID（R8.9）。"""

@@ -63,3 +63,37 @@ test("导入字幕标记：预览、部分导入、补登、撤销", async () =>
     .toBe(3);
   await app.close();
 });
+
+// 有效标签（04 §4.2.9、R5.2–R5.4）：字幕说话人 → 人声角色的资产上截取的采样继承“人物”；原片作品实时继承
+test("有效标签：说话人只给人声资产、列表显示人物、舞台显示分面", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-tag-"));
+  const mkv = join(dir, "[Group] Tag Show [01].mkv");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=6",
+    "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=6", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
+  writeFileSync(join(dir, "[Group] Tag Show [01].srt"), "1\n00:00:01,000 --> 00:00:03,000\n（京子）こんにちは\n");
+  const { app, page } = await launch();
+  type R<T> = { ok: boolean; r: T; e?: unknown };
+  const req = async <T>(m: string, p: Record<string, unknown>) => {
+    const res = (await page.evaluate(async ([mm, pp]) => window.otto.core.request(mm as string, pp as Record<string, unknown>), [m, p] as const)) as R<T>;
+    if (!res.ok) throw new Error(`${m}: ${JSON.stringify(res.e)}`);
+    return res.r;
+  };
+  const sid = (await req<Array<{ sourceId: string }>>("sources.add", { paths: [mkv] }))[0]!.sourceId;
+  const pv = await req<{ token: string }>("subtitles.preview", { sourceId: sid });
+  await req("subtitles.import", { sourceId: sid, token: pv.token });
+  const aid = (await req<Array<{ id: string }>>("assets.listForSource", { sourceId: sid }))[0]!.id;
+  // 原混音还没有人声角色 → 截取的采样不继承说话人
+  const s1 = await req<{ id: string }>("samples.create", { assetId: aid, start: 1.5, end: 2.0, name: "前" });
+  // 给原混音人声角色 → 已有采样实时继承
+  await req("edits.apply", { batch: { ops: [{ entity: "asset", id: aid, version: 1, fields: { roles: ["vocal"] } }] } });
+  await page.getByTestId("refresh-lists").click(); // 资料变化只提示，由用户刷新（P8）
+  const row = page.getByTestId("sample-row").filter({ hasText: "前" });
+  await expect(row).toContainText("京子");
+  await row.click();
+  const tags = page.getByTestId("stage-tags");
+  await expect(tags).toContainText("人物京子");
+  await expect(tags).toContainText("作品Tag Show");
+  await page.screenshot({ path: ".cache/playwright-results/stage-tags.png" });
+  void s1;
+  await app.close();
+});

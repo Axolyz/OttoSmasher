@@ -573,6 +573,13 @@ class EditService:
             )
         if undo_of is not None:
             self.conn.execute("UPDATE edit SET undone_by=? WHERE id=?", (edit_id, undo_of))
+        # 有效标签索引在同一事务里跟着改（ARCHITECTURE §4、R8.8）
+        from . import effective_tags  # 避免循环导入
+
+        affected: list[str] = []
+        for p in plan:
+            affected += effective_tags.affected_by_change(self.conn, p["entity"], p["id"], p["diffs"].keys())
+        effective_tags.refresh(self.conn, affected)
         return edit_id
 
     def _encode_col(self, spec: EntitySpec, name: str, value: Any) -> Any:
@@ -649,12 +656,7 @@ class EditService:
     def _write_local_tags(self, sample_id: str, tags: list[str]) -> None:
         self.conn.execute("DELETE FROM sample_tag WHERE sample_id=?", (sample_id,))
         self.conn.executemany("INSERT INTO sample_tag(sample_id, tag) VALUES (?, ?)", [(sample_id, t) for t in tags])
-        # 有效标签索引里的本地部分同步更新（其余来源由各自的写入维护，规格 16 R8.8）
-        self.conn.execute("DELETE FROM sample_effective_tag WHERE sample_id=? AND provenance='local'", (sample_id,))
-        self.conn.executemany(
-            "INSERT INTO sample_effective_tag(sample_id, tag, facet, provenance) VALUES (?, ?, ?, 'local')",
-            [(sample_id, t, facet_of(t)) for t in tags],
-        )
+        # 有效标签由 _write 末尾统一重算（effective_tags）
 
     def _snapshot_revision(self, spec: EntitySpec, entity_id: str, version: int, edit_id: str) -> None:
         row = self.conn.execute(f"SELECT * FROM {spec.table} WHERE id=?", (entity_id,)).fetchone()

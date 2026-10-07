@@ -6,11 +6,11 @@ import { ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Play, Square, 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
-import type { Nature, SamplePage, SampleRow } from "../api/types";
+import type { EffectiveTag, Nature, SamplePage, SampleRow } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
-import { EmptyState, Segmented } from "../components/Controls";
+import { type ChipItem, Chips, EmptyState, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
 import { Menu, type MenuItems, type MenuSpec } from "../components/Menu";
 import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
@@ -33,6 +33,18 @@ function trackWords(): Record<string, string> {
 type Purpose = "all" | Nature;
 const PURPOSES: Purpose[] = ["all", "speech", "pitched", "unpitched", "unclassified"];
 const KEY_OF: Record<Nature, string> = { speech: "1", pitched: "2", unpitched: "3", unclassified: "0" };
+
+/** 有效标签的显示（04 §4.2.9 分面）：“人物 京子”“作品 Yuru Yuri”；其他标签原样显示为“#标签”；只有本地标签能在这里删 */
+function tagChip(tg: EffectiveTag): ChipItem {
+  const value = tg.facet === "other" ? `#${tg.tag}` : tg.tag.slice(tg.tag.indexOf(":") + 1);
+  return {
+    id: tg.tag,
+    k: tg.facet === "other" ? undefined : t(`facet.${tg.facet}`),
+    v: value,
+    readOnly: tg.provenance !== "local",
+    lang: tg.facet === "person" ? "ja" : undefined,
+  };
+}
 
 export function LibraryPage() {
   const ready = useApp((st) => st.core.state === "ready");
@@ -144,8 +156,9 @@ export function LibraryPage() {
   useEffect(() => {
     if (!focus) return setFocusRow(null);
     const inPage = data?.rows.find((r) => r.id === focus);
-    if (inPage) setFocusRow(inPage);
-    else void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
+    if (inPage) setFocusRow((f) => (f?.id === inPage.id ? { ...f, ...inPage } : inPage));
+    // 舞台要有效标签：总是再取一次完整资料
+    void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
   }, [focus, data]);
 
   // 试听状态
@@ -186,6 +199,7 @@ export function LibraryPage() {
       // 就地更新，不重排（改完该行留在原位，刷新后按新条件归位）
       setData((d) => d && { ...d, rows: d.rows.map((r) => (ids.includes(r.id) ? { ...r, ...fields, version: r.version + 1 } : r)) });
       setFocusRow((f) => (f && ids.includes(f.id) ? { ...f, ...fields, version: f.version + 1 } : f));
+      if (focus && ids.includes(focus)) void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
       toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo().then(() => load(offset)) } });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -358,6 +372,11 @@ export function LibraryPage() {
               </div>
               <div className={s.meta}>
                 <span>{r.created_via === "manual" ? t("library.manualUnanalyzed") : t(`nature.${r.nature}`)}</span>
+                {r.people.length ? (
+                  <span className={s.who} lang="ja" data-user-data="">
+                    {r.people.join(t("settings.subtitle.speakerSep"))}
+                  </span>
+                ) : null}
                 <span className={s.src} data-user-data="">
                   {r.source_name} · {clock(r.source_start)}
                 </span>
@@ -421,6 +440,17 @@ export function LibraryPage() {
               {t("library.backToSource")}
             </Button>
           </div>
+          {focusRow.tags?.length ? (
+            <Chips
+              label={t("library.tags")}
+              testId="stage-tags"
+              items={focusRow.tags.map((tg) => tagChip(tg))}
+              onRemove={(tag) => {
+                const local = (focusRow.tags ?? []).filter((x) => x.provenance === "local" && x.tag !== tag).map((x) => x.tag);
+                void edit([focusRow.id], { local_tags: local }, "sample-tags");
+              }}
+            />
+          ) : null}
           <div className={s.stageActions}>
             <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}

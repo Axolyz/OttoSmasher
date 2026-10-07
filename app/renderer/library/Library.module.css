@@ -37,3 +37,4 @@
 .fieldLabel { color: var(--muted); font-size: var(--fs-sm); width: 48px; }
 .note { color: var(--muted); font-size: var(--fs-sm); }
 .keep { color: var(--ok); }
+.who { color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }

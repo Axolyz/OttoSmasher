@@ -616,5 +616,12 @@
   "track.origin.reimport": "回导",
   "track.origin.stream": "原混音",
   "edit.label.tracks": "角色与默认轨",
-  "reason.still-default": "它还是默认{role}轨：先换掉或取消默认轨"
+  "reason.still-default": "它还是默认{role}轨：先换掉或取消默认轨",
+  "library.tags": "标签",
+  "facet.work": "作品",
+  "facet.type": "类型",
+  "facet.person": "人物",
+  "facet.pitch": "音高",
+  "facet.other": "其他",
+  "edit.label.sample-tags": "修改本地标签"
 }
