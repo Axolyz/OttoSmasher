@@ -118,7 +118,7 @@ def test_register_streams_and_defaults(svc, media):
     src = svc.get(r["sourceId"])
     assert src["duration"] == pytest.approx(2.5)
     assert src["default_audio_stream"] == 1  # 日语那条
-    assert src["subtitle_path"].endswith(".ass")  # 两种都有时取 .ass（只关联，不导入）
+    assert src["subtitle_path"].endswith(".srt")  # 两种都有时取 .srt（所有者 2026-10-07；只关联，不导入）
     audio = [s for s in src["streams"] if s["kind"] == "audio"]
     assert [(s["ordinal"], s["language"], s["sample_rate"], s["title"]) for s in audio] == [
         (0, "eng", 48000, None),
