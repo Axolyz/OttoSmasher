@@ -1,17 +1,23 @@
 """波形峰值服务（规格 05 §5.3.2：后台生成、不阻塞打开与跳转；16 R22.10：点数有上限）。
 
-请求时有缓存就直接切片返回；没有就交给一个后台线程生成（同一文件只生成一次），先返回 ``pending``，
+细节窗（R22.10：≤30 秒）：视口不超过 30 秒、而缓存的峰值（每 256 样本一对）比请求的点数粗时，
+直接精确解码这段（约 45 ms），按点数求每点的 (最小, 最大)；放大到底能看到逐个样本。
+其余情况：有缓存就直接切片返回；没有就交给一个后台线程生成（同一文件只生成一次），先返回 ``pending``，
 生成好后发 ``peaks.ready`` 事件（失败发 ``peaks.failed``，带错误码），界面再来取。
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import numpy as np
+
+from ottosmasher.media import decode as dec
 from ottosmasher.media import peaks as peaks_mod
 from ottosmasher.store.workspace import Workspace
 
@@ -19,6 +25,8 @@ from . import assets as assets_mod
 from .errors import CoreError
 
 log = logging.getLogger(__name__)
+
+DETAIL_MAX = 30.0
 
 
 class WaveformService:
@@ -43,13 +51,40 @@ class WaveformService:
             raise CoreError("range-invalid", reason="out-of-bounds", start=start, end=end, duration=asset["duration"])
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, min(end, asset["duration"]))
         assets_mod.check_media(media)
+        end = min(end, asset["duration"])
+        points = max(1, min(int(points), peaks_mod.MAX_POINTS))
+        if end - start <= DETAIL_MAX and points > (end - start) * ref.sample_rate / peaks_mod.BUCKET:
+            return self._detail(ref, win, start, end, points)
         pk = peaks_mod.load(self.cache, ref)
         if pk is None:
             self._schedule(asset_id, ref)
             return {"state": "pending"}
-        q = pk.query(win.to_file(start), win.to_file(min(end, asset["duration"])), points)
+        q = pk.query(win.to_file(start), win.to_file(end), points)
         q["start"] = win.to_local(q["start"])
         return {"state": "ready", **q}
+
+    def _detail(self, ref: Any, win: Any, start: float, end: float, points: int) -> dict[str, Any]:
+        sr = ref.sample_rate
+        a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
+        pcm = dec.decode_frames(ref, a, max(b, a + 1), cache=self.cache)
+        lo, hi = pcm.min(axis=1), pcm.max(axis=1)
+        n = len(lo)
+        g = max(1, math.ceil(n / points))
+        m = math.ceil(n / g)
+        pad = m * g - n
+        if pad:
+            lo = np.concatenate([lo, np.full(pad, lo[-1], lo.dtype)])
+            hi = np.concatenate([hi, np.full(pad, hi[-1], hi.dtype)])
+        mins = lo.reshape(m, g).min(axis=1).astype("<f4")
+        maxs = hi.reshape(m, g).max(axis=1).astype("<f4")
+        return {
+            "state": "ready",
+            "start": win.to_local(a / sr),
+            "step": g / sr,
+            "min": mins.tobytes(),
+            "max": maxs.tobytes(),
+            "count": m,
+        }
 
     def _schedule(self, asset_id: str, ref: Any) -> None:
         key = str(peaks_mod.cache_path(self.cache, ref))

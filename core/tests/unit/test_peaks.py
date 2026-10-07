@@ -71,9 +71,12 @@ def test_service_pending_then_ready(db, ws, steps_wav):
         done.set()
 
     svc = WaveformService(db, ws, post=lambda fn: fn(), emit=emit)
+    # 登记时已经顺带生成了峰值
+    assert svc.get(aid, 0.0, 3.0, 300)["state"] == "ready"
+    shutil.rmtree(ws.root / "Data" / "Cache" / "Peaks")
     first = svc.get(aid, 0.0, 3.0, 300)
     assert first == {"state": "pending"}
-    assert svc.get(aid, 1.0, 2.0, 300) == {"state": "pending"}  # 同一文件只生成一次
+    assert svc.get(aid, 1.0, 2.0, 100) == {"state": "pending"}  # 同一文件只生成一次
     assert done.wait(30)
     assert events == [("peaks.ready", {"assetIds": [aid]})]
     q = svc.get(aid, 1.0, 2.0, 10)
@@ -82,4 +85,20 @@ def test_service_pending_then_ready(db, ws, steps_wav):
     assert np.frombuffer(q["max"], dtype="<f4").max() == pytest.approx(0.5, abs=1e-3)
     with pytest.raises(CoreError):
         svc.get(aid, 2.5, 3.5, 10)
+    svc.shutdown()
+
+
+def test_detail_window_uses_exact_samples(db, ws, steps_wav):
+    # 细节窗（≤30 秒）：放大到点数多于缓存桶时，直接解码这段，逐样本可见
+    [r] = SourceService(db, workspace_root=ws.root).add([str(steps_wav)])
+    aid = assets_mod.list_for_source(db, r["sourceId"])[0]["id"]
+    svc = WaveformService(db, ws, post=lambda fn: fn(), emit=lambda *a: None)
+    q = svc.get(aid, 1.0, 1.01, 2000)  # 480 个样本 < 2000 点 → 每点一个样本
+    assert q["state"] == "ready" and q["count"] == 480
+    assert q["step"] == pytest.approx(1 / SR) and q["start"] == pytest.approx(1.0)
+    mx = np.frombuffer(q["max"], dtype="<f4")
+    # 方波：每 24 个样本翻转一次，幅度 0.5
+    assert mx[:24] == pytest.approx(0.5, abs=1e-3) and mx[24:48] == pytest.approx(-0.5, abs=1e-3)
+    q2 = svc.get(aid, 0.0, 3.0, 300)  # 大于缓存分辨率需求的才走细节窗；这里仍用缓存
+    assert q2["count"] <= 300
     svc.shutdown()

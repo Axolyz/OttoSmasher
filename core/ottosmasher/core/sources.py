@@ -13,11 +13,14 @@ import os
 import sqlite3
 import unicodedata
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from ottosmasher.domain import naming
+from ottosmasher.media import peaks as peaks_mod
 from ottosmasher.media import probe as probe_mod
+from ottosmasher.media.decode import StreamRef
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
@@ -65,8 +68,8 @@ class SourceService:
         conn: sqlite3.Connection,
         *,
         on_change: Callable[[ChangeSet], None] | None = None,
+        workspace_root: Path,
         probe: Callable[[str], probe_mod.Probe] = probe_mod.probe,
-        workspace_root: Path | None = None,
     ) -> None:
         self.conn = conn
         self.workspace_root = workspace_root
@@ -97,9 +100,10 @@ class SourceService:
         if row is not None:
             return {"path": path, "ok": True, "sourceId": row[0], "existing": True}
         pr = self.probe(path)
-        audio = pr.audio
-        if not audio:
+        if not pr.audio:
             raise CoreError("source-no-audio", path=path)
+        pr = self._exact_durations(path, pr)
+        audio = pr.audio
         default = pick_default_audio(audio, preferred)
         # 原片时间以默认音轨的音频时钟为准；探测不出时长就拒绝登记，不拿容器时长冒充（P7）
         duration = next(s.duration for s in audio if s.ordinal == default)
@@ -163,6 +167,20 @@ class SourceService:
             "assets": created,
         }
 
+    def _exact_durations(self, path: str, pr: probe_mod.Probe) -> probe_mod.Probe:
+        """每条音频流从头解码一次，用确切样本数作时长（容器里的时长标签不精确：YY2-07-A 标 110.001 秒，
+        实际 110.000167 秒，差 40 个样本，超出一帧容差）。这次解码顺带生成波形峰值缓存。约 0.5 秒 / 24 分钟 FLAC。"""
+        cache = self.workspace_root / "Data" / "Cache"  # 只写工作区，绝不写到原片旁边
+        streams = []
+        for s in pr.streams:
+            if s.kind == "audio":
+                if not s.sample_rate or not s.channels:
+                    raise CoreError("media-probe-failed", path=path, detail="unknown-audio-format")
+                pk = peaks_mod.build(StreamRef(path, s.ordinal, s.sample_rate, s.channels, s.codec, pr.format_name), cache)
+                s = replace(s, duration=pk.frames / s.sample_rate if pk.frames else None)
+            streams.append(s)
+        return probe_mod.Probe(pr.format_name, pr.format_duration, tuple(streams))
+
     # ------------------------------------------------------------ 查询
 
     def get(self, source_id: str) -> dict[str, Any]:
@@ -182,10 +200,13 @@ class SourceService:
     def list(self) -> list[dict[str, Any]]:
         """原片列表（按登记时间倒序；分组与计数在界面阶段 2.7 补齐）。"""
         rows = self.conn.execute(
-            "SELECT id, path, work, episode, source_type, duration, media_state, subtitle_path, created_at, version"
-            " FROM source ORDER BY created_at DESC, id"
+            "SELECT s.id, s.path, s.work, s.episode, s.source_type, s.duration, s.media_state, s.subtitle_path,"
+            " s.default_audio_stream, s.created_at, s.version,"
+            " (SELECT COUNT(*) FROM source_stream t WHERE t.source_id=s.id AND t.kind='audio') AS audio_streams,"
+            " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video"
+            " FROM source s ORDER BY s.created_at DESC, s.rowid DESC"
         )
-        return [dict(r) for r in rows]
+        return [dict(r) | {"has_video": bool(r["has_video"])} for r in rows]
 
     def check_file(self, source_id: str) -> None:
         """播放、导出、处理前核对原片文件（缺失或被替换 → 报错，不回退）。"""
@@ -322,8 +343,6 @@ class SourceService:
 
     def _remove_library_file(self, rel: str) -> None:
         """只删工作区素材库里的文件；路径越出素材库一律不碰。"""
-        if self.workspace_root is None:
-            return
         lib = (self.workspace_root / "Library").resolve()
         p = (self.workspace_root / rel).resolve()
         if lib not in p.parents:

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +23,7 @@ import numpy as np
 from ottosmasher.core.errors import CoreError
 
 from . import tools
-from .decode import StreamRef
+from .decode import FrameIndex, StreamRef, save_index
 
 BUCKET = 256
 MAX_POINTS = 32000
@@ -79,16 +81,46 @@ def _low_priority() -> dict[str, object]:
     return {"preexec_fn": lambda: os.nice(10)}
 
 
+_FRAME = re.compile(r"\] n:\s*\d+\s+pts:\s*\S+\s+pts_time:\s*(\S+).*?nb_samples:\s*(\d+)")
+
+
 def build(ref: StreamRef, cache: Path, *, on_proc: Callable[[subprocess.Popen[bytes]], None] | None = None) -> Peaks:
-    """整条流解码一次生成峰值并原子写入缓存。ffmpeg 以较低优先级运行；``on_proc`` 拿到进程以便退出时结束它。"""
-    cmd = [
-        tools.find("ffmpeg"), "-hide_banner", "-nostdin", "-nostats", "-loglevel", "error",
-        "-i", ref.path, "-map", f"0:a:{ref.ordinal}", "-f", "f32le", "-c:a", "pcm_f32le", "-",
-    ]  # fmt: skip
+    """整条流解码一次生成峰值并原子写入缓存。ffmpeg 以较低优先级运行；``on_proc`` 拿到进程以便退出时结束它。
+
+    需要帧索引的流（MKV 等，见 decode）在同一次解码里用 ashowinfo 顺带记下每帧时间戳与样本数，写入帧索引缓存，
+    之后的区间解码不必再整条解码一遍。
+    """
+    indexed = ref.method == "indexed"
+    cmd = [tools.find("ffmpeg"), "-hide_banner", "-nostdin", "-nostats", "-loglevel", "info" if indexed else "error"]
+    cmd += ["-i", ref.path, "-map", f"0:a:{ref.ordinal}"]
+    if indexed:
+        cmd += ["-af", "ashowinfo"]
+    cmd += ["-f", "f32le", "-c:a", "pcm_f32le", "-"]
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_low_priority())  # type: ignore[call-overload]
     if on_proc is not None:
         on_proc(p)
-    assert p.stdout is not None
+    assert p.stdout is not None and p.stderr is not None
+    pts: list[float] = []
+    counts: list[int] = []
+    tail: list[str] = []
+
+    def read_err() -> None:
+        for raw_line in p.stderr:  # type: ignore[union-attr]
+            line = raw_line.decode("utf-8", "replace")
+            m = _FRAME.search(line) if indexed else None
+            if m:
+                try:
+                    pts.append(float(m.group(1)))
+                    counts.append(int(m.group(2)))
+                except ValueError:
+                    pts.append(float("nan"))
+                    counts.append(int(m.group(2)))
+            else:
+                tail.append(line)
+                del tail[:-20]
+
+    t = threading.Thread(target=read_err, daemon=True)
+    t.start()
     frame_bytes = 4 * ref.channels
     chunk_frames = BUCKET * 4096
     mins: list[np.ndarray] = []
@@ -112,10 +144,13 @@ def build(ref: StreamRef, cache: Path, *, on_proc: Callable[[subprocess.Popen[by
             mins.append(blocks.min(axis=1))
             maxs.append(blocks.max(axis=1))
         carry = x[whole:]
-    err = p.stderr.read().decode("utf-8", "replace") if p.stderr else ""
     p.wait()
+    t.join(timeout=10)
     if p.returncode != 0:
-        raise CoreError("decode-failed", path=ref.path, detail=err.strip()[-300:])
+        raise CoreError("decode-failed", path=ref.path, detail="".join(tail).strip()[-300:])
+    if indexed and counts and sum(counts) == frames and all(x == x for x in pts):
+        c = np.asarray(counts, dtype=np.int64)
+        save_index(ref, cache, FrameIndex(np.asarray(pts), np.concatenate([[0], np.cumsum(c)[:-1]]).astype(np.int64), frames))
     if len(carry):
         mins.append(carry.min(keepdims=True).reshape(1))
         maxs.append(carry.max(keepdims=True).reshape(1))

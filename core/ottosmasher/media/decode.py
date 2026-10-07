@@ -114,11 +114,17 @@ def frame_index(ref: StreamRef, cache: Path) -> FrameIndex:
         with np.load(p) as z:
             return FrameIndex(z["pts_time"], z["start"], int(z["total"]))
     idx = build_index(ref)
+    save_index(ref, cache, idx)
+    return idx
+
+
+def save_index(ref: StreamRef, cache: Path, idx: FrameIndex) -> None:
+    """原子写入（并发构建时后写的覆盖先写的，读者只会看到完整文件）。峰值生成时顺带建的索引也走这里。"""
+    p = _index_path(cache, ref)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + f".{os.getpid()}.tmp.npz")
     np.savez(tmp, pts_time=idx.pts_time, start=idx.start, total=np.int64(idx.total))
-    os.replace(tmp, p)  # 并发构建时后写的覆盖先写的，读者只会看到完整文件
-    return idx
+    os.replace(tmp, p)
 
 
 # ---------------------------------------------------------------- 解码

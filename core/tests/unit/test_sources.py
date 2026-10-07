@@ -108,6 +108,17 @@ def test_packet_duration_when_stream_has_no_duration(media):
 
 
 @needs_ffmpeg
+def test_duration_is_exact_sample_count(svc, db, media):
+    # 时长 = 解码出的确切样本数 / 采样率（容器时长标签不精确；真实素材 YY2-07-A 差 40 个样本）
+    f = wav(media / "odd.wav", seconds=1.2345, rate=44100)
+    [r] = svc.add([str(f)])
+    a = db.execute("SELECT duration FROM sound_asset WHERE source_id=?", (r["sourceId"],)).fetchone()[0]
+    assert a * 44100 == round(1.2345 * 44100)
+    src = svc.get(r["sourceId"])
+    assert src["duration"] == a
+
+
+@needs_ffmpeg
 def test_register_streams_and_defaults(svc, media):
     f = two_audio_mkv(media / "[Group] Some Title [03][1080p].mkv")
     (media / "[Group] Some Title [03][1080p].ass").write_text("[Script Info]\n", encoding="utf-8")
