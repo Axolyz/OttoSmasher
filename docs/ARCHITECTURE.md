@@ -58,12 +58,12 @@
 |---|---|---|
 | electron | 44.x | 桌面外壳 |
 | react / react-dom | 19.x | 界面 |
-| vite + electron-vite（或等价） | 8.x | 构建 |
+| vite（界面）+ esbuild（主进程与 preload） | 8.3 / 0.28 | 构建（electron-vite 5 不支持 Vite 8，改用两者直接组合） |
 | wavesurfer.js | 8.0.x | 波形、选区、时间轴、总览、频谱 |
 | react-aria-components | 1.21.x | 无样式的交互基础件：列表/表格（勾选与键盘）、菜单（含子菜单）、弹层、对话框、提示、选择框、组合框、标签块、数字输入、工具栏；样式全部用自己的设计令牌（§1.3） |
 | lucide-react | 1.x | 线条图标（ISC 许可） |
-| zustand | 最新 | 前端状态 |
-| node-addon-api + cmake-js | 8.x | libmpv 渲染桥（原生扩展，§10.1） |
+| zustand | 5.x | 前端界面状态 |
+| node-addon-api + node-gyp | 8.9 / 13.1 | libmpv 渲染桥（原生扩展，§10.1）；`tools/build-native.mjs` 用 Electron 头文件编译 |
 | electron-builder | 26.x | 打包 |
 | Python 3.12（uv 托管，装在 `.uv-python/`） | — | Core 与任务进程 |
 | msgspec、numpy、onnxruntime(-directml) 1.30.0/1.24.4、pyopenjtalk-plus[tsqyomi]==0.4.1.post9、pydomino @ 4930396（源码构建 C++ 扩展）、regex | — | Core |
@@ -164,7 +164,8 @@
 
 ### 2.5 安全
 
-- 渲染进程只加载本地打包的页面，CSP 禁止远程脚本与远程资源；`nodeIntegration` 关闭，preload 只暴露白名单 API。
+- 渲染进程只加载本地打包的页面，CSP 禁止远程脚本与远程资源；`nodeIntegration` 关闭、`contextIsolation` 开启，preload 只暴露白名单 API；禁止打开新窗口与跳到外部地址。
+- preload **不放进沙箱**（`sandbox: false`）：它要加载 mpv 渲染桥这个原生扩展并直接在画布上绘制。页面世界仍然没有 Node；播放器只接受主进程/Core 给出的文件（阶段 1 探针的路径来自主进程的对话框或环境变量，页面不能指定路径）。
 - mpv 渲染桥只接受 Core 解析过的“播放句柄”（资产 ID + 区间 → 已核对文件快照的路径），渲染进程不能让它打开任意文件或 URL（R22.7）。
 - 没有本地 HTTP 服务（R23.2 的 Host/Origin 校验因此不适用）。
 
@@ -482,7 +483,8 @@ class LanguageProfile(Protocol):
   播放全部交给 mpv。选区用 Regions 插件（禁止整体拖动、只能拖两端），刻度用 Timeline，长音频用 Minimap；
   音素/字幕/区段车道、F0 金线、命中框、播放头画在与 wavesurfer 滚动/缩放同步的叠加画布上（原型 `docs/ui/prototype.html` 已演示这种接法）。
   Shift 吸附、⌥ 拖出等规格要求的手势在叠加层上实现，不改 wavesurfer 源码，便于跟进上游。
-- **libmpv 动态库来源**：需要所有者同意下载（QUESTIONS Q2）。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
+- **libmpv 来源**（所有者同意直接下载，Q2）：macOS arm64 用 GitHub media-kit/libmpv-darwin-build v0.7.3 的 `video-full` 包（mpv 0.36.0 + FFmpeg 6.0，含 VideoToolbox；SHA-256 固定在 `tools/third_party.json`）；头文件取 mpv 官方 v0.36.0。Windows 的来源到阶段 10 定。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
+- **实现要点**（阶段 1 探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=videotoolbox-copy`、`sws-fast=yes`、`zimg-fast=yes`。
 
 ### 10.2 波形、频谱、缩略图
 
@@ -559,7 +561,7 @@ class LanguageProfile(Protocol):
 
 | 风险 | 验证方式 | 不行时的备选 |
 |---|---|---|
-| mpv 渲染桥：软件渲染 + 共享帧缓冲在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | 阶段 1 探针：YY1-01 整集播放、拖动、逐帧，测 CPU 占用与丢帧 | GL 渲染到共享纹理；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
+| mpv 渲染桥：软件渲染 + 画布在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | **阶段 1 已验证**（2026-10-06，M 系列 Mac，YY1-01，画布 1920×1080）：硬解 videotoolbox-copy；显示 24.1 fps、丢帧 0；渲染线程 13.2 ms/帧（默认缩放 20.2 ms）；界面线程 0.5 ms/帧（最大 2 ms）；跳转 14–61 ms；逐帧 11–103 ms；渲染进程约 36% 单核。复测：`OTTO_PROBE_FILE=<整集> npx playwright test e2e/probe.spec.ts` | GL 渲染到共享纹理（暂不需要）；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
 | 原生扩展在 Electron 44 / Windows x64 上构建与加载 | 阶段 10 用 GitHub Actions 构建；之前保证构建脚本两平台通用 | 改为独立 utility 进程 + 共享内存 |
 | `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 阶段 2 探针（拖到 Finder、REAPER） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
 | mpv 对 LAME 无缝 MP3 的样本级对齐 | 合成斜坡 MP3 的偏移测试 | 正式音轨改存 FLAC（要所有者同意，涉及存储预算） |
