@@ -8,7 +8,7 @@
 - 界面方案（所有者已确认 v3.3）：[docs/UI_PLAN.md](docs/UI_PLAN.md)，可点原型 [docs/ui/prototype.html](docs/ui/prototype.html)
 - 规格疑问与决定：[docs/QUESTIONS.md](docs/QUESTIONS.md)
 
-当前阶段：**1 骨架**。
+当前阶段：**2 原片与播放闭环**（等待所有者验收）。
 
 ## 开发环境（macOS arm64）
 
@@ -29,6 +29,7 @@ node tools/build-native.mjs                # 编译 mpv 渲染桥
 OTTO_DEV=1 tools/npm start                 # 构建并启动（开发模式：工具页有任务自检与 mpv 探针）
 .venv/bin/python -m pytest core/tests      # Core 单元与进程级测试
 tools/npm test                             # 前端单元测试
-tools/npm run e2e                          # 用 Playwright 驱动真实 Electron（临时工作区）
+tools/npm run e2e                          # 用 Playwright 驱动真实 Electron（临时工作区，静音输出）
+OTTO_FIXTURES=~/Documents/OttoSmasher-Rewrite-Handoff/fixtures tools/npm exec -- playwright test e2e/real-episode.spec.ts  # 真实素材检查（只读）
 node tools/i18n-check.mjs                  # 源码里没有写死的中日文、文案键齐全
 ```

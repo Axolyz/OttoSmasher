@@ -568,7 +568,7 @@ class LanguageProfile(Protocol):
 | pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 自写最小 pybind11 包装同一份上游 C++ 源码 |
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型” | 延迟导入包装 |
 | 检索 3 万条 30 秒 | 合成库基准 | numba 热点编译 |
-| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | 预计算多级峰值、只喂当前缩放级别需要的分辨率 | 整集时间线改用自绘画布，详情仍用 wavesurfer |
+| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **阶段 2 已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 QUESTIONS 第五节） | **已采用**：整集时间线为自绘画布，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；采样详情（短声音）仍用 wavesurfer |
 
 ---
 

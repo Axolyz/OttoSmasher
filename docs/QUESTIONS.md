@@ -155,3 +155,4 @@
 | 架构有没有为将来部分交给 agent 自动制作音MAD 留路？（让我在这边写进文档） | ARCHITECTURE §15（已有地基、还缺的六件事、现在就保持的做法）；Q23、Q24 待确认。接入 agent 本身属于基线之外的扩展，真做时按 02 §2.7 提议 |
 | 同名字幕优先 .srt | `SUBTITLE_EXTS = (.srt, .ass)` |
 | **一次性例外**：只为“MKV 截取偏几个样本”看旧版 mpv 那块代码，不许看其他部分 | 只读了旧仓库 `desktop/native/player.mm`、`player_win.cpp`（仅搜索）、`desktop/electron/player.cjs`、`playback-range.cjs`、`desktop/src/NativeMedia.ts`、`NativePlayer.tsx`（仅搜索）、`desktop/tests/player-bridge.test.cjs`。结论：旧版的 mpv 偏移问题是播放时钟/终点（跳转完成前漏出旧位置、最后一次位置比终点早一帧），不是解码样本；已借鉴“跳转完成前丢弃位置、以 eof-reached 判结束并贴到终点”。导出解码的帧索引法不变。 |
+| wavesurfer 缩放不是会重新渲染、也能只画可见部分吗？找找 peaks.js 等替代 | 渲染不是瓶颈，数据是：这些库都只吃覆盖全程的一份固定分辨率峰值，没有按可见范围取数的接口（peaks.js 放大受数据精度下限限制、数据须覆盖全程、LGPL、4.0 长期 beta；wavesurfer v8 深放大时元素宽度超浏览器上限；waveform-playlist 固定档位且很重）。整集时间线保留自绘画布，采样详情仍用 wavesurfer；ARCHITECTURE §13 |
