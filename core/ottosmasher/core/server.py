@@ -28,6 +28,7 @@ from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
 from . import assets as assets_mod
+from .exports import ExportService
 from .sources import SourceService
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class Core:
         self.edits: EditService
         self.jobs: Scheduler
         self.sources: SourceService
+        self.exports: ExportService
         self.interrupted_on_start = 0
         self._stop = False
         self.commands: dict[str, Handler] = {
@@ -61,6 +63,10 @@ class Core:
             "sources.delete": lambda p: self.sources.delete(p["id"]),
             "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
             "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
+            "exports.wav": lambda p: self.exports.export_wav(
+                p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
+                local_prefix=p.get("localPrefix"), processing=p.get("processing", ""), directory=p.get("directory"),
+            ),
             "edits.preview": lambda p: self.edits.preview(p["batch"]),
             "edits.apply": lambda p: self.edits.apply(p["batch"]),
             "edits.undo": lambda p: self.edits.undo(),
@@ -88,6 +94,7 @@ class Core:
             log.info("schema migrated %s -> %s, backup %s", report.from_version, report.to_version, report.backup)
         self.edits = EditService(self.conn, on_change=self._on_change)
         self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
+        self.exports = ExportService(self.conn, self.ws)
         self.jobs = Scheduler(
             self.conn,
             self.ws.jobs,
