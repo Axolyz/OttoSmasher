@@ -1,0 +1,39 @@
+{
+  "_comment": "第三方文件清单：固定来源、版本与 SHA-256（AGENTS.md §4）。由 tools/fetch_third_party.py 拉到 third_party/（不进 Git）。",
+  "items": [
+    {
+      "id": "libmpv-macos-arm64",
+      "platforms": ["darwin-arm64"],
+      "kind": "archive",
+      "url": "https://github.com/media-kit/libmpv-darwin-build/releases/download/v0.7.3/libmpv-libs_v0.7.3_macos-arm64-video-full.tar.gz",
+      "sha256": "9bb168ec908b4801f4231f411e3278a0aea644a2b03ce375c880d2813ab7f949",
+      "size": 10289675,
+      "dest": "libmpv/macos-arm64",
+      "strip_components": 1,
+      "note": "media-kit/libmpv-darwin-build v0.7.3（mpv 0.36.0 + FFmpeg 6.0，video-full 变体：全部解码器、VideoToolbox；不含 GPL 编码器）。发布前（阶段 10）复核许可证。"
+    },
+    {
+      "id": "mpv-headers-0.36.0",
+      "platforms": ["*"],
+      "kind": "files",
+      "files": [
+        {"url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/client.h", "sha256": "287181025de368777fa30f6f636c1915e77cc551ffe132993528f08ff4a64ae4", "dest": "libmpv/include/mpv/client.h"},
+        {"url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/render.h", "sha256": "0a93aa38bd3994f96860c1d68adafeba87c97b174456d13ec0b18a855180bd19", "dest": "libmpv/include/mpv/render.h"},
+        {"url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/render_gl.h", "sha256": "7bb28b46420b7c85247ac316cec5e2146469418f03d4c78d7b268beeeb9882f2", "dest": "libmpv/include/mpv/render_gl.h"},
+        {"url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/stream_cb.h", "sha256": "5d835aedd37cf76c14b7bfdcf91741bdf5fe052623d1ae1253d8de09a7f9bc34", "dest": "libmpv/include/mpv/stream_cb.h"}
+      ],
+      "note": "mpv 客户端 API 头文件，与上面 libmpv 的 mpv 版本一致（ISC 许可）。"
+    },
+    {
+      "id": "model-support",
+      "platforms": ["*"],
+      "kind": "files",
+      "files": [
+        {"url": "https://huggingface.co/tsukumijima/tsqyomi-models/resolve/680596dd2ad2bad59ee5db3741e197cfce79f9b4/v4/tokenizer.json", "sha256": "6a0734cf21c802169defaffe719bc2ef12bb9d0be37e54b61ed27aa89394723d", "dest": "model-support/tsqyomi/tokenizer.json", "local": "tsqyomi/tokenizer.json"},
+        {"url": "https://huggingface.co/tsukumijima/tsqyomi-models/resolve/680596dd2ad2bad59ee5db3741e197cfce79f9b4/v4/metadata.json", "sha256": "829c60584ba33ca6a10fe3697ab62b0210398c93266f743e79b32d85497c9cd6", "dest": "model-support/tsqyomi/metadata.json", "local": "tsqyomi/metadata.json"},
+        {"url": "https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687173ae343ef0f2f824695650e877739ee0/backend/src-tauri/resources/models/nsf_hifigan/config.json", "sha256": "c3c56efaa5abdf1862224ae8396b17680c78d0b95ab009a31ef5d2f873cf07c2", "dest": "model-support/flatten/config.json", "local": "flatten/config.json"}
+      ],
+      "note": "随应用分发的非权重支持文件（规格 14 §14.1）。有 dev-workspace/Models 下 SHA 一致的副本时直接复制，否则从固定修订下载。"
+    }
+  ]
+}
