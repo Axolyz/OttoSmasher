@@ -74,3 +74,15 @@
 .callout { background: var(--s2); border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 8px 12px; color: var(--sub); font-size: var(--fs-sm); line-height: 1.6; }
 .callout[data-tone="warn"] { border-color: var(--warn); }
 .callout[data-tone="bad"] { border-color: var(--bad); color: var(--text); }
+
+/* 单选列表 */
+.radioList { display: flex; flex-direction: column; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--s1); padding: 4px; max-height: 260px; overflow: auto; }
+.radioRow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-md); cursor: default; outline: none; font-size: var(--fs-sm); color: var(--text); }
+.radioRow[data-hovered] { background: var(--s2); }
+.radioRow[data-selected] { background: var(--accentbg); }
+.radioRow[data-focus-visible] { box-shadow: inset 0 0 0 1px var(--accent2); }
+.radioRow[data-disabled] { opacity: 0.4; }
+.radioDot { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 1.5px solid var(--faint); }
+.radioRow[data-selected] .radioDot { border: 4px solid var(--accent); }
+.radioLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radioNote { color: var(--muted); font-size: var(--fs-xs); }

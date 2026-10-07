@@ -5,6 +5,8 @@ import {
   Button as RacButton,
   Checkbox as RacCheckbox,
   ProgressBar as RacProgressBar,
+  Radio,
+  RadioGroup,
   Tag,
   TagGroup,
   TagList,
@@ -216,5 +218,34 @@ export function Callout(props: { children: ReactNode; tone?: "info" | "warn" | "
     <div className={s.callout} data-tone={props.tone ?? "info"} data-testid={props.testId}>
       {props.children}
     </div>
+  );
+}
+
+export interface RadioItem {
+  id: string;
+  label: ReactNode;
+  /** 右侧的淡色说明（例如“默认人声模型”“三轨”） */
+  note?: ReactNode;
+  isDisabled?: boolean;
+}
+
+/** 单选列表（一行一个选项）：分离模型、导出格式这类“从一列里选一个”。React Aria RadioGroup：↑↓ 移动并选中。 */
+export function RadioList(props: { value: string | null; onChange: (v: string) => void; items: RadioItem[]; label: string; testId?: string }) {
+  return (
+    <RadioGroup
+      value={props.value}
+      onChange={props.onChange}
+      aria-label={props.label}
+      className={s.radioList}
+      data-testid={props.testId}
+    >
+      {props.items.map((it) => (
+        <Radio key={it.id} value={it.id} isDisabled={it.isDisabled} className={s.radioRow}>
+          <span className={s.radioDot} />
+          <span className={s.radioLabel}>{it.label}</span>
+          {it.note ? <span className={s.radioNote}>{it.note}</span> : null}
+        </Radio>
+      ))}
+    </RadioGroup>
   );
 }

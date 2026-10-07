@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { SettingEntry } from "../api/types";
 import { Button } from "../components/Button";
-import { NumberField, Select, Switch, TextArea } from "../components/Fields";
+import { NumberField, Select, Switch, TextArea, TextField } from "../components/Fields";
 import { Sheet } from "../components/Overlay";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ModelsPanel } from "./ModelsPanel";
 import { RoleAliasEditor } from "./RoleAliasEditor";
+import { StudioPanel } from "./StudioPanel";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
@@ -34,7 +35,24 @@ const NUMERIC: Record<string, NumSpec> = {
 const CHOICES: Record<string, string[]> = {
   "general.ui_language": ["zh-CN"],
   "source.sample_language": ["ja"],
+  "studio.device": ["auto", "cpu", "cuda", "mps"],
 };
+const choiceLabel = (key: string, v: string) => (key === "studio.device" ? t(`settings.studio.device.${v}`) : t(`settings.lang.${v}`));
+/** 文字类设置（路径、模型名）：回车或失焦保存 */
+const STRINGS = new Set(["studio.app_path", "studio.data_dir", "studio.vocal_model"]);
+
+function StringField(props: { value: string; label: string; placeholder?: string; onSave: (v: string) => void; testId: string }) {
+  const [draft, setDraft] = useState(props.value);
+  useEffect(() => setDraft(props.value), [props.value]);
+  const commit = () => {
+    if (draft.trim() !== props.value) props.onSave(draft.trim());
+  };
+  return (
+    <div className={s.linesField} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()}>
+      <TextField value={draft} onChange={setDraft} label={props.label} placeholder={props.placeholder} mono testId={props.testId} />
+    </div>
+  );
+}
 
 /** 字符串列表（一行一个）：OP/ED 开始/结束标记（规格 05 §5.6.1）。 */
 const STRING_LISTS = new Set(["subtitle.oped_start", "subtitle.oped_end"]);
@@ -80,7 +98,8 @@ async function inferTrial(sample: string, rules: string[]): Promise<TrialResult>
 function shown(key: string, v: unknown): string {
   if (Array.isArray(v)) return v.join(" / ");
   if (typeof v === "boolean") return v ? t("common.on") : t("common.off");
-  if (CHOICES[key]) return t(`settings.lang.${String(v)}`);
+  if (CHOICES[key]) return choiceLabel(key, String(v));
+  if (v === "") return t("settings.auto");
   return String(v);
 }
 
@@ -134,6 +153,9 @@ export function SettingsSheet() {
           ))}
         </nav>
         <div className={s.list}>
+          {group === "studio" ? (
+            <StudioPanel vocalModel={String(settings["studio.vocal_model"]?.value ?? "")} onVocalModel={(m) => void save("studio.vocal_model", m)} />
+          ) : null}
           {group === "models" ? (
             <ModelsPanel />
           ) : (
@@ -182,7 +204,9 @@ export function SettingsSheet() {
                     <div className={s.hint}>{t(`settings.${key}.hint`)}</div>
                   </div>
                   <div className={s.control}>
-                    {STRING_LISTS.has(key) ? (
+                    {STRINGS.has(key) ? (
+                      <StringField value={String(e.value)} label={t(`settings.${key}.label`)} placeholder={t("settings.auto")} onSave={(v) => void save(key, v)} testId={`text-${key}`} />
+                    ) : STRING_LISTS.has(key) ? (
                       <LinesField value={e.value as string[]} label={t(`settings.${key}.label`)} onSave={(v) => void save(key, v)} testId={`lines-${key}`} />
                     ) : typeof e.value === "boolean" ? (
                       <Switch isSelected={e.value} onChange={(v) => void save(key, v)} label={t(`settings.${key}.label`)} />
@@ -191,7 +215,7 @@ export function SettingsSheet() {
                         value={String(e.value)}
                         onChange={(v) => void save(key, v)}
                         label={t(`settings.${key}.label`)}
-                        options={CHOICES[key]!.map((id) => ({ id, label: t(`settings.lang.${id}`) }))}
+                        options={CHOICES[key]!.map((id) => ({ id, label: choiceLabel(key, id) }))}
                       />
                     ) : (
                       <NumberField

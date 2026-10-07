@@ -80,7 +80,124 @@ def _selftest_fail(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     raise CoreError("selftest-failed", reason=params.get("reason", "requested"))
 
 
+def _studio_models(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """列出 Studio 中已下载完整的模型（14 §14.6.3）。"""
+    from ..studio import protocol
+    from ..studio.discovery import StudioEnv
+
+    env = StudioEnv.of(params["env"])
+    ctx.progress("listing", 0, 1, "studio-listing")
+    models = protocol.list_models(env, work_dir=ctx.job_dir, log_path=ctx.job_dir / "studio.log")
+    return {"env": env.wire(), "models": models}
+
+
+def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """分离（规格 05 §5.5、14 §14.6.4）：解码输入 → Studio infer → 校验输出 → MP3 V0（无缝校验）。登记由 Core 做。"""
+    from ..media import decode as dec
+    from ..media import mp3, wavfile
+    from ..studio import protocol
+    from ..studio.discovery import StudioEnv
+
+    env = StudioEnv.of(params["env"])
+    model = params["model"]
+    stems: list[str] = params["stems"]
+    ctx.progress("fingerprint", 0, 1, "sep-fingerprint")
+    fp0 = protocol.fingerprint(env, model)
+
+    # 输入：资产选区解码成 PCM WAV（保持源采样率与声道）
+    inp = params["input"]
+    ref = dec.StreamRef(**inp["ref"])
+    ctx.progress("decoding", 0, 1, "sep-decoding")
+    pcm = dec.decode_frames(ref, inp["a"], inp["b"], cache=Path(params["cache"]))
+    in_dir = ctx.job_dir / "input"
+    in_dir.mkdir(parents=True, exist_ok=True)
+    in_path = in_dir / "input.wav"
+    wavfile.save_wav24(in_path, pcm, ref.sample_rate)
+    in_frames = int(pcm.shape[0])
+    del pcm
+
+    out_dir = ctx.job_dir / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    done: dict[str, dict[str, Any]] = {}
+
+    def on_event(ev: dict[str, Any]) -> None:
+        t, p = ev.get("type"), ev.get("payload") or {}
+        if t == "task_progress" and isinstance(p.get("total"), (int, float)) and p.get("total"):
+            ctx.progress("separating", int(p.get("done") or 0), int(p["total"]), "sep-separating", step=str(p.get("stage") or ""))
+        elif t == "task_stage":
+            ctx.progress("separating", 0, 0, "sep-stage", step=str(p.get("stage") or ""))
+        elif t == "task_log":
+            ctx.log(f"[studio] {p}")
+        elif t == "task_done":
+            done[str(ev.get("taskId"))] = p
+
+    device = params.get("device", "auto")
+    payload: dict[str, Any] = {
+        "model": model["name"],
+        "tasks": [{"taskId": "input-0", "input": str(in_path)}],
+        "output": str(out_dir),
+        "outputFormat": "wav",
+        "selectedStems": stems,
+        "device": device,
+        "modelDir": env.model_dir,
+        "download": False,
+    }
+    if device == "cuda":
+        payload["deviceIds"] = [int(params.get("deviceId", 0))]
+    seconds = in_frames / ref.sample_rate
+    protocol.run(
+        env, "infer", payload, work_dir=ctx.job_dir, log_path=ctx.job_dir / "studio.log",
+        timeout=max(600.0, seconds * 10 + 600.0), on_event=on_event,
+    )  # fmt: skip
+
+    # 只信任 task_done.outputs；所有输入都有 task_done；路径在输出目录内且存在；所选声部全部产出；时长一致（±1 帧）
+    td = done.get("input-0")
+    if td is None:
+        raise CoreError("sep-output-invalid", reason="no-task-done")
+    outputs = {}
+    root = out_dir.resolve()
+    for o in td.get("outputs") or []:
+        if not isinstance(o, dict) or "path" not in o or "stem" not in o:
+            continue
+        path = Path(o["path"]).resolve()
+        if root not in path.parents or not path.is_file():
+            raise CoreError("sep-output-invalid", reason="outside-or-missing", path=str(path))
+        outputs[str(o["stem"])] = path
+    missing = [st for st in stems if st not in outputs]
+    if missing:
+        raise CoreError("sep-output-invalid", reason="missing-stem", stems=", ".join(missing))
+    infos = {}
+    for st in stems:
+        frames, rate, ch = mp3.wav_info(outputs[st])
+        expect = round(in_frames * rate / ref.sample_rate)
+        if abs(frames - expect) > 1:
+            raise CoreError("sep-output-invalid", reason="length", stem=st, expected=expect, got=frames)
+        infos[st] = (frames, rate, ch)
+    if protocol.fingerprint(env, model) != fp0:
+        raise CoreError("sep-model-changed", model=model["name"])
+
+    tracks = ctx.job_dir / "tracks"
+    tracks.mkdir(exist_ok=True)
+    result_stems = []
+    for i, st in enumerate(stems):
+        ctx.progress("encoding", i, len(stems), "sep-encoding", stem=st)
+        frames, rate, ch = infos[st]
+        dst = tracks / f"{i:02d}.mp3"
+        manifest = mp3.encode_v0(outputs[st], dst, frames=frames, rate=rate, channels=ch)
+        result_stems.append({"stem": st, "mp3": str(dst), "frames": manifest["frames"], "rate": manifest["rate"], "channels": ch, "manifest": manifest})
+    ctx.progress("encoding", len(stems), len(stems), "sep-encoding")
+    return {
+        "stems": result_stems,
+        "fingerprint": fp0,
+        "studioVersion": env.version,
+        "inputFrames": in_frames,
+        "inputRate": ref.sample_rate,
+    }
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "studio.models": _studio_models,
+    "separate": _separate,
     "models.verify": _models_verify,
     "selftest.sleep": _selftest_sleep,
     "selftest.sleep_model": _selftest_sleep,

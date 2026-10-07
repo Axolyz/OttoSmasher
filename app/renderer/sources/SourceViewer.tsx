@@ -2,7 +2,7 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, ChevronDown, Download, Info, Pause, Play, Repeat, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, ChevronDown, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call } from "../api/core";
@@ -15,6 +15,7 @@ import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import { ClipPanel } from "./ClipPanel";
+import type { SeparationInput } from "./SeparationDialog";
 import { displayName } from "./SourceList";
 import s from "./Sources.module.css";
 import { type Sel, Timeline, type TimelineHandle } from "./Timeline";
@@ -23,7 +24,7 @@ function isTyping(el: Element | null): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
 }
 
-export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void }) {
+export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void; onSeparate: (input: SeparationInput) => void }) {
   const { row } = props;
   const toast = useApp((st) => st.toast);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
@@ -326,6 +327,15 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           </div>
           <div className={s.group}>
             <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={sel} isOpen={clipOpen} onOpenChange={setClipOpen} />
+            <Button
+              variant="flat"
+              icon={<Split />}
+              isDisabled={!asset}
+              onPress={() => asset && props.onSeparate({ assetId: asset.id, trackLabel: trackName, duration, selection: sel, scope: sel ? "sel" : "full" })}
+              data-testid="separate"
+            >
+              {t("sep.action")}
+            </Button>
             <Menu
               head={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}
               items={[{ id: "wav", label: t("sources.exportWav"), run: () => void exportWav() }]}

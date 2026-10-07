@@ -33,6 +33,7 @@ from .exports import ExportService, export_samples
 from .samples import SampleService
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
+from .separation import SeparationService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
 from .waveforms import WaveformService
@@ -72,6 +73,11 @@ class Core:
             "subtitleSamples.create": lambda p: self.subtitle_samples.create(
                 p["sourceId"], p["kind"], p["token"], list(p["annotationIds"]), p.get("start"), p.get("end")
             ),
+            "studio.status": lambda p: self.separation.status(),
+            "separation.submit": lambda p: self.separation.submit(
+                p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems")
+            ),
+            "separation.results": lambda p: self.separation.results(p["jobId"]),
             "oped.list": lambda p: self.oped.list(p["sourceId"]),
             "oped.identify": lambda p: self.oped.identify(p["sourceId"]),
             "oped.identifyMany": lambda p: self.oped.identify_many(list(p["sourceIds"])),
@@ -155,6 +161,7 @@ class Core:
             dev=self.dev,
         )
         self.jobs.adopters["models.verify"] = self._adopt_hashes
+        self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.interrupted_on_start = self.jobs.recover()
 
     def close(self) -> None:

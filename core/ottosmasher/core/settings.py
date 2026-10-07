@@ -63,6 +63,18 @@ def _choice(*options: str) -> Callable[[Any], Any]:
     return check
 
 
+def _path_text(v: Any) -> str:
+    if not isinstance(v, str) or len(v) > 4096:
+        raise CoreError("setting-invalid", reason="not-text")
+    return v.strip()
+
+
+def _text100(v: Any) -> str:
+    if not isinstance(v, str) or len(v) > 200:
+        raise CoreError("setting-invalid", reason="not-text")
+    return v.strip()
+
+
 def _role_aliases(v: Any) -> Any:
     from .assets import validate_role_aliases  # 避免循环导入
 
@@ -95,6 +107,12 @@ SPECS: dict[str, SettingSpec] = {
         # OP/ED 开始/结束标记（规格 05 §5.6.1：可各填多个；换一种字幕写法时改这里，程序里不加特判）
         SettingSpec("subtitle.oped_start", list(rules_defaults()["subtitle.oped_start"]), _markers, "subtitle"),
         SettingSpec("subtitle.oped_end", list(rules_defaults()["subtitle.oped_end"]), _markers, "subtitle"),
+        # PyMSS Studio（规格 14 §14.6.1；留空 = 自动检测 / 默认 ~/.pymss-studio）
+        SettingSpec("studio.app_path", "", _path_text, "studio"),
+        SettingSpec("studio.data_dir", "", _path_text, "studio"),
+        SettingSpec("studio.vocal_model", "", _text100, "studio"),
+        SettingSpec("studio.device", "auto", _choice("auto", "cpu", "cuda", "mps"), "studio"),
+        SettingSpec("studio.device_id", 0, _int_range(0, 16), "studio"),
         # 分离声部名 → 角色别名表（规格 05 §5.4、推定 A9；不分大小写）
         SettingSpec("separation.role_aliases", [list(x) for x in rules_defaults()["separation.role_aliases"]], _role_aliases, "studio"),
         # 语音分析：对齐前/后容差

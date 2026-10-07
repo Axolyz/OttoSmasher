@@ -10,11 +10,14 @@
 .failed { background: var(--bad); }
 .cancelled { background: var(--muted); }
 .interrupted { background: var(--warn); }
-.progRow { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted); }
-.bar { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.bar i { display: block; height: 100%; background: var(--accent); transition: width var(--t-fast); }
+.progRow { display: flex; flex-direction: column; font-size: var(--fs-sm); color: var(--muted); }
 .err { font-size: var(--fs-sm); color: var(--bad); }
 .path { color: var(--muted); font-size: var(--fs-xs); word-break: break-all; user-select: text; }
 .meta { display: flex; align-items: center; gap: 10px; font-size: var(--fs-xs); color: var(--muted); }
 .grow { flex: 1; }
 .none { color: var(--muted); padding: 24px; text-align: center; }
+.results { margin-top: 8px; border-top: 1px solid var(--line2); padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.resultsHead { color: var(--muted); font-size: var(--fs-xs); }
+.resultRow { display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-radius: var(--r-md); font-size: var(--fs-sm); }
+.resultRow:hover { background: var(--s2); }
+.grip { color: var(--faint); }

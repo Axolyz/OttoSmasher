@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { JobSummary } from "../api/types";
 import { Button } from "../components/Button";
+import { ProgressBar } from "../components/Controls";
+import { SeparationResults } from "./SeparationResults";
 import { Drawer } from "../components/Overlay";
 import { errorText, hasKey, t } from "../i18n";
 import { useApp } from "../state/store";
@@ -33,6 +35,7 @@ function kindLabel(kind: string): string {
 
 function JobRow({ job }: { job: JobSummary }) {
   const toast = useApp((st) => st.toast);
+  const [open, setOpen] = useState(false);
   const act = async (method: "jobs.cancel" | "jobs.retry") => {
     try {
       await call(method, { id: job.id });
@@ -53,10 +56,12 @@ function JobRow({ job }: { job: JobSummary }) {
       </div>
       {job.status === "running" && p ? (
         <div className={s.progRow}>
-          <div className={s.bar}>
-            <i style={{ width: `${p.percent ?? 0}%` }} />
-          </div>
-          <span className="num">{t("tasks.progress", { done: p.done, total: p.total })}</span>
+          <ProgressBar
+            value={p.total ? p.percent ?? 0 : null}
+            max={100}
+            label={kindLabel(job.kind)}
+            showValue={p.total ? t("tasks.progress", { done: p.done, total: p.total }) : undefined}
+          />
         </div>
       ) : null}
       {job.error ? (
@@ -75,12 +80,18 @@ function JobRow({ job }: { job: JobSummary }) {
             {t("tasks.cancel")}
           </Button>
         ) : null}
+        {job.kind === "separate" && job.status === "succeeded" ? (
+          <Button size="sm" variant={open ? "secondary" : "flat"} onPress={() => setOpen((v) => !v)} data-testid="job-results">
+            {t("tasks.openResults")}
+          </Button>
+        ) : null}
         {job.status === "failed" || job.status === "cancelled" || job.status === "interrupted" ? (
           <Button size="sm" onPress={() => void act("jobs.retry")}>
             {t("tasks.retry")}
           </Button>
         ) : null}
       </div>
+      {open ? <SeparationResults jobId={job.id} /> : null}
     </div>
   );
 }

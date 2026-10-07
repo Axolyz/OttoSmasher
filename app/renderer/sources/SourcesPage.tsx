@@ -16,6 +16,7 @@ import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
+import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
@@ -34,6 +35,7 @@ export function SourcesPage() {
   const [importFor, setImportFor] = useState<SourceRow | null>(null);
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
   const [tracksFor, setTracksFor] = useState<SourceRow | null>(null);
+  const [sepInput, setSepInput] = useState<SeparationInput | null>(null);
   const [subSamples, setSubSamples] = useState<{ row: SourceRow; kind: "line" | "sfx" } | null>(null);
   const [opedFor, setOpedFor] = useState<{ row: SourceRow; initial: IdentifyResult | null } | null>(null);
   const [drop, setDrop] = useState(false);
@@ -121,6 +123,13 @@ export function SourcesPage() {
   const pickAndAdd = async () => add(await window.otto.files.pick("media"));
   const workspace = useApp((st) => st.hello?.workspace);
   const undo = useUndo();
+  // 整片分离：输入 = 该原片的分析音轨（整轨资产）
+  const separateFull = async (r: SourceRow) => {
+    const list = await call<Array<{ id: string; origin: string; stream_ordinal: number | null; duration: number }>>("assets.listForSource", { sourceId: r.id });
+    const a = list.find((x) => x.origin === "stream" && x.stream_ordinal === r.default_audio_stream) ?? list.find((x) => x.origin === "stream");
+    if (!a) return;
+    setSepInput({ assetId: a.id, trackLabel: t("sources.trackN", { n: (a.stream_ordinal ?? 0) + 1 }), duration: a.duration, selection: null, scope: "full" });
+  };
   // 从字幕识别 OP/ED（规格 05 §5.6.1）：没有错误直接登记；有错误就打开 OP/ED 弹窗逐对确认
   const identifyOne = async (r: SourceRow) => {
     try {
@@ -180,6 +189,7 @@ export function SourcesPage() {
       : {
           head: t("menu.on", { name: displayName(r) }),
           items: [
+            { id: "separate", label: t("sep.menuFull"), run: () => void separateFull(r) },
             { id: "tracks", label: t("tracks.menu"), run: () => setTracksFor(r) },
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
             { id: "subsample-line", label: t("subsample.menuLine"), run: () => setSubSamples({ row: r, kind: "line" }) },
@@ -233,7 +243,7 @@ export function SourcesPage() {
         <div />
       )}
       {currentRow ? (
-        <SourceViewer row={currentRow} onImportSubtitles={() => setImportFor(currentRow)} />
+        <SourceViewer row={currentRow} onImportSubtitles={() => setImportFor(currentRow)} onSeparate={setSepInput} />
       ) : (
         <EmptyState
           icon={<Clapperboard />}
@@ -269,6 +279,7 @@ export function SourcesPage() {
         ) : null}
       </TopSlot>
       <SubtitleSampleSheet source={subSamples?.row ?? null} kind={subSamples?.kind ?? "line"} onClose={() => setSubSamples(null)} />
+      <SeparationDialog input={sepInput} onClose={() => setSepInput(null)} />
       <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
