@@ -57,6 +57,18 @@ def test_speech_job_end_to_end(tmp_path):
         # 实测记录随任务交回
         probes = {p["model"]: p["status"] for p in c.call("models.status")["r"]["probes"]}
         assert probes.get("pydomino") == "passed"
+        # F0 随分析测量（该声音没测过才测）：样本区间的帧都已测，220 Hz 正弦测出约 220 Hz
+        import numpy as np
+
+        f0 = c.call("measure.f0", assetId=aid, start=1.0, end=2.0)["r"]
+        assert f0["count"] == 100 and f0["measured"] == 100
+        hz = np.frombuffer(f0["f0"], "<f4")
+        conf = np.frombuffer(f0["confidence"], "<f4")
+        assert np.median(hz[conf >= 0.5]) == pytest.approx(220, rel=0.02)
+        chunks = list((root / "Data" / "Measurements" / "f0" / aid).rglob("*.npy"))
+        assert len(chunks) == 1
+        # 没测过的段：帧为 NaN（6 秒的文件只有第 0 段，已测；这里只核对读取不越界、不产生副作用）
+        assert c.call("measure.f0", assetId=aid, start=5.0, end=6.0)["r"]["measured"] == 100
         # 任务目录：成功后清理中间文件
         assert not (root / "Data" / "Jobs" / job["id"] / "cache").exists()
     finally:

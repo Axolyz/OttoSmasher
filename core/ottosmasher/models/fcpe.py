@@ -157,6 +157,24 @@ def measure(session: Session, audio: np.ndarray, sr: int) -> np.ndarray:
     return out
 
 
+def measure_chunk(session: Session, audio: np.ndarray, sr: int, skip: int, frames: int) -> np.ndarray:
+    """一段带上下文的音频（时间 0 = 第一个样本，落在 10 ms 网格上）→ 去掉前 ``skip`` 帧上下文后的 ``frames`` 帧 [frames, 3]。
+    整段一次推理（段长约 62 秒）。"""
+    x16 = resample_linear(to_mono(audio), sr)
+    p = padded(x16)
+    n = frame_count(len(x16))
+    mel = log_mel(p, 0, n)
+    (latent,) = session.run(["latent"], {"mel": mel[None]})
+    f0, conf = decode(np.asarray(latent)[0])
+    e = energy(x16, n)
+    out = np.zeros((frames, 3), dtype=np.float32)
+    m = max(0, min(frames, n - skip))
+    out[:m, 0] = f0[skip : skip + m]
+    out[:m, 1] = conf[skip : skip + m]
+    out[:m, 2] = e[skip : skip + m]
+    return out
+
+
 def frame_times(n: int) -> np.ndarray:
     return (np.arange(n) * HOP + HOP / 2) / SR
 

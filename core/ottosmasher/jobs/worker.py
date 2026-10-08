@@ -300,8 +300,54 @@ def _speech_analyze(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
             ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": {"code": "job-exception", "args": {"type": type(exc).__name__, "message": str(exc)}}})
             failed += 1
     ctx.progress("align", len(items), len(items), "speech-aligning")
-    probes = [s.probe for s in (rt.session, aligner.session) if s.probe]
-    return {"ok": ok, "failed": failed, "probes": probes}
+    sessions = [rt.session, aligner.session]
+    f0_done, f0_errors = _measure_f0(params.get("f0") or [], ctx, models, support, device, sessions)
+    probes = [s.probe for s in sessions if s.probe]
+    return {"ok": ok, "failed": failed, "probes": probes, "f0": f0_done, "f0Errors": f0_errors}
+
+
+def _measure_f0(plan: list[dict[str, Any]], ctx: Ctx, models: Path, support: Path, device: Any, sessions: list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """FCPE 音高与能量帧（10 §10.1）：按资产分段（60 秒 + 两侧 1 秒上下文）只测缺的段；失败不影响对齐结果，原因写进结果。"""
+    import numpy as np
+
+    from ..media import decode as dec
+    from ..models import f0store, fcpe, registry
+    from ..models.onnx import create_session
+
+    if not plan:
+        return [], []
+    path, sha = registry.locate(fcpe.MODEL_ID, fcpe.MODEL_FILE, models, support)
+    session = create_session(fcpe.MODEL_ID, path, sha, device)
+    sessions.append(session)
+    done: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    total = sum(len(e["chunks"]) for e in plan)
+    n = 0
+    for e in plan:
+        f = e["file"]
+        ref = dec.StreamRef(f["path"], int(f["ordinal"]), int(f["sample_rate"]), int(f["channels"]), f.get("codec"), f.get("format"))
+        local_start, _local_end, file_start = e["storage"]
+        out = ctx.job_dir / "f0" / e["asset"]
+        out.mkdir(parents=True, exist_ok=True)
+        ok: list[int] = []
+        for k in e["chunks"]:
+            ctx.progress("f0", n, total, "speech-f0")
+            n += 1
+            try:
+                cp = f0store.chunk_plan(int(k), float(e["duration"]))
+                d0, d1 = cp["decode"]
+                sr = ref.sample_rate
+                a = round((file_start + d0 - local_start) * sr)
+                b = round((file_start + d1 - local_start) * sr)
+                pcm = dec.decode_frames(ref, a, b, cache=ctx.job_dir / "cache")
+                frames = fcpe.measure_chunk(session, pcm, sr, cp["skip"], cp["frames"])
+                np.save(out / f"{k}.npy", frames)
+                ok.append(int(k))
+            except CoreError as exc:
+                errors.append({"asset": e["asset"], "chunk": k, "error": exc.to_wire()})
+        if ok:
+            done.append({"asset": e["asset"], "identity": e["identity"], "chunks": ok})
+    return done, errors
 
 
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {

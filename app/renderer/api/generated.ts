@@ -248,6 +248,17 @@ export interface ExportedWav {
   reused: boolean;
 }
 
+/** F0 帧（10 §10.1）：float32 小端序列；没测的帧为 NaN。第 i 帧中心 = t0 + i × step（资产局部秒）。 */
+export interface F0Frames {
+  confidence: Uint8Array;
+  count: number;
+  energy: Uint8Array;
+  f0: Uint8Array;
+  measured: number;
+  step: number;
+  t0: number;
+}
+
 export interface Hello {
   dev: boolean;
   interrupted_on_start: number;
@@ -1201,6 +1212,8 @@ export interface Commands {
   "jobs.retry": { params: IdParams; result: JobSummary; effect: "job" };
   /** Submit a job of a registered kind (low-level; prefer the specific commands). */
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
+  /** FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN). */
+  "measure.f0": { params: AssetRangeParams; result: F0Frames; effect: "read" };
   /** Submit a job that runs one minimal inference per model under the current device setting. */
   "models.probe": { params: NoParams; result: JobSummary; effect: "job" };
   /** Model files, ONNX Runtime and inference probe status. */

@@ -65,6 +65,11 @@ class Workspace:
         return self.data / "Backups"
 
     @property
+    def f0(self) -> Path:
+        """F0 测量（不是缓存，永不当缓存删）"""
+        return self.data / "Measurements" / "f0"
+
+    @property
     def dictionary(self) -> Path:
         return self.data / "Dictionary"
 

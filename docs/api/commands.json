@@ -282,6 +282,17 @@
    }
   },
   {
+   "name": "measure.f0",
+   "effect": "read",
+   "summary": "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
+   "params": {
+    "$ref": "#/$defs/AssetRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/F0Frames"
+   }
+  },
+  {
    "name": "models.probe",
    "effect": "job",
    "summary": "Submit a job that runs one minimal inference per model under the current device setting.",
@@ -2918,6 +2929,46 @@
     "key",
     "path",
     "reused"
+   ]
+  },
+  "F0Frames": {
+   "title": "F0Frames",
+   "description": "F0 帧（10 §10.1）：float32 小端序列；没测的帧为 NaN。第 i 帧中心 = t0 + i × step（资产局部秒）。",
+   "type": "object",
+   "properties": {
+    "confidence": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "count": {
+     "type": "integer"
+    },
+    "energy": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "f0": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "measured": {
+     "type": "integer"
+    },
+    "step": {
+     "type": "number"
+    },
+    "t0": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "confidence",
+    "count",
+    "energy",
+    "f0",
+    "measured",
+    "step",
+    "t0"
    ]
   },
   "Hello": {

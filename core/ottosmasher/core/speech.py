@@ -23,7 +23,7 @@ from ..domain.overlap import overlaps
 from ..lang.ja import dictionary as dict_mod
 from ..lang.ja import frontend as fe_mod
 from ..lang.ja import openjtalk as oj_mod
-from ..models import domino, registry
+from ..models import domino, f0store, fcpe, registry
 from ..store.db import transaction
 from ..store.workspace import Workspace
 from . import assets as assets_mod
@@ -212,10 +212,74 @@ class SpeechService:
             "models_dir": str(self.ws.models),
             "support_dir": str(self.support_dir),
         }
+        params["f0"] = self._f0_plan(items)
         affects = {"sample": [it["sample"] for it in items]}
         job = self.jobs.submit(JOB_KIND, params, affects)
         self.jobs.add_items(job["id"], [(it["sample"], "queued") for it in items] + [(it["sample"], "skipped") for it in p["fresh"]])
         return self.jobs.summary(job["id"])
+
+    # ------------------------------------------------------------ F0（08 §8.1 第 4 项、10 §10.1：该声音没测过才测）
+
+    @staticmethod
+    def f0_sha() -> str:
+        return next(f.sha256 for f in registry.spec(fcpe.MODEL_ID).files if f.rel_path == fcpe.MODEL_FILE)
+
+    def _f0_plan(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        by_asset: dict[str, dict[str, Any]] = {}
+        for it in items:
+            a = by_asset.get(it["asset"])
+            if a is None:
+                dur = float(self.conn.execute("SELECT duration FROM sound_asset WHERE id=?", (it["asset"],)).fetchone()[0])
+                ident = f0store.identity(it["audio"], self.f0_sha())
+                a = by_asset[it["asset"]] = {
+                    "asset": it["asset"], "identity": ident, "duration": dur, "file": it["file"], "storage": it["audio"]["storage"],
+                    "have": f0store.present(self.ws.f0, it["asset"], ident), "chunks": set(),
+                }
+            a["chunks"] |= set(f0store.chunks_for(it["target"][0], it["target"][1], a["duration"])) - a["have"]
+        return [
+            {k: v for k, v in a.items() if k != "have"} | {"chunks": sorted(a["chunks"])} for a in by_asset.values() if a["chunks"]
+        ]
+
+    def _adopt_f0(self, job_id: str, entries: list[dict[str, Any]], ts: str) -> None:
+        for e in entries:
+            src = self.jobs.jobs_dir / job_id / "f0" / e["asset"]
+            if self.conn.execute("SELECT 1 FROM sound_asset WHERE id=?", (e["asset"],)).fetchone() is None:
+                continue
+            for k in e["chunks"]:
+                f0store.adopt_chunk(self.ws.f0, e["asset"], e["identity"], int(k), src / f"{k}.npy", {"model": self.f0_sha(), "frontend": fcpe.FRONTEND_VERSION})
+            have = sorted(f0store.present(self.ws.f0, e["asset"], e["identity"]))
+            rid = new_id()
+            self.conn.execute(
+                "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, inputs, status, manual, result, created_at)"
+                " VALUES (?, 'f0', 'asset', ?, ?, ?, 'ok', 0, ?, ?)",
+                (rid, e["asset"], e["asset"], dumps({"identity": e["identity"], "model": self.f0_sha(), "frontend": fcpe.FRONTEND_VERSION, "job": job_id}),
+                 dumps({"identity": e["identity"], "chunks": have}), ts),
+            )
+            head = self.conn.execute("SELECT 1 FROM measure_head WHERE owner_type='asset' AND owner_id=? AND kind='f0'", (e["asset"],)).fetchone()
+            if head is None:
+                self.conn.execute("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('asset', ?, 'f0', ?, 1)", (e["asset"], rid))
+            else:
+                self.conn.execute("UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type='asset' AND owner_id=? AND kind='f0'", (rid, e["asset"]))
+
+    def f0(self, asset_id: str, start: float, end: float) -> dict[str, Any]:
+        """资产区间的 F0 帧（读取没有副作用）；没测的帧标 missing。时间：资产局部秒，第一帧的中心为 ``t0``。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        dur = float(asset["duration"])
+        if not (0 <= start < end <= dur + 1e-6):
+            raise CoreError("range-invalid", reason="out-of-bounds", start=start, end=end, duration=dur)
+        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, min(end, dur))
+        audio = {
+            "asset": asset["id"], "mapping": asset["mapping"], "media": media["media_file_id"],
+            "snapshot": {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}, "ordinal": ref.ordinal,
+            "storage": [win.local_start, win.local_end, win.file_start],
+        }
+        ident = f0store.identity(audio, self.f0_sha())
+        i0, frames, have = f0store.read(self.ws.f0, asset_id, ident, start, min(end, dur), dur)
+        return {
+            "t0": (i0 * fcpe.HOP + fcpe.HOP / 2) / fcpe.SR, "step": fcpe.HOP / fcpe.SR, "count": len(frames),
+            "f0": frames[:, 0].astype("<f4").tobytes(), "confidence": frames[:, 1].astype("<f4").tobytes(), "energy": frames[:, 2].astype("<f4").tobytes(),
+            "measured": int(have.sum()),
+        }
 
     # ------------------------------------------------------------ 采纳
 
@@ -269,6 +333,8 @@ class SpeechService:
                 if changed:
                     continue  # 输入在任务期间变了：只进历史
                 self._set_head(it["sample"], rid, head)
+        with transaction(self.conn):
+            self._adopt_f0(job["id"], result.get("f0") or [], ts)
         record_probes(self.conn, result.get("probes") or [])
         # 成功后清理私有中间文件（逐条结果已进库）；失败的任务不会走到这里，证据保留
         shutil.rmtree(self.jobs.jobs_dir / job["id"] / "cache", ignore_errors=True)

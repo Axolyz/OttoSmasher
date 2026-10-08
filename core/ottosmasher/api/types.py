@@ -1235,3 +1235,15 @@ class SpeechResultRow(TypedDict):
     status: Literal["queued", "ok", "failed", "skipped"]
     error: ErrorWire | None
     deleted: bool
+
+
+class F0Frames(TypedDict):
+    """F0 帧（10 §10.1）：float32 小端序列；没测的帧为 NaN。第 i 帧中心 = t0 + i × step（资产局部秒）。"""
+
+    t0: float
+    step: float
+    count: int
+    f0: bytes
+    confidence: bytes
+    energy: bytes
+    measured: int
