@@ -257,6 +257,7 @@ export interface ExportRangeParams {
 
 export interface ExportSamplesParams {
   ids: string[];
+  versions?: Record<string, "original" | "stretched"> | null;
   words?: Record<string, string>;
 }
 
@@ -723,6 +724,29 @@ export interface Quit {
 
 export interface QuitParams {
   cancel_jobs?: boolean;
+}
+
+export interface ReaperHandoff {
+  clipboard: string;
+  count: number;
+  files: string[];
+  manifest: string;
+}
+
+/** REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。 */
+export interface ReaperParams {
+  ids: string[];
+  longVowel?: boolean | null;
+  mora?: boolean | null;
+  plan?: "double" | "near_fast" | "near_slow" | null;
+  words?: Record<string, string>;
+}
+
+export interface ReaperTemplate {
+  count: number;
+  files: string[];
+  manifest: string;
+  path: string;
 }
 
 export interface RegisterStemParams {
@@ -1258,6 +1282,15 @@ export interface StreamAssetCreated {
   skipped: string | null;
 }
 
+/** 卡拍 WAV（只能完整采样，12 §12.1）。mora / longVowel：舞台上的临时纯 mora（不保存）。 */
+export interface StretchedExportParams {
+  id: string;
+  longVowel?: boolean | null;
+  mora?: boolean | null;
+  plan?: "double" | "near_fast" | "near_slow" | null;
+  words?: Record<string, string>;
+}
+
 export interface StudioEnv {
   app: string;
   data_dir: string;
@@ -1578,8 +1611,10 @@ export interface Commands {
   "edits.undo": { params: NoParams; result: EditUndone; effect: "write" };
   /** Export an asset range as WAV named by the naming rule (+ fragment word). */
   "exports.range": { params: ExportRangeParams; result: ExportedWav; effect: "write" };
-  /** Export samples as WAV files for drag-out; returns file paths. */
+  /** Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths. */
   "exports.samples": { params: ExportSamplesParams; result: string[]; effect: "write" };
+  /** Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping). */
+  "exports.stretched": { params: StretchedExportParams; result: ExportedWav; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */
   "exports.wav": { params: ExportWavParams; result: ExportedWav; effect: "write" };
   /** Estimate the target from cached measurements only (no model run). */
@@ -1634,6 +1669,10 @@ export interface Commands {
   "playback.resolveRender": { params: RenderKeyParams; result: AssetHandle; effect: "read" };
   /** Playback handle for the source player (file, audio track, external stem). */
   "playback.resolveSource": { params: ResolveSourceParams; result: SourceHandle; effect: "read" };
+  /** Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers. */
+  "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
+  /** Write the same items as an .RTrackTemplate file (experimental). */
+  "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };
   /** Global target BPM (null = original-speed stretch). */
   "rhythm.bpm": { params: NoParams; result: Bpm; effect: "read" };
   /** Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache. */
@@ -1805,6 +1844,12 @@ export type ErrorCode =
   | "oped-overlap"
   | "promote-invalid"
   | "range-invalid"
+  | "reaper-clipboard-failed"
+  | "reaper-empty"
+  | "reaper-file-conflict"
+  | "reaper-markers-not-monotonic"
+  | "reaper-path-invalid"
+  | "reaper-too-large"
   | "result-mismatch"
   | "rhythm-cells-invalid"
   | "rhythm-cut-invalid"

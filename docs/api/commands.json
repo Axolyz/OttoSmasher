@@ -190,7 +190,7 @@
   {
    "name": "exports.samples",
    "effect": "write",
-   "summary": "Export samples as WAV files for drag-out; returns file paths.",
+   "summary": "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
    "params": {
     "$ref": "#/$defs/ExportSamplesParams"
    },
@@ -199,6 +199,17 @@
     "items": {
      "type": "string"
     }
+   }
+  },
+  {
+   "name": "exports.stretched",
+   "effect": "write",
+   "summary": "Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping).",
+   "params": {
+    "$ref": "#/$defs/StretchedExportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ExportedWav"
    }
   },
   {
@@ -508,6 +519,28 @@
    },
    "result": {
     "$ref": "#/$defs/SourceHandle"
+   }
+  },
+  {
+   "name": "reaper.handoff",
+   "effect": "write",
+   "summary": "Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers.",
+   "params": {
+    "$ref": "#/$defs/ReaperParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ReaperHandoff"
+   }
+  },
+  {
+   "name": "reaper.template",
+   "effect": "write",
+   "summary": "Write the same items as an .RTrackTemplate file (experimental).",
+   "params": {
+    "$ref": "#/$defs/ReaperParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ReaperTemplate"
    }
   },
   {
@@ -1607,6 +1640,47 @@
     "start"
    ],
    "summary": "Time range is invalid or out of bounds."
+  },
+  {
+   "code": "reaper-clipboard-failed",
+   "args": [
+    "reason"
+   ],
+   "summary": "Writing the REAPER clipboard failed or did not read back identically."
+  },
+  {
+   "code": "reaper-empty",
+   "args": [],
+   "summary": "Nothing to hand off."
+  },
+  {
+   "code": "reaper-file-conflict",
+   "args": [
+    "path"
+   ],
+   "summary": "A different file with the same name already exists in the REAPER folder."
+  },
+  {
+   "code": "reaper-markers-not-monotonic",
+   "args": [
+    "at"
+   ],
+   "summary": "Stretch markers are not strictly increasing."
+  },
+  {
+   "code": "reaper-path-invalid",
+   "args": [
+    "field"
+   ],
+   "summary": "Path or name contains NUL/CR/LF or every quote character."
+  },
+  {
+   "code": "reaper-too-large",
+   "args": [
+    "bytes",
+    "max"
+   ],
+   "summary": "REAPER clipboard content is larger than about 2 MB."
   },
   {
    "code": "result-mismatch",
@@ -3367,6 +3441,22 @@
      "items": {
       "type": "string"
      }
+    },
+    "versions": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "enum": [
+         "original",
+         "stretched"
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "words": {
      "type": "object",
@@ -5504,6 +5594,116 @@
     }
    },
    "required": []
+  },
+  "ReaperHandoff": {
+   "title": "ReaperHandoff",
+   "type": "object",
+   "properties": {
+    "clipboard": {
+     "type": "string"
+    },
+    "count": {
+     "type": "integer"
+    },
+    "files": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "manifest": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "clipboard",
+    "count",
+    "files",
+    "manifest"
+   ]
+  },
+  "ReaperParams": {
+   "title": "ReaperParams",
+   "description": "REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "longVowel": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "ids"
+   ]
+  },
+  "ReaperTemplate": {
+   "title": "ReaperTemplate",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "files": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "manifest": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "count",
+    "files",
+    "manifest",
+    "path"
+   ]
   },
   "RegisterStemParams": {
    "title": "RegisterStemParams",
@@ -8266,6 +8466,59 @@
     "assetId",
     "ordinal",
     "skipped"
+   ]
+  },
+  "StretchedExportParams": {
+   "title": "StretchedExportParams",
+   "description": "卡拍 WAV（只能完整采样，12 §12.1）。mora / longVowel：舞台上的临时纯 mora（不保存）。",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "longVowel": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "id"
    ]
   },
   "StudioEnv": {

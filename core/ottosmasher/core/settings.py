@@ -156,6 +156,8 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("flatten.single_target", "auto", _choice("auto", "edge", "manual"), "flatten"),
         SettingSpec("flatten.batch_range", "vowels", _choice("whole", "vowels", "first"), "flatten"),
         SettingSpec("flatten.batch_target", "auto", _choice("auto", "edge"), "flatten"),
+        # 导出：REAPER 交接的吸附（12 §12.3：首个起音落在编辑光标 / 以条目开头为准）
+        SettingSpec("export.reaper_snap", "onset", _choice("onset", "start"), "export"),
         # 任务并发（规格 13 §13.1.2、16 R19.3：模型 1、轻量 2；可设 1–4，0 拒绝）
         SettingSpec("jobs.concurrency_model", 1, _int_range(1, 4), "jobs"),
         SettingSpec("jobs.concurrency_light", 2, _int_range(1, 4), "jobs"),

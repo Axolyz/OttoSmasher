@@ -1,7 +1,7 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
 import { appendFileSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { BrowserWindow, app, dialog, ipcMain, nativeImage, session, shell } from "electron";
+import { BrowserWindow, ClipboardItem, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
 import type { CoreStatus } from "../shared/protocol";
@@ -137,6 +137,36 @@ ipcMain.on("files:startDrag", (e, files: unknown) => {
     dragIcon = logo && existsSync(logo) ? nativeImage.createFromPath(logo).resize({ width: 48, height: 48 }) : nativeImage.createEmpty();
   }
   e.sender.startDrag({ file: ok[0]!, files: ok, icon: dragIcon });
+});
+
+// 原生剪贴板类型（Electron 44：自定义的系统格式写成 osclipboard;format=…）
+const REAPER_FORMAT = 'electron application/osclipboard;format="REAPERMedia"';
+
+async function readRaw(format: string): Promise<Buffer | null> {
+  for (const item of await clipboard.read()) {
+    if (!item.types.includes(format)) continue;
+    const blob = (await item.getType(format)) as Blob;
+    return Buffer.from(await blob.arrayBuffer());
+  }
+  return null;
+}
+
+// REAPER 交接（规格 12 §12.3）：条目文本由 Core 生成（页面不能往剪贴板写任意内容）；写入 REAPERMedia 后回读校验。
+// 剪贴板类型 REAPERMedia、各行 NUL 分隔、末尾两个 NUL（REAPER 7.x macOS 实测格式）；Windows 未实测 → 未验收。
+ipcMain.handle("reaper:copy", async (_e, params: Record<string, unknown>) => {
+  const r = await core.request<{ clipboard: string; files: string[]; manifest: string; count: number }>("reaper.handoff", params ?? {});
+  if (!r.ok) return r;
+  const buf = Buffer.from(r.r.clipboard, "utf8");
+  try {
+    await clipboard.write([new ClipboardItem({ [REAPER_FORMAT]: new Blob([buf]) })]);
+    const back = await readRaw(REAPER_FORMAT);
+    if (!back || !back.equals(buf)) {
+      return { ok: false, e: { code: "reaper-clipboard-failed", args: { reason: `read back ${back?.length ?? 0}/${buf.length} bytes` } } };
+    }
+  } catch (err) {
+    return { ok: false, e: { code: "reaper-clipboard-failed", args: { reason: String(err) } } };
+  }
+  return { ok: true, r: { files: r.r.files, manifest: r.r.manifest, count: r.r.count } };
 });
 
 ipcMain.handle("core:request", (_e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}));

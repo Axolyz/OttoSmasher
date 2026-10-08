@@ -164,6 +164,13 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "rhythm-render-missing": (("key",), "The rendered audition is no longer in the cache."),
     "bpm-invalid": (("min", "max"), "BPM must be 20-400 (empty = original speed)."),
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
+    # ---- REAPER 交接（规格 12 §12.3）
+    "reaper-empty": ((), "Nothing to hand off."),
+    "reaper-path-invalid": (("field",), "Path or name contains NUL/CR/LF or every quote character."),
+    "reaper-markers-not-monotonic": (("at",), "Stretch markers are not strictly increasing."),
+    "reaper-too-large": (("bytes", "max"), "REAPER clipboard content is larger than about 2 MB."),
+    "reaper-file-conflict": (("path",), "A different file with the same name already exists in the REAPER folder."),
+    "reaper-clipboard-failed": (("reason",), "Writing the REAPER clipboard failed or did not read back identically."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),
     "studio-no-runtime": (("detail", "path"), "PyMSS Studio has no active inference environment."),

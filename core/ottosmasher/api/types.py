@@ -822,6 +822,8 @@ class ExportSamplesParams(TypedDict):
     ids: list[str]
     # 导出文件名里的固定词（按语言由界面给出）
     words: NotRequired[dict[str, str]]
+    # 拖出跟随最近一次成功试听的版本（12 §12.1）：采样 ID → original / stretched；没给 = 原声
+    versions: NotRequired[dict[str, Literal["original", "stretched"]] | None]
 
 
 class ExportWavParams(TypedDict):
@@ -1664,3 +1666,38 @@ class RhythmRendered(TypedDict):
 
 class RenderKeyParams(TypedDict):
     key: str
+
+
+class StretchedExportParams(TypedDict):
+    """卡拍 WAV（只能完整采样，12 §12.1）。mora / longVowel：舞台上的临时纯 mora（不保存）。"""
+
+    id: str
+    words: NotRequired[dict[str, str]]
+    plan: NotRequired[RhythmPlan | None]
+    mora: NotRequired[bool | None]
+    longVowel: NotRequired[bool | None]
+
+
+class ReaperParams(TypedDict):
+    """REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。"""
+
+    ids: list[str]
+    words: NotRequired[dict[str, str]]
+    plan: NotRequired[RhythmPlan | None]
+    mora: NotRequired[bool | None]
+    longVowel: NotRequired[bool | None]
+
+
+class ReaperHandoff(TypedDict):
+    # 剪贴板文本（各行 NUL 分隔、末尾两个 NUL）；由主进程写入 REAPERMedia 并回读校验
+    clipboard: str
+    files: list[str]
+    manifest: str
+    count: int
+
+
+class ReaperTemplate(TypedDict):
+    path: str
+    files: list[str]
+    manifest: str
+    count: int

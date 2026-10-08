@@ -76,6 +76,10 @@ export interface OttoApi {
     /** 拖出：文件已生成且鼠标仍按着时，交给系统拖拽（主进程 webContents.startDrag） */
     startDrag(files: string[]): void;
   };
+  reaper: {
+    /** 复制 REAPER 交接（规格 12 §12.3）：主进程向 Core 要条目文本（Core 命令 reaper.handoff），写入剪贴板类型 REAPERMedia 并回读校验 */
+    copy(params: Record<string, unknown>): Promise<CoreResult<{ files: string[]; manifest: string; count: number }>>;
+  };
 }
 
 export interface ProbeStats {

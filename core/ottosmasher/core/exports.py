@@ -60,6 +60,33 @@ class ExportService:
         processing: str = "",
         directory: str | None = None,
     ) -> dict[str, Any]:
+        """原声：资产区间的真实样本。"""
+
+        def make(ref: Any, a: int, b: int) -> tuple[Any, int]:
+            return dec.decode_frames(ref, a, b, cache=self.ws.data / "Cache"), ref.sample_rate
+
+        return self.export_generated(
+            asset_id, start, end, version=[VERSION_ORIGINAL], make=make, content=content, track=track, local_prefix=local_prefix,
+            processing=processing, directory=directory,
+        )
+
+    def export_generated(
+        self,
+        asset_id: str,
+        start: float,
+        end: float,
+        *,
+        version: list[Any],
+        make: Any,
+        content: str,
+        track: str,
+        local_prefix: str | None = None,
+        processing: str = "",
+        directory: str | None = None,
+        manifest: Any = None,
+    ) -> dict[str, Any]:
+        """导出一个 WAV：``make(ref, a, b) -> (pcm, 采样率)`` 生成内容（原声 = 解码；卡拍 = 渲染）。
+        ``version``：版本参数（进稳定键）；``manifest(path, key) -> dict``：写在数据目录 ``Data/Manifests/`` 的清单（12 §12.1）。"""
         asset = assets_mod.get(self.conn, asset_id)
         mapping = Mapping.of(asset["mapping"])
         # 先按资产时长做一帧容差的端点校验（R3.4），再找存放这段的文件
@@ -69,7 +96,7 @@ class ExportService:
         sr = ref.sample_rate
         a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
         key = hashlib.sha256(
-            dumps([asset_id, media["media_file_id"], media["snapshot"], a, b, sr, VERSION_ORIGINAL, content, track, processing]).encode()
+            dumps([asset_id, media["media_file_id"], media["snapshot"], a, b, sr, *version, content, track, processing]).encode()
         ).hexdigest()
 
         src = self.conn.execute("SELECT id, path FROM source WHERE id=?", (asset["source_id"],)).fetchone()
@@ -105,13 +132,13 @@ class ExportService:
         if target.exists():
             raise CoreError("export-exists", path=str(target))
 
-        pcm = dec.decode_frames(ref, a, b, cache=self.ws.data / "Cache")
+        pcm, out_sr = make(ref, a, b)
         assets_mod.check_media(media)  # 生成期间源文件变化 → 报错
         target_dir.mkdir(parents=True, exist_ok=True)
         staged = self.ws.staging / f"{new_id()}.wav"
         self.ws.staging.mkdir(parents=True, exist_ok=True)
         try:
-            wavfile.save_wav24(staged, pcm, sr)
+            wavfile.save_wav24(staged, pcm, out_sr)
             self._publish(staged, target)
         finally:
             staged.unlink(missing_ok=True)
@@ -120,6 +147,10 @@ class ExportService:
             "INSERT OR REPLACE INTO export_file(stable_key, path, kind, size, mtime_ns, sha256, created_at) VALUES (?, ?, 'wav', ?, ?, ?, ?)",
             (key, str(target), st.st_size, st.st_mtime_ns, _sha256(target), now_iso()),
         )
+        if manifest is not None:
+            d = self.ws.data / "Manifests"
+            d.mkdir(parents=True, exist_ok=True)
+            (d / f"{key[:24]}.json").write_text(dumps(manifest(str(target), key)), encoding="utf-8")
         return {"path": str(target), "reused": False, "key": key}
 
     def _publish(self, staged: Path, target: Path) -> None:

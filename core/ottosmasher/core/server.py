@@ -34,7 +34,7 @@ from . import actor as actor_mod
 from . import annotations as annotations_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
-from .exports import ExportService, export_range, export_samples
+from .exports import ExportService, export_range
 from .samples import SampleService
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
@@ -42,6 +42,7 @@ from .flatten import FlattenService
 from .separation import SeparationService
 from .probes import record_probes
 from .rhythm import RhythmService
+from .handoff import HandoffService
 from .speech import SpeechService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
@@ -171,8 +172,17 @@ class Core:
           lambda p: self.samples.ids(natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId")))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
-        r("exports.samples", "write", T.ExportSamplesParams, list[str], "Export samples as WAV files for drag-out; returns file paths.",
-          lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))))
+        r("exports.samples", "write", T.ExportSamplesParams, list[str],
+          "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
+          lambda p: self.handoff.export_samples(list(p["ids"]), dict(p.get("words", {})), dict(p.get("versions") or {})))
+        r("exports.stretched", "write", T.StretchedExportParams, T.ExportedWav,
+          "Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping).",
+          lambda p: self.handoff.export_stretched(p["id"], dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
+        r("reaper.handoff", "write", T.ReaperParams, T.ReaperHandoff,
+          "Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers.",
+          lambda p: self.handoff.reaper_handoff(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
+        r("reaper.template", "write", T.ReaperParams, T.ReaperTemplate, "Write the same items as an .RTrackTemplate file (experimental).",
+          lambda p: self.handoff.reaper_template(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
         r("exports.wav", "write", T.ExportWavParams, T.ExportedWav, "Export an asset range as a WAV file (reuses an identical export).",
           lambda p: self.exports.export_wav(
               p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
@@ -296,6 +306,7 @@ class Core:
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
+        self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）

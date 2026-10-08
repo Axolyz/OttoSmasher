@@ -53,6 +53,9 @@ const api: OttoApi = {
     pathOf: (file) => webUtils.getPathForFile(file),
     startDrag: (files) => ipcRenderer.send("files:startDrag", files),
   },
+  reaper: {
+    copy: (params) => ipcRenderer.invoke("reaper:copy", params),
+  },
 };
 
 const coreEventSubs = new Set<(ev: CoreEvent) => void>();
