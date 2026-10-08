@@ -132,6 +132,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "align-empty": ((), "Nothing to align (no phonemes)."),
     "align-unsupported": (("detail",), "The aligner does not support a phoneme transition in this text."),
     "align-audio-too-short": (("frames",), "Audio window is too short to align."),
+    "align-ambiguous": (("expected", "got"), "Aligner output does not match the input phonemes exactly (attribution uncertain)."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),
     "studio-no-runtime": (("detail", "path"), "PyMSS Studio has no active inference environment."),

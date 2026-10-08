@@ -1264,6 +1264,7 @@ export type CommandName = keyof Commands;
 
 /** Core error codes (argument names: docs/api/commands.json, errors). */
 export type ErrorCode =
+  | "align-ambiguous"
   | "align-audio-too-short"
   | "align-empty"
   | "align-unsupported"

@@ -286,6 +286,7 @@
   "error.align-empty": "没有可对齐的音素",
   "error.align-unsupported": "对齐模型不支持这段文字里的音素组合：{detail}",
   "error.align-audio-too-short": "音频太短，无法对齐（{frames} 帧）",
+  "error.align-ambiguous": "对齐结果与送入的音素对不上（归属不确定），不猜",
   "error.result-mismatch": "命令返回的数据与命令目录不符（{method}）：{reason}",
   "error.edit-duplicate-object": "同一批修改里第 {index} 项重复修改了同一个对象",
   "error.edit-unknown-entity": "第 {index} 项要修改的对象种类未知：{entity}",

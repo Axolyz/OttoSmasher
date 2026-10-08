@@ -866,6 +866,14 @@
  ],
  "errors": [
   {
+   "code": "align-ambiguous",
+   "args": [
+    "expected",
+    "got"
+   ],
+   "summary": "Aligner output does not match the input phonemes exactly (attribution uncertain)."
+  },
+  {
    "code": "align-audio-too-short",
    "args": [
     "frames"
