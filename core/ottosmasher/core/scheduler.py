@@ -25,6 +25,7 @@ from typing import Any
 from ..jobs.kinds import channel_of
 from ..platform.proc import ProcessTree, spawn_tree
 from ..store.db import transaction
+from . import actor as actor_mod
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
@@ -237,7 +238,9 @@ class Scheduler:
             try:
                 adopter = self.adopters.get(row["kind"])
                 if adopter is not None:
-                    adopter(dict(row), run.result)
+                    # 登记结果时记成提交任务的那一方（ROADMAP L1）
+                    with actor_mod.acting(self.conn, row["actor_kind"], row["actor_session"]):
+                        adopter(dict(row), run.result)
             except CoreError as exc:
                 self._finish(jid, "failed", error=exc.to_wire())
             else:

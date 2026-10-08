@@ -27,6 +27,7 @@ from .edits import ChangeSet, EditService, dumps, loads
 from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
+from . import actor as actor_mod
 from . import annotations as annotations_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
@@ -162,6 +163,7 @@ class Core:
         self._lock.acquire()
         self.conn = connect(self.ws.db_path)
         report = migrate(self.conn, self.ws.backups)
+        actor_mod.install(self.conn)
         if report.backup:
             log.info("schema migrated %s -> %s, backup %s", report.from_version, report.to_version, report.backup)
         self.edits = EditService(self.conn, on_change=self._on_change)
@@ -245,7 +247,9 @@ class Core:
         try:
             if handler is None:
                 raise CoreError("unknown-method", method=method)
-            result = handler(msg.get("p") or {})
+            kind, session = actor_mod.parse(msg.get("actor"))
+            with actor_mod.acting(self.conn, kind, session):
+                result = handler(msg.get("p") or {})
             return {"t": "res", "id": rid, "ok": True, "r": result}
         except CoreError as exc:
             return {"t": "res", "id": rid, "ok": False, "e": exc.to_wire()}
