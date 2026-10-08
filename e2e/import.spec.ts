@@ -25,7 +25,8 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await page.getByTestId("library-import").click();
   const dlg = page.getByTestId("import-dialog");
   await expect(dlg.getByTestId("import-preview")).toBeVisible({ timeout: 20000 });
-  await expect(dlg.getByTestId("import-work")).toHaveValue("游戏 A"); // 作品默认 = 文件夹名
+  await expect(dlg.getByTestId("import-work")).toHaveValue("游戏 A"); // 统一设为：文件名推断不出同一作品 → 文件夹名
+  await expect(dlg.getByTestId("import-groups")).toContainText("全部归入「游戏 A」");
   await expect(dlg.getByTestId("import-preview")).toContainText("3 个文件（其中 1 个视频）");
   await expect(dlg.getByTestId("import-preview")).toContainText("1 个找到同名画面");
   await expect(dlg.getByTestId("import-unreadable")).toContainText("broken.wav");
@@ -85,7 +86,9 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await expect(dlg.getByTestId("import-preview")).toContainText("1 个文件", { timeout: 20000 });
   await expect(dlg.getByTestId("import-whole")).not.toBeChecked();
   await expect(dlg.getByTestId("import-nature")).toHaveCount(0);
-  await expect(dlg.getByTestId("import-work")).toHaveValue(""); // 空着 = 按文件名推断
+  await expect(dlg.getByTestId("import-work")).toHaveValue("Show B"); // 统一设为：文件名推断出同一个作品就预填它
+  await dlg.getByTestId("import-work-mode").getByRole("radio", { name: "按文件名推断" }).click();
+  await expect(dlg.getByTestId("import-groups")).toContainText("Show B 1 个");
   await dlg.getByTestId("import-submit").click();
   await expect(page.getByTestId("source-settings")).toBeVisible(); // 只为第一个新原片弹「作品与输入设置」
   await expect(page.getByTestId("field-work")).toHaveValue("Show B");
@@ -97,5 +100,18 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await page.getByRole("menuitem", { name: "建立全长采样…" }).click();
   await page.getByTestId("whole-ok").click();
   await expect.poll(total).toBe(7);
+
+  // 批量「作品与类型…」：勾选两个原片 → 统一改作品（重新归组）→ 撤销
+  await page.getByTestId("sources-search").fill("游戏 A"); // 搜索时组都展开
+  for (const name of ["coin.wav", "clip.mp4"]) await page.getByTestId("source-row").filter({ hasText: name }).locator("label").first().click();
+  await page.getByTestId("page-sources").getByTestId("batch-actions").click();
+  await page.getByRole("menuitem", { name: /设作品与类型/ }).click();
+  const wt = page.getByTestId("work-type-dialog");
+  await wt.getByTestId("work-type-work").fill("游戏 C");
+  await wt.getByTestId("work-type-ok").click();
+  await page.getByTestId("sources-search").fill("");
+  await expect(page.getByTestId("source-group").filter({ hasText: "游戏 C" })).toContainText("2");
+  await page.keyboard.press("Meta+z");
+  await expect(page.getByTestId("source-group").filter({ hasText: "游戏 C" })).toHaveCount(0);
   await app.close();
 });

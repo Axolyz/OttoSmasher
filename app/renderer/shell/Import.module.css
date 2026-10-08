@@ -7,3 +7,5 @@
 .fileList li { overflow-wrap: anywhere; }
 .footNote { color: var(--muted); font-size: var(--fs-sm); }
 .grow { flex: 1; }
+.workBox { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
+.workBox > :last-child:not(:first-child) { align-self: stretch; }

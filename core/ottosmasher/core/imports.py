@@ -4,7 +4,9 @@
 （采样库进来默认勾，原片页进来默认不勾）；任何原片之后也能「建立全长采样…」（``whole_samples``）。
 
 - 每个文件 = 一个原片（登记位置，不复制、不转码）；勾了全长采样就在默认音轨上建一个整段采样（名 = 文件名去扩展名，性质在框里选，不靠文件名或音高推断）。
-- 作品：框里填了就用它（集数仍按文件名推断）；空着就按文件名推断作品与集数（同原片页登记）。
+- 作品（所有者 2026-10-07：文件夹导入的本意是把一批归到一个作品）：明确二选一——“统一设为”（预填：所有新文件按文件名推断出同一个作品就用它，
+  否则所选的唯一文件夹名；空 = 未指定作品）或“按文件名推断”；两种都按文件名推断集数。预览给出导入后的分组。已登记过的文件不改作品
+  （要改用原片列表批量「作品与类型…」）。
 - 接受文件和整个文件夹（含子文件夹，跳过隐藏文件）。文件夹里导入音频和视频；与同文件夹某个音频同名的视频/图片是那个音频的画面，不单独导入。
 - 再次导入已登记过的文件：原片不重复登记、属性不改；勾了全长采样就再建一个整段采样（显式操作一律新建）。
 - **同名画面**：与音频同一文件夹、去掉扩展名后同名（NFC、不分大小写）的视频 / 动图 / 静态图，按 视频 > 动图 > 静态图 取第一个（同类按文件名），
@@ -191,6 +193,18 @@ class ImportService:
         ok = [x for x in items if x["ok"]]
         existing = {r[0] for r in self.conn.execute("SELECT path_key FROM source")}
         fresh = [x for x in ok if path_key(x["path"]) not in existing]
+        rules = settings_mod.values(self.conn)["source.infer_rules"]
+        groups: dict[str, int] = {}
+        for x in fresh:
+            w = naming.infer_work_episode(x["path"], rules).work or ""
+            groups[w] = groups.get(w, 0) + 1
+        roots = sorted({x["root"] for x in items})
+        if len(groups) == 1 and "" not in groups:
+            suggested = next(iter(groups))
+        elif len(roots) == 1:
+            suggested = unicodedata.normalize("NFC", Path(roots[0]).name)
+        else:
+            suggested = ""
         return {
             "total": len(items),
             "importable": len(ok),
@@ -204,12 +218,19 @@ class ImportService:
                 for x in fresh
                 if x.get("picture") and x["picture"]["conflicts"]
             ],
-            "roots": sorted({x["root"] for x in items}),
+            "roots": roots,
+            # 按文件名推断时的分组（只算新文件；已登记的保持原作品）：[[作品, 个数]]，个数多的在前，"" = 未指定作品
+            "inferredGroups": [[w, n] for w, n in sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))],
+            "suggestedWork": suggested,
         }
 
-    def commit(self, job_id: str, *, work: str, source_type: str, whole_sample: bool, nature: str, bind_pictures: bool) -> dict[str, Any]:
-        work, source_type = work.strip(), source_type.strip()
-        for field, v in (("work", work), ("source_type", source_type)):
+    def commit(
+        self, job_id: str, *, work: str | None, source_type: str, whole_sample: bool, nature: str, bind_pictures: bool
+    ) -> dict[str, Any]:
+        """work 为 None = 按文件名推断作品；字符串 = 统一设为它（空串 = 未指定作品）。"""
+        work = None if work is None else work.strip()
+        source_type = source_type.strip()
+        for field, v in (("work", work or ""), ("source_type", source_type)):
             if len(v) > MAX_TEXT:
                 raise CoreError("edit-invalid", index=0, field=field, reason="too-long")
         if whole_sample and nature not in NATURES:

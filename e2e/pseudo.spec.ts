@@ -73,6 +73,15 @@ test("伪语言下没有写死的界面文字", async () => {
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("whole-dialog")).toHaveCount(0);
+  // 批量「作品与类型…」框（批量菜单第 4 项）
+  await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).locator("label").first().click();
+  await page.getByTestId("page-sources").getByTestId("batch-actions").click();
+  await page.getByRole("menuitem").nth(3).click();
+  await expect(page.getByTestId("work-type-dialog")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("work-type-dialog")).toHaveCount(0);
+  await page.getByTestId("page-sources").getByTestId("batch-clear").click();
   // 时间线右键菜单与「新增区段标签」框
   await page.mouse.click(tl.x + tl.width * 0.3, tl.y + 50, { button: "right" });
   await expect(page.getByTestId("timeline-menu")).toBeVisible();

@@ -1,12 +1,12 @@
 // 导入（规格 06 §6.6、05 §5.1、ARCHITECTURE §4.10、UI_PLAN §4、§8；原型 importModal）。原片页「＋」/拖入与采样库「导入」/拖入共用这一个框：
 // 选文件或整个文件夹（含子文件夹）→ 轻量任务扫描（探测、确切时长、同名画面）→ 预览数量、能匹配到画面的、读不了的（列出，不导入）
-// → 作品、类型、同名画面绑定；「直接建立全长采样」勾上才选性质（不靠文件名或音高推断）→「导入 N 个」。
+// → 作品（统一设为 / 按文件名推断，预览给出分组；所有者 2026-10-07：文件夹导入的本意是把一批归到一个作品）、类型、同名画面绑定；「直接建立全长采样」勾上才选性质（不靠文件名或音高推断）→「导入 N 个」。
 // 所有者 2026-10-07：原片只有一种，两个入口唯一的区别是这个勾选的默认值（采样库勾、原片页不勾）；已登记过的文件不重复登记，勾了就再建一个全长采样。
 import { useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { Nature } from "../api/types";
 import { Button } from "../components/Button";
-import { Callout, Checkbox, ProgressBar } from "../components/Controls";
+import { Callout, Checkbox, ProgressBar, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
 import { NaturePicker } from "../components/NaturePicker";
 import { DialogBox } from "../components/Overlay";
@@ -33,7 +33,12 @@ interface Preview {
   unreadable: Array<{ path: string; error: { code: string; args: Record<string, unknown> } }>;
   conflicts: Array<{ path: string; picture: string; others: string[] }>;
   roots: string[];
+  /** 按文件名推断时的分组：[作品, 个数]，"" = 未指定作品（只算新文件） */
+  inferredGroups: Array<[string, number]>;
+  /** “统一设为”的预填：新文件推断出同一个作品就用它，否则唯一的文件夹名 */
+  suggestedWork: string;
 }
+const GROUPS_MAX = 6;
 interface Job {
   id: string;
   status: string;
@@ -55,6 +60,8 @@ export function ImportDialog(props: {
   const [pv, setPv] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [work, setWork] = useState("");
+  const [workMode, setWorkMode] = useState<"unified" | "infer">("unified");
+  const workTouched = useRef(false);
   const [type, setType] = useState("");
   const [nature, setNature] = useState<Nature>(props.defaultNature);
   const [bind, setBind] = useState(true);
@@ -69,8 +76,10 @@ export function ImportDialog(props: {
     setNature(props.defaultNature);
     setBind(true);
     setWhole(props.defaultWhole);
-    // 作品：从采样库进来、只选了一个文件夹时默认取文件夹名；否则空着 = 按文件名推断作品与集数（同原片页登记）
-    setWork(props.defaultWhole && props.paths.length === 1 ? basename(props.paths[0]!) : "");
+    // 作品：默认“统一设为”，预览出来后预填（推断出的同一个作品，否则文件夹名）；用户改过就不覆盖
+    setWork("");
+    setWorkMode("unified");
+    workTouched.current = false;
     jobId.current = null;
     void call<Job>("imports.scan", { paths: props.paths })
       .then((j) => {
@@ -89,8 +98,7 @@ export function ImportDialog(props: {
       void call<Preview>("imports.preview", { jobId: j.id })
         .then((p) => {
           setPv(p);
-          // 从采样库进来、选的是同一文件夹里的文件、作品还空着：用这个文件夹名
-          if (props.defaultWhole && p.roots.length === 1 && props.paths?.length !== 1) setWork((w) => w || basename(p.roots[0]!));
+          if (!workTouched.current) setWork(p.suggestedWork);
         })
         .catch((e) => setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)));
     } else if (j.status === "failed" && j.error) setError(errorText(j.error));
@@ -106,7 +114,7 @@ export function ImportDialog(props: {
     if (!job || !pv || busy) return;
     setBusy(true);
     try {
-      const r = await call<ImportResult>("imports.commit", { jobId: job.id, work, sourceType: type, wholeSample: whole, nature, bindPictures: bind });
+      const r = await call<ImportResult>("imports.commit", { jobId: job.id, workMode, work, sourceType: type, wholeSample: whole, nature, bindPictures: bind });
       const parts = [t("import.doneSources", { n: r.created })];
       if (whole) parts.push(t("import.doneSamples", { n: r.sampleIds.length }));
       if (r.existing) parts.push(t(whole ? "import.doneExistingWhole" : "import.doneExisting", { n: r.existing }));
@@ -152,7 +160,31 @@ export function ImportDialog(props: {
       <Callout>{t("import.note")}</Callout>
       <div className={s.form}>
         <span className={s.formLabel}>{t("sources.field.work")}</span>
-        <TextField value={work} onChange={setWork} label={t("sources.field.work")} placeholder={t("import.workHint")} testId="import-work" />
+        <div className={s.workBox}>
+          <Segmented<"unified" | "infer">
+            size="sm"
+            value={workMode}
+            onChange={setWorkMode}
+            label={t("sources.field.work")}
+            testId="import-work-mode"
+            options={[
+              { id: "unified", label: t("import.workUnified") },
+              { id: "infer", label: t("import.workInfer") },
+            ]}
+          />
+          {workMode === "unified" ? (
+            <TextField
+              value={work}
+              onChange={(v) => {
+                workTouched.current = true;
+                setWork(v);
+              }}
+              label={t("sources.field.work")}
+              placeholder={t("import.workHint")}
+              testId="import-work"
+            />
+          ) : null}
+        </div>
         <span className={s.formLabel}>{t("sources.field.type")}</span>
         <TextField value={type} onChange={setType} label={t("sources.field.type")} placeholder={t("sources.field.typeHint")} testId="import-type" />
       </div>
@@ -198,6 +230,19 @@ export function ImportDialog(props: {
             ) : null}
             {pv.existing ? ` · ${t(whole ? "import.previewExisting" : "import.previewExistingSkip", { n: pv.existing })}` : ""}
             {pv.unreadable.length ? ` · ${t("import.previewUnreadable", { n: pv.unreadable.length })}` : ""}
+          </div>
+          <div className={s.preview} data-testid="import-groups">
+            {workMode === "unified"
+              ? t("import.groupsUnified", { work: work.trim() || t("sources.noWork") })
+              : t("import.groupsInfer", {
+                  list:
+                    pv.inferredGroups
+                      .slice(0, GROUPS_MAX)
+                      .map(([w, n]) => t("import.groupItem", { work: w || t("sources.noWork"), n }))
+                      .join(t("settings.subtitle.speakerSep")) +
+                    (pv.inferredGroups.length > GROUPS_MAX ? t("import.groupsMore", { n: pv.inferredGroups.length - GROUPS_MAX }) : ""),
+                })}
+            {pv.existing ? ` ${t("import.existingKeepWork", { n: pv.existing })}` : ""}
           </div>
           {pv.unreadable.length ? (
             <ul className={s.fileList} data-testid="import-unreadable">

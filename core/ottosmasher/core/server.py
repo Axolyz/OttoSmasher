@@ -125,7 +125,7 @@ class Core:
             "imports.scan": lambda p: self.imports.scan(list(p["paths"])),
             "imports.preview": lambda p: self.imports.preview(p["jobId"]),
             "imports.commit": lambda p: self.imports.commit(
-                p["jobId"], work=str(p.get("work", "")), source_type=str(p.get("sourceType", "")),
+                p["jobId"], work=None if p.get("workMode", "unified") == "infer" else str(p.get("work", "")), source_type=str(p.get("sourceType", "")),
                 whole_sample=bool(p.get("wholeSample", False)), nature=str(p.get("nature", "unclassified")),
                 bind_pictures=bool(p.get("bindPictures", True)),
             ),

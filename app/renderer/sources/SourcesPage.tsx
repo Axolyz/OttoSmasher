@@ -19,6 +19,7 @@ import { TracksDialog } from "./TracksDialog";
 import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
 import { WholeSampleDialog } from "./WholeSampleDialog";
+import { WorkTypeDialog } from "./WorkTypeDialog";
 import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
@@ -103,6 +104,7 @@ export function SourcesPage() {
   // 添加原片 = 导入框（与采样库共用，所有者 2026-10-07）：这里进来「直接建立全长采样」默认不勾
   const [importPaths, setImportPaths] = useState<string[] | null>(null);
   const [wholeFor, setWholeFor] = useState<string[] | null>(null);
+  const [workTypeFor, setWorkTypeFor] = useState<SourceRow[] | null>(null);
   const onImported = async (r: ImportResult) => {
     const list = await reload();
     const first = r.sourceIds[0];
@@ -178,6 +180,7 @@ export function SourcesPage() {
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
             { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => setWholeFor(ids) },
+            { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
           ],
@@ -294,6 +297,7 @@ export function SourcesPage() {
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
       <ImportDialog paths={importPaths} defaultWhole={false} defaultNature="unclassified" onClose={() => setImportPaths(null)} onImported={(r) => void onImported(r)} />
       <WholeSampleDialog ids={wholeFor} onClose={() => setWholeFor(null)} />
+      <WorkTypeDialog rows={workTypeFor} onClose={() => setWorkTypeFor(null)} onDone={() => void reload()} />
       <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />
       <DeleteDialog ids={deleteIds} rows={rows ?? []} onClose={() => setDeleteIds(null)} onDeleted={(ids) => void onDeleted(ids)} />
     </div>
