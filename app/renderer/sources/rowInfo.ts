@@ -9,8 +9,9 @@ export function durationText(d: number): string {
   return d < 60 ? t("format.sec", { v: d.toFixed(2) }) : clock(d, 0);
 }
 
-/** 文件相对导入根文件夹的子目录（“se/battle”）；不在根下或就在根下 → 空 */
-export function relDir(r: Pick<SourceRow, "path" | "import_root">): string {
+/** 子目录：原片文件夹里的原片 = 作品文件夹下面的子目录（“se/battle”）；导入的 = 相对导入根文件夹；就在根下 → 空 */
+export function relDir(r: Pick<SourceRow, "path" | "import_root"> & { root_id?: string | null; rel_path?: string | null }): string {
+  if (r.root_id && r.rel_path) return r.rel_path.split("/").slice(1, -1).join("/");
   if (!r.import_root) return "";
   const root = r.import_root.replace(/[\\/]+$/, "");
   const dir = r.path.replace(/[\\/][^\\/]*$/, "");

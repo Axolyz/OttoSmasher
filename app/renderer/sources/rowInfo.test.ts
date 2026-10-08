@@ -12,6 +12,9 @@ describe("source row info", () => {
     expect(relDir(row({ path: "/gx/hit.ogg" }))).toBe("");
     expect(relDir(row({ import_root: null }))).toBe("");
     expect(relDir(row({ path: "C:\\g\\se\\hit.ogg", import_root: "C:\\g" }))).toBe("se");
+    // 原片文件夹：作品文件夹下面的子目录
+    expect(relDir(row({ root_id: "r", rel_path: "Game/se/ui/hit.ogg" }))).toBe("se/ui");
+    expect(relDir(row({ root_id: "r", rel_path: "Game/hit.ogg" }))).toBe("");
   });
   it("duration: seconds under a minute, clock above", () => {
     expect(durationText(0.17)).toContain("0.17");
@@ -21,5 +24,9 @@ describe("source row info", () => {
     expect(noSubtitles(row({}))).toBe(true);
     expect(noSubtitles(row({ subtitle_path: "/a.srt" }))).toBe(false);
     expect(noSubtitles(row({ counts: { lines: 0, hasMarkers: true, oped: 0, samples: 0 } }))).toBe(false);
+  });
+  it("source-folder rows show the subfolder inside the work folder", () => {
+    expect(relDir(row({ root_id: "r", rel_path: "Game/se/ui/hit.ogg" }))).toBe("se/ui");
+    expect(relDir(row({ root_id: "r", rel_path: "Game/hit.ogg" }))).toBe("");
   });
 });

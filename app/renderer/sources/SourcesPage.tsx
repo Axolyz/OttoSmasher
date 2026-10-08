@@ -3,7 +3,7 @@
 import { Clapperboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { AddResult, SourceRow } from "../api/types";
+import type { SourceRoot, SourceRow, WorkFolder } from "../api/types";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/Controls";
 import { Menu, type MenuSpec } from "../components/Menu";
@@ -19,6 +19,7 @@ import { TracksDialog } from "./TracksDialog";
 import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
 import { WholeSampleDialog } from "./WholeSampleDialog";
+import { WorkSettingsDialog } from "./WorkSettingsDialog";
 import { WorkTypeDialog } from "./WorkTypeDialog";
 import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
@@ -45,9 +46,15 @@ export function SourcesPage() {
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
 
+  // 原片文件夹与作品文件夹（阶段 3.13）
+  const [roots, setRoots] = useState<SourceRoot[]>([]);
+  const [works, setWorks] = useState<WorkFolder[]>([]);
+  const [workSettingsFor, setWorkSettingsFor] = useState<WorkFolder | null>(null);
   const reload = useCallback(async () => {
-    const r = await call<SourceRow[]>("sources.list");
+    const [r, rs, ws] = await Promise.all([call<SourceRow[]>("sources.list"), call<SourceRoot[]>("roots.list"), call<WorkFolder[]>("works.list")]);
     setRows(r);
+    setRoots(rs);
+    setWorks(ws);
     return r;
   }, []);
 
@@ -92,8 +99,54 @@ export function SourcesPage() {
 
   // 原片列表是本页的资料：别处改了（撤销、编辑）就刷新这一页
   useCoreEvent("data.changed", (d) => {
-    if ((d as Record<string, string[]>).source) void reload();
+    const c = d as Record<string, string[]>;
+    if (c.source || c.work_folder) void reload();
   });
+  // 扫描原片文件夹完成（启动时 /「重新扫描」）：提示结果；有新原片时可以一键为它们建立全长采样
+  useCoreEvent("sources.scanned", (d) => {
+    const r = d as { new: number; moved: number; missing: number; newIds: string[]; byWork: Array<[string, number]>; offline: string[] };
+    void reload();
+    if (r.offline.length) toast({ text: t("roots.offlineToast", { list: r.offline.join(t("settings.subtitle.speakerSep")) }), tone: "error" });
+    if (!r.new && !r.moved) return;
+    const parts: string[] = [];
+    if (r.new)
+      parts.push(
+        t("roots.scanNew", { n: r.new }) +
+          t("roots.scanByWork", { list: r.byWork.slice(0, 4).map(([w, n]) => `${w || t("sources.noWork")} ${n}`).join(t("settings.subtitle.speakerSep")) }),
+      );
+    if (r.moved) parts.push(t("roots.scanMoved", { n: r.moved }));
+    if (r.missing) parts.push(t("roots.scanMissing", { n: r.missing }));
+    toast({
+      text: t("roots.scanDone", { list: parts.join(t("settings.subtitle.speakerSep")) }),
+      action: r.newIds.length ? { label: t("roots.wholeForNew"), run: () => setWholeFor(r.newIds) } : undefined,
+    });
+  });
+  const rescan = async () => {
+    try {
+      await call("sources.rescan");
+      toast({ text: t("roots.scanning") });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+  // 组头（作品）菜单：原片文件夹的作品 → 作品设置、在 Finder 中显示；所有组 → 整组导入字幕标记、建立全长采样；不在原片文件夹的 → 整组设作品与类型
+  const groupMenu = (work: string): MenuSpec | null => {
+    const members = (rows ?? []).filter((r) => r.work === work);
+    if (!members.length) return null;
+    const folder = works.find((w) => w.name === work && members.some((m) => m.root_id === w.rootId));
+    const loose = members.filter((m) => !m.root_id);
+    return {
+      head: t("menu.on", { name: work || t("sources.noWork") }),
+      items: [
+        ...(folder ? [{ id: "work-settings", label: t("workSettings.menu"), run: () => setWorkSettingsFor(folder) }] : []),
+        { id: "subimport", label: t("roots.groupSubimport", { n: members.length }), run: () => setBatchImport(members) },
+        { id: "whole", label: t("roots.groupWhole", { n: members.length }), run: () => setWholeFor(members.map((m) => m.id)) },
+        ...(loose.length ? [{ id: "work-type", label: t("workType.menuN", { n: loose.length }), run: () => setWorkTypeFor(loose) }] : []),
+        { id: "check", label: t("roots.groupCheck"), run: () => setChecked(new Set(members.map((m) => m.id))) },
+        ...(folder ? (["-", { id: "reveal", label: t("roots.reveal"), run: () => void window.otto.files.reveal(folder.path) }] as const) : []),
+      ],
+    };
+  };
 
   const open = (id: string) => {
     setCurrent(id);
@@ -237,7 +290,9 @@ export function SourcesPage() {
           onToggleGroup={(w, o) => setExpanded((e) => ((o ?? !e.includes(w)) ? (e.includes(w) ? e : [...e, w]) : e.filter((x) => x !== w)))}
           onChecked={setChecked}
           onAdd={() => void pickAndAdd()}
+          onRescan={roots.length ? () => void rescan() : null}
           menu={sourceMenu}
+          groupMenu={groupMenu}
           onDelete={setDeleteIds}
         />
       ) : (
@@ -298,7 +353,24 @@ export function SourcesPage() {
       <ImportDialog paths={importPaths} defaultWhole={false} defaultNature="unclassified" onClose={() => setImportPaths(null)} onImported={(r) => void onImported(r)} />
       <WholeSampleDialog ids={wholeFor} onClose={() => setWholeFor(null)} />
       <WorkTypeDialog rows={workTypeFor} onClose={() => setWorkTypeFor(null)} onDone={() => void reload()} />
-      <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />
+      <InputSettingsDialog
+        sourceId={settingsFor}
+        onClose={() => setSettingsFor(null)}
+        onSaved={() => void reload()}
+        onWorkSettings={(rootId, work) => {
+          const f = works.find((w) => w.rootId === rootId && w.name === work);
+          if (f) {
+            setSettingsFor(null);
+            setWorkSettingsFor(f);
+          }
+        }}
+      />
+      <WorkSettingsDialog
+        folder={workSettingsFor}
+        onClose={() => setWorkSettingsFor(null)}
+        onDone={() => void reload()}
+        onRenamed={(from, to) => setExpanded((e) => (e.includes(from) ? [...e.filter((x) => x !== from), to] : e))}
+      />
       <DeleteDialog ids={deleteIds} rows={rows ?? []} onClose={() => setDeleteIds(null)} onDeleted={(ids) => void onDeleted(ids)} />
     </div>
   );

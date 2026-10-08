@@ -23,6 +23,7 @@ export function WorkTypeDialog(props: { rows: SourceRow[] | null; onClose: () =>
   const [work, setWork] = useState("");
   const [type, setType] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFolders = rows?.filter((r) => r.root_id).length ?? 0;
   useEffect(() => {
     if (!rows) return;
     setSetWorkOn(true);
@@ -33,13 +34,17 @@ export function WorkTypeDialog(props: { rows: SourceRow[] | null; onClose: () =>
 
   const apply = async () => {
     if (!rows || busy) return;
-    const fields: Record<string, string> = {};
-    if (setWorkOn) fields.work = work.trim();
-    if (setTypeOn) fields.source_type = type.trim();
+    // 原片文件夹里的原片作品跟着文件夹走（阶段 3.13）：只改它们的类型
+    const fieldsFor = (r: SourceRow) => {
+      const f: Record<string, string> = {};
+      if (setWorkOn && !r.root_id) f.work = work.trim();
+      if (setTypeOn) f.source_type = type.trim();
+      return f;
+    };
     setBusy(true);
     try {
       await call("edits.apply", {
-        batch: { label: { code: "sources-meta", args: { n: rows.length } }, ops: rows.map((r) => ({ entity: "source", id: r.id, version: r.version, fields })) },
+        batch: { label: { code: "sources-meta", args: { n: rows.length } }, ops: rows.filter((r) => Object.keys(fieldsFor(r)).length).map((r) => ({ entity: "source", id: r.id, version: r.version, fields: fieldsFor(r) })) },
       });
       toast({ text: t("workType.done", { n: rows.length }), action: { label: t("common.undo"), run: () => void undo().then(props.onDone) } });
       props.onDone();
@@ -72,6 +77,7 @@ export function WorkTypeDialog(props: { rows: SourceRow[] | null; onClose: () =>
       }
     >
       <Callout>{t("workType.note")}</Callout>
+      {inFolders ? <Callout tone="warn">{t("workType.inFolders", { n: inFolders })}</Callout> : null}
       <div className={s.form}>
         <Checkbox isSelected={setWorkOn} onChange={setSetWorkOn} label={t("workType.setWork")} testId="work-type-work-on">
           {t("sources.field.work")}

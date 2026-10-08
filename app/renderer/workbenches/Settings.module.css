@@ -27,3 +27,9 @@
 .modelList li:hover { background: var(--s2); }
 .tag { font-size: var(--fs-xs); color: var(--accent2); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; }
 .grow { flex: 1; }
+/* 原片文件夹（阶段 3.13） */
+.rootList { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.rootRow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--s1); min-width: 0; }
+.rootPath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.rootMeta { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.rootActions { display: flex; gap: 6px; margin-top: 8px; }

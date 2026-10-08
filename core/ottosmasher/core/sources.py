@@ -25,6 +25,7 @@ from ottosmasher.media.decode import StreamRef
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
+from . import rootpaths
 from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
@@ -70,19 +71,75 @@ def prepare(path: str, cache: Path, *, probe: Callable[[str], probe_mod.Probe] =
     return exact_durations(path, pr, cache)
 
 
-def find_subtitle(path: Path) -> str | None:
+SUBTITLE_DIRS = ("subs", "sub", "subtitles", "subtitle", "\u5b57\u5e55")  # 最后一个是中文“字幕”
+JA_TAGS = ("ja", "jp", "jpn", "jap", "japanese")
+
+
+def _subtitle_in(d: Path, stem: str) -> Path | None:
+    """d 里与 stem 同名的字幕：完全同名 > 同名加一段后缀（stem.ja.srt，日语后缀优先）；同一层 .srt 优先于 .ass。"""
     try:
-        siblings = {p.name.lower(): p for p in path.parent.iterdir() if p.is_file()}
+        files = [p for p in d.iterdir() if p.is_file()]
     except OSError:
         return None
-    stem = unicodedata.normalize("NFC", path.stem).lower()
-    for ext in SUBTITLE_EXTS:
-        hit = siblings.get(stem + ext) or next(
-            (p for n, p in siblings.items() if unicodedata.normalize("NFC", n) == stem + ext), None
-        )
-        if hit is not None:
-            return str(hit)
+    exact: list[tuple[int, Path]] = []
+    tagged: list[tuple[int, int, str, Path]] = []
+    for p in files:
+        n = unicodedata.normalize("NFC", p.name).lower()
+        for rank, ext in enumerate(SUBTITLE_EXTS):
+            if not n.endswith(ext):
+                continue
+            base = n[: -len(ext)]
+            if base == stem:
+                exact.append((rank, p))
+            elif base.startswith(stem + "."):
+                tag = base[len(stem) + 1 :]
+                if 0 < len(tag) <= 12 and "." not in tag:
+                    tagged.append((0 if tag in JA_TAGS else 1, rank, tag, p))
+    if exact:
+        return min(exact)[1]
+    if tagged:
+        return min(tagged)[3]
     return None
+
+
+def find_subtitle(path: Path) -> str | None:
+    """自动关联的字幕（规格 05 §5.1：只关联不导入）。所有者 2026-10-07 放宽：同一文件夹里完全同名的 .srt/.ass，
+    其次同名加语言等后缀（第01集.ja.srt），再其次同一文件夹的 Subs / 字幕 子文件夹里的同样两种。"""
+    stem = unicodedata.normalize("NFC", path.stem).lower()
+    hit = _subtitle_in(path.parent, stem)
+    if hit is None:
+        try:
+            subdirs = sorted(p for p in path.parent.iterdir() if p.is_dir() and unicodedata.normalize("NFC", p.name).lower() in SUBTITLE_DIRS)
+        except OSError:
+            subdirs = []
+        for d in subdirs:
+            hit = _subtitle_in(d, stem)
+            if hit is not None:
+                break
+    return str(hit) if hit is not None else None
+
+
+def move_source(conn: sqlite3.Connection, source_id: str, path: str, snap: dict[str, Any] | None = None) -> None:
+    """在调用方的事务里改原片位置（重新定位、扫描认出的移动/改名）：路径、原片文件夹位置；在原片文件夹里时作品跟着文件夹走；
+    原片文件对应的 media_file 一起改；字幕文件不在了就按新位置重新找同名字幕。作品变了要重算派生采样的有效标签。"""
+    path = os.path.abspath(path)
+    cur = conn.execute("SELECT work, subtitle_path, file_snapshot FROM source WHERE id=?", (source_id,)).fetchone()
+    snap_text = dumps(snap) if snap is not None else cur["file_snapshot"]
+    where = rootpaths.locate(conn, path)
+    work = where[2] if where is not None else cur["work"]
+    sub = cur["subtitle_path"]
+    if sub and not os.path.isfile(sub):
+        sub = find_subtitle(Path(path))
+    conn.execute(
+        "UPDATE source SET path=?, path_key=?, file_snapshot=?, root_id=?, rel_path=?, work=?, subtitle_path=?, updated_at=?, version=version+1 WHERE id=?",
+        (path, path_key(path), snap_text, where[0] if where else None, where[1] if where else None, work, sub, now_iso(), source_id),
+    )
+    for mid in assets_mod.source_media_files(conn, source_id):
+        conn.execute("UPDATE media_file SET path=?, file_snapshot=? WHERE id=?", (path, snap_text, mid))
+    if work != cur["work"]:
+        from . import effective_tags  # 避免循环导入
+
+        effective_tags.refresh(conn, [r[0] for r in conn.execute("SELECT s.id FROM sample s JOIN sound_asset a ON a.id=s.asset_id WHERE a.source_id=?", (source_id,))])
 
 
 class SourceService:
@@ -147,6 +204,13 @@ class SourceService:
         if duration is None or duration <= 0:
             raise CoreError("media-probe-failed", path=path, detail="no-duration")
         inferred = naming.infer_work_episode(path, rules)
+        where = rootpaths.locate(self.conn, path)
+        if where is not None:
+            # 在原片文件夹里（阶段 3.13）：作品 = 第一层子文件夹名（不管导入框怎么选）；来源类型没给就沿用作品文件夹的设置
+            work = where[2]
+            wf = rootpaths.work_folder(self.conn, where[0], where[2])
+            if source_type is None and wf is not None:
+                source_type = wf["source_type"]
         if work is not None:  # 导入框“统一设为”（空 = 未指定作品）：作品用它，集数仍按文件名推断
             inferred = naming.WorkEpisode(work, inferred.episode, inferred.rule, inferred.timed_out)
         snap = probe_mod.snapshot(path, pr)
@@ -154,7 +218,7 @@ class SourceService:
         with transaction(self.conn) if tx else nullcontext(self.conn):
             self.conn.execute(
                 "INSERT INTO source(id, path, path_key, import_root, file_snapshot, duration, work, episode, source_type, subtitle_path,"
-                " default_audio_stream, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " default_audio_stream, root_id, rel_path, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     sid,
                     path,
@@ -167,6 +231,8 @@ class SourceService:
                     source_type or "",
                     find_subtitle(Path(path)),
                     default,
+                    where[0] if where else None,
+                    where[1] if where else None,
                     ts,
                     ts,
                 ),
@@ -227,7 +293,7 @@ class SourceService:
         """原片列表（按登记时间倒序；分组与计数在界面阶段 2.7 补齐）。"""
         rows = self.conn.execute(
             "SELECT s.id, s.path, s.work, s.episode, s.source_type, s.duration, s.media_state, s.subtitle_path,"
-            " s.default_audio_stream, s.created_at, s.version, s.import_root, s.visual_binding_id IS NOT NULL AS has_picture,"
+            " s.default_audio_stream, s.created_at, s.version, s.import_root, s.root_id, s.rel_path, s.visual_binding_id IS NOT NULL AS has_picture,"
             " (SELECT COUNT(*) FROM source_stream t WHERE t.source_id=s.id AND t.kind='audio') AS audio_streams,"
             " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video"
             " FROM source s ORDER BY s.created_at DESC, s.rowid DESC"
@@ -259,12 +325,7 @@ class SourceService:
         snap = probe_mod.snapshot(path, pr)
         before = (cur["file_snapshot"] or {}).get("streams")
         with transaction(self.conn):
-            self.conn.execute(
-                "UPDATE source SET path=?, path_key=?, file_snapshot=?, updated_at=?, version=version+1 WHERE id=?",
-                (path, key, dumps(snap), now_iso(), source_id),
-            )
-            for mid in assets_mod.source_media_files(self.conn, source_id):
-                self.conn.execute("UPDATE media_file SET path=?, file_snapshot=? WHERE id=?", (path, dumps(snap), mid))
+            move_source(self.conn, source_id, path, snap)
         cs = ChangeSet()
         cs.add("source", source_id)
         if self.on_change:

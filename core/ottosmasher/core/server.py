@@ -39,6 +39,7 @@ from .separation import SeparationService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
 from .imports import ImportService
+from .roots import RootService
 from .thumbnails import ThumbnailService
 from .waveforms import WaveformService
 
@@ -130,6 +131,14 @@ class Core:
                 whole_sample=bool(p.get("wholeSample", False)), nature=str(p.get("nature", "unclassified")),
                 bind_pictures=bool(p.get("bindPictures", True)),
             ),
+            "roots.list": lambda p: self.roots.list(),
+            "roots.add": lambda p: self.roots.add(str(p["path"])),
+            "roots.remove": lambda p: self.roots.remove(str(p["id"])),
+            "roots.relocate": lambda p: self.roots.relocate(str(p["id"]), str(p["path"])),
+            "sources.rescan": lambda p: self.roots.rescan(),
+            "works.list": lambda p: self.roots.works(),
+            "works.rename": lambda p: self.roots.rename(str(p["id"]), str(p["name"])),
+            "works.settingsBatch": lambda p: self.roots.settings_batch(str(p["id"]), str(p.get("sourceType", "")), bool(p.get("bindPictures", True))),
             "sources.wholeSamples": lambda p: self.imports.whole_samples(list(p["ids"]), p.get("nature")),
             "tags.promoteBatch": lambda p: annotations_mod.promote_batch(
                 self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")
@@ -187,7 +196,9 @@ class Core:
         self.jobs.adopters["models.verify"] = self._adopt_hashes
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
+        self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
+        self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
 
     def close(self) -> None:
         try:

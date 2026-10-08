@@ -202,10 +202,18 @@ def _import_scan(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return scan(list(params["paths"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "import-scanning"))
 
 
+def _sources_scan(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """原片文件夹扫描（阶段 3.13）：没登记过的音频/视频做准备，登记与认移动在 Core 里。"""
+    from ..core.roots import scan_roots
+
+    return scan_roots(list(params["roots"]), list(params["known"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "sources-scanning"))
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "studio.models": _studio_models,
     "separate": _separate,
     "import.scan": _import_scan,
+    "sources.scan": _sources_scan,
     "models.verify": _models_verify,
     "selftest.sleep": _selftest_sleep,
     "selftest.sleep_model": _selftest_sleep,

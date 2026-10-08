@@ -12,7 +12,13 @@ import { useApp } from "../state/store";
 import { displayName } from "./SourceList";
 import s from "./Sources.module.css";
 
-export function InputSettingsDialog(props: { sourceId: string | null; onClose: () => void; onSaved: () => void }) {
+export function InputSettingsDialog(props: {
+  sourceId: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+  /** 原片文件夹里的原片：作品只读，按钮打开该作品的「作品设置…」（阶段 3.13） */
+  onWorkSettings?: (rootId: string, work: string) => void;
+}) {
   const toast = useApp((st) => st.toast);
   const undo = useUndo();
   const [d, setD] = useState<SourceDetail | null>(null);
@@ -72,7 +78,21 @@ export function InputSettingsDialog(props: { sourceId: string | null; onClose: (
       {d ? (
         <div className={s.form}>
           <span className={s.formLabel}>{t("sources.field.work")}</span>
-          <TextField value={work} onChange={setWork} label={t("sources.field.work")} testId="field-work" />
+          {d.root_id ? (
+            // 原片文件夹里的原片：作品跟着文件夹走，改名用「作品设置…」（会改文件夹名）
+            <div className={s.inline}>
+              <span className={s.muted} data-testid="field-work-follows" data-user-data="">
+                {t("sources.workFollows", { name: d.work || t("sources.noWork") })}
+              </span>
+              {d.work && props.onWorkSettings ? (
+                <Button size="sm" variant="flat" onPress={() => props.onWorkSettings!(d.root_id!, d.work)}>
+                  {t("workSettings.menu")}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <TextField value={work} onChange={setWork} label={t("sources.field.work")} testId="field-work" />
+          )}
           <span className={s.formLabel}>{t("sources.field.episode")}</span>
           <TextField value={episode} onChange={setEpisode} label={t("sources.field.episode")} testId="field-episode" />
           <span className={s.formLabel}>{t("sources.field.type")}</span>

@@ -33,7 +33,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("specimen-toggle").click();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Meta+,");
-  for (const g of ["general", "inference", "jobs", "models"]) {
+  for (const g of ["general", "inference", "source", "jobs", "models"]) {
     await page.getByTestId(`settings-group-${g}`).click();
     await page.waitForTimeout(150);
     expect(await unbracketed(page)).toEqual([]);

@@ -70,6 +70,10 @@ export interface SourceRow {
   has_video: boolean;
   /** 采样库导入时选的根文件夹（ARCHITECTURE §4.10）；原片页「＋」登记的为 null */
   import_root: string | null;
+  /** 所在的原片文件夹（阶段 3.13）；不在任何原片文件夹里为 null。在里面时作品跟着第一层子文件夹走 */
+  root_id: string | null;
+  /** 相对原片文件夹的路径（/ 分隔） */
+  rel_path: string | null;
   /** 有画面绑定（同名画面等，规格 12） */
   has_picture: boolean;
   /** 原片文件找不到（只看在不在） */
@@ -224,3 +228,23 @@ export type SubtitleBatchRow =
   | { sourceId: string; skipped: "no-subtitle" }
   | { sourceId: string; error: { code: string; args: Record<string, unknown> } }
   | { sourceId: string; fileName: string; token: string; versionState: SubtitleVersionState; counts: Record<SubtitleLineStatus, number>; problems: number };
+
+/** 原片文件夹（阶段 3.13） */
+export interface SourceRoot {
+  id: string;
+  path: string;
+  online: boolean;
+  sources: number;
+  works: number;
+}
+/** 作品文件夹：原片文件夹的第一层子文件夹 */
+export interface WorkFolder {
+  id: string;
+  rootId: string;
+  name: string;
+  sourceType: string;
+  bindPictures: boolean;
+  version: number;
+  path: string;
+  sources: number;
+}

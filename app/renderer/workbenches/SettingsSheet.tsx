@@ -10,6 +10,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { ModelsPanel } from "./ModelsPanel";
 import { RoleAliasEditor } from "./RoleAliasEditor";
+import { RootsPanel } from "./RootsPanel";
 import { StudioPanel } from "./StudioPanel";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
@@ -153,6 +154,7 @@ export function SettingsSheet() {
           ))}
         </nav>
         <div className={s.list}>
+          {group === "source" ? <RootsPanel /> : null}
           {group === "studio" ? (
             <StudioPanel vocalModel={String(settings["studio.vocal_model"]?.value ?? "")} onVocalModel={(m) => void save("studio.vocal_model", m)} />
           ) : null}

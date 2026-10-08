@@ -68,7 +68,7 @@ export interface OttoApi {
   player: PlayerApi;
   files: {
     /** 系统对话框选文件：media 可多选；取消返回空数组 */
-    pick(kind: "media" | "media-one" | "subtitle" | "import"): Promise<string[]>;
+    pick(kind: "media" | "media-one" | "subtitle" | "import" | "folder"): Promise<string[]>;
     /** 在 Finder / 资源管理器中显示（文件不存在时什么也不做） */
     reveal(path: string): Promise<void>;
     /** 拖进窗口的文件的真实路径（只用于“拖文件进原片页”） */

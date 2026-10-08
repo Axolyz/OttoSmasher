@@ -1,7 +1,7 @@
 // 原片列表（UI_PLAN §4、§6.1）：按作品分组、默认折叠（当前原片所在组展开）；搜索作品 / 集数 / 文件名。
 // 选择规则全部来自 CollectionList（单击 = 打开到查看器，从不改变勾选；复选框 / ⌘ / Shift / X / ⌘A / Esc / Delete / 右键）。
 // 行末 ⋯（悬停或焦点时出现）与右键是同一份菜单（所有者 2026-10-07：保留）。
-import { AudioLines, ChevronDown, ChevronRight, Film, MoreHorizontal, Plus } from "lucide-react";
+import { AudioLines, ChevronDown, ChevronRight, Film, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useThumb } from "../api/thumbs";
 import type { SourceRow } from "../api/types";
@@ -45,7 +45,11 @@ export function SourceList(props: {
   onToggleGroup: (work: string, open?: boolean) => void;
   onChecked: (s: Set<string>) => void;
   onAdd: () => void;
+  /** 「重新扫描」原片文件夹（阶段 3.13）；没有原片文件夹时为 null（按钮不可用） */
+  onRescan: (() => void) | null;
   menu: (r: SourceRow, ids: string[], multi: boolean) => MenuSpec;
+  /** 组头（作品）菜单 */
+  groupMenu?: (work: string) => MenuSpec | null;
   onDelete: (ids: string[]) => void;
 }) {
   const [q, setQ] = useState("");
@@ -82,6 +86,15 @@ export function SourceList(props: {
     <aside className={s.list} data-testid="source-list">
       <div className={s.listHead}>
         <TextField value={q} onChange={setQ} label={t("sources.search")} placeholder={t("sources.search")} testId="sources-search" />
+        <Button
+          variant="flat"
+          icon={<RefreshCw />}
+          onPress={props.onRescan ?? undefined}
+          isDisabled={!props.onRescan}
+          title={props.onRescan ? t("roots.rescan") : t("roots.rescanNone")}
+          aria-label={t("roots.rescan")}
+          data-testid="sources-rescan"
+        />
         <Button variant="primary" icon={<Plus />} onPress={props.onAdd} title={t("sources.add")} data-testid="sources-add" />
       </div>
       <CollectionList<Item>
@@ -97,7 +110,7 @@ export function SourceList(props: {
         onGroup={(gid, open) => props.onToggleGroup(workOf(gid), open)}
         isGroupOpen={(gid) => searching || props.expanded.includes(workOf(gid))}
         onDelete={props.onDelete}
-        menu={(i, target) => (i.kind === "item" ? props.menu(i.row, target.ids, target.multi) : null)}
+        menu={(i, target) => (i.kind === "item" ? props.menu(i.row, target.ids, target.multi) : (props.groupMenu?.(i.work) ?? null))}
         checkLabel={(i) => t("sources.check", { name: i.kind === "item" ? displayName(i.row) : "" })}
         rowTestId="source-row"
         groupTestId="source-group"
@@ -110,6 +123,7 @@ export function SourceList(props: {
                 {i.work || t("sources.noWork")}
               </span>
               <span className={`${s.groupCount} num`}>{t("sources.groupCount", { n: i.n })}</span>
+              {props.groupMenu ? <GroupMenu spec={props.groupMenu(i.work)} /> : null}
             </>
           ) : null
         }
@@ -177,4 +191,22 @@ export function SourceList(props: {
 function SourceThumb(props: { id: string; hasVideo: boolean }) {
   const url = useThumb("source", props.id);
   return <Thumb size="sm" url={props.hasVideo ? url : null} placeholder={props.hasVideo ? <Film /> : <AudioLines />} testId="source-thumb" />;
+}
+
+/** 组头的 ⋯（悬停/焦点时出现，与行末 ⋯ 相同；内容 = 组头右键菜单） */
+function GroupMenu(props: { spec: MenuSpec | null }) {
+  const [open, setOpen] = useState(false);
+  if (!props.spec) return null;
+  return (
+    <span className={s.rowMenu} data-open={open || undefined}>
+      <Menu
+        head={props.spec.head}
+        items={props.spec.items}
+        isOpen={open}
+        onOpenChange={setOpen}
+        testId="group-menu"
+        trigger={<Button size="sm" variant="flat" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="group-more" />}
+      />
+    </span>
+  );
 }

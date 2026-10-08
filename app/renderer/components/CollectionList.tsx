@@ -53,6 +53,7 @@ export function CollectionList<T extends CollectionRow>(props: {
   onEnter?: (id: string) => void;
   onGroup?: (id: string, open?: boolean) => void;
   isGroupOpen?: (id: string) => boolean;
+  /** 行菜单；组头也会调用（target.ids 为空），返回 null = 没有组级菜单 */
   menu?: (item: T, target: { ids: string[]; multi: boolean }) => MenuSpec | null;
   onDelete?: (ids: string[]) => void;
   /** 页面自己的键（Space 试听、1/2/3/0、S 星标……）；返回 true 表示已处理 */
@@ -236,6 +237,12 @@ export function CollectionList<T extends CollectionRow>(props: {
           const row = rowOf(e.target);
           const item = row ? byId.get(row.dataset.key!) : undefined;
           if (item && item.kind !== "group") return openMenu(e, item);
+          if (item && item.kind === "group") {
+            // 组头右键：组级菜单（不改勾选；菜单头写组名）
+            const spec = props.menu?.(item, { ids: [], multi: false });
+            if (spec) ctx.open(e, spec);
+            return;
+          }
           if (!row) {
             // 空白处：集合级菜单
             ctx.open(e, {

@@ -257,6 +257,14 @@ _register(
         soft_delete_column="deleted",
     )
 )
+# 作品文件夹（阶段 3.13）：作品级设置——来源类型（新文件沿用）、同名画面自动绑定；改名是文件操作，不走编辑通道（core/roots.py）
+_register(
+    EntitySpec(
+        "work_folder",
+        "work_folder",
+        {"source_type": FieldSpec(v_text(max_len=100)), "bind_pictures": FieldSpec(v_bool)},
+    )
+)
 # 声音资产：只有角色可改（规格 04 §4.2.3；用户移除的角色记为 removed_by_user，系统预填不再加回）
 _register(EntitySpec("asset", "sound_asset", {"roles": FieldSpec(v_roles, custom="roles")}))
 # OP/ED 区间（规格 05 §5.6）：字幕规则结果与人工标记/确认都经编辑通道新建（可撤销 = 软删除），删除也是软删除
@@ -282,7 +290,7 @@ _register(
 # 设置：键值对象，ID = 设置键，唯一字段 value；没存过的取默认值（版本 0）
 _register(EntitySpec("setting", "setting", {"value": FieldSpec(v_json, json=True)}))
 
-_BOOL_COLUMNS = {"starred", "deleted", "user_edited", "independent"}
+_BOOL_COLUMNS = {"starred", "deleted", "user_edited", "independent", "bind_pictures"}
 
 
 # ---------------------------------------------------------------- 编辑服务
@@ -454,6 +462,11 @@ class EditService:
             raise CoreError("edit-invalid", index=i, entity=spec.name, field=name, reason=bad.reason, **bad.args_) from None
 
     def _check_source(self, i: int, source_id: str, new: dict[str, Any]) -> None:
+        if "work" in new:
+            r = self.conn.execute("SELECT root_id, work FROM source WHERE id=?", (source_id,)).fetchone()
+            if r is not None and r["root_id"] is not None and new["work"] != r["work"]:
+                # 原片文件夹里的原片：作品跟着文件夹走，改名用「作品设置…」（会改文件夹名，阶段 3.13）
+                raise CoreError("edit-invalid", index=i, entity="source", field="work", reason="work-follows-folder")
         for role in ("vocal", "sfx"):
             aid = new.get(f"default_{role}")
             if aid is None:
