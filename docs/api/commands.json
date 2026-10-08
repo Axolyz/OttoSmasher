@@ -1100,6 +1100,13 @@
    "summary": "Job process exited without a result."
   },
   {
+   "code": "language-unsupported",
+   "args": [
+    "language"
+   ],
+   "summary": "No text frontend is registered for this language."
+  },
+  {
    "code": "mapping-invalid",
    "args": [
     "reason"

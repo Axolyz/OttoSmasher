@@ -126,6 +126,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "native-missing": (("name", "path"), "A native extension has not been built."),
     # ---- 文本前端与对齐（规格 08）
     "frontend-failed": (("detail", "reason"), "Text frontend failed."),
+    "language-unsupported": (("language",), "No text frontend is registered for this language."),
     "align-empty": ((), "Nothing to align (no phonemes)."),
     "align-unsupported": (("detail",), "The aligner does not support a phoneme transition in this text."),
     "align-audio-too-short": (("frames",), "Audio window is too short to align."),

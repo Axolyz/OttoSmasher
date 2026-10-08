@@ -1268,6 +1268,7 @@ export type ErrorCode =
   | "job-not-retryable"
   | "job-spawn-failed"
   | "job-worker-exited"
+  | "language-unsupported"
   | "mapping-invalid"
   | "media-probe-failed"
   | "model-file-missing"

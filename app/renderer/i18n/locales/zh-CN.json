@@ -259,6 +259,7 @@
   "error.onnx-session-failed": "建立 {model} 的推理会话失败（{provider}）：{detail}",
   "error.native-missing": "本机扩展 {name} 还没编译：{path}",
   "error.frontend-failed": "文本前端失败：{reason}",
+  "error.language-unsupported": "还不支持这种语言的语音分析：{language}",
   "error.align-empty": "没有可对齐的音素",
   "error.align-unsupported": "对齐模型不支持这段文字里的音素组合：{detail}",
   "error.align-audio-too-short": "音频太短，无法对齐（{frames} 帧）",
