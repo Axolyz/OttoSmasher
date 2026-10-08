@@ -3,7 +3,7 @@
 :root {
   --bg: #0e1014; --rail: #0b0d10; --s1: #14171c; --s2: #1a1e25; --s3: #222731; --line: #262b34; --line2: #1f242c;
   --text: #e7eaf0; --sub: #aab2bf; --muted: #7c8594; --faint: #555e6c;
-  /* 强调色 = logo 蓝（logo-1024.png 为 Display P3 #3871e0，换成 sRGB 即 #1b73e8）；accent2 为悬停/深底文字用的浅一级 */
+  /* 强调色 = logo 蓝（logo v2，2026-10-08：sRGB #1a73e8，与 #1b73e8 只差 1/255，令牌不变）；accent2 为悬停/深底文字用的浅一级 */
   --accent: #1b73e8; --accent2: #3d88f0; --accentbg: #1b73e822; --sel: #1b73e81c;
   --wave: #4fc3c3; --wave2: #2c6f73; --gold: #f2c14e;
   /* 性质四色：语音、调谐单音、非调谐单音、未分类 */

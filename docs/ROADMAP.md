@@ -75,7 +75,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 | L5 | ~~3.10 编辑字幕/区段边界、手动区段标签的范围~~ | STATUS 3.10 | 阶段 3 | 已完成（b8d284a） |
 | L6 | ONNX 加速：开启但会话没拿到请求的 EP → 报错不回退；DirectML 关 mem pattern、顺序执行；首次推理后写 `model_probe`（设置页“实测”目前显示“未实测”） | R19.5、规格 14 §14.7；阶段 1 留空 | 阶段 4（首次接入推理） | 未开始 |
 | L7 | 页面进程崩溃后重建窗口：已实现未测试 | 阶段 1 已知问题 | 阶段 10 冒烟前补一个测试 | 未开始 |
-| L8 | 发布版目录布局（`app/main/paths.ts` 目前对打包版直接报错）、.icns/.ico 由 `assets/brand/logo-1024.png` 生成、libmpv 变体许可证复核、Windows 的 libmpv 来源 | 阶段 1、ARCHITECTURE §10.1、§14 | 阶段 10 | 未开始 |
+| L8 | 发布版目录布局（`app/main/paths.ts` 目前对打包版直接报错）、.icns/.ico 由 `assets/brand/logo.png`（v2 原图 4267 px）生成、libmpv 变体许可证复核、Windows 的 libmpv 来源 | 阶段 1、ARCHITECTURE §10.1、§14 | 阶段 10 | 未开始 |
 | L9 | Windows：作业对象结束进程树、原生扩展构建、pydomino C++ 扩展构建——全部未实测 | ARCHITECTURE §13 | 阶段 10（GitHub Actions，需所有者授权推送） | 未验收 |
 | L10 | 拖到 Finder / REAPER 的系统拖拽（异步生成后才 startDrag）需人工验收 | 阶段 2.9 | 每个新增拖出入口的阶段都请所有者试 | 部分 |
 | L11 | 开发期 mpv 探针（`ottoProbe`、`e2e/probe.spec.ts`）与正式播放器并存 | 阶段 2.6 | 阶段 9 前决定是否删除探针 | 未开始 |
@@ -91,7 +91,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 
 格式：目标 → 必读 → 验收 → 已定的决定 → 容易漏的 → 人工验收要点。原型入口见 PROTOTYPE_GUIDE §4。
 
-### 阶段 3 准备链路（2026-10-07 完成，等所有者验收；详细子步骤与验收清单在 STATUS）
+### 阶段 3 准备链路（所有者 2026-10-08 验收通过；详细子步骤与验收清单在 STATUS）
 
 - **必读**：规格 05 §5.4–§5.6、§5.8；06 §6.1–§6.4；04 §4.2（资产、角色、默认轨、标签判定）、§4.7（命名）；14 §14.6（Studio worker 协议）；13 §13.3.2（正式音轨 MP3 V0）；03 §3.4。
 - **验收**：S1.1–S1.6、S6、S10、S11；R2、R4–R7、R18、R22.1。
