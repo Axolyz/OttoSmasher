@@ -150,3 +150,35 @@ def test_reaper_snap_setting(core):  # noqa: F811
     set_setting(core, "export.reaper_snap", "start")
     lines = core.handoff.reaper_handoff([s], WORDS)["clipboard"].split("\0")
     assert "SNAPOFFS 0.000000000000 0.000000000000" in lines
+
+
+@need_rb
+def test_reaper_baked_and_drag_reuses_the_audition_render(core, monkeypatch):  # noqa: F811
+    s = sample(core)
+    align(core, s)
+    core.rhythm.set_bpm(150)
+    core.rhythm.render(s, "stretched", "voice")  # 先试听一次卡拍
+    from ottosmasher.media import stretch as render_mod
+
+    def boom(*a, **k):
+        raise AssertionError("should reuse the audition render")
+
+    monkeypatch.setattr(render_mod, "render", boom)
+    # 拖出 / 导出卡拍：直接用试听渲染的结果
+    r = core.handoff.export_stretched(s, WORDS)
+    v = core.rhythm.view(s)
+    # REAPER 卡好拍版：声音是卡拍后的，标记在每个起音处且源 = 目标，首末各一个
+    h = core.handoff.reaper_handoff([s], WORDS, baked=True)
+    lines = h["clipboard"].rstrip("\0").split("\0")
+    assert "_卡拍-150BPM__" in h["files"][0]
+    _rate, _ch, _bits, frames = wavfile.info(h["files"][0])
+    assert frames == wavfile.info(r["path"])[3]
+    sm = [x.split() for x in next(ln for ln in lines if ln.startswith("SM ")).removeprefix("SM ").split(" + ")]
+    assert all(m[0] == m[1] for m in sm)
+    onsets = [p["tgt"] for p in v["schemes"]["near_fast"]["points"] if p["kind"] == "onset"]
+    assert float(sm[0][0]) == 0 and abs(float(sm[-1][0]) - frames / SR) < 1e-9
+    assert len(sm) == len(onsets) + 2 or len(sm) == len(onsets) + 1
+    for o in onsets:
+        assert any(abs(float(m[0]) - o) < 1.5 / SR for m in sm)
+    length = float(next(ln for ln in lines if ln.startswith("LENGTH")).split()[1])
+    assert abs(length - frames / SR) < 1e-9

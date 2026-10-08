@@ -303,3 +303,14 @@ def test_target_beats_and_ratio():
     assert b.tick == pytest.approx(0.25) and b.rest_cells == [0, 1, 0]
     assert b.onsets == [0.0, 0.5, 2.0] and b.tail == 2.5
     assert rh.overall_ratio(b, d, 0.5) == pytest.approx(4 / 2 * 0.5 / 1.0)
+
+
+def test_segment_cut_tolerates_alignment_overhang():
+    # 停顿（内缩后）从 10.72 开始。对齐给的块尾伸进停顿 40 ms（固有误差）：仍算“两侧各有完整音块”；伸进 60 ms 就不算（所有者 2026-10-08【基线变更】）
+    for overhang, cut in ((0.06, True), (0.08, False)):
+        ph, x = sentence_with_gap((0.70, 1.35))
+        ph = [rh.Phone(p.label, p.start, round(p.end + overhang, 6) if p.end == 10.70 else p.end) for p in ph]
+        ph = [p if p.label != "pau" else rh.Phone("pau", round(10.70 + overhang, 6), p.end) for p in ph]
+        blocks = rh.group_blocks(ph)
+        cuts = rh.find_cuts(blocks, rh.detect_pauses(x, 16000, 10.0, ph), ph)
+        assert bool(cuts) is cut, overhang

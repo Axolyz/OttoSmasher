@@ -3,8 +3,8 @@
 - 卡拍 WAV：只能导出**完整采样**（命中随阶段 7）；方案在需要时自动计算；文件名处理信息「卡拍-<BPM>BPM」（拉平成品为「拉平-<音名>_卡拍-<BPM>BPM」）；
   清单（``Data/Manifests/``）记录方案与组合后的映射（卡拍输出秒 → 原片秒，R21.4）。
 - 拖出跟随最近一次成功试听的版本（列表/舞台：原声或卡拍；界面在本次运行内记住，规格 12 §12.1、D4）。
-- REAPER：**未烘焙的原声** WAV 复制到 ``Library/REAPER/<日期>/``（``<名称>__<版本>__<内容哈希>.wav``；同名但内容不同 → 报错）
-  + 卡拍拉伸标记；吸附 = 首个起音（设置可改为条目开头）；批量依次排开、每条间隔一小节（所有者 2026-10-08）；
+- REAPER（两种，所有者 2026-10-08 加了卡好拍版）：**未烘焙的原声** WAV 复制到 ``Library/REAPER/<日期>/``（``<名称>__<版本>__<内容哈希>.wav``；同名但内容不同 → 报错）
+  + 卡拍拉伸标记；或卡好拍的 WAV + 每个起音一个拉伸标记（源 = 目标，REAPER 里可微调）；吸附 = 首个起音（设置可改为条目开头）；批量依次排开、每条间隔一小节（所有者 2026-10-08）；
   每次交接写一份交接清单（方案、版本、吸附方式）放在 REAPER 目录。剪贴板由主进程写入并回读校验（Windows 未实测 → 未验收）。
 「版本」段（规格只写了占位）：开发者决定 = 音轨词（原混音 / 人声 / …）加拉平信息，说明这份原声是哪个声音。
 """
@@ -69,8 +69,9 @@ class HandoffService:
         m = s.map
 
         def make(ref: Any, a: int, b: int) -> tuple[np.ndarray, int]:
-            pcm, sr, _media = self.rhythm._audio(row["asset_id"], float(row["start"]), float(row["end"]))
-            return render_mod.render(pcm, m), sr
+            # 刚试听过卡拍就直接用那次渲染（拖出时不用再等）
+            _an, _s, _cells, pcm, sr = self.rhythm.stretched_pcm(sample_id, plan, mora, long_vowel)
+            return pcm, sr
 
         def manifest(path: str, key: str) -> dict[str, Any]:
             inner = Mapping.of([[0.0, float(row["start"])]] + [[t / m.sr, float(row["start"]) + src / m.sr] for src, t in m.knots[1:]])
@@ -105,16 +106,15 @@ class HandoffService:
     def _reaper_dir(self) -> Path:
         return self.ws.library / "REAPER" / datetime.now().strftime("%Y-%m-%d")
 
-    def _original_copy(self, row: sqlite3.Row, asset: dict[str, Any], words: dict[str, str]) -> tuple[Path, int]:
-        """未烘焙的原声 WAV（PCM 24-bit）→ REAPER 目录；同名同内容复用，同名不同内容报错。"""
-        pcm, sr, media = self.rhythm._audio(row["asset_id"], float(row["start"]), float(row["end"]))
+    def _reaper_file(self, row: sqlite3.Row, pcm: np.ndarray, sr: int, media: dict[str, Any] | None, version: str) -> Path:
+        """交接用的 WAV（PCM 24-bit）→ REAPER 目录 ``<名称>__<版本>__<内容哈希>.wav``；同名同内容复用，同名不同内容报错。"""
         self.ws.staging.mkdir(parents=True, exist_ok=True)
         staged = self.ws.staging / f"{new_id()}.wav"
         try:
             wavfile.save_wav24(staged, pcm, sr)
-            assets_mod.check_media(media)
+            if media is not None:
+                assets_mod.check_media(media)
             h = hashlib.sha256(staged.read_bytes()).hexdigest()
-            version = "_".join(x for x in (track_label(asset, words), processing_label(asset, words)) if x)
             name = f"{fname.truncate_utf8(fname.portable(row['name']), 120).strip(' .')}__{fname.portable(version)}__{h[:12]}.wav"
             d = self._reaper_dir()
             d.mkdir(parents=True, exist_ok=True)
@@ -126,26 +126,40 @@ class HandoffService:
                 self.exports._publish(staged, target)
         finally:
             staged.unlink(missing_ok=True)
-        return target, sr
+        return target
 
-    def _items(self, ids: list[str], words: dict[str, str], plan: str, mora: bool, long_vowel: bool) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
+    def _items(self, ids: list[str], words: dict[str, str], plan: str, mora: bool, long_vowel: bool, baked: bool) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
+        """``baked=False``：未烘焙原声 + 卡拍拉伸标记（REAPER 里伸缩，可继续调节奏）；
+        ``baked=True``（所有者 2026-10-08 要的）：卡好拍的声音 + 每个起音一个拉伸标记（标记处源 = 目标，REAPER 里拖标记可微调）。"""
         snap_mode = settings_mod.values(self.conn)["export.reaper_snap"]
         items, meta = [], []
         for sid in dict.fromkeys(ids):
             row = self._sample(sid)
-            an, s, cells = self._scheme(sid, plan, mora, long_vowel)
             asset = assets_mod.get(self.conn, row["asset_id"])
-            path, sr = self._original_copy(row, asset, words)
-            m = s.map
-            pts = dict((t, src) for src, t in m.knots)
-            for c, f in zip(m.cps, m.onsets):
-                if c.kind == "onset":
-                    pts[f] = int(round((c.src - an.window[0]) * sr))  # 每个起音都有标记（保护核心的锚点）
-            markers = [(t / sr, pts[t] / sr) for t in sorted(pts)]
+            label = "_".join(x for x in (track_label(asset, words), processing_label(asset, words)) if x)
+            if baked:
+                an, s, cells, pcm, sr = self.rhythm.stretched_pcm(sid, plan, mora, long_vowel)
+                path = self._reaper_file(row, pcm, sr, None, f"{label}_{words.get('stretch', 'stretch')}-{bpm_text(s.bpm)}BPM")
+                m = s.map
+                onset_frames = sorted({f for c, f in zip(m.cps, m.onsets) if c.kind == "onset"})
+                pts = sorted({0, *onset_frames, len(pcm)})
+                markers = [(f / sr, f / sr) for f in pts]
+                length = len(pcm) / sr
+            else:
+                an, s, cells = self._scheme(sid, plan, mora, long_vowel)
+                pcm, sr, media = self.rhythm._audio(row["asset_id"], float(row["start"]), float(row["end"]))
+                path = self._reaper_file(row, pcm, sr, media, label)
+                m = s.map
+                tp = dict((t, src) for src, t in m.knots)
+                for c, f in zip(m.cps, m.onsets):
+                    if c.kind == "onset":
+                        tp[f] = int(round((c.src - an.window[0]) * sr))  # 每个起音都有标记（保护核心的锚点）
+                markers = [(t / sr, tp[t] / sr) for t in sorted(tp)]
+                length = m.out_frames / sr
             first_onset = next(f for c, f in zip(m.cps, m.onsets) if c.kind == "onset") / sr
             beat = 60.0 / s.bpm
-            items.append(reaper.Item(0.0, first_onset if snap_mode == "onset" else 0.0, m.out_frames / sr, beat, row["name"], markers, str(path)))
-            meta.append({"sample": sid, "file": str(path), "plan": plan, "density": s.density, "bpm": s.bpm, "speed": s.speed, "cells": cells,
+            items.append(reaper.Item(0.0, first_onset if snap_mode == "onset" else 0.0, length, beat, row["name"], markers, str(path)))
+            meta.append({"sample": sid, "file": str(path), "baked": baked, "plan": plan, "density": s.density, "bpm": s.bpm, "speed": s.speed, "cells": cells,
                          "route": "mora" if mora else "raw", "analysis": an.run, "markers": len(markers)})
         pos = reaper.lay_out([it.length for it in items], [it.beat for it in items])
         items = [reaper.Item(p, it.snap, it.length, it.beat, it.name, it.markers, it.path) for p, it in zip(pos, items)]
@@ -158,20 +172,20 @@ class HandoffService:
         p.write_text(dumps({"kind": kind, "snap": settings_mod.values(self.conn)["export.reaper_snap"], "items": meta, "createdAt": now_iso()}), encoding="utf-8")
         return p
 
-    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False) -> dict[str, Any]:
+    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False) -> dict[str, Any]:
         """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。"""
         if not ids:
             raise CoreError("reaper-empty")
-        items, meta = self._items(ids, words, plan, mora, long_vowel)
+        items, meta = self._items(ids, words, plan, mora, long_vowel, baked)
         text = reaper.clipboard(items)
         manifest = self._write_manifest(meta, "clipboard")
         return {"clipboard": text, "files": [m["file"] for m in meta], "manifest": str(manifest), "count": len(items)}
 
-    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False) -> dict[str, Any]:
+    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False) -> dict[str, Any]:
         """``.RTrackTemplate``（试验入口）：同内容的 ITEM，换行分隔。"""
         if not ids:
             raise CoreError("reaper-empty")
-        items, meta = self._items(ids, words, plan, mora, long_vowel)
+        items, meta = self._items(ids, words, plan, mora, long_vowel, baked)
         d = self._reaper_dir()
         base = fname.truncate_utf8(fname.portable(items[0].name), 100).strip(" .") or "item"
         p = d / f"{base}__{new_id()[:8]}.RTrackTemplate"

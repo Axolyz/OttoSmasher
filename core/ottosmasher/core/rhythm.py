@@ -376,6 +376,15 @@ class RhythmService:
         bpm = self.bpm()
         cells = self.cells_for(an, mora, long_vowel)
         s = self.schemes(an, cells, bpm)[plan] if version == "stretched" else None
+        key, path = self._ensure_render(an, version, sound, cells, s)
+        frames = wavfile.info(path)[3]
+        return {
+            "key": key, "duration": frames / an.sr, "version": version, "sound": sound, "plan": plan if s else None,
+            "bpm": s.bpm if s else None, "density": s.density if s else None, "speed": s.speed if s else None, "originalSpeed": bpm is None,
+        }
+
+    def _ensure_render(self, an: Analysis, version: str, sound: str, cells: list[int], s: st.Scheme | None) -> tuple[str, Path]:
+        """渲染（或复用缓存里已有的）试听文件：键 = 分析身份 + 版本 + 声音 + 占格 + 方案 + 渲染与 Rubber Band 版本。"""
         key = hashlib.sha1(_sha([
             an.identity, version, sound, cells, None if s is None else [s.density, s.bpm], render_mod.RENDER_VERSION, render_mod.rubberband_version() if s else None,
         ]).encode()).hexdigest()
@@ -398,11 +407,17 @@ class RhythmService:
                 os.replace(tmp, path)
             finally:
                 tmp.unlink(missing_ok=True)
-        frames = wavfile.info(path)[3]
-        return {
-            "key": key, "duration": frames / an.sr, "version": version, "sound": sound, "plan": plan if s else None,
-            "bpm": s.bpm if s else None, "density": s.density if s else None, "speed": s.speed if s else None, "originalSpeed": bpm is None,
-        }
+        return key, path
+
+    def stretched_pcm(self, sample_id: str, plan: str = "near_fast", mora: bool = False, long_vowel: bool = False) -> tuple[Analysis, st.Scheme, list[int], np.ndarray, int]:
+        """卡拍后的声音（导出、拖出、REAPER 卡好拍版共用）：刚试听过就直接用试听渲染的结果，不再渲染一次；逐样本与渲染一致。"""
+        an = self.analysis(sample_id)
+        self._require_speech(an)
+        cells = self.cells_for(an, mora, long_vowel)
+        s = self.schemes(an, cells, self.bpm())[plan]
+        _key, path = self._ensure_render(an, "stretched", "voice", cells, s)
+        pcm, sr = wavfile.load_wav24(path)
+        return an, s, cells, pcm, sr
 
     def resolve_render(self, key: str) -> dict[str, Any]:
         """试听播放器：渲染结果的位置（只接受本服务生成的键，不接受路径）。"""

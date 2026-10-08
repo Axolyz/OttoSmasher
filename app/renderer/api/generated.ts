@@ -733,8 +733,9 @@ export interface ReaperHandoff {
   manifest: string;
 }
 
-/** REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。 */
+/** REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记（默认 = 未烘焙原声 + 卡拍拉伸标记）。 */
 export interface ReaperParams {
+  baked?: boolean | null;
   ids: string[];
   longVowel?: boolean | null;
   mora?: boolean | null;
@@ -1669,7 +1670,7 @@ export interface Commands {
   "playback.resolveRender": { params: RenderKeyParams; result: AssetHandle; effect: "read" };
   /** Playback handle for the source player (file, audio track, external stem). */
   "playback.resolveSource": { params: ResolveSourceParams; result: SourceHandle; effect: "read" };
-  /** Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers. */
+  /** Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers. */
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
   /** Write the same items as an .RTrackTemplate file (experimental). */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };

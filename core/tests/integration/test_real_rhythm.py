@@ -83,8 +83,6 @@ def test_s3_stretch_on_real_lines(tmp_path):
             assert abs(len(st) / sr - nf["outSeconds"]) < 1e-3
             onsets = [p for p in nf["points"] if p["kind"] == "onset"]
             for p in onsets:  # 起音样本逐样本相等（核心逐样本复制、起音落在目标拍 ±1 样本）
-                if p["src"] - a < 0.001 or b - p["src"] < 0.001:
-                    continue  # 起音贴着采样边界：左（右）侧间距为 0，保护核心半径为 0（09 §9.5.2），没有逐样本复制的样本
                 ti, si = round(p["tgt"] * sr), round((p["src"] - a) * sr)
                 assert np.array_equal(st[ti], orig[si]), (name, p)
             h = c.call("reaper.handoff", ids=[i], words=WORDS)["r"]

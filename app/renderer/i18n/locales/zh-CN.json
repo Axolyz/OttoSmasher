@@ -1242,8 +1242,8 @@
   "handoff.wavN": "导出原声 WAV（{n} 项）",
   "handoff.stretchedWav": "导出卡拍 WAV",
   "handoff.stretchedWavN": "导出卡拍 WAV（{n} 项）",
-  "handoff.reaper": "复制 REAPER 交接",
-  "handoff.reaperN": "复制 REAPER 交接（{n} 项，依次排开）",
+  "handoff.reaper": "复制 REAPER 交接（原声＋拉伸标记，可再调）",
+  "handoff.reaperN": "原声＋拉伸标记（{n} 项，依次排开）",
   "handoff.rtt": "导出 REAPER 条目文件（试验）",
   "reaper.copied": "已复制 · 在 REAPER 选择轨道和光标位置后粘贴",
   "reaper.copiedN": "已复制 {n} 条（依次排开、间隔一小节）· 在 REAPER 选择轨道和光标位置后粘贴",
@@ -1327,5 +1327,8 @@
   "settings.export.reaper_snap.hint": "粘贴到 REAPER 时：首个起音落在编辑光标（前导辅音留在光标之前），或以条目开头为准。",
   "settings.export.reaper_snap.onset": "首个起音对准光标",
   "settings.export.reaper_snap.start": "条目开头对准光标",
-  "specimen.segWrap": "分段选择（可换行）"
+  "specimen.segWrap": "分段选择（可换行）",
+  "handoff.reaperBaked": "复制 REAPER 交接（卡好拍＋起音标记）",
+  "handoff.reaperBakedN": "卡好拍＋起音标记（{n} 项，依次排开）",
+  "handoff.reaperMenu": "复制 REAPER 交接"
 }

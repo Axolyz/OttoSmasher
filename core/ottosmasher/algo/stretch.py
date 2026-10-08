@@ -6,6 +6,7 @@
 - 控制点 = 各音块起音 + 语段段尾控制点 + 句尾控制点。语段段尾（规格没写定义，开发者决定，见 QUESTIONS「阶段 6 开始」）：
   源 = 该语段末块的发声终点（块结束；块内有停顿就截在停顿开始），目标拍 = 末块目标拍 + 末块占格 / 密度；与下一起音同拍时不加。
 - 保护核心：每个控制点左右各 r 个样本原样复制，r = min(8 ms, 左右源侧间距 / 4, 左右目标侧间距 / 4)；核心斜率 1。
+  所有者 2026-10-08【基线变更】：控制点贴着窗口边界（那一侧间距为 0）时，那一侧为 0、另一侧照常取 min(8 ms, 该侧间距 / 4)。
 - 首个核心之前、末个核心之后按整体倍率；核心之间是桥：桥内停顿是弹性片，先给停顿保留 min(停顿总长, 桥目标长度 × 2%)，
   语音部分的伸缩比不超过整体倍率，剩下的由停顿吸收；没有停顿的桥整体伸缩。
 - 语音播放速度 = 源语音时长（[首个起音, 句尾控制点] 去掉停顿）/ 它们映射后的时长，用真实映射算。
@@ -121,17 +122,27 @@ def build_map(
     # 目标帧（相对首个控制点）= (目标拍 − 首拍) × 拍长；整体平移不改变映射的形状（平移不变）
     rel = [int(round((c.beat - cps[0].beat) * beat_seconds * sr)) for c in cps]
     # 保护核心半径（帧）：min(8 ms, 左右源侧间距 / 4, 左右目标侧间距 / 4)；首尾外侧的目标间距按整体倍率
-    rad = []
+    # 贴边（所有者 2026-10-08【基线变更】09 §9.5.2）：控制点贴着窗口边界、那一侧间距为 0 时，那一侧半径为 0、另一侧照常（不再被拖成 0）
+    lft, rgt = [], []
     for i in range(len(cps)):
         sl = src[i] - (src[i - 1] if i else 0)
         sr_ = (src[i + 1] if i + 1 < len(cps) else n_src) - src[i]
         tl = rel[i] - rel[i - 1] if i else int(src[0] * ratio)
         tr = rel[i + 1] - rel[i] if i + 1 < len(cps) else int((n_src - src[-1]) * ratio)
-        rad.append(max(0, min(int(round(CORE_MAX * sr)), sl // 4, sr_ // 4, tl // 4, tr // 4)))
+        cap = int(round(CORE_MAX * sr))
+        left_edge = i == 0 and (sl == 0 or tl == 0)
+        right_edge = i + 1 == len(cps) and (sr_ == 0 or tr == 0)
+        if left_edge or right_edge:
+            lft.append(0 if left_edge else max(0, min(cap, sl // 4, tl // 4)))
+            rgt.append(0 if right_edge else max(0, min(cap, sr_ // 4, tr // 4)))
+        else:
+            r = max(0, min(cap, sl // 4, sr_ // 4, tl // 4, tr // 4))
+            lft.append(r)
+            rgt.append(r)
     # 首个核心之前、末个核心之后按整体倍率
-    offset = int(round((src[0] - rad[0]) * ratio)) + rad[0]
+    offset = int(round((src[0] - lft[0]) * ratio)) + lft[0]
     tgt = [r + offset for r in rel]
-    n_out = tgt[-1] + rad[-1] + int(round((n_src - src[-1] - rad[-1]) * ratio))
+    n_out = tgt[-1] + rgt[-1] + int(round((n_src - src[-1] - rgt[-1]) * ratio))
     if n_out / sr > MAX_OUTPUT_SECONDS:
         raise CoreError("rhythm-output-too-long", seconds=round(n_out / sr, 1), max=MAX_OUTPUT_SECONDS)
     pieces: list[Piece] = []
@@ -145,15 +156,15 @@ def build_map(
             knots.append((p.sb, p.tb))
 
     # 首段（整体倍率）
-    add(Piece(0, src[0] - rad[0], 0, tgt[0] - rad[0], "edge"))
+    add(Piece(0, src[0] - lft[0], 0, tgt[0] - lft[0], "edge"))
     for i in range(len(cps)):
-        add(Piece(src[i] - rad[i], src[i] + rad[i], tgt[i] - rad[i], tgt[i] + rad[i], "core"))
+        add(Piece(src[i] - lft[i], src[i] + rgt[i], tgt[i] - lft[i], tgt[i] + rgt[i], "core"))
         if i + 1 < len(cps):
-            sa, sb = src[i] + rad[i], src[i + 1] - rad[i + 1]
-            ta, tb = tgt[i] + rad[i], tgt[i + 1] - rad[i + 1]
+            sa, sb = src[i] + rgt[i], src[i + 1] - lft[i + 1]
+            ta, tb = tgt[i] + rgt[i], tgt[i + 1] - lft[i + 1]
             for p in _bridge(sa, sb, ta, tb, pauses, w0, sr, ratio, i):
                 add(p)
-    add(Piece(src[-1] + rad[-1], n_src, tgt[-1] + rad[-1], n_out, "edge"))
+    add(Piece(src[-1] + rgt[-1], n_src, tgt[-1] + rgt[-1], n_out, "edge"))
     for a, b in zip(knots, knots[1:]):
         if not (b[0] > a[0] and b[1] > a[1]):
             raise CoreError("rhythm-map-not-monotonic", at=round(w0 + b[0] / sr, 6))

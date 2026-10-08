@@ -178,3 +178,20 @@ def test_clicks_follow_onsets_not_beats():
     assert nz[0] == 101 and 700 <= nz[-1] < 700 + len(render.click(16000))
     v = render.mix_clicks(np.full((1000, 1), 0.1, np.float32), [100], 16000, voice=True)
     assert v[0, 0] == pytest.approx(0.1)
+
+
+def test_edge_onset_keeps_its_inner_core():
+    # 起音贴着窗口起点（所有者 2026-10-08【基线变更】）：左侧 0，右侧照常保护
+    p = plan_of([0.0, 0.25, 0.5, 0.75], [0.25, 0.5, 0.75, 1.0], (0.0, 1.001), cells=[1, 1, 1, 1])
+    m = st.scheme(p, 2, 150).map
+    first = next(x for x in m.pieces if x.kind == "core")
+    assert first.sa == 0 and first.ta == 0 and first.sb - first.sa == round(st.CORE_MAX * SR)
+
+
+@need_rb
+def test_render_edge_onset_is_sample_exact():
+    p = plan_of([0.0, 0.25, 0.5, 0.75], [0.2, 0.45, 0.7, 0.95], (0.0, 1.001), cells=[1, 1, 1, 1])
+    pcm = voice(1.001, [b.onset for b in p.blocks])
+    s = st.scheme(p, 2, 150)
+    out = render.render(pcm, s.map)
+    assert np.array_equal(out[: round(st.CORE_MAX * SR)], pcm[: round(st.CORE_MAX * SR)])

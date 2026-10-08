@@ -7,7 +7,7 @@
 - 停顿：10 ms 不重叠块的 RMS，阈值 = max(P85 × 0.25 × 灵敏度, 1e-5)，安静段 ≥ 0.12 / 灵敏度；与促音重叠的不是停顿；
   裁到 [首个音素开始, 末个音素结束] 后仍须 ≥ 0.12 / 灵敏度；两侧各内缩 20 ms。
 - 停顿段序号 = 结束 ≤ 该音块起音的停顿个数。
-- 语段：内缩后 ≥ 阈值（默认 0.28 s）、左右各有完整音块、切点 = 停顿中点且不落在有声音素内部 → 自动切口；手动切分 / 合并。
+- 语段：内缩后 ≥ 阈值（默认 0.28 s）、左右各有完整音块（块尾 / 起音伸进停顿 ≤ 50 ms 也算，所有者 2026-10-08）、切点 = 停顿中点且不落在有声音素内部 → 自动切口；手动切分 / 合并。
 - 时值：本块起音 → 下一块起音（末块见 §9.4.1），扣除与停顿重叠的休止秒数（最多扣到 5 ms），至少 5 ms。
 - 量化：原节奏 · 无 mora（束搜索，§9.4.3）与纯 mora（+ 自动长音补格）；人工占格两条路线都生效。
   所有者 2026-10-08【基线变更】：去掉 mora 参考校准；纯 mora 只作临时试听与临时导出（不保存为采样的路线）。
@@ -49,6 +49,8 @@ SENSITIVITY_RANGE = (0.5, 2.0)
 SEGMENT_THRESHOLD_RANGE = (0.16, 2.0)
 DEFAULT_SENSITIVITY = 1.0
 DEFAULT_SEGMENT_THRESHOLD = 0.28
+# 所有者 2026-10-08【基线变更】09 §9.3.3：对齐边界有固有误差，块尾 / 起音伸进停顿 ≤ 50 ms 仍算“两侧各有完整音块”
+SEGMENT_EDGE_TOLERANCE = 0.05
 
 LAST_MIN = 0.001
 MIN_DURATION = 0.005
@@ -255,7 +257,7 @@ def find_cuts(
         if any(s < mid - 1e-9 and mid < e - 1e-9 for s, e in voiced):
             continue
         for k in range(1, len(blocks)):
-            if blocks[k - 1].end <= p.start + 1e-9 and blocks[k].onset >= p.end - 1e-9:
+            if blocks[k - 1].end <= p.start + SEGMENT_EDGE_TOLERANCE + 1e-9 and blocks[k].onset >= p.end - SEGMENT_EDGE_TOLERANCE - 1e-9:
                 cuts[k] = Cut(k, "auto", round(mid, 6), round(mid, 6), merged=k in set(merges))
                 break
     for k in manual:

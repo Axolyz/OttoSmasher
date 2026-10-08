@@ -298,8 +298,9 @@ export function LibraryPage() {
     }
     if (ids.length > 1 && done.length) toast({ text: t("library.exportedN", { n: done.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(done[0]!) } });
   };
-  const copyReaper = async (ids: string[], opts: AuditionOpts = {}) => {
-    const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false });
+  /** ``baked``：卡好拍的声音 + 起音拉伸标记；否则未烘焙原声 + 卡拍拉伸标记（12 §12.3） */
+  const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked = false) => {
+    const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked });
     if (!r.ok) return toast({ text: errorText(r.e), tone: "error" });
     toast({ text: t(r.r.count > 1 ? "reaper.copiedN" : "reaper.copied", { n: r.r.count }) });
   };
@@ -319,6 +320,7 @@ export function LibraryPage() {
           { id: "wav", label: t("handoff.wav"), run: () => void exportOriginal([r.id]) },
           { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportStretched([r.id], opts) },
           "-",
+          { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void copyReaper([r.id], opts, true) },
           { id: "reaper", label: t("handoff.reaper"), run: () => void copyReaper([r.id], opts) },
           { id: "rtt", label: t("handoff.rtt"), run: () => void reaperTemplate([r.id], opts) },
         ];
@@ -416,7 +418,14 @@ export function LibraryPage() {
         { id: "stretched", label: t("handoff.stretchedWavN", { n: ids.length }), run: () => void exportStretched(ids) },
       ],
     },
-    { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids) },
+    {
+      id: "reaper",
+      label: t("handoff.reaperMenu"),
+      items: [
+        { id: "reaperBaked", label: t("handoff.reaperBakedN", { n: ids.length }), run: () => void copyReaper(ids, {}, true) },
+        { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids) },
+      ],
+    },
     "-",
     { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
   ];

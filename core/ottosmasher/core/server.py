@@ -179,10 +179,12 @@ class Core:
           "Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping).",
           lambda p: self.handoff.export_stretched(p["id"], dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
         r("reaper.handoff", "write", T.ReaperParams, T.ReaperHandoff,
-          "Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers.",
-          lambda p: self.handoff.reaper_handoff(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
+          "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
+          lambda p: self.handoff.reaper_handoff(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
+                                                bool(p.get("baked"))))
         r("reaper.template", "write", T.ReaperParams, T.ReaperTemplate, "Write the same items as an .RTrackTemplate file (experimental).",
-          lambda p: self.handoff.reaper_template(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
+          lambda p: self.handoff.reaper_template(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
+                                                 bool(p.get("baked"))))
         r("exports.wav", "write", T.ExportWavParams, T.ExportedWav, "Export an asset range as a WAV file (reuses an identical export).",
           lambda p: self.exports.export_wav(
               p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],

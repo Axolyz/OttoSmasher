@@ -524,7 +524,7 @@
   {
    "name": "reaper.handoff",
    "effect": "write",
-   "summary": "Copy unbaked original WAVs to the REAPER folder and build the REAPERMedia clipboard text with stretch markers.",
+   "summary": "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
    "params": {
     "$ref": "#/$defs/ReaperParams"
    },
@@ -5624,9 +5624,19 @@
   },
   "ReaperParams": {
    "title": "ReaperParams",
-   "description": "REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。",
+   "description": "REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记（默认 = 未烘焙原声 + 卡拍拉伸标记）。",
    "type": "object",
    "properties": {
+    "baked": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "ids": {
      "type": "array",
      "items": {

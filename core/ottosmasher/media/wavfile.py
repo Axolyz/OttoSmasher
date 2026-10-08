@@ -120,3 +120,16 @@ def info(path: Path) -> tuple[int, int, int, int]:
                 return rate, channels, bits, size // (channels * bits // 8)
             else:
                 fh.seek(size + (size & 1), 1)
+
+
+def load_wav24(path: Path) -> tuple[np.ndarray, int]:
+    """读本应用写的 24 位 PCM WAV：返回 ([帧, 声道] float32, 采样率)。float32 能精确表示每个 24 位样本，再写回 24 位逐样本不变。"""
+    rate, channels, bits, frames = info(path)
+    if bits != 24:
+        raise ValueError(f"not a 24-bit wav: {bits}")
+    data = Path(path).read_bytes()
+    pos = data.index(b"data") + 8
+    raw = np.frombuffer(data[pos : pos + frames * channels * 3], dtype=np.uint8).reshape(-1, 3).astype(np.int32)
+    v = raw[:, 0] | (raw[:, 1] << 8) | (raw[:, 2] << 16)
+    v = np.where(v >= 1 << 23, v - (1 << 24), v)
+    return (v.astype(np.float32) / (1 << 23)).reshape(frames, channels), int(rate)
