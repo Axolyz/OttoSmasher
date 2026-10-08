@@ -264,6 +264,9 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 | `Data/Measurements/pitch_index/<asset_id>.npz` | 50 ms 摘要（可靠帧 MIDI 均值、可靠覆盖率、平均能量）+ 版本信息 | 由 F0 组成，**不当缓存删**（规格 10 §10.2.5） |
 
 拉平成品的 `pitch:` 标签来自资产 `production.target`（登记时记录的目标音），不来自重测（规格 11 §11.4）。
+拉平（阶段 5，`core/flatten.py` + 任务进程 `jobs/flatten.py`，算法 `algo/flatten.py`、声码器前端 `models/hifigan.py`）：拉平台打开时冻结“资产 + 外选区 + 文件快照指纹”，提交时核对；
+任务对冻结的输入重新测 F0、定音、重合成、掩码拼接、编码 MP3 V0，再对成品测 F0；登记一个 origin=flatten 的资产（`production` 记目标音〔名称、MIDI、Hz、原始 MIDI、偏移〕、范围与实际处理区间、定音方式与参考区间、内区与过渡、所用对齐、算法与模型版本、输入指纹）
++ 成品的 F0 测量（kind=f0）+ 一个调谐单音采样；输入指纹相同的成品音频复用、采样新建。
 
 ### 4.6 派生数据（可重建）
 
