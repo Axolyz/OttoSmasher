@@ -43,7 +43,7 @@ PHONES = [
 
 
 def alignment(c, owner, start, end, *, manual=False, snapshot=None, phones=PHONES, owner_type="sample"):
-    snap = snapshot if snapshot is not None else c.flatten._freeze(c.aid, start, end)["snapshot"]
+    snap = snapshot if snapshot is not None else c.flatten._freeze(c.aid, start, end)["_snap"]
     rid = new_id()
     c.conn.execute(
         "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at)"
@@ -66,6 +66,9 @@ def test_alignment_intervals_first_vowel_and_vowels_only(core):
     assert [p["label"] for p in op["alignment"]["phones"]] == ["k", "a", "cl", "N"]
     assert op["alignment"]["phones"][-1]["end"] == pytest.approx(1.0)  # 裁到外选区（输入局部秒）
     tok = op["token"]
+    # 令牌经过界面（JS）：不能带超过 2^53 的整数（mtime_ns），快照写成字符串指纹
+    assert isinstance(tok["snapshot"], str) and "_snap" not in tok
+    assert all(not isinstance(v, int) or abs(v) < 2**53 for v in tok.values())
     est = core.flatten.estimate(tok, {"range": "first", "target": "edge", "side": "left"}, s)
     assert est["status"] == "in-job"  # 还没测过 F0
     assert est["intervals"] == [pytest.approx([0.1, 1.0])]  # 首个元音的有效起点（收紧后）

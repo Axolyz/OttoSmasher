@@ -65,7 +65,7 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   await page.getByTestId("source-viewer").getByRole("button", { name: /第 1 条音轨/ }).click();
   await page.getByRole("option", { name: "bandit_v2 · effect" }).click();
   await expect(ro).toHaveAttribute("data-a", a0!);
-  await page.getByTestId("clip").click();
+  await page.getByTestId("source-viewer").getByTestId("clip").click();
   await expect(page.getByTestId("clip-panel").locator('[role="radio"][aria-checked="true"]')).toHaveAttribute("data-nature", "unpitched");
   await page.screenshot({ path: ".cache/playwright-results/real-stems.png" });
   await page.keyboard.press("Escape");

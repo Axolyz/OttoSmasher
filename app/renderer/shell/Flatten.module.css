@@ -1,0 +1,24 @@
+/* 拉平台（阶段 5；原型 flattenSheet：左侧外选区波形与成品，右侧处理范围与目标音高） */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; min-width: 0; align-items: start; padding: 16px 20px; }
+.main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--s1); min-width: 0; }
+.cardHead { display: flex; align-items: center; gap: 8px; }
+.cardTitle { margin: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--sub); }
+.wave { height: 190px; min-width: 0; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.grow { flex: 1; }
+.say { color: var(--sub); font-size: var(--fs-sm); }
+.faint { color: var(--faint); font-size: var(--fs-xs); }
+.estimate { color: var(--sub); font-size: var(--fs-sm); text-align: right; min-width: 0; }
+.note { color: var(--nat-pitched); font-size: 18px; font-weight: 700; }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.optTitle { color: var(--muted); font-size: var(--fs-xs); margin-top: 4px; }
+.trans { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; }
+.field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fieldLabel { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.fieldInput { flex: 1; min-width: 0; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}

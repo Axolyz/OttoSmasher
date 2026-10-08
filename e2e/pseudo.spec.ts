@@ -33,7 +33,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("specimen-toggle").click();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Meta+,");
-  for (const g of ["general", "inference", "source", "frontend", "jobs", "models"]) {
+  for (const g of ["general", "inference", "source", "frontend", "flatten", "jobs", "models"]) {
     await page.getByTestId(`settings-group-${g}`).click();
     await page.waitForTimeout(150);
     expect(await unbracketed(page)).toEqual([]);
@@ -59,7 +59,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.mouse.move(tl.x + tl.width * 0.4, tl.y + tl.height / 2, { steps: 5 });
   await page.mouse.up();
   expect(await unbracketed(page)).toEqual([]);
-  await page.getByTestId("clip").click();
+  await page.getByTestId("source-viewer").getByTestId("clip").click();
   await expect(page.getByTestId("clip-panel")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
@@ -93,7 +93,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.mouse.click(tl.x + tl.width * 0.3, tl.y + 50, { button: "right" });
   await expect(page.getByTestId("timeline-menu")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
-  await page.getByTestId("timeline-menu").getByRole("menuitem").nth(4).click();
+  await page.getByTestId("timeline-menu").getByRole("menuitem").nth(5).click();
   await expect(page.getByTestId("annotation-dialog")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
@@ -109,6 +109,23 @@ test("伪语言下没有写死的界面文字", async () => {
   await expect(page.getByTestId("promote-preview")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
+  // 舞台动作条 → 拉平台（内部拉平 + 手动目标都展开）；批量拉平台
+  await page.getByTestId("stage-flatten").click();
+  await expect(page.getByTestId("flatten-sheet")).toBeVisible();
+  await page.getByTestId("flatten-range-inner").click();
+  await page.getByTestId("flatten-target-manual").click();
+  await page.getByTestId("flatten-manual").fill("440");
+  await expect(page.getByTestId("flatten-estimate")).not.toBeEmpty();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("flatten-sheet")).toHaveCount(0);
+  await page.getByTestId("sample-row").first().locator("label").first().click();
+  await page.getByTestId("page-library").getByTestId("batch-actions").click();
+  await page.getByRole("menuitem").nth(4).click();
+  await expect(page.getByTestId("flatten-batch-sheet")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("page-library").getByTestId("batch-clear").click();
 
   // 导入独立采样框（预览出来以后）
   await app.evaluate(({ dialog }, d) => {

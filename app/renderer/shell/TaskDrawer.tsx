@@ -6,6 +6,7 @@ import { Button } from "../components/Button";
 import { ProgressBar } from "../components/Controls";
 import { SeparationResults } from "./SeparationResults";
 import { SpeechResults } from "./SpeechResults";
+import { FlattenResults, useOpenProduct } from "./FlattenResults";
 import { Drawer } from "../components/Overlay";
 import { errorText, hasKey, t } from "../i18n";
 import { useApp } from "../state/store";
@@ -36,7 +37,16 @@ function kindLabel(kind: string): string {
 
 function JobRow({ job }: { job: JobSummary }) {
   const toast = useApp((st) => st.toast);
+  const openProduct = useOpenProduct();
   const [open, setOpen] = useState(false);
+  // 单个拉平：「打开结果」= 选中成品采样并回到采样库（03 §3.1.3）
+  const singleFlatten = job.kind === "flatten" && !(job.result as { batch?: boolean } | null)?.batch && job.items?.total === 1;
+  const openFlatten = async () => {
+    const rows = await call("flatten.results", { jobId: job.id });
+    const pid = rows.find((r) => r.productId)?.productId;
+    if (pid) openProduct(pid);
+    else toast({ text: t("flatten.results.none"), tone: "error" });
+  };
   const act = async (method: "jobs.cancel" | "jobs.retry") => {
     try {
       await call(method, { id: job.id });
@@ -65,7 +75,7 @@ function JobRow({ job }: { job: JobSummary }) {
           />
         </div>
       ) : null}
-      {job.kind === "speech.analyze" && job.items && !active ? (
+      {(job.kind === "speech.analyze" || (job.kind === "flatten" && !singleFlatten)) && job.items && !active ? (
         <div className={s.meta} data-testid="speech-summary">
           {t("speech.jobSummary", { ok: job.items.ok ?? 0, failed: job.items.failed ?? 0 })}
         </div>
@@ -86,7 +96,12 @@ function JobRow({ job }: { job: JobSummary }) {
             {t("tasks.cancel")}
           </Button>
         ) : null}
-        {(job.kind === "separate" && job.status === "succeeded") || (job.kind === "speech.analyze" && job.status === "succeeded") ? (
+        {singleFlatten && job.status === "succeeded" ? (
+          <Button size="sm" variant="flat" onPress={() => void openFlatten()} data-testid="job-results">
+            {t("tasks.openResults")}
+          </Button>
+        ) : null}
+        {(job.kind === "separate" || job.kind === "speech.analyze" || (job.kind === "flatten" && !singleFlatten)) && job.status === "succeeded" ? (
           <Button size="sm" variant={open ? "secondary" : "flat"} onPress={() => setOpen((v) => !v)} data-testid="job-results">
             {t("tasks.openResults")}
           </Button>
@@ -99,6 +114,7 @@ function JobRow({ job }: { job: JobSummary }) {
       </div>
       {open && job.kind === "separate" ? <SeparationResults jobId={job.id} /> : null}
       {open && job.kind === "speech.analyze" ? <SpeechResults jobId={job.id} /> : null}
+      {open && job.kind === "flatten" ? <FlattenResults jobId={job.id} /> : null}
     </div>
   );
 }

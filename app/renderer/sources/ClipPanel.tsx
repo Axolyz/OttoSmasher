@@ -13,7 +13,17 @@ import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
-export function ClipPanel(props: { assetId: string | null; track: string; sel: { a: number; b: number } | null; isOpen: boolean; onOpenChange: (o: boolean) => void }) {
+export function ClipPanel(props: {
+  assetId: string | null;
+  track: string;
+  sel: { a: number; b: number } | null;
+  isOpen: boolean;
+  onOpenChange: (o: boolean) => void;
+  /** 在采样详情里截取 = 子采样（记下父采样） */
+  parentSampleId?: string;
+  /** 区间的显示：原片页用原片时钟；舞台用秒 */
+  formatRange?: (a: number, b: number) => string;
+}) {
   const toast = useApp((st) => st.toast);
   const setPage = useApp((st) => st.setPage);
   const setOpenSample = useApp((st) => st.setOpenSample);
@@ -39,7 +49,7 @@ export function ClipPanel(props: { assetId: string | null; track: string; sel: {
     if (!props.assetId || !props.sel || busy) return;
     setBusy(true);
     try {
-      const smp = await call("samples.create", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, name, nature });
+      const smp = await call("samples.create", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, name, nature, parentSampleId: props.parentSampleId ?? null });
       props.onOpenChange(false);
       toast({ text: t("clip.saved", { name: smp.name }) });
       setOpenSample(smp.id);
@@ -56,7 +66,7 @@ export function ClipPanel(props: { assetId: string | null; track: string; sel: {
       isOpen={props.isOpen}
       onOpenChange={props.onOpenChange}
       title={t("clip.title")}
-      aux={props.sel ? `${clock(props.sel.a)}–${clock(props.sel.b)}` : null}
+      aux={props.sel ? (props.formatRange ? props.formatRange(props.sel.a, props.sel.b) : `${clock(props.sel.a)}–${clock(props.sel.b)}`) : null}
       placement="top start"
       width={420}
       testId="clip-panel"

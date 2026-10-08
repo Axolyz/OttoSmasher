@@ -184,3 +184,12 @@ def export_samples(svc: ExportService, ids: list[str], words: dict[str, str]) ->
         r = svc.export_wav(row[0], row[1], row[2], content=row[3], track=track_label(asset, words), processing=processing_label(asset, words))
         out.append(r["path"])
     return out
+
+
+def export_range(svc: ExportService, suggest: Any, asset_id: str, start: float, end: float, words: dict[str, str]) -> dict[str, Any]:
+    """导出资产的一段（舞台选区等，12 §12.1）：内容 = 建议名（04 §4.7）+「 · 片段」；音轨与处理信息按资产。时间：资产局部秒。"""
+    asset = assets_mod.get(svc.conn, asset_id)
+    name = suggest(asset_id, start, end, local_marker=words.get("local", ""))["name"]
+    return svc.export_wav(
+        asset_id, start, end, content=name + words.get("fragment", ""), track=track_label(asset, words), processing=processing_label(asset, words)
+    )

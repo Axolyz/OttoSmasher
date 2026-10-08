@@ -2,7 +2,7 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, ChevronDown, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, AudioWaveform, ChevronDown, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
@@ -19,7 +19,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
-import type { SeparationInput } from "./SeparationDialog";
+import type { SeparationRequest as SeparationInput } from "../state/store";
 import { displayName } from "./SourceList";
 import { noSubtitles } from "./rowInfo";
 import s from "./Sources.module.css";
@@ -48,6 +48,7 @@ function isTyping(el: Element | null): boolean {
 export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void; onSeparate: (input: SeparationInput) => void }) {
   const { row } = props;
   const toast = useApp((st) => st.toast);
+  const requestFlatten = useApp((st) => st.requestFlatten);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
   const [assets, setAssets] = useState<AssetInfo[]>([]);
   // 当前音源：资产 ID（容器音轨或分离声部）；null = 该原片的分析音轨
@@ -364,6 +365,13 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     return [out.path];
   };
 
+  /** 拉平台（11 §11.1：原片页选区操作栏与波形右键；默认整段 + 段内自动）。外选区是当前音源资产的局部秒 */
+  const flattenSel = () => {
+    if (!sel || !asset) return;
+    if (!selLocal) return outOfCover();
+    requestFlatten({ kind: "single", assetId: asset.id, start: selLocal.a, end: selLocal.b, entry: "single" });
+  };
+
   const exportWav = async () => {
     if (!sel || !asset) return;
     if (!selLocal) return outOfCover();
@@ -670,6 +678,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
                 { id: "out", label: t("sources.setEnd"), shortcut: "O", run: () => setEdge("b") },
                 "-",
                 { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
+                { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
                 { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
                 "-",
                 { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create", sourceId: row.id, start: sel.a, end: sel.b }) },
@@ -728,6 +737,9 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           </div>
           <div className={s.group}>
             <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={selLocal} isOpen={clipOpen} onOpenChange={setClipOpen} />
+            <Button variant="flat" icon={<AudioWaveform />} isDisabled={!sel || !asset || editing} onPress={flattenSel} data-testid="flatten">
+              {t("flatten.action")}
+            </Button>
             <Button
               variant="flat"
               icon={<Split />}

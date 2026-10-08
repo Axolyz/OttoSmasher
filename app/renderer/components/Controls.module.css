@@ -86,6 +86,16 @@
 .radioRow[data-selected] .radioDot { border: 4px solid var(--accent); }
 .radioLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radioNote { color: var(--muted); font-size: var(--fs-xs); }
+.radioCards { display: flex; flex-direction: column; gap: 6px; }
+.radioCard { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--s1); cursor: default; outline: none; }
+.radioCard[data-hovered] { background: var(--s2); }
+.radioCard[data-selected] { border-color: var(--accent); background: var(--accentbg); }
+.radioCard[data-focus-visible] { box-shadow: 0 0 0 1px var(--accent2); }
+.radioCard[data-disabled] { opacity: 0.45; }
+.radioCard .radioDot { margin-top: 2px; }
+.radioCard[data-selected] .radioDot { border: 4px solid var(--accent); }
+.radioText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.radioTitle { font-size: var(--fs-sm); color: var(--text); font-weight: 600; }
 /* 小记号按钮（音素、音块） */
 .token { font: 12px var(--font-mono); padding: 1px 5px; border-radius: var(--r-sm); border: 1px solid var(--line2); background: var(--s2); color: var(--sub); cursor: default; outline: none; }
 .token[data-strong] { color: var(--nat-speech); border-color: color-mix(in srgb, var(--nat-speech) 40%, transparent); }

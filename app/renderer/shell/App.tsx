@@ -10,6 +10,8 @@ import { SourcesPage } from "../sources/SourcesPage";
 import { type Page, useApp } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
+import { FlattenSheet } from "./FlattenSheet";
+import { SeparationDialog } from "../sources/SeparationDialog";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
@@ -124,6 +126,8 @@ export function App() {
       <TaskDrawer jobs={jobs} />
       <SettingsSheet />
       <SpeechDialog />
+      <SeparationDialog />
+      <FlattenSheet />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>
           <tbody>

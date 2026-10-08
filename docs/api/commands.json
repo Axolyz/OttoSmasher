@@ -177,6 +177,17 @@
    }
   },
   {
+   "name": "exports.range",
+   "effect": "write",
+   "summary": "Export an asset range as WAV named by the naming rule (+ fragment word).",
+   "params": {
+    "$ref": "#/$defs/ExportRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ExportedWav"
+   }
+  },
+  {
    "name": "exports.samples",
    "effect": "write",
    "summary": "Export samples as WAV files for drag-out; returns file paths.",
@@ -3098,6 +3109,33 @@
     "code"
    ]
   },
+  "ExportRangeParams": {
+   "title": "ExportRangeParams",
+   "description": "时间：资产局部秒。words：导出文件名的固定词（音轨名、flatten、fragment「 · 片段」、local「局部」），随界面语言。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start"
+   ]
+  },
   "ExportSamplesParams": {
    "title": "ExportSamplesParams",
    "type": "object",
@@ -3732,7 +3770,7 @@
   },
   "FlattenToken": {
    "title": "FlattenToken",
-   "description": "打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。",
+   "description": "打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照（指纹字符串）；提交时核对。",
    "type": "object",
    "properties": {
     "assetId": {
@@ -3745,7 +3783,7 @@
      "type": "string"
     },
     "snapshot": {
-     "type": "object"
+     "type": "string"
     },
     "start": {
      "type": "number"

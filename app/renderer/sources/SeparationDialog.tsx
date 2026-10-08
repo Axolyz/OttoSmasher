@@ -14,15 +14,11 @@ import s from "./Sources.module.css";
 
 type Scope = "full" | "sel";
 
-export interface SeparationInput {
-  assetId: string;
-  trackLabel: string;
-  duration: number;
-  selection: { a: number; b: number } | null;
-  scope: Scope;
-}
-
-export function SeparationDialog(props: { input: SeparationInput | null; onClose: () => void }) {
+/** 分离确认框（挂在应用外壳上；原片页与舞台的动作条都通过 store.requestSeparation 打开） */
+export function SeparationDialog() {
+  const input = useApp((st) => st.separationRequest);
+  const requestSeparation = useApp((st) => st.requestSeparation);
+  const props = { input, onClose: () => requestSeparation(null) };
   const toast = useApp((st) => st.toast);
   const setTasksOpen = useApp((st) => st.setTasksOpen);
   const inp = props.input;

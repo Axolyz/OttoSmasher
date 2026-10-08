@@ -136,7 +136,8 @@ def run(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
             ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": last_error.to_wire()})
             failed += 1
     ctx.progress("flatten", len(items), len(items), "flatten-running")
-    if len(items) == 1 and failed and last_error is not None:
-        raise last_error  # 单个拉平：失败就是任务失败（不留任何登记）
+    batch = bool(params.get("batch"))
+    if not batch and failed and last_error is not None:
+        raise last_error  # 单个拉平：失败就是任务失败（不留任何登记）；批量的失败项只在结果表里
     probes = [s.probe for s in (fc, voc) if s is not None and s.probe]
-    return {"ok": ok, "failed": failed, "probes": probes}
+    return {"ok": ok, "failed": failed, "batch": batch, "probes": probes}

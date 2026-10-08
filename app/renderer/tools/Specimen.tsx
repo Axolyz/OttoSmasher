@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
-import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, Segmented, StepsBar, Token } from "../components/Controls";
+import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
 import { NumberField, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
@@ -42,6 +42,7 @@ export function Specimen() {
   const [sel, setSel] = useState("speech");
   const [area, setArea] = useState("");
   const [cb, setCb] = useState<"none" | "some" | "all">("some");
+  const [radio, setRadio] = useState("vowels");
   const [seg, setSeg] = useState<"sub" | "phone" | "seg" | "none">("sub");
   const [lens, setLens] = useState<"all" | "speech" | "pitched">("all");
   const [nature, setNature] = useState<Demo["nature"]>("speech");
@@ -194,6 +195,21 @@ export function Specimen() {
             <ProgressBar value={null} label={t("specimen.progress")} />
           </div>
           <StepsBar steps={[true, true, true, false, true, true, true]} label={t("specimen.steps")} />
+        </div>
+        <div className={s.row} style={{ maxWidth: 360 }}>
+          <div style={{ flex: 1 }}>
+            <RadioList
+              stack
+              value={radio}
+              onChange={setRadio}
+              label={t("specimen.radioCards")}
+              items={[
+                { id: "whole", label: t("flatten.range.whole"), note: t("flatten.range.whole.note") },
+                { id: "vowels", label: t("flatten.range.vowels"), note: t("flatten.range.vowels.note") },
+                { id: "inner", label: t("flatten.range.inner"), note: t("flatten.range.inner.note"), isDisabled: true },
+              ]}
+            />
+          </div>
         </div>
         <div className={s.row}>
           <Thumb url={null} play={{ playing: thumbPlaying, onPress: () => setThumbPlaying((x) => !x), label: t("library.audition") }} />

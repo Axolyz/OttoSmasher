@@ -239,6 +239,14 @@ export interface ErrorWire {
   code: string;
 }
 
+/** 时间：资产局部秒。words：导出文件名的固定词（音轨名、flatten、fragment「 · 片段」、local「局部」），随界面语言。 */
+export interface ExportRangeParams {
+  assetId: string;
+  end: number;
+  start: number;
+  words?: Record<string, string>;
+}
+
 export interface ExportSamplesParams {
   ids: string[];
   words?: Record<string, string>;
@@ -365,12 +373,12 @@ export interface FlattenTarget {
   side: string | null;
 }
 
-/** 打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。 */
+/** 打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照（指纹字符串）；提交时核对。 */
 export interface FlattenToken {
   assetId: string;
   end: number;
   media: string;
-  snapshot: Record<string, unknown>;
+  snapshot: string;
   start: number;
 }
 
@@ -1402,6 +1410,8 @@ export interface Commands {
   "edits.preview": { params: EditBatchParams; result: EditPreview; effect: "read" };
   /** Undo the latest edit that can be undone safely. */
   "edits.undo": { params: NoParams; result: EditUndone; effect: "write" };
+  /** Export an asset range as WAV named by the naming rule (+ fragment word). */
+  "exports.range": { params: ExportRangeParams; result: ExportedWav; effect: "write" };
   /** Export samples as WAV files for drag-out; returns file paths. */
   "exports.samples": { params: ExportSamplesParams; result: string[]; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */

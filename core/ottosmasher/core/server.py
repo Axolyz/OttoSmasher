@@ -34,7 +34,7 @@ from . import actor as actor_mod
 from . import annotations as annotations_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
-from .exports import ExportService, export_samples
+from .exports import ExportService, export_range, export_samples
 from .samples import SampleService
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
@@ -177,6 +177,8 @@ class Core:
               p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
               local_prefix=p.get("localPrefix"), processing=p.get("processing", ""), directory=p.get("directory"),
           ))
+        r("exports.range", "write", T.ExportRangeParams, T.ExportedWav, "Export an asset range as WAV named by the naming rule (+ fragment word).",
+          lambda p: export_range(self.exports, self.samples.suggest, p["assetId"], float(p["start"]), float(p["end"]), dict(p.get("words", {}))))
         r("tags.promoteBatch", "read", T.PromoteParams, T.PromoteInfo, "Edit batch that promotes local tags to a segment tag (apply with edits.apply).",
           lambda p: annotations_mod.promote_batch(self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")))
         # ---- 字幕标记、标注、OP/ED

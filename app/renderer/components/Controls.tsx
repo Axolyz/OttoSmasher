@@ -230,20 +230,30 @@ export interface RadioItem {
 }
 
 /** 单选列表（一行一个选项）：分离模型、导出格式这类“从一列里选一个”。React Aria RadioGroup：↑↓ 移动并选中。 */
-export function RadioList(props: { value: string | null; onChange: (v: string) => void; items: RadioItem[]; label: string; testId?: string }) {
+/** 单选列表。``stack`` = 选项卡片：标题在上、说明在下（拉平台的处理范围与目标音高，原型 choices） */
+export function RadioList(props: { value: string | null; onChange: (v: string) => void; items: RadioItem[]; label: string; stack?: boolean; testId?: string }) {
   return (
     <RadioGroup
       value={props.value}
       onChange={props.onChange}
       aria-label={props.label}
-      className={s.radioList}
+      className={props.stack ? s.radioCards : s.radioList}
       data-testid={props.testId}
     >
       {props.items.map((it) => (
-        <Radio key={it.id} value={it.id} isDisabled={it.isDisabled} className={s.radioRow}>
+        <Radio key={it.id} value={it.id} isDisabled={it.isDisabled} className={props.stack ? s.radioCard : s.radioRow} data-testid={props.testId ? `${props.testId}-${it.id}` : undefined}>
           <span className={s.radioDot} />
-          <span className={s.radioLabel}>{it.label}</span>
-          {it.note ? <span className={s.radioNote}>{it.note}</span> : null}
+          {props.stack ? (
+            <span className={s.radioText}>
+              <b className={s.radioTitle}>{it.label}</b>
+              {it.note ? <span className={s.radioNote}>{it.note}</span> : null}
+            </span>
+          ) : (
+            <>
+              <span className={s.radioLabel}>{it.label}</span>
+              {it.note ? <span className={s.radioNote}>{it.note}</span> : null}
+            </>
+          )}
         </Radio>
       ))}
     </RadioGroup>

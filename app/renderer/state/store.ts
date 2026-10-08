@@ -28,6 +28,20 @@ export interface SpeechRequest {
   ids: string[];
 }
 
+/** 拉平台的请求（规格 11 §11.1：同一个工作台，默认值随入口）。时间：资产局部秒 */
+export type FlattenRequest =
+  | { kind: "single"; assetId: string; start: number; end: number; entry: "detail" | "single"; sampleId?: string }
+  | { kind: "batch"; ids: string[] };
+
+/** 分离确认框的请求（原片页动作条、舞台动作条共用，PB5） */
+export interface SeparationRequest {
+  assetId: string;
+  trackLabel: string;
+  duration: number;
+  selection: { a: number; b: number } | null;
+  scope: "full" | "sel";
+}
+
 interface AppState {
   page: Page;
   openSample: string | null;
@@ -47,6 +61,10 @@ interface AppState {
   toasts: Toast[];
   speechRequest: SpeechRequest | null;
   requestSpeech(r: SpeechRequest | null): void;
+  flattenRequest: FlattenRequest | null;
+  requestFlatten(r: FlattenRequest | null): void;
+  separationRequest: SeparationRequest | null;
+  requestSeparation(r: SeparationRequest | null): void;
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
   setSettingsOpen(v: boolean): void;
@@ -68,6 +86,10 @@ export const useApp = create<AppState>((set) => ({
   setOpenSample: (openSample) => set({ openSample }),
   speechRequest: null,
   requestSpeech: (speechRequest) => set({ speechRequest }),
+  flattenRequest: null,
+  requestFlatten: (flattenRequest) => set({ flattenRequest }),
+  separationRequest: null,
+  requestSeparation: (separationRequest) => set({ separationRequest }),
   setSourceJump: (sourceJump) => set({ sourceJump }),
   tasksOpen: false,
   settingsOpen: false,

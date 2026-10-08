@@ -25,6 +25,7 @@ import { errorText, t } from "../i18n";
 import { ImportDialog } from "../shell/ImportDialog";
 import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
+import { exportWords } from "../exportWords";
 import { useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
 import s from "./Library.module.css";
@@ -33,9 +34,7 @@ import { StageSpeech } from "./StageSpeech";
 const PAGE = 100;
 
 /** 导出文件名“音轨”段的固定词（随界面语言，规格 12 §12.1） */
-function trackWords(): Record<string, string> {
-  return { original: t("track.original"), vocal: t("role.vocal"), sfx: t("role.sfx"), flatten: t("track.flatten"), reimport: t("track.reimport") };
-}
+const trackWords = exportWords;
 type Purpose = "all" | Nature;
 const PURPOSES: Purpose[] = ["all", "speech", "pitched", "unpitched", "unclassified"];
 const KEY_OF: Record<Nature, string> = { speech: "1", pitched: "2", unpitched: "3", unclassified: "0" };
@@ -57,6 +56,7 @@ export function LibraryPage() {
   const page = useApp((st) => st.page);
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
+  const requestFlatten = useApp((st) => st.requestFlatten);
   const openSample = useApp((st) => st.openSample);
   const setOpenSample = useApp((st) => st.setOpenSample);
   const setPage = useApp((st) => st.setPage);
@@ -304,10 +304,12 @@ export function LibraryPage() {
     { id: "unstar", label: t("library.starOff"), run: () => void edit(ids, { starred: false }, "sample-star") },
     "-",
     { id: "speech", label: t("speech.menuN", { n: ids.length }), run: () => requestSpeech({ entry: "samples", ids }) },
+    { id: "flatten", label: t("flatten.menuN", { n: ids.length }), run: () => requestFlatten({ kind: "batch", ids }) },
     "-",
     { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
   ];
-  const sampleMenu = (r: SampleRow, ids: string[], multi: boolean): MenuSpec =>
+  /** ``entry``：舞台的 ⋯ 是“采样详情”入口（拉平默认首元音起 + 交界左），列表右键是其他单个入口（11 §11.2） */
+  const sampleMenu = (r: SampleRow, ids: string[], multi: boolean, entry: "detail" | "single" = "single"): MenuSpec =>
     multi
       ? { head: t("menu.checkedN", { n: ids.length }), items: groupItems(ids) }
       : {
@@ -320,6 +322,7 @@ export function LibraryPage() {
             "-",
             { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "samples", ids: [r.id] }) },
+            { id: "flatten", label: t("flatten.menu"), run: () => requestFlatten({ kind: "single", assetId: r.asset_id, start: r.start, end: r.end, entry, sampleId: r.id }) },
             "-",
             { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
           ],
@@ -487,7 +490,7 @@ export function LibraryPage() {
               aria-label={t("library.star")}
               aria-pressed={focusRow.starred}
             />
-            <Menu {...sampleMenu(focusRow, [focusRow.id], false)} placement="bottom end" trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} />} />
+            <Menu {...sampleMenu(focusRow, [focusRow.id], false, "detail")} placement="bottom end" trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} />} />
           </div>
           <div className={s.stageMeta}>
             <span className={s.natBadge} data-nature={focusRow.nature}>

@@ -107,6 +107,8 @@ export const Timeline = forwardRef<
     playing: boolean;
     selection: Sel | null;
     onSelection: (s: Sel | null) => void;
+    /** 选区的颜色：默认主色；gold = 拉平台的“内部拉平”内区（规格 11 §11.2） */
+    selectionTone?: "accent" | "gold";
     onSeek: (t: number) => void;
     onPlayFrom: (t: number) => void;
     /** ⌥ 拖出选区：返回生成好的文件（按下时冻结选区） */
@@ -467,9 +469,12 @@ export const Timeline = forwardRef<
         if (p.selection) {
           const xa = x(p.selection.a);
           const xb = x(p.selection.b);
-          ctx.fillStyle = cssVar("--accentbg");
+          const gold = p.selectionTone === "gold";
+          ctx.fillStyle = cssVar(gold ? "--gold" : "--accentbg");
+          if (gold) ctx.globalAlpha = 0.16;
           ctx.fillRect(xa, waveTop, xb - xa, waveH);
-          ctx.fillStyle = cssVar("--accent");
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = cssVar(gold ? "--gold" : "--accent");
           ctx.fillRect(Math.round(xa) - 1, waveTop, 2, waveH);
           ctx.fillRect(Math.round(xb) - 1, waveTop, 2, waveH);
         }

@@ -17,7 +17,7 @@ import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "studio", "jobs", "storage", "models"] as const;
+const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "studio", "jobs", "storage", "models"] as const;
 type Group = (typeof GROUPS)[number];
 
 interface NumSpec {
@@ -38,8 +38,20 @@ const CHOICES: Record<string, string[]> = {
   "general.ui_language": ["zh-CN"],
   "source.sample_language": ["ja"],
   "studio.device": ["auto", "cpu", "cuda", "mps"],
+  // 拉平各入口的默认值（03 §3.7；批量只有自动定音、没有内部拉平，Q10）
+  "flatten.detail_range": ["whole", "vowels", "first", "inner"],
+  "flatten.detail_target": ["auto", "edge", "manual"],
+  "flatten.single_range": ["whole", "vowels", "first", "inner"],
+  "flatten.single_target": ["auto", "edge", "manual"],
+  "flatten.batch_range": ["whole", "vowels", "first"],
+  "flatten.batch_target": ["auto", "edge"],
 };
-const choiceLabel = (key: string, v: string) => (key === "studio.device" ? t(`settings.studio.device.${v}`) : t(`settings.lang.${v}`));
+const choiceLabel = (key: string, v: string) =>
+  key === "studio.device"
+    ? t(`settings.studio.device.${v}`)
+    : key.startsWith("flatten.")
+      ? t(key.endsWith("_range") ? `flatten.range.${v}` : `flatten.target.${v}`)
+      : t(`settings.lang.${v}`);
 /** 文字类设置（路径、模型名）：回车或失焦保存 */
 const STRINGS = new Set(["studio.app_path", "studio.data_dir", "studio.vocal_model"]);
 

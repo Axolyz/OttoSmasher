@@ -30,7 +30,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await drag(0.25, 0.5);
 
   // 截取面板：建议名 = 原片名 起–止；原混音没有角色 → 未分类
-  await page.getByTestId("clip").click();
+  await page.getByTestId("source-viewer").getByTestId("clip").click();
   const panel = page.getByTestId("clip-panel");
   await expect(panel.getByTestId("clip-name")).toHaveValue(/^Test Show 01 0:0\d\.\d{3}–0:0\d\.\d{3}$/);
   await expect(panel.locator('[role="radio"][aria-checked="true"]')).toHaveAttribute("data-nature", "unclassified");
@@ -65,7 +65,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
 
   // R7.1 同一范围再保存一次 → 两个采样
   await page.keyboard.press("Meta+2");
-  await page.getByTestId("clip").click();
+  await page.getByTestId("source-viewer").getByTestId("clip").click();
   await page.getByTestId("clip-save").click();
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
 

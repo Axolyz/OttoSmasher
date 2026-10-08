@@ -835,6 +835,15 @@ class ExportWavParams(TypedDict):
     directory: NotRequired[str | None]
 
 
+class ExportRangeParams(TypedDict):
+    """时间：资产局部秒。words：导出文件名的固定词（音轨名、flatten、fragment「 · 片段」、local「局部」），随界面语言。"""
+
+    assetId: str
+    start: float
+    end: float
+    words: NotRequired[dict[str, str]]
+
+
 class ExportedWav(TypedDict):
     path: str
     reused: bool
@@ -1370,13 +1379,13 @@ FlattenSide = Literal["left", "right"]
 
 
 class FlattenToken(TypedDict):
-    """打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。"""
+    """打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照（指纹字符串）；提交时核对。"""
 
     assetId: str
     start: float
     end: float
     media: str
-    snapshot: dict[str, Any]
+    snapshot: str
 
 
 class FlattenOpenParams(TypedDict):

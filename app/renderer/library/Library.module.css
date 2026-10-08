@@ -48,7 +48,9 @@
 .grow { flex: 1; }
 .waveBox { height: 200px; min-width: 0; display: flex; }
 .waveBox > * { flex: 1; min-width: 0; }
-.selLine { display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: var(--fs-sm); }
+/* 舞台动作条（UI_PLAN §3：与原片时间线的动作条同构；窄时换行） */
+.stageActions { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; min-width: 0; padding-top: 6px; border-top: 1px solid var(--line); }
+.actGroup { display: flex; align-items: center; gap: 2px; min-width: 0; flex-wrap: wrap; border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 2px; background: var(--s2); }
 .okText { color: var(--ok); font-size: var(--fs-xs); }
 .badText { color: var(--bad); font-size: var(--fs-xs); }
 .mutedText { color: var(--muted); font-size: var(--fs-xs); }

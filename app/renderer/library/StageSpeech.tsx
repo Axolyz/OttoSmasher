@@ -2,12 +2,16 @@
 // - 波形卡：“声音：绑定资产名”（只显示，不能切换，Q7）；图层栏选一个覆盖层（音素 / mora / 无），其他图层用车道；金色 F0 线；
 // - 语音面板：音素按 mora 分组（假名在上、音素在下）、分析状态、「语音分析…」；没有台词时「提供台词并分析」。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
+import { AudioWaveform, ChevronDown, Download, Play, Split, Square } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Segmented, Token } from "../components/Controls";
-import { Select, TextArea, TextField } from "../components/Fields";
+import { Select, TextArea, TextField, TimeField } from "../components/Fields";
+import { Menu } from "../components/Menu";
+import { exportWords } from "../exportWords";
+import { ClipPanel } from "../sources/ClipPanel";
 import { AnchoredPanel } from "../components/Panel";
 import { seconds } from "../format";
 import { errorText, hasKey, t } from "../i18n";
@@ -29,6 +33,10 @@ function toFloats(b: Uint8Array): Float32Array {
 export function assetLabel(a: AssetRecord | null): string {
   if (!a) return "";
   if (a.origin === "stream") return `${t("track.mix")} · ${t("sources.trackN", { n: (a.stream_ordinal ?? 0) + 1 })}`;
+  if (a.origin === "flatten" || a.origin === "reimport") {
+    const target = (a.production?.target as { name?: string } | undefined)?.name;
+    return [t(`track.origin.${a.origin}`), target].filter(Boolean).join(" · ");
+  }
   const model = typeof a.production?.model === "string" ? a.production.model : "";
   return [model, a.stem_name].filter(Boolean).join(" · ");
 }
@@ -67,6 +75,10 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
   const smp = props.sample;
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
+  const requestFlatten = useApp((st) => st.requestFlatten);
+  const requestSeparation = useApp((st) => st.requestSeparation);
+  const [clipOpen, setClipOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const undo = useUndo();
   // 编辑音素时间（UI_PLAN §3.1：覆盖层加把手、编辑条、不能切覆盖层、Esc 放弃）
   const [editBands, setEditBands] = useState<LayerBand[] | null>(null);
@@ -242,6 +254,37 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
     }
   };
 
+  // 动作条（UI_PLAN §3：与原片时间线的动作条同构）：没有选区时作用于整个采样
+  const range = sel ?? { a: smp.start, b: smp.end };
+  const trackLabel = assetLabel(asset);
+  const commitSel = (side: "a" | "b") => (v: number) => {
+    if (!asset) return false;
+    const a = side === "a" ? v : range.a;
+    const b = side === "b" ? v : range.b;
+    if (!(a >= 0 && b <= asset.duration + 1e-6 && b - a > 1e-3)) return false;
+    setSel({ a, b });
+    return true;
+  };
+  const flatten = () =>
+    requestFlatten({ kind: "single", assetId: smp.asset_id, start: range.a, end: range.b, entry: "detail", sampleId: smp.id });
+  const separate = () =>
+    asset && requestSeparation({ assetId: asset.id, trackLabel, duration: asset.duration, selection: { a: range.a, b: range.b }, scope: "sel" });
+  const exportRange = async () => {
+    setExporting(true);
+    try {
+      const r = await call("exports.range", { assetId: smp.asset_id, start: range.a, end: range.b, words: exportWords() });
+      const name = r.path.split(/[\\/]/).pop() ?? r.path;
+      toast({
+        text: t(r.reused ? "sources.exportReused" : "sources.exported", { name }),
+        action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path) },
+      });
+    } catch (e) {
+      fail(e);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const lastFail = view?.runs.find((r) => r.status === "failed");
   const headOk = view?.head?.status === "ok";
   const status = !view
@@ -287,6 +330,9 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           <Button size="sm" variant="flat" onPress={() => tl.current?.zoomTo(smp.start, smp.end)}>
             {t("speech.fit")}
           </Button>
+          <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")} data-testid="stage-zoom-sel">
+            {t("sources.zoomSel")}
+          </Button>
         </div>
         {editing ? (
           <div className={s.editBar} data-testid="phone-edit-bar">
@@ -324,38 +370,53 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
             />
           ) : null}
         </div>
-        {sel ? (
-          <div className={s.selLine}>
-            <span className="num">{t("speech.selection", { a: seconds(sel.a), b: seconds(sel.b) })}</span>
-            <Button size="sm" variant="flat" onPress={() => props.onPlayRange(sel.a, sel.b)}>
-              {t("speech.playSel")}
-            </Button>
-            <AnchoredPanel
-              title={t("speech.rangeTitle")}
-              aux={t("speech.selection", { a: seconds(sel.a), b: seconds(sel.b) })}
-              isOpen={rangeOpen}
-              onOpenChange={(o) => {
-                setRangeOpen(o);
-                if (o) setRangeText(view?.text ?? "");
-              }}
-              width={360}
-              testId="speech-range-panel"
-              trigger={
-                <Button size="sm" variant="flat" isDisabled={editing} data-testid="speech-range">
-                  {t("speech.range")}
-                </Button>
-              }
-              footer={
-                <Button size="sm" variant="primary" isDisabled={!rangeText.trim()} onPress={() => void alignRange()} data-testid="speech-range-go">
-                  {t("speech.rangeGo")}
-                </Button>
-              }
+        <div className={s.stageActions} data-testid="stage-actions">
+          <div className={s.actGroup}>
+            <Button
+              variant="flat"
+              icon={props.playing ? <Square /> : <Play />}
+              onPress={() => (props.playing ? window.otto.player.stopAudition() : props.onPlayRange(range.a, range.b))}
+              data-testid="stage-play-range"
             >
-              <div className={s.hintText}>{t("speech.rangeHint")}</div>
-              <TextField value={rangeText} onChange={setRangeText} label={t("speech.rangeText")} testId="speech-range-text" />
-            </AnchoredPanel>
+              {props.playing ? t("library.stop") : t("stage.original")}
+            </Button>
           </div>
-        ) : null}
+          <div className={s.actGroup} data-testid="stage-readout" data-a={range.a} data-b={range.b}>
+            <span className={s.mutedText}>{t("sources.selection")}</span>
+            <TimeField value={range.a} onCommit={commitSel("a")} label={t("sources.selStart")} testId="stage-sel-start" />
+            <span className={s.mutedText}>→</span>
+            <TimeField value={range.b} onCommit={commitSel("b")} label={t("sources.selEnd")} testId="stage-sel-end" />
+            <span className={`${s.mutedText} num`}>{t("format.sec", { v: seconds(range.b - range.a) })}</span>
+          </div>
+          <div className={s.actGroup}>
+            <ClipPanel
+              assetId={smp.asset_id}
+              track={trackLabel}
+              sel={sel}
+              isOpen={clipOpen}
+              onOpenChange={setClipOpen}
+              parentSampleId={smp.id}
+              formatRange={(a, b) => `${seconds(a)}–${seconds(b)}`}
+            />
+            <Button variant="flat" icon={<AudioWaveform />} onPress={flatten} isDisabled={editing} data-testid="stage-flatten">
+              {t("flatten.action")}
+            </Button>
+            <Button variant="flat" icon={<Split />} onPress={separate} isDisabled={!asset || editing} data-testid="stage-separate">
+              {t("sep.action")}
+            </Button>
+            <Menu
+              head={t("stage.exportHead", { a: seconds(range.a), b: seconds(range.b) })}
+              items={[{ id: "wav", label: t("stage.exportWav"), run: () => void exportRange() }]}
+              placement="top start"
+              trigger={
+                <Button variant="flat" icon={<Download />} isDisabled={exporting} data-testid="stage-export">
+                  {t("sources.export")}
+                  <ChevronDown size={13} />
+                </Button>
+              }
+            />
+          </div>
+        </div>
       </section>
       <section className={s.card} data-testid="speech-panel">
         <div className={s.waveHead}>
@@ -428,6 +489,30 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           <Button size="sm" variant="flat" onPress={startEdit} isDisabled={!ownHead || editing} data-testid="speech-edit">
             {t("speech.edit")}
           </Button>
+          <AnchoredPanel
+            title={t("speech.rangeTitle")}
+            aux={sel ? t("speech.selection", { a: seconds(sel.a), b: seconds(sel.b) }) : null}
+            isOpen={rangeOpen}
+            onOpenChange={(o) => {
+              setRangeOpen(o);
+              if (o) setRangeText(view?.text ?? "");
+            }}
+            width={360}
+            testId="speech-range-panel"
+            trigger={
+              <Button size="sm" variant="flat" isDisabled={editing || !sel} title={sel ? undefined : t("speech.rangeNeedsSel")} data-testid="speech-range">
+                {t("speech.range")}
+              </Button>
+            }
+            footer={
+              <Button size="sm" variant="primary" isDisabled={!rangeText.trim()} onPress={() => void alignRange()} data-testid="speech-range-go">
+                {t("speech.rangeGo")}
+              </Button>
+            }
+          >
+            <div className={s.hintText}>{t("speech.rangeHint")}</div>
+            <TextField value={rangeText} onChange={setRangeText} label={t("speech.rangeText")} testId="speech-range-text" />
+          </AnchoredPanel>
           <div className={s.grow} />
           <AnchoredPanel
             title={t("speech.textPanel")}

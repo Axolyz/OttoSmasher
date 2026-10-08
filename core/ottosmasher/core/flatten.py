@@ -73,7 +73,8 @@ class FlattenService:
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
         assets_mod.check_media(media)
         snap = {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}
-        return {"assetId": asset_id, "start": start, "end": end, "media": media["media_file_id"], "snapshot": snap}
+        # 界面拿着令牌：文件快照写成字符串指纹（mtime_ns 超过 2^53，经过 JS 会丢精度）
+        return {"assetId": asset_id, "start": start, "end": end, "media": media["media_file_id"], "snapshot": _sha(snap)[:32], "_snap": snap}
 
     def _check_frozen(self, token: dict[str, Any]) -> tuple[dict[str, Any], Any, Any, dict[str, Any]]:
         """提交时核对冻结的资产与外选区：资产没了、存放文件换了或被改动 → “声音资产已改变”。"""
@@ -84,9 +85,9 @@ class FlattenService:
         except CoreError:
             raise CoreError("flatten-asset-changed") from None
         snap = {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}
-        if media["media_file_id"] != token.get("media") or snap != token.get("snapshot"):
+        if media["media_file_id"] != token.get("media") or _sha(snap)[:32] != token.get("snapshot"):
             raise CoreError("flatten-asset-changed")
-        return asset, ref, win, media
+        return asset, ref, win, media | {"snap": snap}
 
     # ------------------------------------------------------------ 对齐（同一物理声音、覆盖外选区）
 
@@ -120,8 +121,9 @@ class FlattenService:
         """拉平台打开时：冻结、默认值（按入口）、对齐是否可用、建议名、初始内区。"""
         values = settings_mod.values(self.conn)
         token = self._freeze(asset_id, start, end)
+        snap = token.pop("_snap")
         a, b = token["start"], token["end"]
-        al = self._alignment(asset_id, a, b, token["snapshot"], sample_id)
+        al = self._alignment(asset_id, a, b, snap, sample_id)
         name = None
         if sample_id:
             s = self.conn.execute('SELECT name, asset_id, start, "end" FROM sample WHERE id=?', (sample_id,)).fetchone()
@@ -174,7 +176,8 @@ class FlattenService:
         d = b - a
         vowels = None
         if o["range"] in ("vowels", "first"):
-            al = self._alignment(asset_id, a, b, token.get("snapshot") or {}, sample_id)
+            _, _, _, media = self._check_frozen(token)
+            al = self._alignment(asset_id, a, b, media["snap"], sample_id)
             if al is None:
                 raise CoreError("flatten-needs-alignment", reason="no-alignment")
             vowels = []
@@ -216,14 +219,14 @@ class FlattenService:
         it: dict[str, Any] = {
             "idx": idx, "sample": sample_id, "name": name, "asset": asset["id"], "start": a, "end": b,
             "file": {"path": ref.path, "ordinal": ref.ordinal, "sample_rate": sr, "channels": ref.channels, "codec": ref.codec, "format": ref.format_name},
-            "frames": [fa, fb], "snapshot": token["snapshot"], "media": token["media"], "range": o["range"],
+            "frames": [fa, fb], "snapshot": media["snap"], "media": token["media"], "range": o["range"],
             "target": {"method": o["target"], "side": o["side"], "manual": o.get("manual")},
         }  # fmt: skip
         if o["range"] == "inner":
             it["inner"], it["trans"] = o["inner"], o["trans"]
             fl.check_inner(b - a, tuple(o["inner"]), tuple(o["trans"]))  # type: ignore[arg-type]
         if o["range"] in ("vowels", "first"):
-            al = self._alignment(asset["id"], a, b, token["snapshot"], sample_id)
+            al = self._alignment(asset["id"], a, b, media["snap"], sample_id)
             if al is None:
                 raise CoreError("flatten-needs-alignment", reason="no-alignment")
             it["phones"], it["manual"], it["alignmentRun"] = self._local_phones(al, a), al["manual"], al["runId"]
@@ -276,6 +279,7 @@ class FlattenService:
                 raise CoreError("sample-not-found", id=sid)
             try:
                 token = self._freeze(s["asset_id"], s["start"], s["end"])
+                token.pop("_snap")
                 items.append(self._item(idx, token, o, s["name"], sid, ver))
             except CoreError as e:
                 # 这一项处理不了（没有对齐、文件缺失……）：单独失败并说明，不影响别的项
@@ -305,6 +309,7 @@ class FlattenService:
         if not params.get("batch"):
             it = items[0]
             token = self._freeze(it["asset"], it["start"], it["end"])
+            token.pop("_snap")
             return self._submit([self._item(0, token, o, it["name"], it.get("sample"), ver)], ver, o, False)
         sids = [it["sample"] for it in items if it.get("sample")]
         return self._submit(self._batch_items(sids, o, ver), ver, o, True)
