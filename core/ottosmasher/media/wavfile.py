@@ -94,3 +94,29 @@ def load_wav_f32(path: Path) -> tuple[np.ndarray, int]:
         raise ValueError(f"unsupported wav format {tag}/{bits}")
     n = len(body) // (4 * channels)
     return np.frombuffer(body[: n * 4 * channels], dtype="<f4").reshape(n, channels).astype(np.float32), int(rate)
+
+
+def info(path: Path) -> tuple[int, int, int, int]:
+    """WAV 的采样率、声道、位深与帧数（按块解析，不假设 44 字节头）。"""
+    with open(path, "rb") as fh:
+        head = fh.read(12)
+        if head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+            raise ValueError("not a wav file")
+        fmt = None
+        while True:
+            h = fh.read(8)
+            if len(h) < 8:
+                raise ValueError("wav without data")
+            cid, size = h[:4], struct.unpack("<I", h[4:])[0]
+            if cid == b"fmt ":
+                fmt = fh.read(size)
+                if size & 1:
+                    fh.read(1)
+            elif cid == b"data":
+                if fmt is None:
+                    raise ValueError("wav data before fmt")
+                _tag, channels, rate = struct.unpack("<HHI", fmt[:8])
+                bits = struct.unpack("<H", fmt[14:16])[0]
+                return rate, channels, bits, size // (channels * bits // 8)
+            else:
+                fh.seek(size + (size & 1), 1)

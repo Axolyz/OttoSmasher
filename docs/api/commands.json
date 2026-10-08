@@ -489,6 +489,17 @@
    }
   },
   {
+   "name": "playback.resolveRender",
+   "effect": "read",
+   "summary": "Playback handle of a rendered audition (by key, never by path).",
+   "params": {
+    "$ref": "#/$defs/RenderKeyParams"
+   },
+   "result": {
+    "$ref": "#/$defs/AssetHandle"
+   }
+  },
+  {
    "name": "playback.resolveSource",
    "effect": "read",
    "summary": "Playback handle for the source player (file, audio track, external stem).",
@@ -497,6 +508,61 @@
    },
    "result": {
     "$ref": "#/$defs/SourceHandle"
+   }
+  },
+  {
+   "name": "rhythm.bpm",
+   "effect": "read",
+   "summary": "Global target BPM (null = original-speed stretch).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Bpm"
+   }
+  },
+  {
+   "name": "rhythm.render",
+   "effect": "write",
+   "summary": "Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache.",
+   "params": {
+    "$ref": "#/$defs/RhythmRenderParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RhythmRendered"
+   }
+  },
+  {
+   "name": "rhythm.setBpm",
+   "effect": "ui",
+   "summary": "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
+   "params": {
+    "$ref": "#/$defs/BpmParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Bpm"
+   }
+  },
+  {
+   "name": "rhythm.setParams",
+   "effect": "write",
+   "summary": "Edit per-sample rhythm parameters (pause sensitivity, segment threshold, splits, manual cells/cuts/merges); undoable.",
+   "params": {
+    "$ref": "#/$defs/RhythmSetParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RhythmEdited"
+   }
+  },
+  {
+   "name": "rhythm.view",
+   "effect": "read",
+   "summary": "Rhythm analysis of one sample: blocks, pauses, segments, cells and the three schemes at the global BPM (computed on demand, no model run).",
+   "params": {
+    "$ref": "#/$defs/RhythmViewParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RhythmView"
    }
   },
   {
@@ -1569,6 +1635,11 @@
    "summary": "A manual segment cut must be before block 1..n-1."
   },
   {
+   "code": "rhythm-manual-stale",
+   "args": [],
+   "summary": "Manual rhythm edits belong to an older analysis; reapply or clear them first."
+  },
+  {
    "code": "rhythm-map-not-monotonic",
    "args": [
     "at"
@@ -1576,9 +1647,30 @@
    "summary": "The time map is not strictly increasing."
   },
   {
+   "code": "rhythm-mora-unavailable",
+   "args": [
+    "blocks"
+   ],
+   "summary": "Pure mora is unavailable: some blocks have no mora."
+  },
+  {
+   "code": "rhythm-no-analysis",
+   "args": [
+    "id"
+   ],
+   "summary": "The sample has no successful speech analysis (needed for rhythm)."
+  },
+  {
    "code": "rhythm-no-blocks",
    "args": [],
    "summary": "The analysis has no vowel or N, so there are no rhythm blocks."
+  },
+  {
+   "code": "rhythm-not-for-single-sound",
+   "args": [
+    "nature"
+   ],
+   "summary": "Single sounds (pitched/unpitched) have no stretch."
   },
   {
    "code": "rhythm-onsets-not-increasing",
@@ -1610,6 +1702,13 @@
     "max"
    ],
    "summary": "Rhythm parameter is out of range."
+  },
+  {
+   "code": "rhythm-render-missing",
+   "args": [
+    "key"
+   ],
+   "summary": "The rendered audition is no longer in the cache."
   },
   {
    "code": "rhythm-too-many-blocks",
@@ -2682,6 +2781,44 @@
     "stream_ordinal",
     "updated_at",
     "version"
+   ]
+  },
+  "Bpm": {
+   "title": "Bpm",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "bpm"
+   ]
+  },
+  "BpmParams": {
+   "title": "BpmParams",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "bpm"
    ]
   },
   "Classified": {
@@ -5400,6 +5537,18 @@
     "path"
    ]
   },
+  "RenderKeyParams": {
+   "title": "RenderKeyParams",
+   "type": "object",
+   "properties": {
+    "key": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "key"
+   ]
+  },
   "ResolveSourceParams": {
    "title": "ResolveSourceParams",
    "type": "object",
@@ -5430,6 +5579,892 @@
    },
    "required": [
     "sourceId"
+   ]
+  },
+  "RhythmBlock": {
+   "title": "RhythmBlock",
+   "description": "一个音块（资产局部秒）与逐音属性（未知为 null）。",
+   "type": "object",
+   "properties": {
+    "cells": {
+     "type": "integer"
+    },
+    "consonants": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "coverage": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "duration": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "firstPhone": {
+     "type": "integer"
+    },
+    "loudnessDb": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "manual": {
+     "type": "boolean"
+    },
+    "midi": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "onset": {
+     "type": "number"
+    },
+    "pauseSegment": {
+     "type": "integer"
+    },
+    "relLoudness": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "relPitch": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "rest": {
+     "type": "number"
+    },
+    "restCells": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "spreadCents": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "strength": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    },
+    "trend": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "vowel": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "cells",
+    "consonants",
+    "coverage",
+    "duration",
+    "end",
+    "firstPhone",
+    "loudnessDb",
+    "manual",
+    "midi",
+    "onset",
+    "pauseSegment",
+    "relLoudness",
+    "relPitch",
+    "rest",
+    "restCells",
+    "spreadCents",
+    "strength",
+    "text",
+    "trend",
+    "vowel"
+   ]
+  },
+  "RhythmCut": {
+   "title": "RhythmCut",
+   "type": "object",
+   "properties": {
+    "at": {
+     "type": "number"
+    },
+    "k": {
+     "type": "integer"
+    },
+    "kind": {
+     "enum": [
+      "auto",
+      "manual"
+     ]
+    },
+    "merged": {
+     "type": "boolean"
+    },
+    "rightStart": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "at",
+    "k",
+    "kind",
+    "merged",
+    "rightStart"
+   ]
+  },
+  "RhythmEdited": {
+   "title": "RhythmEdited",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "editId"
+   ]
+  },
+  "RhythmManual": {
+   "title": "RhythmManual",
+   "type": "object",
+   "properties": {
+    "applied": {
+     "type": "boolean"
+    },
+    "cells": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer"
+     }
+    },
+    "cuts": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "ignored": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "merges": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "run": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "splits": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "stale": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "applied",
+    "cells",
+    "cuts",
+    "ignored",
+    "merges",
+    "run",
+    "splits",
+    "stale"
+   ]
+  },
+  "RhythmMora": {
+   "title": "RhythmMora",
+   "type": "object",
+   "properties": {
+    "available": {
+     "type": "boolean"
+    },
+    "cells": {
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    }
+   },
+   "required": [
+    "available",
+    "cells"
+   ]
+  },
+  "RhythmMoraToCells": {
+   "title": "RhythmMoraToCells",
+   "type": "object",
+   "properties": {
+    "longVowel": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "longVowel"
+   ]
+  },
+  "RhythmParamsState": {
+   "title": "RhythmParamsState",
+   "type": "object",
+   "properties": {
+    "segmentThreshold": {
+     "type": "number"
+    },
+    "sensitivity": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "segmentThreshold",
+    "sensitivity"
+   ]
+  },
+  "RhythmPhone": {
+   "title": "RhythmPhone",
+   "description": "采样范围内的音素（资产局部秒）；拆点“在第 k 个音素之前”按这里的序号。",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "start"
+   ]
+  },
+  "RhythmPoint": {
+   "title": "RhythmPoint",
+   "type": "object",
+   "properties": {
+    "beat": {
+     "type": "number"
+    },
+    "kind": {
+     "enum": [
+      "onset",
+      "segment-tail",
+      "tail"
+     ]
+    },
+    "src": {
+     "type": "number"
+    },
+    "tgt": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "beat",
+    "kind",
+    "src",
+    "tgt"
+   ]
+  },
+  "RhythmRenderParams": {
+   "title": "RhythmRenderParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "longVowel": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sound": {
+     "enum": [
+      "click",
+      "voice",
+      "voice+click"
+     ]
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
+    }
+   },
+   "required": [
+    "id",
+    "sound",
+    "version"
+   ]
+  },
+  "RhythmRendered": {
+   "title": "RhythmRendered",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "density": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "duration": {
+     "type": "number"
+    },
+    "key": {
+     "type": "string"
+    },
+    "originalSpeed": {
+     "type": "boolean"
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sound": {
+     "enum": [
+      "click",
+      "voice",
+      "voice+click"
+     ]
+    },
+    "speed": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
+    }
+   },
+   "required": [
+    "bpm",
+    "density",
+    "duration",
+    "key",
+    "originalSpeed",
+    "plan",
+    "sound",
+    "speed",
+    "version"
+   ]
+  },
+  "RhythmScheme": {
+   "title": "RhythmScheme",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "type": "number"
+    },
+    "density": {
+     "type": "number"
+    },
+    "outSeconds": {
+     "type": "number"
+    },
+    "points": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RhythmPoint"
+     }
+    },
+    "ratio": {
+     "type": "number"
+    },
+    "restCells": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "sourceSeconds": {
+     "type": "number"
+    },
+    "speed": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "bpm",
+    "density",
+    "outSeconds",
+    "points",
+    "ratio",
+    "restCells",
+    "sourceSeconds",
+    "speed"
+   ]
+  },
+  "RhythmSetParams": {
+   "title": "RhythmSetParams",
+   "type": "object",
+   "properties": {
+    "cells": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "clearManual": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "cuts": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "integer"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "merges": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "integer"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "moraToCells": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/RhythmMoraToCells"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "reapply": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "segmentThreshold": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sensitivity": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "splits": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "integer"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "id",
+    "version"
+   ]
+  },
+  "RhythmView": {
+   "title": "RhythmView",
+   "type": "object",
+   "properties": {
+    "alternatives": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      }
+     }
+    },
+    "blocks": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RhythmBlock"
+     }
+    },
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "cells": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "cuts": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RhythmCut"
+     }
+    },
+    "manual": {
+     "$ref": "#/$defs/RhythmManual"
+    },
+    "mora": {
+     "$ref": "#/$defs/RhythmMora"
+    },
+    "params": {
+     "$ref": "#/$defs/RhythmParamsState"
+    },
+    "pauses": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "penalty": {
+     "type": "number"
+    },
+    "phones": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RhythmPhone"
+     }
+    },
+    "projectedFrom": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "route": {
+     "enum": [
+      "mora",
+      "raw"
+     ]
+    },
+    "routeError": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "run": {
+     "type": "string"
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "schemeError": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "schemes": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/RhythmScheme"
+     }
+    },
+    "segments": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "status": {
+     "enum": [
+      "none",
+      "ok"
+     ]
+    },
+    "tick": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    },
+    "window": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    }
+   },
+   "required": [
+    "bpm",
+    "reason",
+    "sampleId",
+    "status",
+    "version"
+   ]
+  },
+  "RhythmViewParams": {
+   "title": "RhythmViewParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "longVowel": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "id"
    ]
   },
   "RootAdded": {

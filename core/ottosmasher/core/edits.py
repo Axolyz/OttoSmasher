@@ -161,6 +161,15 @@ def v_json(v: Any) -> Any:
     return v
 
 
+def v_rhythm(v: Any) -> Any:
+    from ..algo.rhythm import validate_params
+
+    try:
+        return validate_params(v)
+    except CoreError as e:
+        raise _Invalid("out-of-range", **{k: x for k, x in e.args_.items() if k in ("min", "max")}) from None
+
+
 # ---------------------------------------------------------------- 对象类型
 
 
@@ -207,6 +216,8 @@ _register(
             "local_tags": FieldSpec(v_tags(512), custom="local_tags"),
             # 人工对齐文本（规格 08 §8.2.1、§8.7「改对齐文本」「提供台词并分析」）：原字幕不变；空 = 不用人工文本；保存后要显式重跑
             "align_text_manual": FieldSpec(v_opt_text(10_000)),
+            # 节奏参数（规格 09 §9.3–§9.4「分组与停顿」「人工占格」；阶段 6）：灵敏度、语段阈值、绑定分析版本的人工项
+            "rhythm": FieldSpec(v_rhythm, json=True),
         },
     )
 )

@@ -110,6 +110,14 @@ export interface AssetRecord {
   version: number;
 }
 
+export interface Bpm {
+  bpm: number | null;
+}
+
+export interface BpmParams {
+  bpm: number | null;
+}
+
 export interface Classified {
   alignText: string;
   kind: "line" | "sfx";
@@ -727,10 +735,168 @@ export interface RelocateParams {
   path: string;
 }
 
+export interface RenderKeyParams {
+  key: string;
+}
+
 export interface ResolveSourceParams {
   assetId?: string | null;
   ordinal?: number | null;
   sourceId: string;
+}
+
+/** 一个音块（资产局部秒）与逐音属性（未知为 null）。 */
+export interface RhythmBlock {
+  cells: number;
+  consonants: string[];
+  coverage: number | null;
+  duration: number;
+  end: number;
+  firstPhone: number;
+  loudnessDb: number | null;
+  manual: boolean;
+  midi: number | null;
+  onset: number;
+  pauseSegment: number;
+  relLoudness: number | null;
+  relPitch: number | null;
+  rest: number;
+  restCells: number | null;
+  spreadCents: number | null;
+  strength: number | null;
+  text: string;
+  trend: number | null;
+  vowel: string | null;
+}
+
+export interface RhythmCut {
+  at: number;
+  k: number;
+  kind: "auto" | "manual";
+  merged: boolean;
+  rightStart: number;
+}
+
+export interface RhythmEdited {
+  editId: string | null;
+}
+
+export interface RhythmManual {
+  applied: boolean;
+  cells: Record<string, number>;
+  cuts: number[];
+  ignored: string[];
+  merges: number[];
+  run: string | null;
+  splits: number[];
+  stale: boolean;
+}
+
+export interface RhythmMora {
+  available: boolean;
+  cells: (number | null)[];
+}
+
+export interface RhythmMoraToCells {
+  longVowel: boolean;
+}
+
+export interface RhythmParamsState {
+  segmentThreshold: number;
+  sensitivity: number;
+}
+
+/** 采样范围内的音素（资产局部秒）；拆点“在第 k 个音素之前”按这里的序号。 */
+export interface RhythmPhone {
+  end: number;
+  label: string;
+  start: number;
+}
+
+export interface RhythmPoint {
+  beat: number;
+  kind: "onset" | "segment-tail" | "tail";
+  src: number;
+  tgt: number;
+}
+
+export interface RhythmRenderParams {
+  id: string;
+  longVowel?: boolean | null;
+  mora?: boolean | null;
+  plan?: "double" | "near_fast" | "near_slow" | null;
+  sound: "click" | "voice" | "voice+click";
+  version: "original" | "stretched";
+}
+
+export interface RhythmRendered {
+  bpm: number | null;
+  density: number | null;
+  duration: number;
+  key: string;
+  originalSpeed: boolean;
+  plan: "double" | "near_fast" | "near_slow" | null;
+  sound: "click" | "voice" | "voice+click";
+  speed: number | null;
+  version: "original" | "stretched";
+}
+
+export interface RhythmScheme {
+  bpm: number;
+  density: number;
+  outSeconds: number;
+  points: RhythmPoint[];
+  ratio: number;
+  restCells: number[];
+  sourceSeconds: number;
+  speed: number;
+}
+
+export interface RhythmSetParams {
+  cells?: Record<string, number | null> | null;
+  clearManual?: boolean | null;
+  cuts?: number[] | null;
+  id: string;
+  merges?: number[] | null;
+  moraToCells?: RhythmMoraToCells | null;
+  reapply?: boolean | null;
+  segmentThreshold?: number | null;
+  sensitivity?: number | null;
+  splits?: number[] | null;
+  version: number;
+}
+
+export interface RhythmView {
+  alternatives?: number[][];
+  blocks?: RhythmBlock[];
+  bpm: number | null;
+  cells?: number[];
+  cuts?: RhythmCut[];
+  manual?: RhythmManual;
+  mora?: RhythmMora;
+  params?: RhythmParamsState;
+  pauses?: number[][];
+  penalty?: number;
+  phones?: RhythmPhone[];
+  projectedFrom?: string | null;
+  reason: ErrorWire | null;
+  route?: "mora" | "raw";
+  routeError?: ErrorWire;
+  run?: string;
+  sampleId: string;
+  schemeError?: ErrorWire | null;
+  schemes?: Record<string, RhythmScheme>;
+  segments?: number[][];
+  status: "none" | "ok";
+  tick?: number | null;
+  version: number;
+  window?: number[];
+}
+
+export interface RhythmViewParams {
+  id: string;
+  longVowel?: boolean | null;
+  mora?: boolean | null;
 }
 
 export interface RootAdded {
@@ -1464,8 +1630,20 @@ export interface Commands {
   "peaks.get": { params: PeaksParams; result: Peaks; effect: "read" };
   /** Playback handle for auditioning an asset range (file seconds). */
   "playback.resolveAsset": { params: AssetRangeParams; result: AssetHandle; effect: "read" };
+  /** Playback handle of a rendered audition (by key, never by path). */
+  "playback.resolveRender": { params: RenderKeyParams; result: AssetHandle; effect: "read" };
   /** Playback handle for the source player (file, audio track, external stem). */
   "playback.resolveSource": { params: ResolveSourceParams; result: SourceHandle; effect: "read" };
+  /** Global target BPM (null = original-speed stretch). */
+  "rhythm.bpm": { params: NoParams; result: Bpm; effect: "read" };
+  /** Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache. */
+  "rhythm.render": { params: RhythmRenderParams; result: RhythmRendered; effect: "write" };
+  /** Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm. */
+  "rhythm.setBpm": { params: BpmParams; result: Bpm; effect: "ui" };
+  /** Edit per-sample rhythm parameters (pause sensitivity, segment threshold, splits, manual cells/cuts/merges); undoable. */
+  "rhythm.setParams": { params: RhythmSetParams; result: RhythmEdited; effect: "write" };
+  /** Rhythm analysis of one sample: blocks, pauses, segments, cells and the three schemes at the global BPM (computed on demand, no model run). */
+  "rhythm.view": { params: RhythmViewParams; result: RhythmView; effect: "read" };
   /** Add a source folder (adopts sources already inside, then scans). */
   "roots.add": { params: PathParams; result: RootAdded; effect: "write" };
   /** Source folders. */
@@ -1630,12 +1808,17 @@ export type ErrorCode =
   | "result-mismatch"
   | "rhythm-cells-invalid"
   | "rhythm-cut-invalid"
+  | "rhythm-manual-stale"
   | "rhythm-map-not-monotonic"
+  | "rhythm-mora-unavailable"
+  | "rhythm-no-analysis"
   | "rhythm-no-blocks"
+  | "rhythm-not-for-single-sound"
   | "rhythm-onsets-not-increasing"
   | "rhythm-original-speed-impossible"
   | "rhythm-output-too-long"
   | "rhythm-param-invalid"
+  | "rhythm-render-missing"
   | "rhythm-too-many-blocks"
   | "root-invalid"
   | "root-offline"

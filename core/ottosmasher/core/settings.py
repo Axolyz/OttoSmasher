@@ -94,6 +94,14 @@ def _role_aliases(v: Any) -> Any:
     return validate_role_aliases(v)
 
 
+def _opt_bpm(v: Any) -> float | None:
+    if v is None:
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not (20 <= float(v) <= 400):
+        raise CoreError("bpm-invalid", min=20, max=400)
+    return float(v)
+
+
 def _markers(v: Any) -> Any:
     from .oped import validate_markers  # 避免循环导入
 
@@ -133,6 +141,13 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("frontend.user_dictionary", {"text": "", "compiled": None}, _user_dictionary, "frontend"),
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),
+        # 节奏（09 §9.3–§9.4、03 §3.7）：大数字惩罚度只作用于原节奏路线，改了只重建派生节奏；
+        # 停顿灵敏度与语段阈值是**新采样**的默认值（创建时写进采样，之后可逐采样改；改设置不影响已有采样）
+        SettingSpec("analysis.penalty", 1.0, _float_range(0.0, 3.0), "analysis"),
+        SettingSpec("analysis.pause_sensitivity", 1.0, _float_range(0.5, 2.0), "analysis"),
+        SettingSpec("analysis.segment_threshold", 0.28, _float_range(0.16, 2.0), "analysis"),
+        # 全局目标 BPM（03 §3.1：20–400，None = 原速卡拍）：工作参数，不进撤销，由 rhythm.setBpm 写（不在设置页里出现）
+        SettingSpec("rhythm.bpm", None, _opt_bpm, "rhythm"),
         # 拉平：各入口的默认处理范围与定音方式（03 §3.7；只是默认值，拉平台上随时可改，改范围不自动改定音，Q6）。
         # 详情 = 首元音起 + 交界左；其他单个入口 = 整段 + 段内自动；批量 = 仅元音 + 段内自动（批量只有自动定音、没有内部拉平，Q10）
         SettingSpec("flatten.detail_range", "first", _choice("whole", "vowels", "first", "inner"), "flatten"),

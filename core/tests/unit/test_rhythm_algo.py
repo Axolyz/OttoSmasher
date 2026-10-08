@@ -284,7 +284,8 @@ def test_pure_mora_route_and_long_vowel_fill():
 def test_pure_mora_missing_is_explicitly_unavailable_but_raw_still_works():
     ph = [rh.Phone("a", 0, 0.2, 0), rh.Phone("a", 0.4, 0.6, None), rh.Phone("a", 0.8, 1.0, 2)]
     blocks = rh.group_blocks(ph)
-    mc = rh.mora_cells(ph, blocks, rh.mora_span(ph, (0.0, 1.0)))
+    mc = rh.mora_cells(ph, blocks, rh.mora_span(ph, (0.0, 1.0), strict=False))
+    assert mc == [None, None, 1]  # 第 1 块的格数要用第 2 块的首 mora
     d = rh.durations(blocks, [], (0.0, 1.0))
     q = rh.quantize_mora(d, blocks, ph, [], mc)
     assert q.cells is None and q.unavailable == "mora-missing"

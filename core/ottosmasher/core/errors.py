@@ -157,6 +157,11 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "rhythm-map-not-monotonic": (("at",), "The time map is not strictly increasing."),
     "rhythm-output-too-long": (("seconds", "max"), "Stretched output would be longer than 10 minutes."),
     "rhythm-original-speed-impossible": (("error",), "Original speed cannot be kept under onset protection."),
+    "rhythm-no-analysis": (("id",), "The sample has no successful speech analysis (needed for rhythm)."),
+    "rhythm-mora-unavailable": (("blocks",), "Pure mora is unavailable: some blocks have no mora."),
+    "rhythm-not-for-single-sound": (("nature",), "Single sounds (pitched/unpitched) have no stretch."),
+    "rhythm-manual-stale": ((), "Manual rhythm edits belong to an older analysis; reapply or clear them first."),
+    "rhythm-render-missing": (("key",), "The rendered audition is no longer in the cache."),
     "bpm-invalid": (("min", "max"), "BPM must be 20-400 (empty = original speed)."),
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
     # ---- PyMSS Studio

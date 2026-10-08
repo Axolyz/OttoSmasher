@@ -41,6 +41,7 @@ from .subtitle_import import SubtitleImporter
 from .flatten import FlattenService
 from .separation import SeparationService
 from .probes import record_probes
+from .rhythm import RhythmService
 from .speech import SpeechService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
@@ -241,6 +242,21 @@ class Core:
           lambda p: self.flatten.rerun_failed(p["jobId"]))
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
           lambda p: self.flatten.results(p["jobId"]))
+        # ---- 节奏与卡拍（阶段 6）
+        r("rhythm.bpm", "read", T.NoParams, T.Bpm, "Global target BPM (null = original-speed stretch).", lambda p: {"bpm": self.rhythm.bpm()})
+        r("rhythm.setBpm", "ui", T.BpmParams, T.Bpm, "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
+          lambda p: self.rhythm.set_bpm(p.get("bpm")))
+        r("rhythm.view", "read", T.RhythmViewParams, T.RhythmView,
+          "Rhythm analysis of one sample: blocks, pauses, segments, cells and the three schemes at the global BPM (computed on demand, no model run).",
+          lambda p: self.rhythm.view(p["id"], bool(p.get("mora")), bool(p.get("longVowel"))))
+        r("rhythm.setParams", "write", T.RhythmSetParams, T.RhythmEdited,
+          "Edit per-sample rhythm parameters (pause sensitivity, segment threshold, splits, manual cells/cuts/merges); undoable.",
+          lambda p: self.rhythm.set_params(p["id"], int(p["version"]), {k: v for k, v in p.items() if k not in ("id", "version")}))
+        r("rhythm.render", "write", T.RhythmRenderParams, T.RhythmRendered,
+          "Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache.",
+          lambda p: self.rhythm.render(p["id"], p["version"], p["sound"], p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
+        r("playback.resolveRender", "read", T.RenderKeyParams, T.AssetHandle, "Playback handle of a rendered audition (by key, never by path).",
+          lambda p: self.rhythm.resolve_render(p["key"]))
         r("separation.results", "read", T.JobIdParams, list[T.AssetRecord], "Assets registered by a separation job.", lambda p: self.separation.results(p["jobId"]))
 
     # ---------- 打开与关闭
@@ -279,6 +295,7 @@ class Core:
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
+        self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）

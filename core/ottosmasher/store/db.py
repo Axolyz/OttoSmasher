@@ -140,9 +140,19 @@ def migrate(conn: sqlite3.Connection, backups_dir: Path, migrations: list[Migrat
 
 
 def _split_sql(sql: str) -> list[str]:
-    """按分号拆语句（迁移文件里不写触发器和字符串里的分号）。"""
-    lines = [ln for ln in sql.splitlines() if not ln.strip().startswith("--")]
-    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+    """拆成完整的语句（``sqlite3.complete_statement``：触发器的 BEGIN … END 算一条）。整行注释先去掉。"""
+    out, buf = [], ""
+    for ln in sql.splitlines():
+        if ln.strip().startswith("--"):
+            continue
+        buf += ln + "\n"
+        if sqlite3.complete_statement(buf):
+            if buf.strip().rstrip(";").strip():
+                out.append(buf.strip())
+            buf = ""
+    if buf.strip():
+        out.append(buf.strip())
+    return out
 
 
 def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:

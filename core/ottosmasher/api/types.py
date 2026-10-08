@@ -1485,3 +1485,182 @@ class FlattenResultRow(TypedDict):
     # 成品采样与目标音名（成功时）
     productId: str | None
     target: str | None
+
+
+# ---------------------------------------------------------------- 节奏与卡拍（阶段 6；规格 09 §9.2–§9.5）
+
+RhythmPlan = Literal["near_fast", "near_slow", "double"]
+RhythmSound = Literal["voice", "voice+click", "click"]
+
+
+class BpmParams(TypedDict):
+    # 20–400；null = 原速卡拍
+    bpm: float | None
+
+
+class Bpm(TypedDict):
+    bpm: float | None
+
+
+class RhythmViewParams(TypedDict):
+    id: str
+    # 临时用纯 mora（所有者 2026-10-08：只作临时试听与临时导出，不保存）与长音补格
+    mora: NotRequired[bool | None]
+    longVowel: NotRequired[bool | None]
+
+
+class RhythmParamsState(TypedDict):
+    sensitivity: float
+    segmentThreshold: float
+
+
+class RhythmManual(TypedDict):
+    # 人工项绑定的分析版本；applied = 与当前分析一致并已套用；stale = 属于旧的分析版本（未套用）；ignored = 序号越界没有套用的项
+    run: str | None
+    splits: list[int]
+    cells: dict[str, int]
+    cuts: list[int]
+    merges: list[int]
+    applied: bool
+    stale: bool
+    ignored: list[str]
+
+
+class RhythmPhone(TypedDict):
+    """采样范围内的音素（资产局部秒）；拆点“在第 k 个音素之前”按这里的序号。"""
+
+    label: str
+    start: float
+    end: float
+
+
+class RhythmCut(TypedDict):
+    k: int  # 切在第 k 块之前
+    kind: Literal["auto", "manual"]
+    at: float  # 左段终点（资产局部秒）
+    rightStart: float
+    merged: bool
+
+
+class RhythmBlock(TypedDict):
+    """一个音块（资产局部秒）与逐音属性（未知为 null）。"""
+
+    onset: float
+    end: float
+    vowel: str | None
+    text: str
+    strength: float | None
+    pauseSegment: int
+    cells: int
+    restCells: int | None
+    manual: bool
+    duration: float
+    rest: float
+    firstPhone: int
+    midi: float | None
+    spreadCents: float | None
+    coverage: float | None
+    trend: float | None
+    loudnessDb: float | None
+    consonants: list[str]
+    relPitch: float | None
+    relLoudness: float | None
+
+
+class RhythmPoint(TypedDict):
+    src: float  # 资产局部秒
+    tgt: float  # 卡拍输出的秒
+    beat: float
+    kind: Literal["onset", "segment-tail", "tail"]
+
+
+class RhythmScheme(TypedDict):
+    density: float  # 每拍格数
+    bpm: float  # 原速卡拍时为求出的 BPM
+    speed: float  # 语音播放速度（倍速）
+    ratio: float
+    restCells: list[int]
+    sourceSeconds: float
+    outSeconds: float
+    points: list[RhythmPoint]
+
+
+class RhythmMora(TypedDict):
+    cells: list[int | None]
+    available: bool
+
+
+class RhythmView(TypedDict):
+    sampleId: str
+    # ok = 有节奏分析；none = 没有语音分析或没有音块（reason 说明）
+    status: Literal["ok", "none"]
+    reason: ErrorWire | None
+    bpm: float | None
+    version: int
+    run: NotRequired[str]
+    projectedFrom: NotRequired[str | None]
+    window: NotRequired[list[float]]
+    params: NotRequired[RhythmParamsState]
+    manual: NotRequired[RhythmManual]
+    penalty: NotRequired[float]
+    phones: NotRequired[list[RhythmPhone]]
+    pauses: NotRequired[list[list[float]]]
+    cuts: NotRequired[list[RhythmCut]]
+    segments: NotRequired[list[list[float]]]
+    tick: NotRequired[float | None]
+    alternatives: NotRequired[list[list[int]]]
+    mora: NotRequired[RhythmMora]
+    cells: NotRequired[list[int]]
+    route: NotRequired[Literal["raw", "mora"]]
+    routeError: NotRequired[ErrorWire]
+    blocks: NotRequired[list[RhythmBlock]]
+    schemes: NotRequired[dict[str, RhythmScheme]]
+    schemeError: NotRequired[ErrorWire | None]
+
+
+class RhythmMoraToCells(TypedDict):
+    longVowel: bool
+
+
+class RhythmSetParams(TypedDict):
+    id: str
+    version: int  # 采样的版本（乐观并发）
+    sensitivity: NotRequired[float | None]
+    segmentThreshold: NotRequired[float | None]
+    splits: NotRequired[list[int] | None]
+    cells: NotRequired[dict[str, int | None] | None]
+    cuts: NotRequired[list[int] | None]
+    merges: NotRequired[list[int] | None]
+    # 把当前纯 mora 占格写进人工占格（所有者 2026-10-08）
+    moraToCells: NotRequired[RhythmMoraToCells | None]
+    clearManual: NotRequired[bool | None]
+    reapply: NotRequired[bool | None]
+
+
+class RhythmEdited(TypedDict):
+    editId: str | None
+
+
+class RhythmRenderParams(TypedDict):
+    id: str
+    version: Literal["original", "stretched"]
+    sound: RhythmSound
+    plan: NotRequired[RhythmPlan | None]
+    mora: NotRequired[bool | None]
+    longVowel: NotRequired[bool | None]
+
+
+class RhythmRendered(TypedDict):
+    key: str
+    duration: float
+    version: Literal["original", "stretched"]
+    sound: RhythmSound
+    plan: RhythmPlan | None
+    bpm: float | None
+    density: float | None
+    speed: float | None
+    originalSpeed: bool
+
+
+class RenderKeyParams(TypedDict):
+    key: str

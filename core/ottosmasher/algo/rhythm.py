@@ -282,8 +282,9 @@ def segments(blocks: Sequence[Block], cuts: Sequence[Cut], window: tuple[float, 
 # ---------------------------------------------------------------- mora（纯 mora 路线）
 
 
-def mora_span(phones: Sequence[Phone], window: tuple[float, float]) -> tuple[int, int] | None:
-    """窗口内的 mora 起点与个数（从 0 重新编号，保留开头辅音和尾音）；有音素缺 mora 或次序倒退 → None（未知，不吞并别的文字）。"""
+def mora_span(phones: Sequence[Phone], window: tuple[float, float], *, strict: bool = True) -> tuple[int, int] | None:
+    """窗口内的 mora 起点与个数（从 0 重新编号，保留开头辅音和尾音）；次序倒退 → None。
+    ``strict``（语段）：有音素缺 mora 就整段未知（不吞并别的文字）；整句（``strict=False``）跳过缺 mora 的音素，由逐块格数标出缺的块。"""
     ms = []
     for p in phones:
         if p.label in PAUSE_LABELS:
@@ -292,7 +293,9 @@ def mora_span(phones: Sequence[Phone], window: tuple[float, float]) -> tuple[int
         if not (window[0] - 1e-9 <= mid < window[1] + 1e-9):
             continue
         if p.mora is None:
-            return None
+            if strict:
+                return None
+            continue
         ms.append(p.mora)
     if not ms or any(b < a for a, b in zip(ms, ms[1:])):
         return None
@@ -559,3 +562,122 @@ def target_beats(cells: Sequence[int], dur: Durations, density: float) -> Beats:
 def overall_ratio(beats: Beats, dur: Durations, beat_seconds: float) -> float:
     """整体倍率（时长倍率）= 总格数 / 密度 × 拍长 / 语音总时长（不含休止）。"""
     return beats.total_cells / beats.density * beat_seconds / dur.total
+
+
+# ---------------------------------------------------------------- 逐音属性（09 §9.6.3 的块级量；舞台「逐音属性」显示，阶段 7 检索复用）
+
+TREND_MIN_FRAMES = 5
+TREND_MIN_SPAN = 0.06
+MIN_PITCH_FRAMES = 3
+
+
+def leading_consonants(phones: Sequence[Phone], block: Block) -> list[str]:
+    """前导辅音序列（模型标签）：从第一个成员向前取，遇到停顿、AP、spn、N、促音或元音即停（〔新：19 G3〕cl 不计入）。"""
+    out = []
+    k = block.members[0] - 1
+    while k >= 0 and _norm(phones[k].label) not in CONSONANT_STOP:
+        out.append(phones[k].label)
+        k -= 1
+    return out[::-1]
+
+
+def block_attributes(
+    blocks: Sequence[Block],
+    phones: Sequence[Phone],
+    seg: Sequence[int],
+    times: np.ndarray,
+    frames: np.ndarray,
+    measured: np.ndarray,
+) -> list[dict[str, object]]:
+    """``frames``：F0 帧 [n, 3]（F0、置信度、能量），``times`` 帧中心（与音块同一时钟），``measured`` 该帧是否已测。
+    音高类只用可靠帧（有声 且 F0 > 0 且 置信度 ≥ 0.5，〔新：19 G4〕）；缺失一律未知（None），不是 0。"""
+    from .flatten import hz_to_midi, reliable
+
+    f0, conf, en = frames[:, 0], frames[:, 1], frames[:, 2]
+    ok = measured & reliable(np.nan_to_num(f0), np.nan_to_num(conf), np.nan_to_num(en))
+    midi = np.full(len(f0), np.nan)
+    midi[ok] = [hz_to_midi(float(x)) for x in f0[ok]]
+    per: list[dict[str, object]] = []
+    for b in blocks:
+        inb = (times >= b.onset) & (times < b.end)
+        n = int(inb.sum())
+        all_measured = n > 0 and bool(measured[inb].all())
+        rel = inb & ok
+        m = midi[rel]
+        t = times[rel]
+        med = float(np.median(m)) if len(m) >= MIN_PITCH_FRAMES else None
+        spread = float((np.percentile(m, 90) - np.percentile(m, 10)) * 100) if len(m) >= MIN_PITCH_FRAMES else None
+        trend = None
+        if len(m) >= TREND_MIN_FRAMES and t[-1] - t[0] >= TREND_MIN_SPAN - 1e-9:
+            third = (t[-1] - t[0]) / 3
+            head, tail = m[t <= t[0] + third], m[t >= t[-1] - third]
+            if len(head) and len(tail):
+                trend = float(np.median(tail) - np.median(head))
+        energy = en[inb] if all_measured else np.array([])
+        db = float(10 * np.log10(max(float(np.mean(energy)), 1e-12))) if len(energy) else None
+        per.append({
+            "midi": med, "spreadCents": spread, "coverage": (int(rel.sum()) / n) if all_measured else None, "trend": trend, "loudnessDb": db,
+            "consonants": leading_consonants(phones, b), "_rel": rel,
+        })
+    for i, a in enumerate(per):
+        same = [j for j in range(len(blocks)) if seg[j] == seg[i]]
+        pool = np.concatenate([midi[per[j]["_rel"]] for j in same])  # type: ignore[index]
+        a["relPitch"] = float(a["midi"] - np.median(pool)) if a["midi"] is not None and len(pool) >= MIN_PITCH_FRAMES else None  # type: ignore[operator]
+        dbs = [per[j]["loudnessDb"] for j in same if per[j]["loudnessDb"] is not None]
+        a["relLoudness"] = float(a["loudnessDb"] - np.median(dbs)) if a["loudnessDb"] is not None and dbs else None  # type: ignore[operator]
+    for a in per:
+        a.pop("_rel")
+    return per
+
+
+# ---------------------------------------------------------------- 逐采样参数（sample.rhythm，经编辑通道修改）
+
+
+def default_params(sensitivity: float = DEFAULT_SENSITIVITY, threshold: float = DEFAULT_SEGMENT_THRESHOLD) -> dict[str, object]:
+    return {"sensitivity": sensitivity, "segmentThreshold": threshold, "manual": empty_manual()}
+
+
+def empty_manual() -> dict[str, object]:
+    return {"run": None, "splits": [], "cells": {}, "cuts": [], "merges": []}
+
+
+def _int_list(v: object, name: str) -> list[int]:
+    if not isinstance(v, list) or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in v):
+        raise CoreError("rhythm-param-invalid", field=name, min=0, max=None)
+    return sorted(set(v))
+
+
+def validate_params(v: object) -> dict[str, object]:
+    """``sample.rhythm`` 的校验：灵敏度 0.5–2、语段阈值 0.16–2；人工项（拆点、占格、手动切分/合并）是非负整数，绑定分析版本 ``run``。"""
+    if not isinstance(v, dict):
+        raise CoreError("rhythm-param-invalid", field="rhythm", min=None, max=None)
+    out = default_params()
+    if "sensitivity" in v:
+        x = v["sensitivity"]
+        if isinstance(x, bool) or not isinstance(x, (int, float)):
+            raise CoreError("rhythm-param-invalid", field="sensitivity", min=SENSITIVITY_RANGE[0], max=SENSITIVITY_RANGE[1])
+        out["sensitivity"] = check_sensitivity(float(x))
+    if "segmentThreshold" in v:
+        x = v["segmentThreshold"]
+        if isinstance(x, bool) or not isinstance(x, (int, float)):
+            raise CoreError("rhythm-param-invalid", field="segmentThreshold", min=SEGMENT_THRESHOLD_RANGE[0], max=SEGMENT_THRESHOLD_RANGE[1])
+        out["segmentThreshold"] = check_threshold(float(x))
+    m = v.get("manual") or {}
+    if not isinstance(m, dict):
+        raise CoreError("rhythm-param-invalid", field="manual", min=None, max=None)
+    run = m.get("run")
+    if run is not None and not isinstance(run, str):
+        raise CoreError("rhythm-param-invalid", field="run", min=None, max=None)
+    cells_in = m.get("cells") or {}
+    if not isinstance(cells_in, dict):
+        raise CoreError("rhythm-param-invalid", field="cells", min=1, max=MAX_CELLS)
+    cells: dict[str, int] = {}
+    for k, n in cells_in.items():
+        if not str(k).isdigit() or isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_CELLS:
+            raise CoreError("rhythm-cells-invalid", block=k, count=None, cells=n, max=MAX_CELLS)
+        cells[str(int(k))] = n
+    out["manual"] = {
+        "run": run, "splits": _int_list(m.get("splits", []), "splits"), "cells": cells,
+        "cuts": [k for k in _int_list(m.get("cuts", []), "cuts") if k > 0], "merges": _int_list(m.get("merges", []), "merges"),
+    }
+    return out
