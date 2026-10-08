@@ -1,9 +1,12 @@
 """采样库导入：规格 06 §6.6、ARCHITECTURE §4.10（文件夹、同名画面 视频 > 动图 > 图片、读不了的列出、已登记跳过）。"""
 
 import threading
+
+import pytest
 from pathlib import Path
 
 from ottosmasher.core import effective_tags
+from ottosmasher.core.errors import CoreError
 from ottosmasher.core.imports import ImportService, scan
 from ottosmasher.core.sources import SourceService
 from ottosmasher.core.thumbnails import ThumbnailService
@@ -39,6 +42,8 @@ def folder(media: Path) -> Path:  # noqa: F811
     (d / "broken.wav").write_bytes(b"RIFF\x00\x00")
     (d / "readme.txt").write_text("x")
     pictures(d)
+    # 没有同名音频的视频：单独导入成原片（所有者 2026-10-07：文件夹导入兼顾视频）
+    ff("-f", "lavfi", "-i", "testsrc=size=64x36:rate=24:duration=1", "-f", "lavfi", "-i", "sine=duration=1", "-c:v", "libx264", "-shortest", str(d / "se" / "clip.mp4"))
     return d
 
 
@@ -55,7 +60,8 @@ def test_scan_preview_commit(db, ws, media):  # noqa: F811
     assert imp.scan([str(d)])["id"] == "job1"
     res = scan([str(d)], ws.root / "Jobs" / "job1" / "cache", lambda *_: None)
     names = [Path(x["path"]).name for x in res["items"]]
-    assert names == ["a.wav", "b.ogg", "broken.wav", "c.wav", "coin.wav"]  # 隐藏文件、非音频跳过；按路径排序
+    # 隐藏文件、非媒体跳过；与音频同名的视频（B.mp4、c.mp4）是画面不单独导入；按路径排序
+    assert names == ["a.wav", "b.ogg", "broken.wav", "c.wav", "clip.mp4", "coin.wav"]
     by = {Path(x["path"]).name: x for x in res["items"]}
     assert by["a.wav"]["picture"]["kind"] == "image"
     assert by["b.ogg"]["picture"]["kind"] == "video" and [Path(p).name for p in by["b.ogg"]["picture"]["conflicts"]] == ["b.gif"]
@@ -65,32 +71,36 @@ def test_scan_preview_commit(db, ws, media):  # noqa: F811
     assert list((ws.data / "Cache" / "Peaks").glob("*.npz"))  # 峰值移进缓存
 
     pv = imp.preview("job1")
-    assert (pv["total"], pv["importable"], pv["existing"], pv["withPicture"], pv["withoutPicture"]) == (5, 4, 0, 2, 2)
+    assert by["clip.mp4"]["video"] and by["clip.mp4"]["picture"] is None
+    assert (pv["total"], pv["importable"], pv["videos"], pv["existing"], pv["withPicture"], pv["withoutPicture"]) == (6, 5, 1, 0, 2, 3)
     assert [Path(x["path"]).name for x in pv["unreadable"]] == ["broken.wav"]
     assert [Path(x["path"]).name for x in pv["conflicts"]] == ["b.ogg"]
 
-    out = imp.commit("job1", work="游戏 A", source_type="游戏", nature="unpitched", bind_pictures=True)
-    assert (out["created"], out["skipped"], out["failed"]) == (4, 0, [])
+    out = imp.commit("job1", work="游戏 A", source_type="游戏", whole_sample=True, nature="unpitched", bind_pictures=True)
+    assert (out["created"], out["existing"], out["failed"], len(out["sourceIds"]), len(out["sampleIds"])) == (5, 0, [], 5, 5)
     rows = db.execute(
         'SELECT s.name, s.nature, s.start, s."end", s.created_via, src.work, src.source_type, src.import_root, src.visual_binding_id'
         " FROM sample s JOIN sound_asset a ON a.id=s.asset_id JOIN source src ON src.id=a.source_id ORDER BY s.name"
     ).fetchall()
-    assert [r["name"] for r in rows] == ["a", "b", "c", "coin"]
+    assert [r["name"] for r in rows] == ["a", "b", "c", "clip", "coin"]
     assert all(r["nature"] == "unpitched" and r["start"] == 0 and r["created_via"] == "import" for r in rows)
     assert all(r["work"] == "游戏 A" and r["source_type"] == "游戏" and r["import_root"] == str(d) for r in rows)
-    assert abs(rows[3]["end"] - 0.65) < 1e-6  # 整段（确切时长）
-    assert [r["visual_binding_id"] is not None for r in rows] == [True, True, False, False]
+    assert abs(rows[4]["end"] - 0.65) < 1e-6  # 整段（确切时长）
+    assert [r["visual_binding_id"] is not None for r in rows] == [True, True, False, False, False]
     modes = [r[0] for r in db.execute("SELECT mode FROM visual_binding ORDER BY rowid")]
     assert modes == ["image", "sync"]
     # 继承标签 work:/type:（规格 05 §5.1）
     sid = out["sampleIds"][0]
     assert {t["tag"] for t in effective_tags.of_sample(db, sid)} >= {"work:游戏 A", "type:游戏"}
 
-    # 同一文件夹再导入：已登记的跳过，不重复建采样
+    # 同一文件夹再导入（所有者 2026-10-07 允许）：原片不重复登记、属性不改，勾了全长采样就再建整段采样
     imp._adopt_scan({"id": "job2"}, scan([str(d)], ws.root / "Jobs" / "job2" / "cache", lambda *_: None))
-    assert imp.preview("job2")["existing"] == 4
-    assert imp.commit("job2", work="", source_type="", nature="unclassified", bind_pictures=True)["skipped"] == 4
-    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 4
+    assert imp.preview("job2")["existing"] == 5
+    again = imp.commit("job2", work="别的", source_type="", whole_sample=True, nature="unclassified", bind_pictures=True)
+    assert (again["created"], again["existing"], len(again["sampleIds"])) == (0, 5, 5)
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 10
+    assert db.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 5
+    assert {r[0] for r in db.execute("SELECT work FROM source")} == {"游戏 A"}
 
     # 绑定的画面给缩略图（图片、同步视频）；没有画面的纯音频没有
     ev = threading.Event()
@@ -117,6 +127,30 @@ def test_single_files_and_no_binding(db, ws, media):  # noqa: F811
     assert [x["ok"] for x in res["items"]] == [True, False]
     assert res["items"][0]["root"] == str(d) and res["items"][0]["picture"]["kind"] == "image"  # 单选的文件也找同文件夹的同名画面
     imp._adopt_scan({"id": "j"}, res)
-    out = imp.commit("j", work="", source_type="", nature="speech", bind_pictures=False)
+    out = imp.commit("j", work="", source_type="", whole_sample=True, nature="speech", bind_pictures=False)
     assert out["created"] == 1
     assert db.execute("SELECT COUNT(*) FROM visual_binding").fetchone()[0] == 0
+
+
+@needs_ffmpeg
+def test_import_without_whole_sample_then_whole_samples(db, ws, media):  # noqa: F811
+    """原片页的导入（默认不勾全长采样）只登记原片；之后「建立全长采样…」可以补（所有者 2026-10-07）。"""
+    d = folder(media)
+    imp, _ = service(db, ws)
+    imp._adopt_scan({"id": "j"}, scan([str(d / "a.wav"), str(d / "c.wav")], ws.root / "Jobs" / "j" / "cache", lambda *_: None))
+    out = imp.commit("j", work="", source_type="", whole_sample=False, nature="ignored", bind_pictures=True)
+    assert (out["created"], out["sampleIds"]) == (2, [])
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0
+    a, c = out["sourceIds"]
+    # 角色预填：给 a 的默认音轨加人声角色 → 语音；c 没有角色 → 未分类
+    aid = db.execute("SELECT id FROM sound_asset WHERE source_id=? AND origin='stream'", (a,)).fetchone()[0]
+    db.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, 'vocal', 'on')", (aid,))
+    r = imp.whole_samples([a, c], None)
+    got = {row[0]: (row[1], row[2], row[3]) for row in db.execute('SELECT a.source_id, s.nature, s.start, s.created_via FROM sample s JOIN sound_asset a ON a.id=s.asset_id')}
+    assert (got[a][0], got[c][0], got[a][1], got[a][2]) == ("speech", "unclassified", 0.0, "manual")
+    assert len(r["sampleIds"]) == 2
+    imp.whole_samples([c], "pitched")  # 每次都新建
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 3
+    with pytest.raises(CoreError):
+        imp.whole_samples([c, "nope"], None)  # 整批回滚
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 3

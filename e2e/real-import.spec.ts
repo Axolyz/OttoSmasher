@@ -23,10 +23,10 @@ test("真实外部音频：文件夹导入与单个 MP4", async () => {
 
   const j1 = await scan([dir]);
   const pv = await req<{ importable: number; withPicture: number; unreadable: unknown[] }>("imports.preview", { jobId: j1 });
-  // 文件夹里只导入音频扩展名：番凩 MP3 + reimport/ 里 3 个 WAV（MP4 只作同名画面候选，这里没有同名音频）
-  expect([pv.r.importable, pv.r.withPicture, pv.r.unreadable.length]).toEqual([4, 0, 0]);
-  const c1 = await req<{ created: number; sampleIds: string[] }>("imports.commit", { jobId: j1, work: "外部", sourceType: "", nature: "unclassified", bindPictures: true });
-  expect(c1.r.created).toBe(4);
+  // 文件夹里的音频和视频都导入：番凩 MP3 + reimport/ 里 3 个 WAV + 千鹤 MP4（没有同名音频 → 单独导入）
+  expect([pv.r.importable, pv.r.withPicture, pv.r.unreadable.length]).toEqual([5, 0, 0]);
+  const c1 = await req<{ created: number; sampleIds: string[] }>("imports.commit", { jobId: j1, work: "外部", sourceType: "", wholeSample: true, nature: "unclassified", bindPictures: true });
+  expect(c1.r.created).toBe(5);
   const lens = await Promise.all(c1.r.sampleIds.map(async (id) => (await req<{ name: string; duration: number }>("samples.get", { id })).r));
   const byName = Object.fromEntries(lens.map((x) => [x.name, x.duration]));
   expect(byName["仕事してP MEIKO KAITO - 番凩-2019-"]).toBeCloseTo(222, 0);
@@ -38,10 +38,10 @@ test("真实外部音频：文件夹导入与单个 MP4", async () => {
   expect([mp3.has_video, mp3.has_picture]).toEqual([false, false]);
   expect((await req<Array<{ state: string }>>("thumbs.get", { items: [{ kind: "source", id: mp3.id }] })).r[0]!.state).toBe("none");
 
-  // 单独选 MP4：按原片导入（有视频流 → 缩略图）
+  // 再单独选这个 MP4：已登记过 → 不重复登记，再建一个整段采样（所有者 2026-10-07）
   const j2 = await scan([join(dir, "千鹤弹吉他_消音.30775247570.mp4")]);
-  const c2 = await req<{ created: number }>("imports.commit", { jobId: j2, work: "外部", sourceType: "", nature: "pitched", bindPictures: true });
-  expect(c2.r.created).toBe(1);
+  const c2 = await req<{ created: number; existing: number; sampleIds: string[] }>("imports.commit", { jobId: j2, work: "外部", sourceType: "", wholeSample: true, nature: "pitched", bindPictures: true });
+  expect([c2.r.created, c2.r.existing, c2.r.sampleIds.length]).toEqual([0, 1, 1]);
   const mp4 = (await req<Array<{ id: string; path: string; has_video: boolean }>>("sources.list", {})).r.find((x) => x.path.endsWith(".mp4"))!;
   expect(mp4.has_video).toBe(true);
   await expect.poll(async () => (await req<Array<{ state: string }>>("thumbs.get", { items: [{ kind: "source", id: mp4.id }] })).r[0]!.state, { timeout: 20000 }).toBe("ready");

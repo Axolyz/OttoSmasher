@@ -1,0 +1,9 @@
+/* 导入框（原型 importModal；原片页「＋」与采样库「导入」共用） */
+.form { display: grid; grid-template-columns: 56px 1fr; gap: 10px 12px; align-items: center; }
+.formLabel { color: var(--sub); font-size: var(--fs-sm); }
+.preview { overflow-wrap: anywhere; }
+.preview b { color: var(--text); font-weight: 600; }
+.fileList { margin: 6px 0 0; padding: 0 0 0 16px; max-height: 120px; overflow: auto; font-size: var(--fs-sm); color: var(--sub); }
+.fileList li { overflow-wrap: anywhere; }
+.footNote { color: var(--muted); font-size: var(--fs-sm); }
+.grow { flex: 1; }

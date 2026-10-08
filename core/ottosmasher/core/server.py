@@ -125,9 +125,11 @@ class Core:
             "imports.scan": lambda p: self.imports.scan(list(p["paths"])),
             "imports.preview": lambda p: self.imports.preview(p["jobId"]),
             "imports.commit": lambda p: self.imports.commit(
-                p["jobId"], work=str(p.get("work", "")), source_type=str(p.get("sourceType", "")), nature=str(p["nature"]),
+                p["jobId"], work=str(p.get("work", "")), source_type=str(p.get("sourceType", "")),
+                whole_sample=bool(p.get("wholeSample", False)), nature=str(p.get("nature", "unclassified")),
                 bind_pictures=bool(p.get("bindPictures", True)),
             ),
+            "sources.wholeSamples": lambda p: self.imports.whole_samples(list(p["ids"]), p.get("nature")),
             "tags.promoteBatch": lambda p: annotations_mod.promote_batch(
                 self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")
             ),

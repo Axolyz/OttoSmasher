@@ -16,8 +16,9 @@ import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
+import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
-import { isShort } from "./short";
+import { WholeSampleDialog } from "./WholeSampleDialog";
 import { type SeparationInput, SeparationDialog } from "./SeparationDialog";
 import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
@@ -99,30 +100,22 @@ export function SourcesPage() {
     if (row && !expanded.includes(row.work)) setExpanded((e) => [...e, row.work]);
   };
 
-  const add = async (paths: string[]) => {
-    if (!paths.length) return;
-    try {
-      const res = await call<AddResult[]>("sources.add", { paths });
-      const list = await reload();
-      for (const r of res) {
-        if (!r.ok && r.error) toast({ text: errorText(r.error), tone: "error" });
-        if (r.inferTimedOut?.length) toast({ text: t("sources.inferTimedOut", { list: r.inferTimedOut.map((i) => i + 1).join(", ") }) });
-      }
-      const fresh = res.find((r) => r.ok && !r.existing);
-      const first = fresh ?? res.find((r) => r.ok);
-      if (first?.sourceId) {
-        const row = list.find((x) => x.id === first.sourceId);
-        setCurrent(first.sourceId);
-        if (row && !expanded.includes(row.work)) setExpanded((e) => [...e, row.work]);
-        if (fresh?.sourceId) setSettingsFor(fresh.sourceId); // 只为第一个新原片弹「作品与输入设置」
-      }
-      const n = res.filter((r) => r.ok && !r.existing).length;
-      if (n) toast({ text: t("sources.added", { n }) });
-    } catch (e) {
-      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
-    }
+  // 添加原片 = 导入框（与采样库共用，所有者 2026-10-07）：这里进来「直接建立全长采样」默认不勾
+  const [importPaths, setImportPaths] = useState<string[] | null>(null);
+  const [wholeFor, setWholeFor] = useState<string[] | null>(null);
+  const onImported = async (r: ImportResult) => {
+    const list = await reload();
+    const first = r.sourceIds[0];
+    if (!first) return;
+    const row = list.find((x) => x.id === first);
+    setCurrent(first);
+    if (row && !expanded.includes(row.work)) setExpanded((e) => [...e, row.work]);
+    setSettingsFor(first); // 只为第一个新原片弹「作品与输入设置」（规格 03 §3.5.3）
   };
-  const pickAndAdd = async () => add(await window.otto.files.pick("media"));
+  const pickAndAdd = async () => {
+    const paths = await window.otto.files.pick("import");
+    if (paths.length) setImportPaths(paths);
+  };
   const workspace = useApp((st) => st.hello?.workspace);
   const undo = useUndo();
   // 整片分离：输入 = 该原片的分析音轨（整轨资产）
@@ -184,6 +177,7 @@ export function SourcesPage() {
           items: [
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
+            { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => setWholeFor(ids) },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
           ],
@@ -198,6 +192,7 @@ export function SourcesPage() {
             { id: "subsample-sfx", label: t("subsample.menuSfx"), run: () => setSubSamples({ row: r, kind: "sfx" }) },
             { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
             { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
+            { id: "whole", label: t("whole.menu"), run: () => setWholeFor([r.id]) },
             "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
@@ -225,7 +220,8 @@ export function SourcesPage() {
       onDrop={(e) => {
         e.preventDefault();
         setDrop(false);
-        void add([...e.dataTransfer.files].map((f) => window.otto.files.pathOf(f)).filter(Boolean));
+        const paths = [...e.dataTransfer.files].map((f) => window.otto.files.pathOf(f)).filter(Boolean);
+        if (paths.length) setImportPaths(paths);
       }}
     >
       {!listHidden ? (
@@ -273,11 +269,6 @@ export function SourcesPage() {
             <span className={s.topName} title={currentRow.path} data-user-data="">
               {displayTitle(currentRow)}
             </span>
-            {isShort(currentRow) ? (
-              <span className={s.shortChip} data-testid="short-chip">
-                {t("sources.shortChip", { v: currentRow.duration.toFixed(2) })}
-              </span>
-            ) : (
             <PrepPanel
               source={currentRow}
               onAction={(a) => {
@@ -288,7 +279,6 @@ export function SourcesPage() {
                 else setSubSamples({ row: currentRow, kind: "line" });
               }}
             />
-            )}
             <Menu
               {...sourceMenu(currentRow, [currentRow.id], false)}
               trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} data-testid="viewer-menu" />}
@@ -302,6 +292,8 @@ export function SourcesPage() {
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
+      <ImportDialog paths={importPaths} defaultWhole={false} defaultNature="unclassified" onClose={() => setImportPaths(null)} onImported={(r) => void onImported(r)} />
+      <WholeSampleDialog ids={wholeFor} onClose={() => setWholeFor(null)} />
       <InputSettingsDialog sourceId={settingsFor} onClose={() => setSettingsFor(null)} onSaved={() => void reload()} />
       <DeleteDialog ids={deleteIds} rows={rows ?? []} onClose={() => setDeleteIds(null)} onDeleted={(ids) => void onDeleted(ids)} />
     </div>

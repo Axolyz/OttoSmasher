@@ -66,6 +66,13 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("viewer-menu").click();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
+  // 「建立全长采样…」框（单个原片菜单第 8 项）
+  await page.getByTestId("viewer-menu").click();
+  await page.getByRole("menuitem").nth(7).click();
+  await expect(page.getByTestId("whole-dialog")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("whole-dialog")).toHaveCount(0);
   // 时间线右键菜单与「新增区段标签」框
   await page.mouse.click(tl.x + tl.width * 0.3, tl.y + 50, { button: "right" });
   await expect(page.getByTestId("timeline-menu")).toBeVisible();

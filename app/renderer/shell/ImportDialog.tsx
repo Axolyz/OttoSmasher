@@ -1,6 +1,7 @@
-// 导入独立采样（规格 06 §6.6、ARCHITECTURE §4.10、UI_PLAN §8；原型 importModal）：
-// 选文件或整个文件夹（含子文件夹）/ 拖进采样库 → 轻量任务扫描（探测、确切时长、同名画面）→ 预览数量、能匹配到画面的、读不了的（列出，不导入）
-// → 一次设作品、类型、性质（默认 = 当前用途，否则未分类；不靠文件名或音高推断）→「导入 N 个」：每个文件一个原片 + 整段一个采样，已登记的跳过。
+// 导入（规格 06 §6.6、05 §5.1、ARCHITECTURE §4.10、UI_PLAN §4、§8；原型 importModal）。原片页「＋」/拖入与采样库「导入」/拖入共用这一个框：
+// 选文件或整个文件夹（含子文件夹）→ 轻量任务扫描（探测、确切时长、同名画面）→ 预览数量、能匹配到画面的、读不了的（列出，不导入）
+// → 作品、类型、同名画面绑定；「直接建立全长采样」勾上才选性质（不靠文件名或音高推断）→「导入 N 个」。
+// 所有者 2026-10-07：原片只有一种，两个入口唯一的区别是这个勾选的默认值（采样库勾、原片页不勾）；已登记过的文件不重复登记，勾了就再建一个全长采样。
 import { useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { Nature } from "../api/types";
@@ -12,11 +13,20 @@ import { DialogBox } from "../components/Overlay";
 import { basename } from "../format";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
-import s from "./Library.module.css";
+import s from "./Import.module.css";
+
+export interface ImportResult {
+  created: number;
+  existing: number;
+  failed: Array<{ path: string; error: { code: string; args: Record<string, unknown> } }>;
+  sourceIds: string[];
+  sampleIds: string[];
+}
 
 interface Preview {
   total: number;
   importable: number;
+  videos: number;
   existing: number;
   withPicture: number;
   withoutPicture: number;
@@ -32,7 +42,14 @@ interface Job {
 }
 const LIST_MAX = 20;
 
-export function ImportDialog(props: { paths: string[] | null; defaultNature: Nature; onClose: () => void; onImported: (sampleIds: string[]) => void }) {
+export function ImportDialog(props: {
+  paths: string[] | null;
+  /** 「直接建立全长采样」默认勾不勾：采样库 = 勾，原片页 = 不勾 */
+  defaultWhole: boolean;
+  defaultNature: Nature;
+  onClose: () => void;
+  onImported: (r: ImportResult) => void;
+}) {
   const toast = useApp((st) => st.toast);
   const [job, setJob] = useState<Job | null>(null);
   const [pv, setPv] = useState<Preview | null>(null);
@@ -41,6 +58,7 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
   const [type, setType] = useState("");
   const [nature, setNature] = useState<Nature>(props.defaultNature);
   const [bind, setBind] = useState(true);
+  const [whole, setWhole] = useState(props.defaultWhole);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -50,8 +68,9 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
     setError(null);
     setNature(props.defaultNature);
     setBind(true);
-    // 作品默认取所选文件夹名（只选了一个文件夹时）
-    setWork(props.paths.length === 1 ? basename(props.paths[0]!) : "");
+    setWhole(props.defaultWhole);
+    // 作品：从采样库进来、只选了一个文件夹时默认取文件夹名；否则空着 = 按文件名推断作品与集数（同原片页登记）
+    setWork(props.defaultWhole && props.paths.length === 1 ? basename(props.paths[0]!) : "");
     jobId.current = null;
     void call<Job>("imports.scan", { paths: props.paths })
       .then((j) => {
@@ -70,8 +89,8 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
       void call<Preview>("imports.preview", { jobId: j.id })
         .then((p) => {
           setPv(p);
-          // 选的是文件（不是一个文件夹）、作品还空着：用它们所在的文件夹名
-          if (p.roots.length === 1 && props.paths?.length !== 1) setWork((w) => w || basename(p.roots[0]!));
+          // 从采样库进来、选的是同一文件夹里的文件、作品还空着：用这个文件夹名
+          if (props.defaultWhole && p.roots.length === 1 && props.paths?.length !== 1) setWork((w) => w || basename(p.roots[0]!));
         })
         .catch((e) => setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)));
     } else if (j.status === "failed" && j.error) setError(errorText(j.error));
@@ -87,13 +106,13 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
     if (!job || !pv || busy) return;
     setBusy(true);
     try {
-      const r = await call<{ created: number; skipped: number; failed: Array<{ path: string; error: { code: string; args: Record<string, unknown> } }>; sampleIds: string[] }>(
-        "imports.commit",
-        { jobId: job.id, work, sourceType: type, nature, bindPictures: bind },
-      );
-      toast({ text: r.skipped ? t("import.doneSkipped", { n: r.created, k: r.skipped }) : t("import.done", { n: r.created }) });
+      const r = await call<ImportResult>("imports.commit", { jobId: job.id, work, sourceType: type, wholeSample: whole, nature, bindPictures: bind });
+      const parts = [t("import.doneSources", { n: r.created })];
+      if (whole) parts.push(t("import.doneSamples", { n: r.sampleIds.length }));
+      if (r.existing) parts.push(t(whole ? "import.doneExistingWhole" : "import.doneExisting", { n: r.existing }));
+      toast({ text: parts.join(t("settings.subtitle.speakerSep")) });
       for (const f of r.failed.slice(0, 3)) toast({ text: t("import.failedOne", { name: basename(f.path), error: errorText(f.error) }), tone: "error" });
-      props.onImported(r.sampleIds);
+      props.onImported(r);
       props.onClose();
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -119,7 +138,12 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
           <Button variant="flat" onPress={props.onClose}>
             {t("common.cancel")}
           </Button>
-          <Button variant="primary" isDisabled={!pv || !pv.importable || busy} onPress={() => void commit()} data-testid="import-submit">
+          <Button
+            variant="primary"
+            isDisabled={!pv || !pv.importable || busy || (!whole && pv.existing === pv.importable)}
+            onPress={() => void commit()}
+            data-testid="import-submit"
+          >
             {t("import.submit", { n: pv?.importable ?? 0 })}
           </Button>
         </>
@@ -131,11 +155,18 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
         <TextField value={work} onChange={setWork} label={t("sources.field.work")} placeholder={t("import.workHint")} testId="import-work" />
         <span className={s.formLabel}>{t("sources.field.type")}</span>
         <TextField value={type} onChange={setType} label={t("sources.field.type")} placeholder={t("sources.field.typeHint")} testId="import-type" />
-        <span className={s.formLabel}>{t("nature.label")}</span>
-        <div>
-          <NaturePicker value={nature} onChange={setNature} testId="import-nature" />
-        </div>
       </div>
+      <Checkbox isSelected={whole} onChange={setWhole} label={t("import.whole")} testId="import-whole">
+        {t("import.whole")}
+      </Checkbox>
+      {whole ? (
+        <div className={s.form}>
+          <span className={s.formLabel}>{t("nature.label")}</span>
+          <div>
+            <NaturePicker value={nature} onChange={setNature} testId="import-nature" />
+          </div>
+        </div>
+      ) : null}
       <Checkbox isSelected={bind} onChange={setBind} label={t("import.bind")}>
         {t("import.bind")}
       </Checkbox>
@@ -155,7 +186,7 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
           <div className={s.preview}>
             {t("import.previewHead")}
             <b className="num">{pv.importable}</b>
-            {t("import.previewAudio")}
+            {pv.videos ? t("import.previewFilesVideo", { n: pv.videos }) : t("import.previewFiles")}
             {bind ? (
               <>
                 {" · "}
@@ -165,7 +196,7 @@ export function ImportDialog(props: { paths: string[] | null; defaultNature: Nat
                 {t("import.previewNoPicture", { n: pv.withoutPicture })}
               </>
             ) : null}
-            {pv.existing ? ` · ${t("import.previewExisting", { n: pv.existing })}` : ""}
+            {pv.existing ? ` · ${t(whole ? "import.previewExisting" : "import.previewExistingSkip", { n: pv.existing })}` : ""}
             {pv.unreadable.length ? ` · ${t("import.previewUnreadable", { n: pv.unreadable.length })}` : ""}
           </div>
           {pv.unreadable.length ? (

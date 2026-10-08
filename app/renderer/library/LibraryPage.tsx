@@ -22,10 +22,10 @@ import { Thumb } from "../components/Thumb";
 import { beginDragOut } from "../dragout";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
+import { ImportDialog } from "../shell/ImportDialog";
 import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
-import { ImportDialog } from "./ImportDialog";
 import { PromoteDialog } from "./PromoteDialog";
 import s from "./Library.module.css";
 
@@ -579,9 +579,10 @@ export function LibraryPage() {
       <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={refreshAfterPromote} />
       <ImportDialog
         paths={importPaths}
+        defaultWhole
         defaultNature={purpose === "all" ? "unclassified" : purpose}
         onClose={() => setImportPaths(null)}
-        onImported={(ids) => ids[0] && setOpenSample(ids[0])}
+        onImported={(r) => r.sampleIds[0] && setOpenSample(r.sampleIds[0])}
       />
       <SplitPane left={list} right={stage} ratio={split} onRatio={setSplit} label={t("library.splitter")} />
       <ConfirmDialog

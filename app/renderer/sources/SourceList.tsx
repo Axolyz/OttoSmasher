@@ -14,25 +14,23 @@ import { Menu, type MenuSpec } from "../components/Menu";
 import { Thumb } from "../components/Thumb";
 import { basename, clock, stem } from "../format";
 import { t } from "../i18n";
-import { isShort, relDir } from "./short";
+import { durationText, relDir } from "./rowInfo";
 import s from "./Sources.module.css";
 
 /** 原片的名字（用在导出文件名、菜单头等）：“作品 集数”，没有作品时用文件名。 */
-export function displayName(r: Pick<SourceRow, "work" | "episode" | "path"> & { import_root?: string | null }): string {
+export function displayName(r: Pick<SourceRow, "work" | "episode" | "path">): string {
   if (r.work && r.episode) return `${r.work} ${r.episode}`;
-  if (r.import_root) return basename(r.path); // 采样库导入的文件：显示文件名（原型 hit_01.ogg）
   return r.work || stem(r.path);
 }
 
 /** 顶栏里的原片标题：“作品 · 集数”（原型）。 */
-export function displayTitle(r: Pick<SourceRow, "work" | "episode" | "path"> & { import_root?: string | null }): string {
+export function displayTitle(r: Pick<SourceRow, "work" | "episode" | "path">): string {
   if (r.work && r.episode) return `${r.work} · ${r.episode}`;
-  return displayName(r);
+  return basename(r.path); // 没有集数（短音频、单个视频）：文件名，同一作品下的才分得清（原型 hit_01.ogg）
 }
 
 function rowTitle(r: SourceRow): string {
-  if (r.import_root && !r.episode) return basename(r.path);
-  return r.episode ? t("sources.episode", { n: r.episode }) : stem(r.path);
+  return r.episode ? t("sources.episode", { n: r.episode }) : basename(r.path);
 }
 
 type Item = { id: string; kind: "group"; work: string; n: number } | { id: string; kind: "item"; row: SourceRow };
@@ -126,33 +124,26 @@ export function SourceList(props: {
                 <div className={s.rowTitle} title={basename(r.path)} data-user-data={r.episode ? undefined : ""}>
                   {rowTitle(r)}
                 </div>
-                {isShort(r) ? (
-                  // 短音频原片（原型游戏 A 组）：时长秒 · 子文件夹 · 同名画面
-                  <div className={s.rowMeta}>
-                    <span className="num">{t("format.sec", { v: r.duration.toFixed(2) })}</span>
-                    {relDir(r) ? (
-                      <span className={s.faint} data-user-data="">
-                        {relDir(r)}
-                      </span>
-                    ) : null}
-                    {r.has_picture ? <span>{t("sources.samePicture")}</span> : null}
-                    {r.missing ? <span className={s.warn}>{t("sources.fileMissing")}</span> : null}
-                  </div>
-                ) : (
+                {/* 只按内容显示（所有者 2026-10-07：原片只有一种）；05 §5.8：句数 = 当前字幕版本中不在 OP/ED 的台词数 */}
                 <div className={s.rowMeta}>
-                  <span className="num">{clock(r.duration, 0)}</span>
-                  {/* 05 §5.8：句数 = 当前字幕版本中不在 OP/ED 的台词数；没导入过标记 = “无字幕”（有字幕文件但没导入另说明） */}
+                  <span className="num">{durationText(r.duration)}</span>
+                  {relDir(r) ? (
+                    <span className={s.faint} data-user-data="">
+                      {relDir(r)}
+                    </span>
+                  ) : null}
                   {r.counts?.hasMarkers ? (
                     <span className="num">{t("sources.lines", { n: r.counts.lines })}</span>
-                  ) : (
-                    <span>{r.subtitle_path ? t("sources.notImported") : t("sources.noSubtitle")}</span>
-                  )}
+                  ) : r.subtitle_path ? (
+                    <span>{t("sources.notImported")}</span>
+                  ) : r.has_video ? (
+                    <span>{t("sources.noSubtitle")}</span>
+                  ) : null}
                   {r.counts?.oped ? <span className="num">{t("sources.opedN", { n: r.counts.oped })}</span> : null}
-                  {!r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
+                  {r.has_picture ? <span>{t("sources.samePicture")}</span> : !r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
                   {r.audio_streams > 1 ? <span>{t("sources.nTracks", { n: r.audio_streams })}</span> : null}
                   {r.missing ? <span className={s.warn}>{t("sources.fileMissing")}</span> : null}
                 </div>
-                )}
               </div>
               <span className={s.rowMenu} data-open={rowMenu === r.id || undefined}>
                 <Menu

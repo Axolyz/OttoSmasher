@@ -137,7 +137,7 @@ class SourceService:
         source_type: str | None = None,
         tx: bool = True,
     ) -> dict[str, Any]:
-        """登记一个已经 ``prepare`` 过的文件（不再探测）。work / source_type 给了就用它们（采样库导入），否则按文件名推断作品与集数。
+        """登记一个已经 ``prepare`` 过的文件（不再探测）。work 空 = 按文件名推断作品与集数；给了 = 作品用它、集数仍推断。source_type 给了就用。
         tx=False：在调用方的事务里写（采样库导入把原片、整段采样、画面绑定放进同一个事务）。"""
         key = path_key(path)
         audio = pr.audio
@@ -146,7 +146,9 @@ class SourceService:
         duration = next(s.duration for s in audio if s.ordinal == default)
         if duration is None or duration <= 0:
             raise CoreError("media-probe-failed", path=path, detail="no-duration")
-        inferred = naming.infer_work_episode(path, rules) if work is None else naming.WorkEpisode(work, "")
+        inferred = naming.infer_work_episode(path, rules)
+        if work:  # 导入框里填了作品：作品用它，集数仍按文件名推断
+            inferred = naming.WorkEpisode(work, inferred.episode, inferred.rule, inferred.timed_out)
         snap = probe_mod.snapshot(path, pr)
         sid, ts = new_id(), now_iso()
         with transaction(self.conn) if tx else nullcontext(self.conn):
