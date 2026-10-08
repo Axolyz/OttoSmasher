@@ -1,7 +1,7 @@
 // 界面状态（不是用户资料）：当前页、抽屉、工作台、提示条、Core 状态。
 import { create } from "zustand";
 import type { CoreStatus } from "../../shared/protocol";
-import type { Hello } from "../api/types";
+import type { Hello, RhythmPlan, RhythmSound } from "../api/types";
 
 export type Page = "library" | "sources" | "tools";
 
@@ -42,6 +42,30 @@ export interface SeparationRequest {
   scope: "full" | "sel";
 }
 
+/** 试听的版本（规格 09 §9.5.3、12 §12.1；所有者 2026-10-08：不卡拍 / 卡拍 × 原声 / 原声＋咔哒 / 纯咔哒） */
+export type AuditionVersion = "original" | "stretched";
+
+/** 全局播放条显示的当前声音（UI_PLAN §1） */
+export interface NowPlaying {
+  sampleId: string;
+  name: string;
+  version: AuditionVersion;
+  sound: RhythmSound;
+  plan: RhythmPlan | null;
+  bpm: number | null;
+  originalSpeed: boolean;
+  duration: number;
+}
+
+/** 舞台上节奏与卡拍的临时选择（换采样就回到默认；所有者 2026-10-08：纯 mora 不保存） */
+export interface StageRhythm {
+  sampleId: string | null;
+  plan: RhythmPlan;
+  mora: boolean;
+  longVowel: boolean;
+  sound: RhythmSound;
+}
+
 interface AppState {
   page: Page;
   openSample: string | null;
@@ -65,6 +89,16 @@ interface AppState {
   requestFlatten(r: FlattenRequest | null): void;
   separationRequest: SeparationRequest | null;
   requestSeparation(r: SeparationRequest | null): void;
+  /** 全局 BPM 的镜像（Core 的 rhythm.bpm；事件 rhythm.bpm 同步） */
+  bpm: number | null;
+  setBpm(v: number | null): void;
+  nowPlaying: NowPlaying | null;
+  setNowPlaying(v: NowPlaying | null): void;
+  /** 拖出跟随最近一次成功试听的版本（只在本次运行期间记住，12 §12.1、D4） */
+  lastVersion: Record<string, AuditionVersion>;
+  rememberVersion(id: string, v: AuditionVersion): void;
+  stageRhythm: StageRhythm;
+  setStageRhythm(patch: Partial<StageRhythm>): void;
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
   setSettingsOpen(v: boolean): void;
@@ -101,6 +135,19 @@ export const useApp = create<AppState>((set) => ({
   refreshTick: 0,
   refreshLists: () => set((st) => ({ stale: false, refreshTick: st.refreshTick + 1 })),
   toasts: [],
+  bpm: null,
+  setBpm: (bpm) => set({ bpm }),
+  nowPlaying: null,
+  setNowPlaying: (nowPlaying) => set({ nowPlaying }),
+  lastVersion: {},
+  rememberVersion: (id, v) => set((st) => ({ lastVersion: { ...st.lastVersion, [id]: v } })),
+  stageRhythm: { sampleId: null, plan: "near_fast", mora: false, longVowel: false, sound: "voice" },
+  setStageRhythm: (patch) =>
+    set((st) => {
+      // 换了采样：临时选择回到默认
+      const base = patch.sampleId && patch.sampleId !== st.stageRhythm.sampleId ? { sampleId: patch.sampleId, plan: "near_fast" as const, mora: false, longVowel: false, sound: "voice" as const } : st.stageRhythm;
+      return { stageRhythm: { ...base, ...patch } };
+    }),
   setPage: (page) => set({ page }),
   setTasksOpen: (tasksOpen) => set({ tasksOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),

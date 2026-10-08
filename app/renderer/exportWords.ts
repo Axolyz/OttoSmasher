@@ -10,5 +10,6 @@ export function exportWords(): Record<string, string> {
     reimport: t("track.reimport"),
     fragment: t("export.fragment"),
     local: t("naming.local"),
+    stretch: t("export.stretch"),
   };
 }

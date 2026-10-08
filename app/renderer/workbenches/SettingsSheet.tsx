@@ -17,7 +17,7 @@ import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "studio", "jobs", "storage", "models"] as const;
+const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "export", "studio", "jobs", "storage", "models"] as const;
 type Group = (typeof GROUPS)[number];
 
 interface NumSpec {
@@ -31,6 +31,10 @@ const NUMERIC: Record<string, NumSpec> = {
   "subtitle.pad_after": { min: 0, max: 5, step: 0.05 },
   "analysis.tolerance_before": { min: 0, max: 5, step: 0.05 },
   "analysis.tolerance_after": { min: 0, max: 5, step: 0.05 },
+  // 节奏（09 §9.3–§9.4、03 §3.7）：惩罚度只作用于原节奏路线；灵敏度与语段阈值是新采样的默认值
+  "analysis.penalty": { min: 0, max: 3, step: 0.1 },
+  "analysis.pause_sensitivity": { min: 0.5, max: 2, step: 0.1 },
+  "analysis.segment_threshold": { min: 0.16, max: 2, step: 0.01 },
   "jobs.concurrency_model": { min: 1, max: 4, step: 1 },
   "jobs.concurrency_light": { min: 1, max: 4, step: 1 },
 };
@@ -45,11 +49,15 @@ const CHOICES: Record<string, string[]> = {
   "flatten.single_target": ["auto", "edge", "manual"],
   "flatten.batch_range": ["whole", "vowels", "first"],
   "flatten.batch_target": ["auto", "edge"],
+  // REAPER 交接的吸附（12 §12.3）
+  "export.reaper_snap": ["onset", "start"],
 };
 const choiceLabel = (key: string, v: string) =>
   key === "studio.device"
     ? t(`settings.studio.device.${v}`)
-    : key.startsWith("flatten.")
+    : key === "export.reaper_snap"
+      ? t(`settings.export.reaper_snap.${v}`)
+      : key.startsWith("flatten.")
       ? t(key.endsWith("_range") ? `flatten.range.${v}` : `flatten.target.${v}`)
       : t(`settings.lang.${v}`);
 /** 文字类设置（路径、模型名）：回车或失焦保存 */

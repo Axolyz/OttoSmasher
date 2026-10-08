@@ -21,7 +21,11 @@
 .page { position: absolute; inset: 0; display: flex; min-height: 0; }
 .hidden { display: none; }
 .dock { border-top: 1px solid var(--line2); display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--rail); }
-.np { display: flex; align-items: center; gap: 10px; }
+.np { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; max-width: 720px; }
+.npName { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 260px; }
+.npVer { font-size: var(--fs-xs); color: var(--sub); background: var(--s3); border-radius: 6px; padding: 1px 8px; white-space: nowrap; }
+.npVer[data-ver="stretched"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.npBar { flex: 1 1 120px; min-width: 60px; max-width: 240px; }
 .pp { width: 30px; height: 30px; border-radius: 50%; background: var(--s3); display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .note { display: flex; align-items: center; gap: 8px; background: var(--s2); border: 1px solid var(--line); border-radius: 9px; padding: 3px 6px 3px 10px; font-size: 12px; }
 .noteBtn { background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--sub); padding: 1px 8px; cursor: default; }

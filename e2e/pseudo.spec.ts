@@ -1,8 +1,8 @@
 // 规格 16 R22.13：用伪语言运行，界面上不应残留写死的文字。
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
@@ -33,7 +33,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("specimen-toggle").click();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Meta+,");
-  for (const g of ["general", "inference", "source", "frontend", "flatten", "jobs", "models"]) {
+  for (const g of ["general", "inference", "source", "frontend", "analysis", "flatten", "export", "jobs", "models"]) {
     await page.getByTestId(`settings-group-${g}`).click();
     await page.waitForTimeout(150);
     expect(await unbracketed(page)).toEqual([]);
@@ -140,5 +140,49 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.waitForTimeout(200);
   expect(await unbracketed(page)).toEqual([]);
   await page.screenshot({ path: ".cache/playwright-results/pseudo.png" });
+  await app.close();
+});
+
+// 节奏与卡拍（阶段 6）：有分析时的面板、分组与停顿、人工占格、逐音属性、交接 ▾、全局播放条的版本说明
+test("伪语言：节奏与卡拍", async () => {
+  const MODELS = resolve("dev-workspace/Models");
+  test.skip(!existsSync(join(MODELS, "pydomino", "phoneme_transition_model.onnx")), "dev models missing");
+  test.setTimeout(120_000);
+  const base = mkdtempSync(join(tmpdir(), "otto-pseudo-rhythm-"));
+  const workspace = join(base, "ws");
+  mkdirSync(workspace);
+  symlinkSync(MODELS, join(workspace, "Models"));
+  const wav = join(base, "v.wav");
+  const gate = [1.0, 1.25, 1.5, 2.2].map((o) => `between(t\\,${o}\\,${(o + 0.2).toFixed(2)})`).join("+");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `aevalsrc=0.3*sin(2*PI*220*t)*(${gate}):s=44100:d=3`, wav]);
+  const { app, page } = await launch({ locale: "pseudo", workspace });
+  await page.evaluate(async (p) => {
+    const req = window.otto.core.request;
+    const add = (await req("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const c = (await req("samples.create", { assetId: add.r[0]!.assets[0]!.assetId, start: 0.9, end: 2.6, name: "x", nature: "speech" })) as { r: { id: string; version: number } };
+    await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { align_text_manual: "かかかか" } }] } });
+    await req("speech.submit", { entry: "samples", ids: [c.r.id], rerunFresh: false });
+  }, wav);
+  await expect
+    .poll(async () => page.evaluate(async () => ((await window.otto.core.request("jobs.list", {})) as { r: Array<{ status: string }> }).r[0]?.status), { timeout: 60000 })
+    .toBe("succeeded");
+  await page.getByTestId("nav-library").click();
+  await page.getByTestId("refresh-lists").click();
+  await page.getByTestId("sample-row").first().click();
+  await expect(page.getByTestId("rhythm-map")).toBeVisible();
+  await page.getByTestId("bpm").fill("150");
+  await page.getByTestId("bpm").press("Enter");
+  await page.getByTestId("rhythm-mora").click();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.getByTestId("rhythm-play-stretched").click();
+  await expect(page.getByTestId("dock-version")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.getByTestId("dock-stop").click();
+  for (const id of ["rhythm-grouping", "rhythm-cells", "rhythm-attrs", "stage-handoff"]) {
+    await page.getByTestId(id).click();
+    await page.waitForTimeout(150);
+    expect(await unbracketed(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+  }
   await app.close();
 });

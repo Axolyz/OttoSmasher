@@ -397,6 +397,23 @@ export class Playback {
     }
   }
 
+  /** 试听渲染结果（卡拍、咔哒声；Core 的 rhythm.render 生成，按键解析，不接受路径）：从头播到尾；时钟报文件秒。 */
+  async auditionRender(key: string, loop = false): Promise<number> {
+    const e = this.auditionEngine();
+    const gen = e.begin();
+    try {
+      const h = await core<{ path: string; aid: number; fileStart: number; fileEnd: number }>("playback.resolveRender", { key });
+      if (gen !== e.gen) return gen;
+      e.setOffset(0);
+      e.load(h.path, h.aid);
+      e.playRange(h.fileStart, h.fileEnd, loop);
+      return gen;
+    } catch (err) {
+      e.fail(gen, err as CoreErrorWire);
+      throw err;
+    }
+  }
+
   position(player: PlayerName): number | null {
     const e = player === "source" ? this.sourceEng : this.auditionEng;
     return e ? e.position() : null;

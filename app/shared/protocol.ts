@@ -47,6 +47,8 @@ export interface PlayerApi {
   setMuted(muted: boolean): void;
   playRange(a: number, b: number, loop?: boolean): number;
   audition(assetId: string, start: number, end: number, loop?: boolean): Promise<number>;
+  /** 试听渲染结果（Core rhythm.render 的键）：卡拍、咔哒声 */
+  auditionRender(key: string, loop?: boolean): Promise<number>;
   stopAudition(): void;
   /** 每帧读引擎当前位置（原片秒 / 试听为区间本地秒）；没有加载时为 null */
   position(player: PlayerName): number | null;

@@ -1,11 +1,11 @@
 import { Command, Ellipsis, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { call, useCoreEvent } from "../api/core";
+import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { EditLabel } from "../api/types";
 import { Button } from "../components/Button";
 import { Menu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
-import { t } from "../i18n";
+import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import { describeLabel } from "./labels";
 import { TopSlotHost } from "./TopSlot";
@@ -19,6 +19,36 @@ export function TopBar() {
   const setShortcutsOpen = useApp((st) => st.setShortcutsOpen);
   const ready = useApp((st) => st.core.state === "ready");
   const undo = useUndo();
+  const bpm = useApp((st) => st.bpm);
+  const setBpm = useApp((st) => st.setBpm);
+  const toast = useApp((st) => st.toast);
+  const [bpmDraft, setBpmDraft] = useState("");
+  useEffect(() => {
+    if (ready) void call("rhythm.bpm").then((r) => setBpm(r.bpm), () => {});
+  }, [ready, setBpm]);
+  useEffect(() => setBpmDraft(bpm == null ? "" : String(bpm)), [bpm]);
+  // 所有窗口同步（03 §3.1）
+  useCoreEvent("rhythm.bpm", (d) => setBpm((d as { bpm: number | null }).bpm));
+  /** 全局 BPM（03 §3.1）：20–400，留空 = 原速卡拍；改了就停止试听，卡拍方案按需重算 */
+  const commitBpm = async () => {
+    const text = bpmDraft.trim();
+    const value = text === "" ? null : Number(text);
+    if (value === bpm) return;
+    if (value != null && !(Number.isFinite(value) && value >= 20 && value <= 400)) {
+      toast({ text: t("error.bpm-invalid", { min: 20, max: 400 }), tone: "error" });
+      setBpmDraft(bpm == null ? "" : String(bpm));
+      return;
+    }
+    try {
+      const r = await call("rhythm.setBpm", { bpm: value });
+      setBpm(r.bpm);
+      window.otto.player.stopAudition();
+      toast({ text: r.bpm == null ? t("top.bpm.original") : t("top.bpm.changed", { bpm: r.bpm }) });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+      setBpmDraft(bpm == null ? "" : String(bpm));
+    }
+  };
   const [peek, setPeek] = useState<{ label: EditLabel } | null>(null);
   const refreshPeek = () => {
     if (ready) void call("edits.peekUndo").then(setPeek, () => setPeek(null));
@@ -31,13 +61,30 @@ export function TopBar() {
       {(["library", "sources", "tools"] as const).map((p) => (
         <TopSlotHost key={p} page={p} active={p === page} className={s.slot!} />
       ))}
-      <label className={s.tempo}>
-        <span className={s.tempoNote} aria-hidden>
-          ♩
-        </span>
-        <input className="num" placeholder={t("top.bpm.placeholder")} aria-label={t("top.bpm")} disabled />
-        <span className={s.tempoUnit}>{t("top.bpm")}</span>
-      </label>
+      <label className={s.tempo} title={t("top.bpm.tip")}>
+          <span className={s.tempoNote} aria-hidden>
+            ♩
+          </span>
+          <input
+            className="num"
+            placeholder={t("top.bpm.placeholder")}
+            aria-label={t("top.bpm")}
+            value={bpmDraft}
+            inputMode="decimal"
+            disabled={!ready}
+            onChange={(e) => setBpmDraft(e.target.value)}
+            onBlur={() => void commitBpm()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") {
+                setBpmDraft(bpm == null ? "" : String(bpm));
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            data-testid="bpm"
+          />
+          <span className={s.tempoUnit}>{t("top.bpm")}</span>
+        </label>
       <Button variant="secondary" isDisabled icon={<Command />} aria-label={t("top.command")}>
         <span className={s.cmdLabel}>{t("top.command")}</span> <kbd className={s.kbd}>⌘K</kbd>
       </Button>

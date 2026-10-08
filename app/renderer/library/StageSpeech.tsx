@@ -2,7 +2,7 @@
 // - 波形卡：“声音：绑定资产名”（只显示，不能切换，Q7）；图层栏选一个覆盖层（音素 / mora / 无），其他图层用车道；金色 F0 线；
 // - 语音面板：音素按 mora 分组（假名在上、音素在下）、分析状态、「语音分析…」；没有台词时「提供台词并分析」。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
-import { AudioWaveform, ChevronDown, Download, Play, Split, Square } from "lucide-react";
+import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView } from "../api/types";
@@ -19,6 +19,7 @@ import { useApp } from "../state/store";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
 import s from "./Library.module.css";
+import { GroupingPanel } from "./StageRhythm";
 
 type LayerId = "ph" | "mora" | "none";
 const VOWELS = new Set(["a", "i", "u", "e", "o", "N", "cl"]);
@@ -71,7 +72,15 @@ function moraBands(phones: SpeechPhone[], morae: string[]): Layer {
   return { id: "mora", label: t("speech.layer.mora"), bands };
 }
 
-export function StageSpeech(props: { sample: SampleRow; playhead: () => number | null; playing: boolean; onPlayRange: (a: number, b: number) => void }) {
+export function StageSpeech(props: {
+  sample: SampleRow;
+  playhead: () => number | null;
+  playing: boolean;
+  onPlayRange: (a: number, b: number) => void;
+  /** 「♩ 卡拍」（UI_PLAN §3：单音没有，不给）：整个采样按舞台上的方案卡拍试听 */
+  onStretched?: () => void;
+  stretchedPlaying?: boolean;
+}) {
   const smp = props.sample;
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
@@ -380,6 +389,11 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
             >
               {props.playing ? t("library.stop") : t("stage.original")}
             </Button>
+            {props.onStretched ? (
+              <Button variant="flat" icon={props.stretchedPlaying ? <Square /> : <Music2 />} onPress={props.onStretched} isDisabled={editing} data-testid="stage-stretched">
+                {props.stretchedPlaying ? t("library.stop") : t("stage.stretched")}
+              </Button>
+            ) : null}
           </div>
           <div className={s.actGroup} data-testid="stage-readout" data-a={range.a} data-b={range.b}>
             <span className={s.mutedText}>{t("sources.selection")}</span>
@@ -442,7 +456,7 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           <div className={s.moras} data-testid="speech-moras">
             {groups.map((g, gi) => (
               <div key={gi} className={s.mora}>
-                <span className={s.kana} lang="ja">
+                <span className={s.kana} lang="ja" data-user-data="">
                   {g.kana}
                 </span>
                 <div className={s.phs}>
@@ -514,6 +528,7 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
             <TextField value={rangeText} onChange={setRangeText} label={t("speech.rangeText")} testId="speech-range-text" />
           </AnchoredPanel>
           <div className={s.grow} />
+          {smp.nature === "pitched" || smp.nature === "unpitched" ? null : <GroupingPanel sample={smp} isDisabled={editing} />}
           <AnchoredPanel
             title={t("speech.textPanel")}
             isOpen={textOpen}
