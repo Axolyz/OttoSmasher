@@ -96,6 +96,14 @@ export function LibraryPage() {
   const lastVersion = useApp((st) => st.lastVersion);
   const stageRhythm = useApp((st) => st.stageRhythm);
   const [playingVer, setPlayingVer] = useState<string | null>(null);
+  // 播放条停止或播完（nowPlaying 变成空）→ 本页的“正在试听”也清掉
+  const nowPlaying = useApp((st) => st.nowPlaying);
+  useEffect(() => {
+    if (!nowPlaying) {
+      setPlaying(null);
+      setPlayingVer(null);
+    }
+  }, [nowPlaying]);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [focusRow, setFocusRow] = useState<SampleRow | null>(null);
   const [split, setSplit] = useState(0.5);
@@ -677,7 +685,7 @@ export function LibraryPage() {
           <StageSpeech
             sample={focusRow}
             playhead={() => (playing === focusRow.id && playingVer?.startsWith("original:") ? auditionAt.current : null)}
-            playing={playing === focusRow.id}
+            playing={playing === focusRow.id && !!playingVer?.startsWith("original:")}
             onPlayRange={(a, b) => void playRange(focusRow, a, b)}
             onStretched={isSingle(focusRow.nature) ? undefined : () => void audition(focusRow, "stretched", stageOpts(focusRow.id))}
             stretchedPlaying={playing === focusRow.id && playingVer === "stretched:voice"}

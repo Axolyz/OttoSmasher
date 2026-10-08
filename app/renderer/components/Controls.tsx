@@ -61,6 +61,7 @@ export interface SegOption<K extends string> {
 
 /**
  * 分段选择（单选，不可清空）：性质、覆盖层、方案等。variant="lens" 是顶栏用途切换那种无边框样式。
+ * ``wrap``：选项文字长（例如卡拍方案带倍速与格/拍）时，窄窗口下换行而不撑出横向滚动。
  * 键盘：←→ 在选项间移动，Space/Enter 选中（React Aria ToggleButtonGroup，role=radiogroup）。
  */
 export function Segmented<K extends string>(props: {
@@ -70,6 +71,7 @@ export function Segmented<K extends string>(props: {
   label: string;
   variant?: "box" | "lens";
   size?: "sm" | "md";
+  wrap?: boolean;
   testId?: string;
 }) {
   return (
@@ -82,7 +84,7 @@ export function Segmented<K extends string>(props: {
         if (k != null) props.onChange(String(k) as K);
       }}
       aria-label={props.label}
-      className={`${s.seg} ${props.variant === "lens" ? s.lens : ""} ${props.size === "sm" ? s.segSm : ""}`}
+      className={`${s.seg} ${props.variant === "lens" ? s.lens : ""} ${props.size === "sm" ? s.segSm : ""} ${props.wrap ? s.segWrap : ""}`}
       data-testid={props.testId}
     >
       {props.options.map((o) => (

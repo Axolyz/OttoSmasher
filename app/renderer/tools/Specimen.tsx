@@ -175,6 +175,18 @@ export function Specimen() {
               { id: "pitched", label: t("nature.pitched"), mark: <NatureDot nature="pitched" /> },
             ]}
           />
+          <Segmented
+            size="sm"
+            wrap
+            value={seg}
+            onChange={setSeg}
+            label={t("specimen.segWrap")}
+            options={[
+              { id: "sub", label: t("rhythm.planLabel", { plan: t("rhythm.plan.near_fast"), speed: "1.06", density: 4 }) },
+              { id: "phone", label: t("rhythm.planLabel", { plan: t("rhythm.plan.near_slow"), speed: "0.53", density: 2 }) },
+              { id: "seg", label: t("rhythm.planLabel", { plan: t("rhythm.plan.double"), speed: "2.12", density: 8 }) },
+            ]}
+          />
           <TimeField value={time} onCommit={(v) => (v < 1000 ? (setTime(v), true) : false)} label={t("specimen.time")} />
           <span className="num mono">{clock(time)}</span>
         </div>

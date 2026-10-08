@@ -13,6 +13,7 @@
 .segBtn[data-selected] { background: var(--s3); color: var(--text); }
 .segBtn[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -1px; }
 .segBtn[data-disabled] { opacity: 0.4; }
+.segWrap { flex-wrap: wrap; max-width: 100%; }
 .segSm .segBtn { padding: 1px 8px; font-size: var(--fs-xs); }
 .lens { background: transparent; border: none; padding: 0; }
 .lens .segBtn { padding: 6px 12px; font-size: var(--fs-md); font-weight: 550; border-radius: var(--r-md); }

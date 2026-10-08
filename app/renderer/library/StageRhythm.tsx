@@ -39,23 +39,22 @@ function RhythmMap(props: { scheme: RhythmScheme; window: number[] }) {
   const maxT = Math.max(src, out, 1e-6);
   const X = (v: number) => 10 + (v / maxT) * 680;
   return (
-    <svg className={s.rhythmMap} viewBox="0 0 700 92" preserveAspectRatio="none" role="img" aria-label={t("rhythm.mapLabel")} data-testid="rhythm-map">
-      <line x1={X(0)} y1={18} x2={X(src)} y2={18} className={s.mapSrc} />
-      <line x1={X(0)} y1={74} x2={X(out)} y2={74} className={s.mapTgt} />
-      {scheme.points.map((p, i) => (
-        <g key={i}>
-          <line x1={X(p.src - w[0]!)} y1={18} x2={X(p.tgt)} y2={74} className={s.mapLink} data-kind={p.kind} />
-          <circle cx={X(p.src - w[0]!)} cy={18} r={3.5} className={s.mapSrcDot} />
-          <circle cx={X(p.tgt)} cy={74} r={3.5} className={s.mapTgtDot} data-kind={p.kind} />
-        </g>
-      ))}
-      <text x={12} y={10} className={s.mapText}>
-        {t("rhythm.mapSource")}
-      </text>
-      <text x={12} y={90} className={s.mapText}>
-        {t("rhythm.mapTarget")}
-      </text>
-    </svg>
+    <div className={s.mapWrap}>
+      <svg className={s.rhythmMap} viewBox="0 0 700 92" preserveAspectRatio="none" role="img" aria-label={t("rhythm.mapLabel")} data-testid="rhythm-map">
+        <line x1={X(0)} y1={18} x2={X(src)} y2={18} className={s.mapSrc} />
+        <line x1={X(0)} y1={74} x2={X(out)} y2={74} className={s.mapTgt} />
+        {scheme.points.map((p, i) => (
+          <g key={i}>
+            <line x1={X(p.src - w[0]!)} y1={18} x2={X(p.tgt)} y2={74} className={s.mapLink} data-kind={p.kind} />
+            <circle cx={X(p.src - w[0]!)} cy={18} r={3.5} className={s.mapSrcDot} />
+            <circle cx={X(p.tgt)} cy={74} r={3.5} className={s.mapTgtDot} data-kind={p.kind} />
+          </g>
+        ))}
+      </svg>
+      {/* 文字不放进拉伸的 SVG（窄窗口下会被压扁） */}
+      <span className={s.mapLabelTop}>{t("rhythm.mapSource")}</span>
+      <span className={s.mapLabelBottom}>{t("rhythm.mapTarget")}</span>
+    </div>
   );
 }
 
@@ -94,7 +93,7 @@ export function StageRhythm(props: { sample: SampleRow; playingKey: string | nul
   const sr = useApp((st) => st.stageRhythm);
   const setSr = useApp((st) => st.setStageRhythm);
   useEffect(() => setSr({ sampleId: smp.id }), [smp.id, setSr]);
-  const { view } = useRhythmView(smp.id, smp.version);
+  const { view, error } = useRhythmView(smp.id, smp.version);
   const plan = sr.sampleId === smp.id ? sr.plan : "near_fast";
   const sound = sr.sampleId === smp.id ? sr.sound : "voice";
   const ok = view?.status === "ok";
@@ -117,6 +116,11 @@ export function StageRhythm(props: { sample: SampleRow; playingKey: string | nul
           {bpm == null ? t("rhythm.originalSpeed", { bpm: scheme ? scheme.bpm.toFixed(1) : "–" }) : t("rhythm.bpm", { bpm })}
         </span>
       </div>
+      {error && !view ? (
+        <Callout tone="bad" testId="rhythm-error">
+          {error instanceof CoreFailure ? errorText(error.wire) : String(error)}
+        </Callout>
+      ) : null}
       {!view ? null : !ok ? (
         <div className={s.hintText} data-testid="rhythm-none">
           {t("rhythm.none")}
@@ -132,6 +136,7 @@ export function StageRhythm(props: { sample: SampleRow; playingKey: string | nul
               value={plan}
               onChange={(v) => setSr({ sampleId: smp.id, plan: v })}
               options={PLANS.map((k) => ({ id: k, label: planLabel(k, view.schemes?.[k]), data: { "data-testid": `rhythm-plan-${k}` } }))}
+              wrap
               testId="rhythm-plans"
             />
             <div className={s.grow} />
@@ -180,6 +185,7 @@ export function StageRhythm(props: { sample: SampleRow; playingKey: string | nul
               value={sound}
               onChange={(v) => setSr({ sampleId: smp.id, sound: v })}
               options={SOUNDS.map((k) => ({ id: k, label: t(`rhythm.sound.${k}`), data: { "data-testid": `rhythm-sound-${k}` } }))}
+              wrap
               testId="rhythm-sounds"
             />
             <div className={s.grow} />

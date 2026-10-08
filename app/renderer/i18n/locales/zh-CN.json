@@ -1326,5 +1326,6 @@
   "settings.export.reaper_snap.label": "REAPER 交接的吸附",
   "settings.export.reaper_snap.hint": "粘贴到 REAPER 时：首个起音落在编辑光标（前导辅音留在光标之前），或以条目开头为准。",
   "settings.export.reaper_snap.onset": "首个起音对准光标",
-  "settings.export.reaper_snap.start": "条目开头对准光标"
+  "settings.export.reaper_snap.start": "条目开头对准光标",
+  "specimen.segWrap": "分段选择（可换行）"
 }

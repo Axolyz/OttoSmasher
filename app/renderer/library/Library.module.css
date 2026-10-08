@@ -73,10 +73,13 @@
 .mapTgt { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: 0.8; }
 .mapLink { stroke: var(--sub); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 .mapLink[data-kind="tail"], .mapLink[data-kind="segment-tail"] { stroke-dasharray: 3 3; }
-.mapSrcDot { fill: var(--wave); }
+.mapSrcDot { fill: var(--wave); vector-effect: non-scaling-stroke; }
 .mapTgtDot { fill: var(--accent); }
 .mapTgtDot[data-kind="tail"], .mapTgtDot[data-kind="segment-tail"] { fill: var(--muted); }
-.mapText { font-size: 10px; fill: var(--muted); }
+.mapWrap { position: relative; }
+.mapLabelTop, .mapLabelBottom { position: absolute; left: 2px; font-size: 10px; color: var(--muted); line-height: 1; pointer-events: none; }
+.mapLabelTop { top: 0; }
+.mapLabelBottom { bottom: 0; }
 .calloutRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cellEdit { display: flex; align-items: center; gap: 4px; }
 .cellEdit[data-manual] input { color: var(--accent); font-weight: 650; }
