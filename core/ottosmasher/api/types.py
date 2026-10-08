@@ -191,6 +191,34 @@ class Quit(TypedDict):
     cancelled: int
 
 
+class DictionaryTextParams(TypedDict):
+    text: str
+
+
+class DictionaryLineError(TypedDict):
+    line: int
+    reason: str
+    first: NotRequired[int]
+    max: NotRequired[int]
+
+
+class DictionaryCheck(TypedDict):
+    entries: int
+    errors: list[DictionaryLineError]
+
+
+class DictionarySaveParams(TypedDict):
+    text: str
+    # 打开编辑器时读到的设置版本（乐观并发：期间被改过就拒绝保存）
+    version: int
+
+
+class DictionaryPreviewParams(TypedDict):
+    sentence: str
+    # 草稿辞典；缺省用当前生效的辞典
+    text: NotRequired[str | None]
+
+
 class InferTestParams(TypedDict):
     filename: str
     # 草稿规则（未保存）；缺省用当前设置

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import queue
+import shutil
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -94,6 +95,11 @@ class Core:
         r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test)
         r("models.status", "read", T.NoParams, T.ModelsStatus, "Model files, ONNX Runtime and inference probe status.", self._models_status)
         r("models.verify", "job", T.NoParams, T.JobSummary, "Submit a job that hashes the model files.", self._models_verify)
+        r("dictionary.check", "read", T.DictionaryTextParams, T.DictionaryCheck, "Validate user dictionary text line by line (no compiling).", self._dictionary_check)
+        r("dictionary.save", "job", T.DictionarySaveParams, T.JobSummary,
+          "Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile).", self._dictionary_save)
+        r("dictionary.preview", "job", T.DictionaryPreviewParams, T.JobSummary, "Phonemes and readings of one sentence with a draft (or the current) dictionary.",
+          self._dictionary_preview)
         r("models.probe", "job", T.NoParams, T.JobSummary, "Submit a job that runs one minimal inference per model under the current device setting.",
           self._models_probe)
         r("ui.get", "ui", T.UiGetParams, dict[str, Any], "Restore UI state of one page.", self._ui_get)
@@ -242,6 +248,8 @@ class Core:
         )
         self.jobs.adopters["models.verify"] = self._adopt_hashes
         self.jobs.adopters["models.probe"] = self._adopt_probes
+        self.jobs.adopters["dictionary.compile"] = self._adopt_dictionary
+        self.jobs.adopters["dictionary.preview"] = self._adopt_probes
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
@@ -359,6 +367,51 @@ class Core:
     def _models_verify(self, p: dict[str, Any]) -> dict[str, Any]:
         paths = [str(x) for x in registry.all_files(self.ws.models, self.support_dir) if x.exists()]
         return self.jobs.submit("models.verify", {"paths": paths})
+
+    # ---------- 用户辞典（08 §8.2.4）
+
+    def _dictionary_check(self, p: dict[str, Any]) -> dict[str, Any]:
+        from ..lang.ja import dictionary
+
+        entries, errors = dictionary.parse(str(p["text"]))
+        return {"entries": len(entries), "errors": errors}
+
+    def _dictionary_save(self, p: dict[str, Any]) -> dict[str, Any]:
+        from ..lang.ja import dictionary
+
+        dictionary.check(str(p["text"]))
+        return self.jobs.submit("dictionary.compile", {"text": str(p["text"]), "base_version": int(p["version"])})
+
+    def _dictionary_preview(self, p: dict[str, Any]) -> dict[str, Any]:
+        from ..lang.ja import dictionary
+
+        text = p.get("text")
+        if text is not None:
+            dictionary.check(str(text))
+        cur = settings_mod.values(self.conn)["frontend.user_dictionary"]["compiled"]
+        return self.jobs.submit("dictionary.preview", {
+            "sentence": str(p["sentence"]), "text": text, "current": str(self.ws.dictionary / cur) if cur else None,
+            "models_dir": str(self.ws.models), "support_dir": str(self.support_dir),
+        })
+
+    def _adopt_dictionary(self, job: dict[str, Any], result: dict[str, Any]) -> None:
+        """编译成功：产物按内容名放进 Data/Dictionary（已有同名就是同一份内容），再经编辑通道启用；期间辞典被改过 → edit-conflict，任务失败。"""
+        params = loads(job["params"])
+        name = result.get("name")
+        if name:
+            dst = self.ws.dictionary / name
+            if not dst.exists():
+                self.ws.dictionary.mkdir(parents=True, exist_ok=True)
+                tmp = self.ws.staging / f"{name}.{job['id'][:8]}.tmp"
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(result["path"], tmp)
+                os.replace(tmp, dst)
+        self.edits.apply(
+            {
+                "label": {"code": "dictionary-save", "args": {"n": int(result.get("entries", 0))}},
+                "ops": [{"entity": "setting", "id": "frontend.user_dictionary", "version": params["base_version"], "fields": {"value": {"text": params["text"], "compiled": name}}}],
+            }
+        )
 
     def _models_probe(self, p: dict[str, Any]) -> dict[str, Any]:
         return self.jobs.submit("models.probe", {"models_dir": str(self.ws.models), "support_dir": str(self.support_dir)})

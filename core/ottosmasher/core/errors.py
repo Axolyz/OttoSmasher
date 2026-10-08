@@ -49,7 +49,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "edit-not-found": (("entity", "id", "index"), "Edited object does not exist."),
     "edit-duplicate-object": (("entity", "id", "index"), "The same object appears twice in one batch."),
     "edit-conflict": (("actual", "entity", "expected", "id", "index"), "Object changed since it was read (version mismatch)."),
-    "edit-invalid": (("entity", "field", "index", "reason", "role"), "Edit value rejected."),
+    "edit-invalid": (("entity", "field", "first", "index", "line", "max", "min", "options", "reason", "role"), "Edit value rejected."),
     "undo-nothing-safe": ((), "Nothing can be undone safely."),
     # ---- 任务
     "job-kind-unknown": (("kind",), "No such job kind."),
@@ -127,6 +127,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     # ---- 文本前端与对齐（规格 08）
     "frontend-failed": (("detail", "reason"), "Text frontend failed."),
     "language-unsupported": (("language",), "No text frontend is registered for this language."),
+    "dictionary-invalid": (("first", "line", "max", "reason"), "A user dictionary line is invalid (line number given)."),
+    "dictionary-compile-failed": (("detail",), "Compiling the user dictionary failed; the active dictionary is unchanged."),
     "align-empty": ((), "Nothing to align (no phonemes)."),
     "align-unsupported": (("detail",), "The aligner does not support a phoneme transition in this text."),
     "align-audio-too-short": (("frames",), "Audio window is too short to align."),

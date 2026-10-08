@@ -14,7 +14,7 @@ import {
   TextArea as RacTextArea,
   TextField as RacTextField,
 } from "react-aria-components";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clock, parseClock } from "../format";
 import s from "./Fields.module.css";
 
@@ -192,15 +192,48 @@ export function TimeField(props: { value: number | null; onCommit: (v: number) =
   );
 }
 
-/** 多行文字输入（试算框、对齐文本、备注）：Enter 换行；lang 用于日文字形。 */
-export function TextArea(props: { value: string; onChange: (v: string) => void; label: string; rows?: number; lang?: string; mono?: boolean; testId?: string }) {
+/** 多行文字输入（试算框、对齐文本、备注）：Enter 换行；lang 用于日文字形。
+ * ``tabInserts``：Tab 插入制表符而不是移走焦点（UI_PLAN §7：对齐文本、辞典、精确时间文本）；Shift+Tab 仍然移走焦点。 */
+export function TextArea(props: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  rows?: number;
+  lang?: string;
+  mono?: boolean;
+  testId?: string;
+  placeholder?: string;
+  tabInserts?: boolean;
+  invalid?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // 插入制表符后的光标位置：受控值更新提交后立即放回（不能等下一帧，否则紧接着的输入会落到末尾）
+  const caret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caret.current !== null && ref.current) {
+      ref.current.setSelectionRange(caret.current, caret.current);
+      caret.current = null;
+    }
+  }, [props.value]);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!props.tabInserts || e.key !== "Tab" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+    caret.current = a + 1;
+    props.onChange(props.value.slice(0, a) + "\t" + props.value.slice(b));
+  };
   return (
-    <RacTextField value={props.value} onChange={props.onChange} aria-label={props.label} className={s.text}>
+    <RacTextField value={props.value} onChange={props.onChange} aria-label={props.label} isInvalid={props.invalid} className={s.text}>
       <RacTextArea
+        ref={ref}
         className={`${s.textInput} ${s.textArea} ${props.mono ? "mono" : ""}`}
         rows={props.rows ?? 2}
         lang={props.lang}
         spellCheck={false}
+        placeholder={props.placeholder}
+        onKeyDown={onKeyDown}
         data-testid={props.testId}
       />
     </RacTextField>

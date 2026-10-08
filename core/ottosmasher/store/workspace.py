@@ -65,6 +65,10 @@ class Workspace:
         return self.data / "Backups"
 
     @property
+    def dictionary(self) -> Path:
+        return self.data / "Dictionary"
+
+    @property
     def staging(self) -> Path:
         return self.data / "Staging"
 

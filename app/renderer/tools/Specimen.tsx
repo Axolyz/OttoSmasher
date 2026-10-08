@@ -5,7 +5,7 @@ import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
 import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, Segmented, StepsBar } from "../components/Controls";
-import { NumberField, Select, Switch, TextField, TimeField } from "../components/Fields";
+import { NumberField, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
 import { Tip } from "../components/Overlay";
@@ -40,6 +40,7 @@ export function Specimen() {
   const [thumbPlaying, setThumbPlaying] = useState(false);
   const [num, setNum] = useState(0.65);
   const [sel, setSel] = useState("speech");
+  const [area, setArea] = useState("");
   const [cb, setCb] = useState<"none" | "some" | "all">("some");
   const [seg, setSeg] = useState<"sub" | "phone" | "seg" | "none">("sub");
   const [lens, setLens] = useState<"all" | "speech" | "pitched">("all");
@@ -245,6 +246,10 @@ export function Specimen() {
           </div>
           {ctx.node}
         </div>
+      </section>
+      <section>
+        <h4>{t("specimen.textArea")}</h4>
+        <TextArea value={area} onChange={setArea} label={t("specimen.textArea")} rows={3} mono tabInserts placeholder={t("dict.placeholder")} testId="specimen-textarea" />
       </section>
       <section>
         <h4>{t("specimen.list")}</h4>

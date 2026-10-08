@@ -93,6 +93,39 @@
    }
   },
   {
+   "name": "dictionary.check",
+   "effect": "read",
+   "summary": "Validate user dictionary text line by line (no compiling).",
+   "params": {
+    "$ref": "#/$defs/DictionaryTextParams"
+   },
+   "result": {
+    "$ref": "#/$defs/DictionaryCheck"
+   }
+  },
+  {
+   "name": "dictionary.preview",
+   "effect": "job",
+   "summary": "Phonemes and readings of one sentence with a draft (or the current) dictionary.",
+   "params": {
+    "$ref": "#/$defs/DictionaryPreviewParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "dictionary.save",
+   "effect": "job",
+   "summary": "Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile).",
+   "params": {
+    "$ref": "#/$defs/DictionarySaveParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "edits.apply",
    "effect": "write",
    "summary": "Apply an edit batch atomically (undoable).",
@@ -918,6 +951,23 @@
    "summary": "Command is only available in development mode."
   },
   {
+   "code": "dictionary-compile-failed",
+   "args": [
+    "detail"
+   ],
+   "summary": "Compiling the user dictionary failed; the active dictionary is unchanged."
+  },
+  {
+   "code": "dictionary-invalid",
+   "args": [
+    "first",
+    "line",
+    "max",
+    "reason"
+   ],
+   "summary": "A user dictionary line is invalid (line number given)."
+  },
+  {
    "code": "edit-conflict",
    "args": [
     "actual",
@@ -947,7 +997,12 @@
    "args": [
     "entity",
     "field",
+    "first",
     "index",
+    "line",
+    "max",
+    "min",
+    "options",
     "reason",
     "role"
    ],
@@ -2321,6 +2376,97 @@
     "name",
     "nature",
     "start"
+   ]
+  },
+  "DictionaryCheck": {
+   "title": "DictionaryCheck",
+   "type": "object",
+   "properties": {
+    "entries": {
+     "type": "integer"
+    },
+    "errors": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/DictionaryLineError"
+     }
+    }
+   },
+   "required": [
+    "entries",
+    "errors"
+   ]
+  },
+  "DictionaryLineError": {
+   "title": "DictionaryLineError",
+   "type": "object",
+   "properties": {
+    "first": {
+     "type": "integer"
+    },
+    "line": {
+     "type": "integer"
+    },
+    "max": {
+     "type": "integer"
+    },
+    "reason": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "line",
+    "reason"
+   ]
+  },
+  "DictionaryPreviewParams": {
+   "title": "DictionaryPreviewParams",
+   "type": "object",
+   "properties": {
+    "sentence": {
+     "type": "string"
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "sentence"
+   ]
+  },
+  "DictionarySaveParams": {
+   "title": "DictionarySaveParams",
+   "type": "object",
+   "properties": {
+    "text": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "text",
+    "version"
+   ]
+  },
+  "DictionaryTextParams": {
+   "title": "DictionaryTextParams",
+   "type": "object",
+   "properties": {
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
    ]
   },
   "EditApplied": {

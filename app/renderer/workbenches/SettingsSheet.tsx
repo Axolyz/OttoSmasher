@@ -8,6 +8,7 @@ import { Sheet } from "../components/Overlay";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
+import { DictionaryPanel } from "./DictionaryPanel";
 import { ModelsPanel } from "./ModelsPanel";
 import { RoleAliasEditor } from "./RoleAliasEditor";
 import { RootsPanel } from "./RootsPanel";
@@ -16,7 +17,7 @@ import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-const GROUPS = ["general", "inference", "source", "subtitle", "analysis", "studio", "jobs", "storage", "models"] as const;
+const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "studio", "jobs", "storage", "models"] as const;
 type Group = (typeof GROUPS)[number];
 
 interface NumSpec {
@@ -167,6 +168,7 @@ export function SettingsSheet() {
                   </div>
                 );
               }
+              if (key === "frontend.user_dictionary") return <DictionaryPanel key={key} entry={e} onReload={reload} />;
               if (key === "separation.role_aliases") {
                 return (
                   <div className={s.itemWide} key={key} data-testid={`setting-${key}`}>

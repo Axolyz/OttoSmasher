@@ -221,7 +221,42 @@ def _models_probe(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return {"probes": probes}
 
 
+def _dictionary_compile(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """用户辞典：编译到任务目录并加载验证；启用由 Core 做（08 §8.2.4）。"""
+    from ..lang.ja import dictionary
+
+    out = ctx.job_dir / "user.dic"
+    name = dictionary.compile_to(params["text"], out)
+    return {"name": name, "path": str(out) if name else None, "entries": len(dictionary.check(params["text"]))}
+
+
+def _dictionary_preview(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """辞典预览：用草稿（或当前）辞典给一句话出音素与读音。"""
+    from ..lang.ja import dictionary
+    from ..lang.ja.runtime import JaRuntime
+    from ..models.onnx import Device
+
+    draft = params.get("text")
+    if draft is not None:
+        out = ctx.job_dir / "draft.dic"
+        name = dictionary.compile_to(draft, out)
+        path, version = (out if name else None), dictionary.version_of(name)
+    else:
+        path = Path(params["current"]) if params.get("current") else None
+        version = dictionary.version_of(Path(params["current"]).name if params.get("current") else None)
+    rt = JaRuntime(Path(params["models_dir"]), Path(params["support_dir"]), Device.of(ctx.device), path, version)
+    r = rt.analyze(params["sentence"])
+    return {
+        "phonemes": r.phonemes,
+        "words": [{"text": w.text, "reading": w.reading, "mapped": w.mapped} for w in r.words],
+        "dictionary": version,
+        "probes": [rt.session.probe] if rt.session.probe else [],
+    }
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "dictionary.compile": _dictionary_compile,
+    "dictionary.preview": _dictionary_preview,
     "models.probe": _models_probe,
     "studio.models": _studio_models,
     "separate": _separate,

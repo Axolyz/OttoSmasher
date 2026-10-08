@@ -130,6 +130,32 @@ export interface DerivedSample {
   start: number;
 }
 
+export interface DictionaryCheck {
+  entries: number;
+  errors: DictionaryLineError[];
+}
+
+export interface DictionaryLineError {
+  first?: number;
+  line: number;
+  max?: number;
+  reason: string;
+}
+
+export interface DictionaryPreviewParams {
+  sentence: string;
+  text?: string | null;
+}
+
+export interface DictionarySaveParams {
+  text: string;
+  version: number;
+}
+
+export interface DictionaryTextParams {
+  text: string;
+}
+
 export interface EditApplied {
   changes: EditChange[];
   edit_id: string | null;
@@ -1102,6 +1128,12 @@ export interface Commands {
   "core.hello": { params: NoParams; result: Hello; effect: "read" };
   /** Dev hook: register an existing stem file as a full-track asset (S1.2). */
   "dev.registerStem": { params: RegisterStemParams; result: StemRegistered; effect: "dev" };
+  /** Validate user dictionary text line by line (no compiling). */
+  "dictionary.check": { params: DictionaryTextParams; result: DictionaryCheck; effect: "read" };
+  /** Phonemes and readings of one sentence with a draft (or the current) dictionary. */
+  "dictionary.preview": { params: DictionaryPreviewParams; result: JobSummary; effect: "job" };
+  /** Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile). */
+  "dictionary.save": { params: DictionarySaveParams; result: JobSummary; effect: "job" };
   /** Apply an edit batch atomically (undoable). */
   "edits.apply": { params: EditBatchParams; result: EditApplied; effect: "write" };
   /** What undo would revert next. */
@@ -1244,6 +1276,8 @@ export type ErrorCode =
   | "default-track-invalid"
   | "default-track-missing"
   | "dev-only"
+  | "dictionary-compile-failed"
+  | "dictionary-invalid"
   | "edit-conflict"
   | "edit-duplicate-object"
   | "edit-empty"

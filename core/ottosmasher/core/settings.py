@@ -17,6 +17,19 @@ from ottosmasher.domain.rules import defaults as rules_defaults
 from .errors import CoreError
 
 
+def _user_dictionary(v: Any) -> dict[str, Any]:
+    from ottosmasher.lang.ja import dictionary
+
+    if not isinstance(v, dict) or set(v) != {"text", "compiled"} or not isinstance(v["text"], str):
+        raise CoreError("setting-invalid", reason="not-an-option")
+    if len(v["text"]) > 1_000_000:
+        raise CoreError("setting-invalid", reason="too-long", max=1_000_000)
+    name = dictionary.content_name(v["text"])  # 逐行校验（不合格抛 dictionary-invalid，带行号）
+    if v["compiled"] != name:
+        raise CoreError("setting-invalid", reason="dict-not-compiled")
+    return {"text": v["text"], "compiled": name}
+
+
 @dataclass(frozen=True)
 class SettingSpec:
     key: str
@@ -116,6 +129,8 @@ SPECS: dict[str, SettingSpec] = {
         # 分离声部名 → 角色别名表（规格 05 §5.4、推定 A9；不分大小写）
         SettingSpec("separation.role_aliases", [list(x) for x in rules_defaults()["separation.role_aliases"]], _role_aliases, "studio"),
         # 语音分析：对齐前/后容差
+        # 文本前端（08 §8.2.4）：用户辞典 = 源文本 + 编译产物名；只能由「保存」任务在编译成功后写入（产物名必须与内容一致）
+        SettingSpec("frontend.user_dictionary", {"text": "", "compiled": None}, _user_dictionary, "frontend"),
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),
         # 任务并发（规格 13 §13.1.2、16 R19.3：模型 1、轻量 2；可设 1–4，0 拒绝）

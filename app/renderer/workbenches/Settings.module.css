@@ -33,3 +33,10 @@
 .rootPath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
 .rootMeta { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
 .rootActions { display: flex; gap: 6px; margin-top: 8px; }
+/* 用户辞典（阶段 4.3） */
+.dictBody { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dictStatus { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
+.dictErrors { margin: 0; padding-left: 18px; color: var(--bad); font-size: var(--fs-sm); }
+.dictPreview { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--line2); }
+.dictResult { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); user-select: text; }
+.dictWord { display: inline-flex; gap: 2px; margin-right: 10px; }
