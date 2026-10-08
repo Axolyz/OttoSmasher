@@ -70,6 +70,21 @@ MODELS: tuple[ModelSpec, ...] = (
 )
 
 
+def spec(model_id: str) -> ModelSpec:
+    for m in MODELS:
+        if m.id == model_id:
+            return m
+    raise KeyError(model_id)
+
+
+def locate(model_id: str, rel_path: str, models_dir: Path, support_dir: Path) -> tuple[Path, str]:
+    """某个模型文件的实际路径与清单里的 SHA-256。"""
+    for f in spec(model_id).files:
+        if f.rel_path == rel_path:
+            return file_path(f, models_dir, support_dir), f.sha256
+    raise KeyError(rel_path)
+
+
 def file_path(f: ModelFile, models_dir: Path, support_dir: Path) -> Path:
     return (models_dir if f.role == "weight" else support_dir) / f.rel_path
 

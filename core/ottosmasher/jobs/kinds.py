@@ -5,6 +5,7 @@ from __future__ import annotations
 # 种类 → 通道
 KINDS: dict[str, str] = {
     "models.verify": "light",
+    "models.probe": "model",
     "studio.models": "light",
     "separate": "model",
     "import.scan": "light",

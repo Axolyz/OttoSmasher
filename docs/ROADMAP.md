@@ -73,7 +73,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 | L3 | 发布版用户数据目录默认 `~/Documents/OttoSmasher Workspace/`，设置里可换 | QUESTIONS Q3 | 所有者 2026-10-07 同意；阶段 10 打包时实现 | 已定 |
 | L4 | 8 与 9 合并成一次验收 | 2026-10-07 建议 | 所有者 2026-10-07 同意；阶段 8、9 做完一起验收 | 已定 |
 | L5 | ~~3.10 编辑字幕/区段边界、手动区段标签的范围~~ | STATUS 3.10 | 阶段 3 | 已完成（b8d284a） |
-| L6 | ONNX 加速：开启但会话没拿到请求的 EP → 报错不回退；DirectML 关 mem pattern、顺序执行；首次推理后写 `model_probe`（设置页“实测”目前显示“未实测”） | R19.5、规格 14 §14.7；阶段 1 留空 | 阶段 4（首次接入推理） | 未开始 |
+| L6 | ~~ONNX 加速：开启但会话没拿到请求的 EP → 报错不回退；DirectML 关 mem pattern、顺序执行；首次推理后写 `model_probe`~~ | R19.5、规格 14 §14.7 | 阶段 4 | 已完成（4.1：`models/onnx.py`、设置页「实测」任务；macOS CPU 与 CoreML 四个模型都实测通过；DirectML 未实测 → 未验收） |
 | L7 | 页面进程崩溃后重建窗口：已实现未测试 | 阶段 1 已知问题 | 阶段 10 冒烟前补一个测试 | 未开始 |
 | L8 | 发布版目录布局（`app/main/paths.ts` 目前对打包版直接报错）、.icns/.ico 由 `assets/brand/logo.png`（v2 原图 4267 px）生成、libmpv 变体许可证复核、Windows 的 libmpv 来源 | 阶段 1、ARCHITECTURE §10.1、§14 | 阶段 10 | 未开始 |
 | L9 | Windows：作业对象结束进程树、原生扩展构建、pydomino C++ 扩展构建——全部未实测 | ARCHITECTURE §13 | 阶段 10（GitHub Actions，需所有者授权推送） | 未验收 |

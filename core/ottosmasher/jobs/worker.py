@@ -209,7 +209,20 @@ def _sources_scan(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return scan_roots(list(params["roots"]), list(params["known"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "sources-scanning"))
 
 
+def _models_probe(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """在提交时冻结的设备设置下给每个模型做一次最小推理（ROADMAP L6）。"""
+    from ..models.onnx import Device
+    from ..models.probe import probe_all
+
+    probes = probe_all(
+        Path(params["models_dir"]), Path(params["support_dir"]), Device.of(ctx.device),
+        lambda done, total, model: ctx.progress("probe", done, total, "models-probing", model=model),
+    )
+    return {"probes": probes}
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "models.probe": _models_probe,
     "studio.models": _studio_models,
     "separate": _separate,
     "import.scan": _import_scan,

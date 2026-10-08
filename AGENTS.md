@@ -43,7 +43,7 @@
 - **Node 一律用 `tools/npm`**（例如 `tools/npm install`、`tools/npm run build`）：npm 缓存、Electron 二进制缓存、electron-builder 缓存、
   Playwright 浏览器都放在仓库内 `.cache/`。直接用 `npm` 会写到 `~/.npm`、`~/Library/Caches/electron`。
   npm 11 只运行 `package.json` 的 `allowScripts` 里批准过的安装脚本（目前是 electron、esbuild）；Electron 二进制若缺失，用 `tools/npm exec -- node node_modules/electron/install.js`。
-- 原生扩展用 `node tools/build-native.mjs` 编译（Electron 头文件缓存在 `.cache/node-gyp/`）。macOS 上若命令行工具里装着测试版 SDK，脚本只给本次编译选正式版 SDK（`SDKROOT`），不改系统设置。
+- 原生扩展用 `node tools/build-native.mjs` 编译（Electron 头文件缓存在 `.cache/node-gyp/`）；pydomino 的解码扩展用 `tools/uv run --with setuptools python tools/build_domino.py`（先 `.venv/bin/python tools/fetch_third_party.py --only pydomino-src`），产物在 `third_party/native/<平台>/`。macOS 上若命令行工具里装着测试版 SDK，脚本只给本次编译选正式版 SDK（`SDKROOT`），不改系统设置。
 - 第三方二进制（libmpv、发布用的 ffmpeg/rubberband 等）由 `tools/` 下的脚本拉到 `third_party/`（gitignored），固定版本并校验 SHA-256。
   所有者已授权：开发需要的依赖可以直接装（2026-10-05），libmpv 从 GitHub 等来源直接下载即可；仍然只装在项目内，并在 STATUS.md 记录文件名、来源、版本、大小与 SHA-256。
 - 开发期使用本机已有的 Homebrew ffmpeg / rubberband 4.0.0（只调用，不改动）。

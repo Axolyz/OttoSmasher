@@ -117,6 +117,18 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "oped-not-found": (("id",), "No such OP/ED range."),
     "oped-invalid": (("duration", "reason"), "OP/ED range rejected."),
     "oped-overlap": (("end", "kind", "start"), "OP/ED range overlaps an existing one."),
+    # ---- 模型与推理（14 §14.1、§14.7）
+    "model-file-missing": (("model", "path"), "Model file is not where it should be."),
+    "model-sha-mismatch": (("expected", "got", "model", "path"), "Model file does not match the pinned SHA-256."),
+    "onnx-runtime-missing": (("detail",), "ONNX Runtime cannot be loaded."),
+    "onnx-ep-missing": (("active", "model", "provider"), "The requested acceleration provider did not enter the session (no silent CPU fallback)."),
+    "onnx-session-failed": (("detail", "model", "provider"), "Creating the ONNX session failed."),
+    "native-missing": (("name", "path"), "A native extension has not been built."),
+    # ---- 文本前端与对齐（规格 08）
+    "frontend-failed": (("detail", "reason"), "Text frontend failed."),
+    "align-empty": ((), "Nothing to align (no phonemes)."),
+    "align-unsupported": (("detail",), "The aligner does not support a phoneme transition in this text."),
+    "align-audio-too-short": (("frames",), "Audio window is too short to align."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),
     "studio-no-runtime": (("detail", "path"), "PyMSS Studio has no active inference environment."),

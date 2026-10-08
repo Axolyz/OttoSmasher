@@ -65,7 +65,7 @@
 | node-addon-api + node-gyp | 8.9 / 13.1 | libmpv 渲染桥（原生扩展，§10.1）；`tools/build-native.mjs` 用 Electron 头文件编译 |
 | electron-builder | 26.x | 打包 |
 | Python 3.12（uv 托管，装在 `.uv-python/`） | — | Core 与任务进程 |
-| msgspec、numpy、onnxruntime(-directml) 1.30.0/1.24.4、pyopenjtalk-plus[tsqyomi]==0.4.1.post9、pydomino @ 4930396（源码构建 C++ 扩展）、regex | — | Core |
+| msgspec、numpy、onnxruntime(-directml) 1.30.0/1.24.4、pyopenjtalk-plus[tsqyomi]==0.4.1.post9、pydomino @ 4930396（只编译上游 tokenizer + Viterbi 成 `_domino` 扩展：`core/native/domino_ext.cpp` + `tools/build_domino.py`；ONNX 推理走统一会话工厂，不用上游内置的 ONNX Runtime 1.16）、regex | — | Core |
 | pytest、hypothesis；vitest、@testing-library/react、playwright | — | 测试 |
 
 外部可执行文件与库：ffmpeg/ffprobe（开发期用 Homebrew 9.0.2，发布随包）、rubberband 4.0.0、libmpv（所有者已同意直接下载，GitHub 等来源均可；阶段 1 记录来源、版本与 SHA-256，见 QUESTIONS Q2）。
@@ -192,7 +192,7 @@ core/                    Python
     domain/              纯领域逻辑：mapping、overlap、naming、tag_expr、facets、subtitle_rules、nature_rules、oped、filename
     algo/                基线算法（纯函数 + numpy）：有效范围、强度、音块、停顿、语段、量化、拉伸映射、语音检索、音高检索、拉平定音与掩码、声学指标
     lang/                语言插拔（base + ja）
-    models/              ONNX 会话工厂与实测证据、pydomino、FCPE、PC-NSF-HiFiGAN
+    models/              onnx.py（统一会话工厂：SHA-256 校验、CPU/CoreML/DirectML、请求的 EP 没进会话就报错、首次推理的节点分布）、probe.py（实测）、domino.py（pydomino 对齐）、FCPE、PC-NSF-HiFiGAN
     media/               ffprobe、区间解码、MP3 V0 编码与无缝校验、WAV/FLAC、峰值、缩略图、频谱、视频片段
     studio/              PyMSS Studio 适配
     jobs/                任务进程入口
@@ -568,8 +568,8 @@ class LanguageProfile(Protocol):
 | 原生扩展在 Electron 44 / Windows x64 上构建与加载 | 阶段 10 用 GitHub Actions 构建；之前保证构建脚本两平台通用 | 改为独立 utility 进程 + 共享内存 |
 | `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 阶段 2 探针（拖到 Finder、REAPER） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
 | mpv 对 LAME 无缝 MP3 的样本级对齐 | 合成斜坡 MP3 的偏移测试 | 正式音轨改存 FLAC（要所有者同意，涉及存储预算） |
-| pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 自写最小 pybind11 包装同一份上游 C++ 源码 |
-| pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型” | 延迟导入包装 |
+| pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 已改为自写最小 CPython 绑定（不依赖 pybind11/Eigen/上游 ORT），setuptools 调 MSVC 编译；Windows 未实测 |
+| pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型”（test_openjtalk） | 已做：导入前给 `yomi_model.nani_predict` 放空模块占位（`lang/ja/openjtalk.py`），tsqyomi 会话由工厂创建后交给库 |
 | 检索 3 万条 30 秒 | 合成库基准 | numba 热点编译 |
 | wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **阶段 2 已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
 

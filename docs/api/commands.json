@@ -249,6 +249,17 @@
    }
   },
   {
+   "name": "models.probe",
+   "effect": "job",
+   "summary": "Submit a job that runs one minimal inference per model under the current device setting.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "models.status",
    "effect": "read",
    "summary": "Model files, ONNX Runtime and inference probe status.",
@@ -822,6 +833,25 @@
  ],
  "errors": [
   {
+   "code": "align-audio-too-short",
+   "args": [
+    "frames"
+   ],
+   "summary": "Audio window is too short to align."
+  },
+  {
+   "code": "align-empty",
+   "args": [],
+   "summary": "Nothing to align (no phonemes)."
+  },
+  {
+   "code": "align-unsupported",
+   "args": [
+    "detail"
+   ],
+   "summary": "The aligner does not support a phoneme transition in this text."
+  },
+  {
    "code": "asset-file-missing",
    "args": [
     "id",
@@ -985,6 +1015,14 @@
    "summary": "Export file name is too long even after shortening."
   },
   {
+   "code": "frontend-failed",
+   "args": [
+    "detail",
+    "reason"
+   ],
+   "summary": "Text frontend failed."
+  },
+  {
    "code": "import-empty",
    "args": [],
    "summary": "Nothing to import."
@@ -1077,6 +1115,24 @@
    "summary": "Could not read media information."
   },
   {
+   "code": "model-file-missing",
+   "args": [
+    "model",
+    "path"
+   ],
+   "summary": "Model file is not where it should be."
+  },
+  {
+   "code": "model-sha-mismatch",
+   "args": [
+    "expected",
+    "got",
+    "model",
+    "path"
+   ],
+   "summary": "Model file does not match the pinned SHA-256."
+  },
+  {
    "code": "mp3-encode-failed",
    "args": [
     "channels",
@@ -1086,6 +1142,39 @@
     "reason"
    ],
    "summary": "MP3 encoding or its gapless check failed."
+  },
+  {
+   "code": "native-missing",
+   "args": [
+    "name",
+    "path"
+   ],
+   "summary": "A native extension has not been built."
+  },
+  {
+   "code": "onnx-ep-missing",
+   "args": [
+    "active",
+    "model",
+    "provider"
+   ],
+   "summary": "The requested acceleration provider did not enter the session (no silent CPU fallback)."
+  },
+  {
+   "code": "onnx-runtime-missing",
+   "args": [
+    "detail"
+   ],
+   "summary": "ONNX Runtime cannot be loaded."
+  },
+  {
+   "code": "onnx-session-failed",
+   "args": [
+    "detail",
+    "model",
+    "provider"
+   ],
+   "summary": "Creating the ONNX session failed."
   },
   {
    "code": "oped-invalid",
@@ -3334,17 +3423,13 @@
   },
   "ModelProbe": {
    "title": "ModelProbe",
+   "description": "实测记录（14 §14.7）：passed 带各 EP 执行的节点数，failed 带原因。",
    "type": "object",
    "properties": {
-    "device": {},
-    "error": {},
-    "model": {
-     "type": "string"
+    "device": {
+     "$ref": "#/$defs/JobDevice"
     },
-    "status": {
-     "type": "string"
-    },
-    "tested_at": {
+    "error": {
      "anyOf": [
       {
        "type": "string"
@@ -3353,12 +3438,38 @@
        "type": "null"
       }
      ]
+    },
+    "model": {
+     "type": "string"
+    },
+    "nodes": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "type": "integer"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "status": {
+     "enum": [
+      "failed",
+      "passed"
+     ]
+    },
+    "tested_at": {
+     "type": "string"
     }
    },
    "required": [
     "device",
     "error",
     "model",
+    "nodes",
     "status",
     "tested_at"
    ]
@@ -3399,6 +3510,9 @@
    "title": "ModelsStatus",
    "type": "object",
    "properties": {
+    "device": {
+     "$ref": "#/$defs/JobDevice"
+    },
     "files": {
      "type": "array",
      "items": {
@@ -3422,6 +3536,7 @@
     }
    },
    "required": [
+    "device",
     "files",
     "models_dir",
     "probes",

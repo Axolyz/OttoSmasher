@@ -47,6 +47,19 @@ from .waveforms import WaveformService
 
 log = logging.getLogger(__name__)
 
+def record_probes(conn: sqlite3.Connection, probes: list[dict[str, Any]]) -> None:
+    ts = now_iso()
+    with transaction(conn):
+        for pr in probes:
+            conn.execute(
+                "INSERT INTO model_probe(model, device_setting, file_sha, status, ep_node_counts, error, tested_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(model, device_setting) DO UPDATE SET file_sha=excluded.file_sha, status=excluded.status,"
+                " ep_node_counts=excluded.ep_node_counts, error=excluded.error, tested_at=excluded.tested_at",
+                (pr["model"], dumps(pr["device"]), pr.get("file_sha"), pr["status"], dumps(pr["nodes"]) if pr.get("nodes") is not None else None,
+                 pr.get("error"), ts),
+            )
+
+
 class Core:
     def __init__(self, workspace: Path, *, support_dir: Path | None = None, dev: bool = False) -> None:
         self.ws = Workspace(workspace)
@@ -81,6 +94,8 @@ class Core:
         r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test)
         r("models.status", "read", T.NoParams, T.ModelsStatus, "Model files, ONNX Runtime and inference probe status.", self._models_status)
         r("models.verify", "job", T.NoParams, T.JobSummary, "Submit a job that hashes the model files.", self._models_verify)
+        r("models.probe", "job", T.NoParams, T.JobSummary, "Submit a job that runs one minimal inference per model under the current device setting.",
+          self._models_probe)
         r("ui.get", "ui", T.UiGetParams, dict[str, Any], "Restore UI state of one page.", self._ui_get)
         r("ui.set", "ui", T.UiSetParams, None, "Save one UI state value (not user data, no undo).", self._ui_set)
         r("app.prepareQuit", "app", T.NoParams, T.PrepareQuit, "Number of active jobs that quitting would cancel.", lambda p: {"active": self.jobs.active_count()})
@@ -226,6 +241,7 @@ class Core:
             dev=self.dev,
         )
         self.jobs.adopters["models.verify"] = self._adopt_hashes
+        self.jobs.adopters["models.probe"] = self._adopt_probes
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
@@ -324,21 +340,33 @@ class Core:
         return {r[0]: (r[1], r[2], r[3]) for r in self.conn.execute("SELECT path, size, mtime_ns, sha256 FROM file_hash_cache")}
 
     def _models_status(self, p: dict[str, Any]) -> dict[str, Any]:
+        """文件、运行库、实测三者分开（R19.7）；实测只列当前设备设置下的记录。"""
+        device = settings_mod.device_snapshot(settings_mod.values(self.conn))
         probes = [
-            {"model": r["model"], "device": loads(r["device_setting"]), "status": r["status"], "error": loads(r["error"]), "tested_at": r["tested_at"]}
-            for r in self.conn.execute("SELECT * FROM model_probe")
+            {"model": r["model"], "device": loads(r["device_setting"]), "status": r["status"], "nodes": loads(r["ep_node_counts"]) if r["ep_node_counts"] else None,
+             "error": r["error"], "tested_at": r["tested_at"]}
+            for r in self.conn.execute("SELECT * FROM model_probe WHERE device_setting=? ORDER BY model", (dumps(device),))
         ]
         return {
             "models_dir": str(self.ws.models),
             "support_dir": str(self.support_dir),
             "files": registry.file_status(self.ws.models, self.support_dir, self._cached_hashes()),
             "runtime": registry.runtime_status(),
+            "device": device,
             "probes": probes,
         }
 
     def _models_verify(self, p: dict[str, Any]) -> dict[str, Any]:
         paths = [str(x) for x in registry.all_files(self.ws.models, self.support_dir) if x.exists()]
         return self.jobs.submit("models.verify", {"paths": paths})
+
+    def _models_probe(self, p: dict[str, Any]) -> dict[str, Any]:
+        return self.jobs.submit("models.probe", {"models_dir": str(self.ws.models), "support_dir": str(self.support_dir)})
+
+    def _adopt_probes(self, job: dict[str, Any], result: dict[str, Any]) -> None:
+        """实测记录按（模型、设备设置）保存（14 §14.7）；任何带模型推理的任务都可以交回 probes。"""
+        record_probes(self.conn, result.get("probes") or [])
+        self.emit("models.changed", {})
 
     def _adopt_hashes(self, job: dict[str, Any], result: dict[str, Any]) -> None:
         ts = now_iso()

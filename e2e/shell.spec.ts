@@ -53,6 +53,15 @@ test("模型检测：文件、运行库、实测分开显示", async () => {
   await page.getByTestId("settings-group-models").click();
   await expect(page.getByTestId("model-fcpe")).toHaveAttribute("data-state", "missing");
   await expect(page.getByText(/ONNX Runtime 1\.30\.0/)).toBeVisible();
+  await expect(page.getByTestId("probe-fcpe")).toContainText("未实测");
+  // 实测：模型文件不在的不实测，任务照样完成（L6）
+  await page.getByTestId("models-probe").click();
+  await expect(page.getByTestId("models-probe")).toBeEnabled({ timeout: 20000 });
+  await expect.poll(() => page.evaluate(async () => {
+    const r = await window.otto.core.request<Array<{ kind: string; status: string }>>("jobs.list");
+    return r.ok ? r.r.find((j) => j.kind === "models.probe")?.status : null;
+  })).toBe("succeeded");
+  await expect(page.getByTestId("probe-fcpe")).toContainText("未实测");
   await page.screenshot({ path: ".cache/playwright-results/settings-models.png" });
   await app.close();
 });

@@ -369,12 +369,14 @@ export interface ModelFileStatus {
   state: "missing" | "ok" | "sha-mismatch" | "size-mismatch" | "unverified";
 }
 
+/** 实测记录（14 §14.7）：passed 带各 EP 执行的节点数，failed 带原因。 */
 export interface ModelProbe {
-  device: unknown;
-  error: unknown;
+  device: JobDevice;
+  error: string | null;
   model: string;
-  status: string;
-  tested_at: string | null;
+  nodes: Record<string, number> | null;
+  status: "failed" | "passed";
+  tested_at: string;
 }
 
 export interface ModelStatus {
@@ -385,6 +387,7 @@ export interface ModelStatus {
 }
 
 export interface ModelsStatus {
+  device: JobDevice;
   files: ModelStatus[];
   models_dir: string;
   probes: ModelProbe[];
@@ -1125,6 +1128,8 @@ export interface Commands {
   "jobs.retry": { params: IdParams; result: JobSummary; effect: "job" };
   /** Submit a job of a registered kind (low-level; prefer the specific commands). */
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
+  /** Submit a job that runs one minimal inference per model under the current device setting. */
+  "models.probe": { params: NoParams; result: JobSummary; effect: "job" };
   /** Model files, ONNX Runtime and inference probe status. */
   "models.status": { params: NoParams; result: ModelsStatus; effect: "read" };
   /** Submit a job that hashes the model files. */
@@ -1227,6 +1232,9 @@ export type CommandName = keyof Commands;
 
 /** Core error codes (argument names: docs/api/commands.json, errors). */
 export type ErrorCode =
+  | "align-audio-too-short"
+  | "align-empty"
+  | "align-unsupported"
   | "asset-file-missing"
   | "asset-not-found"
   | "asset-not-hangable"
@@ -1248,6 +1256,7 @@ export type ErrorCode =
   | "export-modified"
   | "file-missing"
   | "filename-too-long"
+  | "frontend-failed"
   | "import-empty"
   | "import-expired"
   | "internal-error"
@@ -1261,7 +1270,13 @@ export type ErrorCode =
   | "job-worker-exited"
   | "mapping-invalid"
   | "media-probe-failed"
+  | "model-file-missing"
+  | "model-sha-mismatch"
   | "mp3-encode-failed"
+  | "native-missing"
+  | "onnx-ep-missing"
+  | "onnx-runtime-missing"
+  | "onnx-session-failed"
   | "oped-invalid"
   | "oped-not-found"
   | "oped-overlap"

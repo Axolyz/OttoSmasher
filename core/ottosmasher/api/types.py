@@ -157,20 +157,14 @@ class RuntimeStatus(TypedDict):
     onnxruntime: OnnxRuntimeStatus
 
 
-class ModelProbe(TypedDict):
-    model: str
-    device: Any
-    status: str
-    error: Any
-    tested_at: str | None
-
-
 class ModelsStatus(TypedDict):
     models_dir: str
     support_dir: str
     files: list[ModelStatus]
     runtime: RuntimeStatus
-    probes: list[ModelProbe]
+    # 当前设备设置（实测只列这个设置下的记录）
+    device: "JobDevice"
+    probes: list["ModelProbe"]
 
 
 class UiGetParams(TypedDict):
@@ -233,6 +227,17 @@ class JobDevice(TypedDict):
 
     accelerate: bool
     directml_device: int
+
+
+class ModelProbe(TypedDict):
+    """实测记录（14 §14.7）：passed 带各 EP 执行的节点数，failed 带原因。"""
+
+    model: str
+    device: JobDevice
+    status: Literal["passed", "failed"]
+    nodes: dict[str, int] | None
+    error: str | None
+    tested_at: str
 
 
 class JobSummary(TypedDict):
