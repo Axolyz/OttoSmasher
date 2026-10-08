@@ -28,9 +28,11 @@ const api: OttoApi = {
   core: {
     request: (method, params) => ipcRenderer.invoke("core:request", method, params ?? {}),
     onEvent(cb) {
-      const h = (_e: unknown, ev: CoreEvent) => cb(ev);
-      ipcRenderer.on("core:event", h);
-      return () => ipcRenderer.removeListener("core:event", h);
+      // 页面里订阅的地方很多：只挂一个 IPC 监听，再分发给各订阅者（避免 MaxListeners 警告）
+      coreEventSubs.add(cb);
+      return () => {
+        coreEventSubs.delete(cb);
+      };
     },
     onStatus(cb) {
       const h = (_e: unknown, st: CoreStatus) => cb(st);
@@ -52,6 +54,17 @@ const api: OttoApi = {
     startDrag: (files) => ipcRenderer.send("files:startDrag", files),
   },
 };
+
+const coreEventSubs = new Set<(ev: CoreEvent) => void>();
+ipcRenderer.on("core:event", (_e: unknown, ev: CoreEvent) => {
+  for (const cb of [...coreEventSubs]) {
+    try {
+      cb(ev);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+});
 
 contextBridge.exposeInMainWorld("otto", api);
 
