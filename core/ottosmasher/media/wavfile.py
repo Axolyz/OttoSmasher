@@ -67,3 +67,30 @@ def save_wav_f32(path: Path, pcm: np.ndarray, rate: int) -> None:
         fh.write(b"RIFF" + struct.pack("<I", 4 + 8 + len(fmt) + 8 + data_len) + b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt)
         fh.write(b"data" + struct.pack("<I", data_len))
         fh.write(np.ascontiguousarray(pcm, dtype="<f4").tobytes())
+
+
+def load_wav_f32(path: Path) -> tuple[np.ndarray, int]:
+    """读 32 位浮点 WAV（Rubber Band 等外部工具按输入格式写回的中间结果）：返回 ([帧, 声道] float32, 采样率)。
+    只认 IEEE float 32 位（普通头或 EXTENSIBLE）；其他格式报错，不猜。"""
+    data = Path(path).read_bytes()
+    if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise ValueError("not a wav file")
+    pos, fmt, body = 12, None, None
+    while pos + 8 <= len(data):
+        cid, size = data[pos : pos + 4], struct.unpack("<I", data[pos + 4 : pos + 8])[0]
+        chunk = data[pos + 8 : pos + 8 + size]
+        if cid == b"fmt ":
+            fmt = chunk
+        elif cid == b"data":
+            body = chunk
+        pos += 8 + size + (size & 1)
+    if fmt is None or body is None:
+        raise ValueError("wav without fmt/data")
+    tag, channels, rate = struct.unpack("<HHI", fmt[:8])
+    bits = struct.unpack("<H", fmt[14:16])[0]
+    if tag == _EXTENSIBLE and len(fmt) >= 26:
+        tag = struct.unpack("<H", fmt[24:26])[0]
+    if tag != 3 or bits != 32:
+        raise ValueError(f"unsupported wav format {tag}/{bits}")
+    n = len(body) // (4 * channels)
+    return np.frombuffer(body[: n * 4 * channels], dtype="<f4").reshape(n, channels).astype(np.float32), int(rate)

@@ -147,6 +147,18 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "flatten-inner-invalid": (("ms", "reason"), "Inner region is out of bounds or its plateau is too short."),
     "flatten-asset-changed": ((), "The frozen sound asset changed since the workbench was opened; reopen it."),
     "flatten-output-invalid": (("expected", "got", "reason"), "Vocoder output has the wrong length or non-finite samples."),
+    # ---- 节奏与卡拍（规格 09 §9.2–§9.5）
+    "rhythm-no-blocks": ((), "The analysis has no vowel or N, so there are no rhythm blocks."),
+    "rhythm-too-many-blocks": (("count", "max"), "A sentence may have at most 128 rhythm blocks."),
+    "rhythm-onsets-not-increasing": (("at",), "Block onsets must be strictly increasing."),
+    "rhythm-param-invalid": (("field", "min", "max"), "Rhythm parameter is out of range."),
+    "rhythm-cut-invalid": (("k", "count"), "A manual segment cut must be before block 1..n-1."),
+    "rhythm-cells-invalid": (("block", "count", "cells", "max"), "Manual cells must be 1-64 on an existing block."),
+    "rhythm-map-not-monotonic": (("at",), "The time map is not strictly increasing."),
+    "rhythm-output-too-long": (("seconds", "max"), "Stretched output would be longer than 10 minutes."),
+    "rhythm-original-speed-impossible": (("error",), "Original speed cannot be kept under onset protection."),
+    "bpm-invalid": (("min", "max"), "BPM must be 20-400 (empty = original speed)."),
+    "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),
     "studio-no-runtime": (("detail", "path"), "PyMSS Studio has no active inference environment."),

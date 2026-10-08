@@ -1108,6 +1108,14 @@
    "summary": "Parameters do not match the command's schema."
   },
   {
+   "code": "bpm-invalid",
+   "args": [
+    "min",
+    "max"
+   ],
+   "summary": "BPM must be 20-400 (empty = original speed)."
+  },
+  {
    "code": "decode-failed",
    "args": [
     "detail",
@@ -1543,6 +1551,75 @@
    "summary": "Strict mode: a command returned data that does not match its declared result type."
   },
   {
+   "code": "rhythm-cells-invalid",
+   "args": [
+    "block",
+    "count",
+    "cells",
+    "max"
+   ],
+   "summary": "Manual cells must be 1-64 on an existing block."
+  },
+  {
+   "code": "rhythm-cut-invalid",
+   "args": [
+    "k",
+    "count"
+   ],
+   "summary": "A manual segment cut must be before block 1..n-1."
+  },
+  {
+   "code": "rhythm-map-not-monotonic",
+   "args": [
+    "at"
+   ],
+   "summary": "The time map is not strictly increasing."
+  },
+  {
+   "code": "rhythm-no-blocks",
+   "args": [],
+   "summary": "The analysis has no vowel or N, so there are no rhythm blocks."
+  },
+  {
+   "code": "rhythm-onsets-not-increasing",
+   "args": [
+    "at"
+   ],
+   "summary": "Block onsets must be strictly increasing."
+  },
+  {
+   "code": "rhythm-original-speed-impossible",
+   "args": [
+    "error"
+   ],
+   "summary": "Original speed cannot be kept under onset protection."
+  },
+  {
+   "code": "rhythm-output-too-long",
+   "args": [
+    "seconds",
+    "max"
+   ],
+   "summary": "Stretched output would be longer than 10 minutes."
+  },
+  {
+   "code": "rhythm-param-invalid",
+   "args": [
+    "field",
+    "min",
+    "max"
+   ],
+   "summary": "Rhythm parameter is out of range."
+  },
+  {
+   "code": "rhythm-too-many-blocks",
+   "args": [
+    "count",
+    "max"
+   ],
+   "summary": "A sentence may have at most 128 rhythm blocks."
+  },
+  {
    "code": "root-invalid",
    "args": [
     "other",
@@ -1755,6 +1832,14 @@
     "source"
    ],
    "summary": "No such audio stream."
+  },
+  {
+   "code": "stretch-render-failed",
+   "args": [
+    "tool",
+    "detail"
+   ],
+   "summary": "Time-stretch rendering failed."
   },
   {
    "code": "studio-failed",
