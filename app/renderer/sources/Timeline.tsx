@@ -79,12 +79,13 @@ async function fetchPeaks(assetId: string, a: number, b: number, points: number)
   return { start: r.start!, step: r.step!, min: toFloats(r.min), max: toFloats(r.max) };
 }
 
-function drawPeaks(ctx: CanvasRenderingContext2D, p: Peaks, v0: number, v1: number, w: number, top: number, h: number) {
+/** 画 [from, to]（原片秒，默认整个视口）里的峰值 */
+function drawPeaks(ctx: CanvasRenderingContext2D, p: Peaks, v0: number, v1: number, w: number, top: number, h: number, from = v0, to = v1) {
   const span = v1 - v0;
   const mid = top + h / 2;
   const amp = h / 2 - 1;
-  const first = Math.max(0, Math.floor((v0 - p.start) / p.step));
-  const last = Math.min(p.min.length - 1, Math.ceil((v1 - p.start) / p.step));
+  const first = Math.max(0, Math.floor((Math.max(v0, from) - p.start) / p.step));
+  const last = Math.min(p.min.length - 1, Math.ceil((Math.min(v1, to) - p.start) / p.step) - (to < v1 ? 1 : 0));
   for (let i = first; i <= last; i++) {
     const t0 = p.start + i * p.step;
     const x0 = ((t0 - v0) / span) * w;
@@ -216,22 +217,46 @@ export const Timeline = forwardRef<
       live = false;
     };
   }, [assetId, duration, assetDur, offset, size.w, nonce]);
+  // 细峰值：取视口左右各多一个视口宽的范围（平移时不用马上重取）；已有的细峰值覆盖视口且精度合适就不取；
+  // 拖动中最多每 150 ms 取一次（不是等停下来才取）
+  const lastDetailAt = useRef(0);
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
+  // 拖动中视口每帧都在变：不能因为视口变了就丢掉在途的结果，只丢“比已采用的更旧的”和换了资产的
+  const detailSeq = useRef({ sent: 0, applied: 0 });
+  const assetRef = useRef(assetId);
+  assetRef.current = assetId;
   useEffect(() => {
     if (!assetId || !size.w || !whole) return;
-    let live = true;
-    const timer = setTimeout(() => {
-      const dpr = window.devicePixelRatio || 1;
-      const a = Math.max(view[0], covered[0]) - offset;
-      const b = Math.min(view[1], duration, covered[1]) - offset;
+    const dpr = window.devicePixelRatio || 1;
+    const span = view[1] - view[0];
+    const perPx = span / (size.w * dpr);
+    const cur = detailRef.current;
+    if (cur) {
+      const c0 = cur.start;
+      const c1 = cur.start + cur.step * cur.min.length;
+      const vis0 = Math.max(view[0], covered[0]);
+      const vis1 = Math.min(view[1], duration, covered[1]);
+      if (c0 <= vis0 + 1e-9 && c1 >= vis1 - 1e-9 && cur.step <= perPx * 1.5 && cur.step >= perPx / 3) return;
+    }
+    const run = () => {
+      lastDetailAt.current = performance.now();
+      const a = Math.max(view[0] - span, covered[0]) - offset;
+      const b = Math.min(view[1] + span, duration, covered[1]) - offset;
       if (!(b > a)) return setDetail(null);
-      fetchPeaks(assetId, a, b, size.w * dpr * ((b - a) / (view[1] - view[0])))
-        .then((p) => live && p !== "pending" && setDetail(shifted(p)))
+      const my = ++detailSeq.current.sent;
+      const forAsset = assetId;
+      fetchPeaks(assetId, a, b, (b - a) / perPx)
+        .then((p) => {
+          if (p === "pending" || assetRef.current !== forAsset || my < detailSeq.current.applied) return;
+          detailSeq.current.applied = my;
+          setDetail(shifted(p));
+        })
         .catch(() => {});
-    }, 60);
-    return () => {
-      live = false;
-      clearTimeout(timer);
     };
+    const wait = Math.max(0, Math.min(60, 150 - (performance.now() - lastDetailAt.current)));
+    const timer = setTimeout(run, wait);
+    return () => clearTimeout(timer);
   }, [assetId, view, size.w, whole, duration, offset, assetDur]);
 
   const lanes = props.lanes ?? [];
@@ -273,11 +298,18 @@ export const Timeline = forwardRef<
     ctx.fillStyle = cssVar("--wave");
     const cv0 = Math.max(v0, covered[0]);
     const cv1 = Math.min(v1, duration, covered[1]);
-    if (detail && detail.start <= cv0 + span * 0.01 && detail.start + detail.step * detail.min.length >= cv1 - span * 0.01) {
-      drawPeaks(ctx, detail, v0, v1, size.w, waveTop, waveH);
-    } else if (whole) {
-      drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH);
+    // 细峰值覆盖到的部分用细的，其余用整段的粗峰值（拖动平移时不整片退回粗的；R22.10）
+    const d0 = detail ? detail.start : Infinity;
+    const d1 = detail ? detail.start + detail.step * detail.min.length : -Infinity;
+    const useDetail = detail && d0 < cv1 && d1 > cv0;
+    if (whole) {
+      if (!useDetail) drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH);
+      else {
+        if (d0 > v0) drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH, v0, d0);
+        if (d1 < v1) drawPeaks(ctx, whole, v0, v1, size.w, waveTop, waveH, d1, v1);
+      }
     }
+    if (useDetail) drawPeaks(ctx, detail, v0, v1, size.w, waveTop, waveH, d0, d1);
     // 覆盖层：半透明色带盖住整个波形高度，边界线，标签贴底
     const toneColor = (tone: LayerBand["tone"]) => cssVar(tone === "sfx" ? "--nat-unpitched" : tone === "oped" ? "--warn" : tone === "seg" ? "--nat-pitched" : tone === "derived" ? "--accent" : "--nat-speech");
     const X = (tt: number) => ((tt - v0) / span) * size.w;
