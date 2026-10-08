@@ -259,8 +259,8 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 | 表 / 文件 | 关键字段 | 说明 |
 |---|---|---|
 | `measure_run` | id, kind(`alignment`/`f0`/`acoustic`), owner_type(`sample`/`asset_text`), owner_id, asset_id, range, inputs（语言、文本版本、辞典版本、前端版本、模型身份与指纹、目标区间、窗口、容差、设备）, status(`ok`/`failed`/`cancelled`/`stale`), manual(bool), result（对齐结果 msgpack；F0 指向文件）, created_at | 不可变版本 |
-| `measure_head` | owner_type, owner_id, kind, run_id | 当前采用的版本；采纳规则见规格 08 §8.4 |
-| `Data/Measurements/f0/<asset_id>/` | 分段的 `f0.npy`（N×3：F0、置信度、能量，float32 逐帧无损）+ 覆盖清单 | 按资产共享；“同一资产（同一文件 + 同一流 + 同一映射 + 完整覆盖”才复用（R11.10、规格 10 §10.1） |
+| `measure_head` | owner_type, owner_id, kind, run_id, version | 当前采用的版本（version 供人工修正与切换版本的乐观并发）；采纳规则见规格 08 §8.4。语音测量的归属：`sample`，或 `asset_text`（资产选区 + 文字区段，owner_id = 资产与区间的指纹，不需要采样）；子采样没有自己的测量时读覆盖它的同一物理声音测量的投影 |
+| `Data/Measurements/f0/<asset_id>/<身份>/` | 每 60 秒一段 `<段号>.npy`（6000×3：F0、置信度、能量，float32 逐帧无损，两侧各 1 秒上下文推理）+ `manifest.json` | 按资产共享；身份 = 文件快照 + 音频流 + 存储窗口 + 映射 + 模型与算法版本（`models/f0store.py`）；只测用到且没测过的段；测量记录 kind=f0、归属 asset（阶段 4.5b） |
 | `Data/Measurements/pitch_index/<asset_id>.npz` | 50 ms 摘要（可靠帧 MIDI 均值、可靠覆盖率、平均能量）+ 版本信息 | 由 F0 组成，**不当缓存删**（规格 10 §10.2.5） |
 
 拉平成品的 `pitch:` 标签来自资产 `production.target`（登记时记录的目标音），不来自重测（规格 11 §11.4）。
