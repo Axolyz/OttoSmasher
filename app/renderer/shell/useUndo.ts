@@ -10,8 +10,8 @@ export function useUndo(): () => Promise<void> {
   const toast = useApp((s) => s.toast);
   return useCallback(async () => {
     try {
-      const res = await call<{ label: { args: { of: string; of_args: Record<string, unknown> } } }>("edits.undo");
-      const of: EditLabel = { code: res.label.args.of, args: res.label.args.of_args };
+      const res = await call("edits.undo");
+      const of: EditLabel = { code: String(res.label.args.of), args: (res.label.args.of_args ?? {}) as Record<string, unknown> };
       toast({ text: t("undo.done", { label: describeLabel(of) }) });
     } catch (e) {
       if (e instanceof CoreFailure) toast({ text: errorText(e.wire), tone: "error" });

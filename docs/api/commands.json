@@ -1,0 +1,6503 @@
+{
+ "catalogVersion": 1,
+ "commands": [
+  {
+   "name": "annotations.list",
+   "effect": "read",
+   "summary": "Subtitle/segment annotations, OP/ED and derived samples of a source.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/AnnotationList"
+   }
+  },
+  {
+   "name": "app.prepareQuit",
+   "effect": "app",
+   "summary": "Number of active jobs that quitting would cancel.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/PrepareQuit"
+   }
+  },
+  {
+   "name": "app.quit",
+   "effect": "app",
+   "summary": "Cancel jobs and stop Core.",
+   "params": {
+    "$ref": "#/$defs/QuitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Quit"
+   }
+  },
+  {
+   "name": "assets.get",
+   "effect": "read",
+   "summary": "One sound asset.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/AssetRecord"
+   }
+  },
+  {
+   "name": "assets.listForSource",
+   "effect": "read",
+   "summary": "All sound assets of a source, full tracks first.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AssetInfo"
+    }
+   }
+  },
+  {
+   "name": "assets.tracks",
+   "effect": "read",
+   "summary": "Tracks that can be default tracks, with roles and current defaults.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Tracks"
+   }
+  },
+  {
+   "name": "core.hello",
+   "effect": "read",
+   "summary": "Core version, workspace and schema version.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Hello"
+   }
+  },
+  {
+   "name": "dev.registerStem",
+   "effect": "dev",
+   "summary": "Dev hook: register an existing stem file as a full-track asset (S1.2).",
+   "params": {
+    "$ref": "#/$defs/RegisterStemParams"
+   },
+   "result": {
+    "$ref": "#/$defs/StemRegistered"
+   }
+  },
+  {
+   "name": "edits.apply",
+   "effect": "write",
+   "summary": "Apply an edit batch atomically (undoable).",
+   "params": {
+    "$ref": "#/$defs/EditBatchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditApplied"
+   }
+  },
+  {
+   "name": "edits.peekUndo",
+   "effect": "read",
+   "summary": "What undo would revert next.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "anyOf": [
+     {
+      "$ref": "#/$defs/UndoPeek"
+     },
+     {
+      "type": "null"
+     }
+    ]
+   }
+  },
+  {
+   "name": "edits.preview",
+   "effect": "read",
+   "summary": "Validate an edit batch and show its changes without writing.",
+   "params": {
+    "$ref": "#/$defs/EditBatchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditPreview"
+   }
+  },
+  {
+   "name": "edits.undo",
+   "effect": "write",
+   "summary": "Undo the latest edit that can be undone safely.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditUndone"
+   }
+  },
+  {
+   "name": "exports.samples",
+   "effect": "write",
+   "summary": "Export samples as WAV files for drag-out; returns file paths.",
+   "params": {
+    "$ref": "#/$defs/ExportSamplesParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   }
+  },
+  {
+   "name": "exports.wav",
+   "effect": "write",
+   "summary": "Export an asset range as a WAV file (reuses an identical export).",
+   "params": {
+    "$ref": "#/$defs/ExportWavParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ExportedWav"
+   }
+  },
+  {
+   "name": "imports.commit",
+   "effect": "write",
+   "summary": "Register the scanned files (optionally with full-length samples).",
+   "params": {
+    "$ref": "#/$defs/ImportCommitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ImportResult"
+   }
+  },
+  {
+   "name": "imports.preview",
+   "effect": "read",
+   "summary": "Preview of a finished import scan.",
+   "params": {
+    "$ref": "#/$defs/JobIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ImportPreview"
+   }
+  },
+  {
+   "name": "imports.scan",
+   "effect": "job",
+   "summary": "Scan files/folders to import (background job).",
+   "params": {
+    "$ref": "#/$defs/PathsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "jobs.cancel",
+   "effect": "job",
+   "summary": "Cancel a queued or running job (kills its whole process tree).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "jobs.list",
+   "effect": "read",
+   "summary": "Recent jobs, newest first.",
+   "params": {
+    "$ref": "#/$defs/JobsListParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/JobSummary"
+    }
+   }
+  },
+  {
+   "name": "jobs.retry",
+   "effect": "job",
+   "summary": "Retry a failed, cancelled or interrupted job as a new job.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "jobs.submit",
+   "effect": "job",
+   "summary": "Submit a job of a registered kind (low-level; prefer the specific commands).",
+   "params": {
+    "$ref": "#/$defs/JobSubmitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "models.status",
+   "effect": "read",
+   "summary": "Model files, ONNX Runtime and inference probe status.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ModelsStatus"
+   }
+  },
+  {
+   "name": "models.verify",
+   "effect": "job",
+   "summary": "Submit a job that hashes the model files.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "oped.add",
+   "effect": "write",
+   "summary": "Mark or confirm an OP/ED range (undoable).",
+   "params": {
+    "$ref": "#/$defs/OpedAddParams"
+   },
+   "result": {
+    "$ref": "#/$defs/OpedAdded"
+   }
+  },
+  {
+   "name": "oped.delete",
+   "effect": "write",
+   "summary": "Delete an OP/ED range (undoable).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditRef"
+   }
+  },
+  {
+   "name": "oped.identify",
+   "effect": "write",
+   "summary": "Identify OP/ED from subtitle rules; applies non-overlapping pairs when there are no errors.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/IdentifyResult"
+   }
+  },
+  {
+   "name": "oped.identifyMany",
+   "effect": "write",
+   "summary": "Batch OP/ED identification.",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/IdentifyManyRow"
+    }
+   }
+  },
+  {
+   "name": "oped.list",
+   "effect": "read",
+   "summary": "OP/ED ranges of a source.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/Oped"
+    }
+   }
+  },
+  {
+   "name": "peaks.get",
+   "effect": "read",
+   "summary": "Waveform peaks for an asset range (pending while the cache is built).",
+   "params": {
+    "$ref": "#/$defs/PeaksParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Peaks"
+   }
+  },
+  {
+   "name": "playback.resolveAsset",
+   "effect": "read",
+   "summary": "Playback handle for auditioning an asset range (file seconds).",
+   "params": {
+    "$ref": "#/$defs/AssetRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/AssetHandle"
+   }
+  },
+  {
+   "name": "playback.resolveSource",
+   "effect": "read",
+   "summary": "Playback handle for the source player (file, audio track, external stem).",
+   "params": {
+    "$ref": "#/$defs/ResolveSourceParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SourceHandle"
+   }
+  },
+  {
+   "name": "roots.add",
+   "effect": "write",
+   "summary": "Add a source folder (adopts sources already inside, then scans).",
+   "params": {
+    "$ref": "#/$defs/PathParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RootAdded"
+   }
+  },
+  {
+   "name": "roots.list",
+   "effect": "read",
+   "summary": "Source folders.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SourceRoot"
+    }
+   }
+  },
+  {
+   "name": "roots.relocate",
+   "effect": "write",
+   "summary": "A whole source folder moved: re-point its sources by relative path, then scan.",
+   "params": {
+    "$ref": "#/$defs/RelocateParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RootRelocated"
+   }
+  },
+  {
+   "name": "roots.remove",
+   "effect": "write",
+   "summary": "Stop treating a folder as a source folder (sources stay).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RootRemoved"
+   }
+  },
+  {
+   "name": "samples.create",
+   "effect": "write",
+   "summary": "Create a sample on an asset range (always a new sample).",
+   "params": {
+    "$ref": "#/$defs/SampleCreateParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SampleRow"
+   }
+  },
+  {
+   "name": "samples.delete",
+   "effect": "write",
+   "summary": "Delete samples (assets, measurements and exports stay).",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Deleted"
+   }
+  },
+  {
+   "name": "samples.get",
+   "effect": "read",
+   "summary": "One sample with its effective tags.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SampleRow"
+   }
+  },
+  {
+   "name": "samples.ids",
+   "effect": "read",
+   "summary": "IDs of all samples matching the filter (select all across pages).",
+   "params": {
+    "$ref": "#/$defs/SampleFilter"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   }
+  },
+  {
+   "name": "samples.list",
+   "effect": "read",
+   "summary": "One page of samples matching the filter, with the total.",
+   "params": {
+    "$ref": "#/$defs/SamplesListParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SamplePage"
+   }
+  },
+  {
+   "name": "samples.suggest",
+   "effect": "read",
+   "summary": "Suggested name and nature for a new sample on an asset range.",
+   "params": {
+    "$ref": "#/$defs/SuggestParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SampleSuggestion"
+   }
+  },
+  {
+   "name": "separation.results",
+   "effect": "read",
+   "summary": "Assets registered by a separation job.",
+   "params": {
+    "$ref": "#/$defs/JobIdParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AssetRecord"
+    }
+   }
+  },
+  {
+   "name": "separation.submit",
+   "effect": "job",
+   "summary": "Separate an asset (range) with a Studio model; reuses identical results.",
+   "params": {
+    "$ref": "#/$defs/SeparationSubmitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SeparationSubmitted"
+   }
+  },
+  {
+   "name": "settings.list",
+   "effect": "read",
+   "summary": "All settings with value, default and version (edit via edits.apply, entity 'setting').",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "object",
+    "additionalProperties": {
+     "$ref": "#/$defs/SettingEntry"
+    }
+   }
+  },
+  {
+   "name": "sources.add",
+   "effect": "write",
+   "summary": "Register source files (each succeeds or fails on its own).",
+   "params": {
+    "$ref": "#/$defs/SourcesAddParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AddResult"
+    }
+   }
+  },
+  {
+   "name": "sources.delete",
+   "effect": "write",
+   "summary": "Delete a source with its assets, samples and annotations (not undoable).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/DeletePreview"
+   }
+  },
+  {
+   "name": "sources.deletePreview",
+   "effect": "read",
+   "summary": "What deleting a source would remove.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/DeletePreview"
+   }
+  },
+  {
+   "name": "sources.get",
+   "effect": "read",
+   "summary": "One source with its streams.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SourceDetail"
+   }
+  },
+  {
+   "name": "sources.inferTest",
+   "effect": "read",
+   "summary": "Try the work/episode inference rules (draft or current) on a file name.",
+   "params": {
+    "$ref": "#/$defs/InferTestParams"
+   },
+   "result": {
+    "$ref": "#/$defs/InferTest"
+   }
+  },
+  {
+   "name": "sources.list",
+   "effect": "read",
+   "summary": "All sources with per-source counts.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SourceRow"
+    }
+   }
+  },
+  {
+   "name": "sources.prep",
+   "effect": "read",
+   "summary": "Preparation checklist state of one source.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Prep"
+   }
+  },
+  {
+   "name": "sources.relocate",
+   "effect": "write",
+   "summary": "Point a source at a moved file (reports changed streams, does not refuse).",
+   "params": {
+    "$ref": "#/$defs/RelocateParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SourceRelocated"
+   }
+  },
+  {
+   "name": "sources.rescan",
+   "effect": "job",
+   "summary": "Scan all source folders for new, moved or missing files.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "anyOf": [
+     {
+      "$ref": "#/$defs/JobRef"
+     },
+     {
+      "type": "null"
+     }
+    ]
+   }
+  },
+  {
+   "name": "sources.wholeSamples",
+   "effect": "write",
+   "summary": "Create one full-length sample per source on its default track.",
+   "params": {
+    "$ref": "#/$defs/WholeSamplesParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SampleIds"
+   }
+  },
+  {
+   "name": "studio.status",
+   "effect": "read",
+   "summary": "PyMSS Studio installation and model list (submits a listing job when unknown).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/StudioStatus"
+   }
+  },
+  {
+   "name": "subtitleSamples.create",
+   "effect": "write",
+   "summary": "Create samples from chosen subtitle lines (atomic).",
+   "params": {
+    "$ref": "#/$defs/SubtitleSamplesCreateParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleSamplesCreated"
+   }
+  },
+  {
+   "name": "subtitleSamples.preview",
+   "effect": "read",
+   "summary": "Preview creating samples from subtitle lines or sound effects.",
+   "params": {
+    "$ref": "#/$defs/SubtitleSamplesPreviewParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleSamplePreview"
+   }
+  },
+  {
+   "name": "subtitles.import",
+   "effect": "write",
+   "summary": "Import subtitle markers from a preview (insert only, atomic, undoable).",
+   "params": {
+    "$ref": "#/$defs/SubtitleImportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleImportResult"
+   }
+  },
+  {
+   "name": "subtitles.importMany",
+   "effect": "write",
+   "summary": "Batch subtitle import, each source atomic on its own.",
+   "params": {
+    "$ref": "#/$defs/SubtitleImportManyParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SubtitleImportManyRow"
+    }
+   }
+  },
+  {
+   "name": "subtitles.preview",
+   "effect": "read",
+   "summary": "Preview importing subtitle markers of one source.",
+   "params": {
+    "$ref": "#/$defs/SubtitlePreviewParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitlePreview"
+   }
+  },
+  {
+   "name": "subtitles.previewMany",
+   "effect": "read",
+   "summary": "Batch preview of subtitle import (sources without subtitles are skipped).",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SubtitleBatchRow"
+    }
+   }
+  },
+  {
+   "name": "subtitles.ruleTest",
+   "effect": "read",
+   "summary": "Try the subtitle rules (draft or current) on one subtitle text.",
+   "params": {
+    "$ref": "#/$defs/RuleTestParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Classified"
+   }
+  },
+  {
+   "name": "tags.promoteBatch",
+   "effect": "read",
+   "summary": "Edit batch that promotes local tags to a segment tag (apply with edits.apply).",
+   "params": {
+    "$ref": "#/$defs/PromoteParams"
+   },
+   "result": {
+    "$ref": "#/$defs/PromoteInfo"
+   }
+  },
+  {
+   "name": "thumbs.get",
+   "effect": "read",
+   "summary": "List thumbnails (pending while generated).",
+   "params": {
+    "$ref": "#/$defs/ThumbsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/ThumbResult"
+    }
+   }
+  },
+  {
+   "name": "ui.get",
+   "effect": "ui",
+   "summary": "Restore UI state of one page.",
+   "params": {
+    "$ref": "#/$defs/UiGetParams"
+   },
+   "result": {
+    "type": "object"
+   }
+  },
+  {
+   "name": "ui.set",
+   "effect": "ui",
+   "summary": "Save one UI state value (not user data, no undo).",
+   "params": {
+    "$ref": "#/$defs/UiSetParams"
+   },
+   "result": {
+    "type": "null"
+   }
+  },
+  {
+   "name": "works.list",
+   "effect": "read",
+   "summary": "Work folders (first-level subfolders of source folders).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/WorkFolder"
+    }
+   }
+  },
+  {
+   "name": "works.rename",
+   "effect": "write",
+   "summary": "Rename a work: renames the folder on disk (not undoable).",
+   "params": {
+    "$ref": "#/$defs/WorkRenameParams"
+   },
+   "result": {
+    "$ref": "#/$defs/WorkRenamed"
+   }
+  },
+  {
+   "name": "works.settingsBatch",
+   "effect": "read",
+   "summary": "Edit batch for a work's settings (apply with edits.apply).",
+   "params": {
+    "$ref": "#/$defs/WorkSettingsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditBatch"
+   }
+  }
+ ],
+ "errors": [
+  {
+   "code": "asset-file-missing",
+   "args": [
+    "id",
+    "path"
+   ],
+   "summary": "Sound asset file not found."
+  },
+  {
+   "code": "asset-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such sound asset."
+  },
+  {
+   "code": "asset-not-hangable",
+   "args": [
+    "id"
+   ],
+   "summary": "Asset is time-stretched and cannot be played against the source."
+  },
+  {
+   "code": "bad-request",
+   "args": [
+    "method",
+    "reason"
+   ],
+   "summary": "Parameters do not match the command's schema."
+  },
+  {
+   "code": "decode-failed",
+   "args": [
+    "detail",
+    "path"
+   ],
+   "summary": "Could not decode audio."
+  },
+  {
+   "code": "decode-misaligned",
+   "args": [
+    "pts"
+   ],
+   "summary": "Decoded audio does not start where expected."
+  },
+  {
+   "code": "default-track-invalid",
+   "args": [
+    "asset",
+    "reason",
+    "role"
+   ],
+   "summary": "Asset cannot be the default track for this role."
+  },
+  {
+   "code": "default-track-missing",
+   "args": [
+    "role"
+   ],
+   "summary": "No default track for this role."
+  },
+  {
+   "code": "dev-only",
+   "args": [],
+   "summary": "Command is only available in development mode."
+  },
+  {
+   "code": "edit-conflict",
+   "args": [
+    "actual",
+    "entity",
+    "expected",
+    "id",
+    "index"
+   ],
+   "summary": "Object changed since it was read (version mismatch)."
+  },
+  {
+   "code": "edit-duplicate-object",
+   "args": [
+    "entity",
+    "id",
+    "index"
+   ],
+   "summary": "The same object appears twice in one batch."
+  },
+  {
+   "code": "edit-empty",
+   "args": [],
+   "summary": "Edit batch has no operations."
+  },
+  {
+   "code": "edit-invalid",
+   "args": [
+    "entity",
+    "field",
+    "index",
+    "reason",
+    "role"
+   ],
+   "summary": "Edit value rejected."
+  },
+  {
+   "code": "edit-not-found",
+   "args": [
+    "entity",
+    "id",
+    "index"
+   ],
+   "summary": "Edited object does not exist."
+  },
+  {
+   "code": "edit-unknown-entity",
+   "args": [
+    "entity",
+    "index"
+   ],
+   "summary": "Edit targets an unknown kind of object."
+  },
+  {
+   "code": "edit-unknown-field",
+   "args": [
+    "entity",
+    "field",
+    "index"
+   ],
+   "summary": "Edit touches a field that cannot be edited."
+  },
+  {
+   "code": "export-exists",
+   "args": [
+    "path"
+   ],
+   "summary": "Export target already exists."
+  },
+  {
+   "code": "export-key-invalid",
+   "args": [
+    "key"
+   ],
+   "summary": "Export key is invalid."
+  },
+  {
+   "code": "export-modified",
+   "args": [
+    "path"
+   ],
+   "summary": "A previously exported file was modified."
+  },
+  {
+   "code": "file-missing",
+   "args": [
+    "path"
+   ],
+   "summary": "File not found."
+  },
+  {
+   "code": "filename-too-long",
+   "args": [
+    "name"
+   ],
+   "summary": "Export file name is too long even after shortening."
+  },
+  {
+   "code": "import-empty",
+   "args": [],
+   "summary": "Nothing to import."
+  },
+  {
+   "code": "import-expired",
+   "args": [
+    "job"
+   ],
+   "summary": "Import preview expired; scan again."
+  },
+  {
+   "code": "internal-error",
+   "args": [
+    "method",
+    "reason"
+   ],
+   "summary": "Unexpected failure inside Core (a bug)."
+  },
+  {
+   "code": "job-exception",
+   "args": [
+    "message",
+    "type"
+   ],
+   "summary": "Job process raised an unexpected exception."
+  },
+  {
+   "code": "job-interrupted",
+   "args": [],
+   "summary": "Job was running when the app exited."
+  },
+  {
+   "code": "job-kind-unknown",
+   "args": [
+    "kind"
+   ],
+   "summary": "No such job kind."
+  },
+  {
+   "code": "job-not-cancellable",
+   "args": [
+    "id",
+    "status"
+   ],
+   "summary": "Job already finished."
+  },
+  {
+   "code": "job-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such job."
+  },
+  {
+   "code": "job-not-retryable",
+   "args": [
+    "id",
+    "status"
+   ],
+   "summary": "Only failed, cancelled or interrupted jobs can be retried."
+  },
+  {
+   "code": "job-spawn-failed",
+   "args": [
+    "reason"
+   ],
+   "summary": "Could not start the job process."
+  },
+  {
+   "code": "job-worker-exited",
+   "args": [
+    "exit_code"
+   ],
+   "summary": "Job process exited without a result."
+  },
+  {
+   "code": "mapping-invalid",
+   "args": [
+    "reason"
+   ],
+   "summary": "Time mapping is invalid."
+  },
+  {
+   "code": "media-probe-failed",
+   "args": [
+    "detail",
+    "path"
+   ],
+   "summary": "Could not read media information."
+  },
+  {
+   "code": "mp3-encode-failed",
+   "args": [
+    "channels",
+    "detail",
+    "expected",
+    "got",
+    "reason"
+   ],
+   "summary": "MP3 encoding or its gapless check failed."
+  },
+  {
+   "code": "oped-invalid",
+   "args": [
+    "duration",
+    "reason"
+   ],
+   "summary": "OP/ED range rejected."
+  },
+  {
+   "code": "oped-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such OP/ED range."
+  },
+  {
+   "code": "oped-overlap",
+   "args": [
+    "end",
+    "kind",
+    "start"
+   ],
+   "summary": "OP/ED range overlaps an existing one."
+  },
+  {
+   "code": "promote-invalid",
+   "args": [
+    "reason",
+    "role",
+    "roles"
+   ],
+   "summary": "Local tags cannot be promoted as requested."
+  },
+  {
+   "code": "range-invalid",
+   "args": [
+    "duration",
+    "end",
+    "reason",
+    "start"
+   ],
+   "summary": "Time range is invalid or out of bounds."
+  },
+  {
+   "code": "result-mismatch",
+   "args": [
+    "method",
+    "reason"
+   ],
+   "summary": "Strict mode: a command returned data that does not match its declared result type."
+  },
+  {
+   "code": "root-invalid",
+   "args": [
+    "other",
+    "path",
+    "reason"
+   ],
+   "summary": "Folder cannot be a source folder."
+  },
+  {
+   "code": "root-offline",
+   "args": [
+    "path"
+   ],
+   "summary": "Source folder is not reachable."
+  },
+  {
+   "code": "rule-invalid",
+   "args": [
+    "rule",
+    "reason",
+    "max",
+    "detail",
+    "group",
+    "sample"
+   ],
+   "summary": "A regular-expression rule is invalid (syntax, missing group, too long, or too slow)."
+  },
+  {
+   "code": "sample-has-active-jobs",
+   "args": [
+    "jobs"
+   ],
+   "summary": "Sample cannot be deleted while jobs use it."
+  },
+  {
+   "code": "sample-invalid",
+   "args": [
+    "field",
+    "max",
+    "reason"
+   ],
+   "summary": "Sample value rejected."
+  },
+  {
+   "code": "sample-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such sample."
+  },
+  {
+   "code": "schema-migration-failed",
+   "args": [
+    "backup",
+    "migration",
+    "reason"
+   ],
+   "summary": "A schema migration failed; the pre-migration backup is kept."
+  },
+  {
+   "code": "schema-too-new",
+   "args": [
+    "found",
+    "supported"
+   ],
+   "summary": "The database was written by a newer version."
+  },
+  {
+   "code": "selftest-failed",
+   "args": [
+    "reason"
+   ],
+   "summary": "Development self-test job failed."
+  },
+  {
+   "code": "sep-model-changed",
+   "args": [
+    "model"
+   ],
+   "summary": "Model files changed during separation."
+  },
+  {
+   "code": "sep-output-invalid",
+   "args": [
+    "expected",
+    "got",
+    "path",
+    "reason",
+    "stem",
+    "stems"
+   ],
+   "summary": "Separation output is incomplete or wrong."
+  },
+  {
+   "code": "sep-stems-invalid",
+   "args": [
+    "model",
+    "stems"
+   ],
+   "summary": "Requested stems are not produced by this model."
+  },
+  {
+   "code": "setting-invalid",
+   "args": [
+    "max",
+    "min",
+    "options",
+    "reason"
+   ],
+   "summary": "Setting value rejected."
+  },
+  {
+   "code": "setting-unknown",
+   "args": [
+    "key"
+   ],
+   "summary": "No such setting."
+  },
+  {
+   "code": "source-changed",
+   "args": [
+    "path",
+    "what"
+   ],
+   "summary": "Source file was replaced or changed since registration."
+  },
+  {
+   "code": "source-has-active-jobs",
+   "args": [
+    "id",
+    "jobs"
+   ],
+   "summary": "Source cannot be deleted while jobs use it."
+  },
+  {
+   "code": "source-has-independent-samples",
+   "args": [
+    "id",
+    "n"
+   ],
+   "summary": "Source has independent samples (handled in stage 9)."
+  },
+  {
+   "code": "source-no-audio",
+   "args": [
+    "path"
+   ],
+   "summary": "Source has no audio stream."
+  },
+  {
+   "code": "source-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such source."
+  },
+  {
+   "code": "source-path-taken",
+   "args": [
+    "other",
+    "path"
+   ],
+   "summary": "Another source is registered at this path."
+  },
+  {
+   "code": "stream-not-found",
+   "args": [
+    "ordinal",
+    "source"
+   ],
+   "summary": "No such audio stream."
+  },
+  {
+   "code": "studio-failed",
+   "args": [
+    "command",
+    "exit_code",
+    "log",
+    "message",
+    "reason",
+    "studio_code"
+   ],
+   "summary": "Studio worker failed."
+  },
+  {
+   "code": "studio-model-missing",
+   "args": [
+    "model"
+   ],
+   "summary": "Model is not available in Studio."
+  },
+  {
+   "code": "studio-models-unknown",
+   "args": [],
+   "summary": "Studio models have not been listed yet."
+  },
+  {
+   "code": "studio-no-runtime",
+   "args": [
+    "detail",
+    "path"
+   ],
+   "summary": "PyMSS Studio has no active inference environment."
+  },
+  {
+   "code": "studio-not-found",
+   "args": [
+    "path"
+   ],
+   "summary": "PyMSS Studio is not installed."
+  },
+  {
+   "code": "subtitle-encoding",
+   "args": [
+    "path"
+   ],
+   "summary": "Subtitle file is not UTF-8."
+  },
+  {
+   "code": "subtitle-format",
+   "args": [
+    "format"
+   ],
+   "summary": "Unsupported subtitle format."
+  },
+  {
+   "code": "subtitle-line-not-importable",
+   "args": [
+    "line",
+    "status"
+   ],
+   "summary": "Subtitle line cannot be imported."
+  },
+  {
+   "code": "subtitle-missing",
+   "args": [
+    "path"
+   ],
+   "summary": "Subtitle file not found."
+  },
+  {
+   "code": "subtitle-not-associated",
+   "args": [
+    "id"
+   ],
+   "summary": "Source has no associated subtitle file."
+  },
+  {
+   "code": "subtitle-preview-stale",
+   "args": [
+    "id"
+   ],
+   "summary": "Subtitle preview is out of date; preview again."
+  },
+  {
+   "code": "subtitle-rule-invalid",
+   "args": [
+    "setting",
+    "reason",
+    "max",
+    "detail",
+    "group",
+    "sample"
+   ],
+   "summary": "A subtitle rule is invalid."
+  },
+  {
+   "code": "subtitle-rule-timeout",
+   "args": [
+    "setting"
+   ],
+   "summary": "A subtitle rule took too long."
+  },
+  {
+   "code": "subtitle-sample-invalid",
+   "args": [
+    "field",
+    "reason"
+   ],
+   "summary": "Subtitle sample request rejected."
+  },
+  {
+   "code": "subtitle-sample-not-pending",
+   "args": [
+    "annotation",
+    "status"
+   ],
+   "summary": "Subtitle line is not ready to become a sample."
+  },
+  {
+   "code": "subtitle-sample-stale",
+   "args": [
+    "id"
+   ],
+   "summary": "Subtitle sample preview is out of date; preview again."
+  },
+  {
+   "code": "subtitle-unreadable",
+   "args": [
+    "detail",
+    "path"
+   ],
+   "summary": "Subtitle file cannot be read."
+  },
+  {
+   "code": "time-out-of-range",
+   "args": [
+    "clock",
+    "end",
+    "start",
+    "t"
+   ],
+   "summary": "Time is outside the mapped range."
+  },
+  {
+   "code": "tool-missing",
+   "args": [
+    "path",
+    "tool"
+   ],
+   "summary": "External tool (ffmpeg, ffprobe, …) not found."
+  },
+  {
+   "code": "undo-nothing-safe",
+   "args": [],
+   "summary": "Nothing can be undone safely."
+  },
+  {
+   "code": "unknown-method",
+   "args": [
+    "method"
+   ],
+   "summary": "No such command."
+  },
+  {
+   "code": "work-folder-exists",
+   "args": [
+    "name"
+   ],
+   "summary": "A work folder with this name already exists."
+  },
+  {
+   "code": "work-folder-missing",
+   "args": [
+    "name"
+   ],
+   "summary": "Work folder not found."
+  },
+  {
+   "code": "work-name-invalid",
+   "args": [
+    "name"
+   ],
+   "summary": "Work name is not a valid folder name."
+  },
+  {
+   "code": "work-rename-failed",
+   "args": [
+    "detail",
+    "name"
+   ],
+   "summary": "Renaming the folder on disk failed (rolled back)."
+  },
+  {
+   "code": "workspace-locked",
+   "args": [
+    "path"
+   ],
+   "summary": "The workspace is open in another OttoSmasher."
+  }
+ ],
+ "$defs": {
+  "AddResult": {
+   "title": "AddResult",
+   "type": "object",
+   "properties": {
+    "assets": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/StreamAssetCreated"
+     }
+    },
+    "episode": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "existing": {
+     "type": "boolean"
+    },
+    "inferRule": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "inferTimedOut": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "ok": {
+     "type": "boolean"
+    },
+    "path": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "work": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "ok",
+    "path"
+   ]
+  },
+  "AnnotationList": {
+   "title": "AnnotationList",
+   "type": "object",
+   "properties": {
+    "annotations": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AnnotationRow"
+     }
+    },
+    "derived": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/DerivedSample"
+     }
+    },
+    "opeds": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedRange"
+     }
+    }
+   },
+   "required": [
+    "annotations",
+    "derived",
+    "opeds"
+   ]
+  },
+  "AnnotationRow": {
+   "title": "AnnotationRow",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "fromSubtitle": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "sfx",
+      "song",
+      "tag"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "oped": {
+     "anyOf": [
+      {
+       "enum": [
+        "ED",
+        "OP"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scope": {
+     "enum": [
+      "asset",
+      "role",
+      "source"
+     ]
+    },
+    "scopeRole": {
+     "anyOf": [
+      {
+       "enum": [
+        "sfx",
+        "vocal"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "text": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "end",
+    "fromSubtitle",
+    "id",
+    "kind",
+    "name",
+    "oped",
+    "scope",
+    "scopeRole",
+    "speakers",
+    "start",
+    "tags",
+    "text",
+    "version"
+   ]
+  },
+  "AssetHandle": {
+   "title": "AssetHandle",
+   "type": "object",
+   "properties": {
+    "aid": {
+     "type": "integer"
+    },
+    "fileEnd": {
+     "type": "number"
+    },
+    "fileStart": {
+     "type": "number"
+    },
+    "localEnd": {
+     "type": "number"
+    },
+    "localStart": {
+     "type": "number"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "aid",
+    "fileEnd",
+    "fileStart",
+    "localEnd",
+    "localStart",
+    "path"
+   ]
+  },
+  "AssetInfo": {
+   "title": "AssetInfo",
+   "type": "object",
+   "properties": {
+    "actor_kind": {
+     "type": "string"
+    },
+    "actor_session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "input_asset_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "input_end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "input_start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "isFullTrack": {
+     "type": "boolean"
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mapping": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "media_file_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "origin": {
+     "enum": [
+      "flatten",
+      "reimport",
+      "separation",
+      "stream"
+     ]
+    },
+    "production": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    },
+    "source_id": {
+     "type": "string"
+    },
+    "stem_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stream_ordinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "updated_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "actor_kind",
+    "actor_session",
+    "created_at",
+    "duration",
+    "id",
+    "input_asset_id",
+    "input_end",
+    "input_start",
+    "isFullTrack",
+    "language",
+    "mapping",
+    "media_file_id",
+    "origin",
+    "production",
+    "roles",
+    "source_id",
+    "stem_name",
+    "stream_ordinal",
+    "updated_at",
+    "version"
+   ]
+  },
+  "AssetRangeParams": {
+   "title": "AssetRangeParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start"
+   ]
+  },
+  "AssetRecord": {
+   "title": "AssetRecord",
+   "type": "object",
+   "properties": {
+    "actor_kind": {
+     "type": "string"
+    },
+    "actor_session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "input_asset_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "input_end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "input_start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mapping": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "media_file_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "origin": {
+     "enum": [
+      "flatten",
+      "reimport",
+      "separation",
+      "stream"
+     ]
+    },
+    "production": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    },
+    "source_id": {
+     "type": "string"
+    },
+    "stem_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stream_ordinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "updated_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "actor_kind",
+    "actor_session",
+    "created_at",
+    "duration",
+    "id",
+    "input_asset_id",
+    "input_end",
+    "input_start",
+    "language",
+    "mapping",
+    "media_file_id",
+    "origin",
+    "production",
+    "roles",
+    "source_id",
+    "stem_name",
+    "stream_ordinal",
+    "updated_at",
+    "version"
+   ]
+  },
+  "Classified": {
+   "title": "Classified",
+   "type": "object",
+   "properties": {
+    "alignText": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "sfx"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "alignText",
+    "kind",
+    "name",
+    "speakers"
+   ]
+  },
+  "DeletePreview": {
+   "title": "DeletePreview",
+   "type": "object",
+   "properties": {
+    "activeJobs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "annotations": {
+     "type": "integer"
+    },
+    "generatedAssets": {
+     "type": "integer"
+    },
+    "independentSamples": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "path": {
+     "type": "string"
+    },
+    "samples": {
+     "type": "integer"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "subtitleVersions": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "activeJobs",
+    "annotations",
+    "generatedAssets",
+    "independentSamples",
+    "oped",
+    "path",
+    "samples",
+    "sourceId",
+    "subtitleVersions"
+   ]
+  },
+  "Deleted": {
+   "title": "Deleted",
+   "type": "object",
+   "properties": {
+    "deleted": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "deleted"
+   ]
+  },
+  "DerivedSample": {
+   "title": "DerivedSample",
+   "description": "派生采样车道（R7.6）：起止为原片秒。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "id",
+    "name",
+    "nature",
+    "start"
+   ]
+  },
+  "EditApplied": {
+   "title": "EditApplied",
+   "type": "object",
+   "properties": {
+    "changes": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EditChange"
+     }
+    },
+    "edit_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "changes",
+    "edit_id"
+   ]
+  },
+  "EditBatch": {
+   "title": "EditBatch",
+   "type": "object",
+   "properties": {
+    "label": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/EditLabel"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ops": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EditOp"
+     }
+    }
+   },
+   "required": [
+    "ops"
+   ]
+  },
+  "EditBatchParams": {
+   "title": "EditBatchParams",
+   "type": "object",
+   "properties": {
+    "batch": {
+     "$ref": "#/$defs/EditBatch"
+    }
+   },
+   "required": [
+    "batch"
+   ]
+  },
+  "EditChange": {
+   "title": "EditChange",
+   "type": "object",
+   "properties": {
+    "diffs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EditDiff"
+     }
+    },
+    "entity": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "op": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "diffs",
+    "entity",
+    "id",
+    "index",
+    "op"
+   ]
+  },
+  "EditDiff": {
+   "title": "EditDiff",
+   "type": "object",
+   "properties": {
+    "after": {},
+    "before": {},
+    "field": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "after",
+    "before",
+    "field"
+   ]
+  },
+  "EditLabel": {
+   "title": "EditLabel",
+   "type": "object",
+   "properties": {
+    "args": {
+     "type": "object"
+    },
+    "code": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "args",
+    "code"
+   ]
+  },
+  "EditOp": {
+   "title": "EditOp",
+   "description": "一条编辑：``op`` 缺省为 update（要 ``id`` 与 ``version``）；create 只要 ``fields``。字段与取值由编辑通道逐条校验。",
+   "type": "object",
+   "properties": {
+    "entity": {
+     "type": "string"
+    },
+    "fields": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "op": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "entity"
+   ]
+  },
+  "EditPreview": {
+   "title": "EditPreview",
+   "type": "object",
+   "properties": {
+    "changes": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EditChange"
+     }
+    }
+   },
+   "required": [
+    "changes"
+   ]
+  },
+  "EditRef": {
+   "title": "EditRef",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "editId"
+   ]
+  },
+  "EditUndone": {
+   "title": "EditUndone",
+   "type": "object",
+   "properties": {
+    "changes": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EditChange"
+     }
+    },
+    "edit_id": {
+     "type": "string"
+    },
+    "label": {
+     "$ref": "#/$defs/EditLabel"
+    },
+    "undone": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "changes",
+    "edit_id",
+    "label",
+    "undone"
+   ]
+  },
+  "EffectiveTag": {
+   "title": "EffectiveTag",
+   "type": "object",
+   "properties": {
+    "facet": {
+     "enum": [
+      "other",
+      "person",
+      "pitch",
+      "type",
+      "work"
+     ]
+    },
+    "provenance": {
+     "enum": [
+      "auto",
+      "local",
+      "segment",
+      "source"
+     ]
+    },
+    "ref": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tag": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "facet",
+    "provenance",
+    "ref",
+    "tag"
+   ]
+  },
+  "ErrorWire": {
+   "title": "ErrorWire",
+   "description": "Core 的错误：错误码 + 参数（界面按当前语言生成提示）。",
+   "type": "object",
+   "properties": {
+    "args": {
+     "type": "object"
+    },
+    "code": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "args",
+    "code"
+   ]
+  },
+  "ExportSamplesParams": {
+   "title": "ExportSamplesParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "ids"
+   ]
+  },
+  "ExportWavParams": {
+   "title": "ExportWavParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "content": {
+     "type": "string"
+    },
+    "directory": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "end": {
+     "type": "number"
+    },
+    "localPrefix": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "processing": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "track": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "assetId",
+    "content",
+    "end",
+    "start",
+    "track"
+   ]
+  },
+  "ExportedWav": {
+   "title": "ExportedWav",
+   "type": "object",
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "reused": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "key",
+    "path",
+    "reused"
+   ]
+  },
+  "Hello": {
+   "title": "Hello",
+   "type": "object",
+   "properties": {
+    "dev": {
+     "type": "boolean"
+    },
+    "interrupted_on_start": {
+     "type": "integer"
+    },
+    "pid": {
+     "type": "integer"
+    },
+    "schema_version": {
+     "type": "integer"
+    },
+    "version": {
+     "type": "string"
+    },
+    "workspace": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "dev",
+    "interrupted_on_start",
+    "pid",
+    "schema_version",
+    "version",
+    "workspace"
+   ]
+  },
+  "IdParams": {
+   "title": "IdParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "IdentifyManyRow": {
+   "title": "IdentifyManyRow",
+   "description": "批量识别的一行：出错时只有 sourceId + error，否则同 IdentifyResult。",
+   "type": "object",
+   "properties": {
+    "applied": {
+     "type": "integer"
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "errors": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedRuleError"
+     }
+    },
+    "pairs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedPair"
+     }
+    },
+    "skippedOverlap": {
+     "type": "integer"
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "IdentifyResult": {
+   "title": "IdentifyResult",
+   "type": "object",
+   "properties": {
+    "applied": {
+     "type": "integer"
+    },
+    "errors": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedRuleError"
+     }
+    },
+    "pairs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedPair"
+     }
+    },
+    "skippedOverlap": {
+     "type": "integer"
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "applied",
+    "errors",
+    "pairs",
+    "skippedOverlap",
+    "sourceId"
+   ]
+  },
+  "IdsParams": {
+   "title": "IdsParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "ids"
+   ]
+  },
+  "ImportCommitParams": {
+   "title": "ImportCommitParams",
+   "type": "object",
+   "properties": {
+    "bindPictures": {
+     "type": "boolean"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "nature": {
+     "type": "string"
+    },
+    "sourceType": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "wholeSample": {
+     "type": "boolean"
+    },
+    "work": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "workMode": {
+     "enum": [
+      "infer",
+      "unified"
+     ]
+    }
+   },
+   "required": [
+    "jobId"
+   ]
+  },
+  "ImportConflict": {
+   "title": "ImportConflict",
+   "type": "object",
+   "properties": {
+    "others": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "path": {
+     "type": "string"
+    },
+    "picture": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "others",
+    "path",
+    "picture"
+   ]
+  },
+  "ImportPreview": {
+   "title": "ImportPreview",
+   "type": "object",
+   "properties": {
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ImportConflict"
+     }
+    },
+    "existing": {
+     "type": "integer"
+    },
+    "importable": {
+     "type": "integer"
+    },
+    "inferredGroups": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "integer"
+       }
+      ],
+      "items": false
+     }
+    },
+    "roots": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suggestedWork": {
+     "type": "string"
+    },
+    "total": {
+     "type": "integer"
+    },
+    "unreadable": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/PathError"
+     }
+    },
+    "videos": {
+     "type": "integer"
+    },
+    "withPicture": {
+     "type": "integer"
+    },
+    "withoutPicture": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "conflicts",
+    "existing",
+    "importable",
+    "inferredGroups",
+    "roots",
+    "suggestedWork",
+    "total",
+    "unreadable",
+    "videos",
+    "withPicture",
+    "withoutPicture"
+   ]
+  },
+  "ImportResult": {
+   "title": "ImportResult",
+   "type": "object",
+   "properties": {
+    "created": {
+     "type": "integer"
+    },
+    "existing": {
+     "type": "integer"
+    },
+    "failed": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/PathError"
+     }
+    },
+    "sampleIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "sourceIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "created",
+    "existing",
+    "failed",
+    "sampleIds",
+    "sourceIds"
+   ]
+  },
+  "InferTest": {
+   "title": "InferTest",
+   "type": "object",
+   "properties": {
+    "episode": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "rule": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "timedOut": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "work": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "episode",
+    "rule",
+    "timedOut",
+    "work"
+   ]
+  },
+  "InferTestParams": {
+   "title": "InferTestParams",
+   "type": "object",
+   "properties": {
+    "filename": {
+     "type": "string"
+    },
+    "rules": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "filename"
+   ]
+  },
+  "JobDevice": {
+   "title": "JobDevice",
+   "description": "提交时冻结的设备设置（13 §13.1.2）。",
+   "type": "object",
+   "properties": {
+    "accelerate": {
+     "type": "boolean"
+    },
+    "directml_device": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "accelerate",
+    "directml_device"
+   ]
+  },
+  "JobIdParams": {
+   "title": "JobIdParams",
+   "type": "object",
+   "properties": {
+    "jobId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "jobId"
+   ]
+  },
+  "JobItems": {
+   "title": "JobItems",
+   "type": "object",
+   "properties": {
+    "failed": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ok": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "failed",
+    "ok",
+    "total"
+   ]
+  },
+  "JobProgress": {
+   "title": "JobProgress",
+   "type": "object",
+   "properties": {
+    "args": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "code": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "done": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "percent": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stage": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "total": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "args",
+    "code",
+    "done",
+    "percent",
+    "stage",
+    "total"
+   ]
+  },
+  "JobRef": {
+   "title": "JobRef",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "JobSubmitParams": {
+   "title": "JobSubmitParams",
+   "type": "object",
+   "properties": {
+    "affects": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "params": {
+     "type": "object"
+    }
+   },
+   "required": [
+    "kind"
+   ]
+  },
+  "JobSummary": {
+   "title": "JobSummary",
+   "type": "object",
+   "properties": {
+    "affects": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    },
+    "channel": {
+     "enum": [
+      "light",
+      "model"
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "device": {
+     "$ref": "#/$defs/JobDevice"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "finished_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "items": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobItems"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "progress": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobProgress"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "result": {},
+    "retry_of": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "started_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "status": {
+     "enum": [
+      "cancelled",
+      "failed",
+      "interrupted",
+      "queued",
+      "running",
+      "succeeded"
+     ]
+    }
+   },
+   "required": [
+    "affects",
+    "channel",
+    "created_at",
+    "device",
+    "error",
+    "finished_at",
+    "id",
+    "items",
+    "kind",
+    "progress",
+    "result",
+    "retry_of",
+    "started_at",
+    "status"
+   ]
+  },
+  "JobsListParams": {
+   "title": "JobsListParams",
+   "type": "object",
+   "properties": {
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "required": []
+  },
+  "ModelFileStatus": {
+   "title": "ModelFileStatus",
+   "type": "object",
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "role": {
+     "enum": [
+      "support",
+      "weight"
+     ]
+    },
+    "state": {
+     "enum": [
+      "missing",
+      "ok",
+      "sha-mismatch",
+      "size-mismatch",
+      "unverified"
+     ]
+    }
+   },
+   "required": [
+    "path",
+    "role",
+    "state"
+   ]
+  },
+  "ModelProbe": {
+   "title": "ModelProbe",
+   "type": "object",
+   "properties": {
+    "device": {},
+    "error": {},
+    "model": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "tested_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "device",
+    "error",
+    "model",
+    "status",
+    "tested_at"
+   ]
+  },
+  "ModelStatus": {
+   "title": "ModelStatus",
+   "type": "object",
+   "properties": {
+    "files": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ModelFileStatus"
+     }
+    },
+    "model": {
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "mismatch",
+      "missing",
+      "ready",
+      "unverified"
+     ]
+    },
+    "url": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "files",
+    "model",
+    "state",
+    "url"
+   ]
+  },
+  "ModelsStatus": {
+   "title": "ModelsStatus",
+   "type": "object",
+   "properties": {
+    "files": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ModelStatus"
+     }
+    },
+    "models_dir": {
+     "type": "string"
+    },
+    "probes": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ModelProbe"
+     }
+    },
+    "runtime": {
+     "$ref": "#/$defs/RuntimeStatus"
+    },
+    "support_dir": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "files",
+    "models_dir",
+    "probes",
+    "runtime",
+    "support_dir"
+   ]
+  },
+  "NoParams": {
+   "title": "NoParams",
+   "type": "object",
+   "properties": {},
+   "required": []
+  },
+  "OnnxRuntimeStatus": {
+   "title": "OnnxRuntimeStatus",
+   "type": "object",
+   "properties": {
+    "error": {
+     "type": "string"
+    },
+    "loadable": {
+     "type": "boolean"
+    },
+    "providers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "version": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "loadable"
+   ]
+  },
+  "Oped": {
+   "title": "Oped",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "start": {
+     "type": "number"
+    },
+    "version": {
+     "type": "integer"
+    },
+    "via": {
+     "enum": [
+      "confirm",
+      "mark",
+      "rule"
+     ]
+    }
+   },
+   "required": [
+    "end",
+    "id",
+    "kind",
+    "start",
+    "version",
+    "via"
+   ]
+  },
+  "OpedAddParams": {
+   "title": "OpedAddParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "kind": {
+     "type": "string"
+    },
+    "refs": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "via": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "kind",
+    "sourceId",
+    "start"
+   ]
+  },
+  "OpedAdded": {
+   "title": "OpedAdded",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "editId",
+    "id"
+   ]
+  },
+  "OpedPair": {
+   "title": "OpedPair",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "overlaps": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "refs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "suggest": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    }
+   },
+   "required": [
+    "end",
+    "overlaps",
+    "refs",
+    "start",
+    "suggest"
+   ]
+  },
+  "OpedRange": {
+   "title": "OpedRange",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "start": {
+     "type": "number"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "end",
+    "id",
+    "kind",
+    "start",
+    "version"
+   ]
+  },
+  "OpedRuleError": {
+   "title": "OpedRuleError",
+   "type": "object",
+   "properties": {
+    "code": {
+     "type": "string"
+    },
+    "count": {
+     "type": "integer"
+    },
+    "refs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "code",
+    "refs"
+   ]
+  },
+  "PathError": {
+   "title": "PathError",
+   "type": "object",
+   "properties": {
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "error",
+    "path"
+   ]
+  },
+  "PathParams": {
+   "title": "PathParams",
+   "type": "object",
+   "properties": {
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "path"
+   ]
+  },
+  "PathsParams": {
+   "title": "PathsParams",
+   "type": "object",
+   "properties": {
+    "paths": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "paths"
+   ]
+  },
+  "Peaks": {
+   "title": "Peaks",
+   "description": "波形峰值；``min``/``max`` 是 float32 小端序列。``start`` 为资产局部秒。",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "max": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "min": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "start": {
+     "type": "number"
+    },
+    "state": {
+     "enum": [
+      "pending",
+      "ready"
+     ]
+    },
+    "step": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "state"
+   ]
+  },
+  "PeaksParams": {
+   "title": "PeaksParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "points": {
+     "type": "integer"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start"
+   ]
+  },
+  "Prep": {
+   "title": "Prep",
+   "description": "准备清单的现状（UI_PLAN §4；没有顺序、不强制）。",
+   "type": "object",
+   "properties": {
+    "defaultSfx": {
+     "$ref": "#/$defs/PrepTrack"
+    },
+    "defaultVocal": {
+     "$ref": "#/$defs/PrepTrack"
+    },
+    "lineSamples": {
+     "$ref": "#/$defs/PrepCount"
+    },
+    "oped": {
+     "$ref": "#/$defs/PrepCount"
+    },
+    "separation": {
+     "$ref": "#/$defs/PrepTrack"
+    },
+    "subtitle": {
+     "$ref": "#/$defs/PrepSubtitle"
+    }
+   },
+   "required": [
+    "defaultSfx",
+    "defaultVocal",
+    "lineSamples",
+    "oped",
+    "separation",
+    "subtitle"
+   ]
+  },
+  "PrepAsset": {
+   "title": "PrepAsset",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "model": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "origin": {
+     "type": "string"
+    },
+    "stem": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "streamOrdinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "id",
+    "model",
+    "origin",
+    "stem",
+    "streamOrdinal"
+   ]
+  },
+  "PrepCount": {
+   "title": "PrepCount",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "count",
+    "ok"
+   ]
+  },
+  "PrepSubtitle": {
+   "title": "PrepSubtitle",
+   "type": "object",
+   "properties": {
+    "associated": {
+     "type": "boolean"
+    },
+    "markers": {
+     "type": "integer"
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "associated",
+    "markers",
+    "ok"
+   ]
+  },
+  "PrepTrack": {
+   "title": "PrepTrack",
+   "type": "object",
+   "properties": {
+    "asset": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PrepAsset"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "asset",
+    "ok"
+   ]
+  },
+  "PrepareQuit": {
+   "title": "PrepareQuit",
+   "type": "object",
+   "properties": {
+    "active": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "active"
+   ]
+  },
+  "PromoteInfo": {
+   "title": "PromoteInfo",
+   "description": "本地标签提升为区段标签（R5.6）：编辑批次与它的作用域；不写库。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "batch": {
+     "$ref": "#/$defs/EditBatch"
+    },
+    "end": {
+     "type": "number"
+    },
+    "role": {
+     "anyOf": [
+      {
+       "enum": [
+        "sfx",
+        "vocal"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    },
+    "scope": {
+     "enum": [
+      "asset",
+      "role"
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "batch",
+    "end",
+    "role",
+    "roles",
+    "scope",
+    "start"
+   ]
+  },
+  "PromoteParams": {
+   "title": "PromoteParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "role": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "sampleId",
+    "tags"
+   ]
+  },
+  "Quit": {
+   "title": "Quit",
+   "type": "object",
+   "properties": {
+    "cancelled": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "cancelled"
+   ]
+  },
+  "QuitParams": {
+   "title": "QuitParams",
+   "type": "object",
+   "properties": {
+    "cancel_jobs": {
+     "type": "boolean"
+    }
+   },
+   "required": []
+  },
+  "RegisterStemParams": {
+   "title": "RegisterStemParams",
+   "type": "object",
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "path",
+    "sourceId"
+   ]
+  },
+  "RelocateParams": {
+   "title": "RelocateParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "path"
+   ]
+  },
+  "ResolveSourceParams": {
+   "title": "ResolveSourceParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ordinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "RootAdded": {
+   "title": "RootAdded",
+   "type": "object",
+   "properties": {
+    "adopted": {
+     "type": "integer"
+    },
+    "id": {
+     "type": "string"
+    },
+    "job": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobRef"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "adopted",
+    "id",
+    "job"
+   ]
+  },
+  "RootRelocated": {
+   "title": "RootRelocated",
+   "type": "object",
+   "properties": {
+    "job": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobRef"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "moved": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "job",
+    "moved"
+   ]
+  },
+  "RootRemoved": {
+   "title": "RootRemoved",
+   "type": "object",
+   "properties": {
+    "released": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "released"
+   ]
+  },
+  "RuleTestParams": {
+   "title": "RuleTestParams",
+   "type": "object",
+   "properties": {
+    "rules": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
+   ]
+  },
+  "RuntimeStatus": {
+   "title": "RuntimeStatus",
+   "type": "object",
+   "properties": {
+    "onnxruntime": {
+     "$ref": "#/$defs/OnnxRuntimeStatus"
+    }
+   },
+   "required": [
+    "onnxruntime"
+   ]
+  },
+  "SampleCreateParams": {
+   "title": "SampleCreateParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "createdVia": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "parentSampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "name",
+    "start"
+   ]
+  },
+  "SampleFilter": {
+   "title": "SampleFilter",
+   "type": "object",
+   "properties": {
+    "natures": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "starred": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": []
+  },
+  "SampleIds": {
+   "title": "SampleIds",
+   "type": "object",
+   "properties": {
+    "sampleIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "sampleIds"
+   ]
+  },
+  "SamplePage": {
+   "title": "SamplePage",
+   "type": "object",
+   "properties": {
+    "offset": {
+     "type": "integer"
+    },
+    "rows": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SampleRow"
+     }
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "offset",
+    "rows",
+    "total"
+   ]
+  },
+  "SampleRow": {
+   "title": "SampleRow",
+   "type": "object",
+   "properties": {
+    "asset_id": {
+     "type": "string"
+    },
+    "asset_origin": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "created_via": {
+     "type": "string"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "episode": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "media_state": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "parent_label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "parent_sample_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "people": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "rating": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "source_id": {
+     "type": "string"
+    },
+    "source_name": {
+     "type": "string"
+    },
+    "source_path": {
+     "type": "string"
+    },
+    "source_start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "starred": {
+     "type": "boolean"
+    },
+    "start": {
+     "type": "number"
+    },
+    "stream_ordinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/EffectiveTag"
+     }
+    },
+    "version": {
+     "type": "integer"
+    },
+    "work": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "asset_id",
+    "asset_origin",
+    "created_at",
+    "created_via",
+    "duration",
+    "end",
+    "episode",
+    "id",
+    "language",
+    "media_state",
+    "name",
+    "nature",
+    "parent_label",
+    "parent_sample_id",
+    "people",
+    "rating",
+    "source_id",
+    "source_name",
+    "source_path",
+    "source_start",
+    "starred",
+    "start",
+    "stream_ordinal",
+    "version",
+    "work"
+   ]
+  },
+  "SampleSuggestion": {
+   "title": "SampleSuggestion",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "name",
+    "nature",
+    "roles",
+    "start"
+   ]
+  },
+  "SamplesListParams": {
+   "title": "SamplesListParams",
+   "type": "object",
+   "properties": {
+    "limit": {
+     "type": "integer"
+    },
+    "natures": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "sort": {
+     "enum": [
+      "created",
+      "duration",
+      "name",
+      "source"
+     ]
+    },
+    "sourceId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "starred": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": []
+  },
+  "SeparationSubmitParams": {
+   "title": "SeparationSubmitParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "model": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stems": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "assetId",
+    "model"
+   ]
+  },
+  "SeparationSubmitted": {
+   "title": "SeparationSubmitted",
+   "description": "同输入同模型已有结果时只返回 ``reused``（各声部资产 ID），否则返回任务。",
+   "type": "object",
+   "properties": {
+    "job": {
+     "$ref": "#/$defs/JobSummary"
+    },
+    "reused": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": []
+  },
+  "SettingEntry": {
+   "title": "SettingEntry",
+   "type": "object",
+   "properties": {
+    "default": {},
+    "group": {
+     "type": "string"
+    },
+    "value": {},
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "default",
+    "group",
+    "value",
+    "version"
+   ]
+  },
+  "SourceCounts": {
+   "title": "SourceCounts",
+   "type": "object",
+   "properties": {
+    "hasMarkers": {
+     "type": "boolean"
+    },
+    "lines": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "samples": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "hasMarkers",
+    "lines",
+    "oped",
+    "samples"
+   ]
+  },
+  "SourceDetail": {
+   "title": "SourceDetail",
+   "type": "object",
+   "properties": {
+    "actor_kind": {
+     "type": "string"
+    },
+    "actor_session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "current_subtitle_version_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "default_audio_stream": {
+     "type": "integer"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "episode": {
+     "type": "string"
+    },
+    "file_snapshot": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "import_root": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "media_state": {
+     "enum": [
+      "available",
+      "released"
+     ]
+    },
+    "path": {
+     "type": "string"
+    },
+    "path_key": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "rel_path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "root_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "source_type": {
+     "type": "string"
+    },
+    "streams": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SourceStream"
+     }
+    },
+    "subtitle_path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    },
+    "visual_binding_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "work": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "actor_kind",
+    "actor_session",
+    "created_at",
+    "current_subtitle_version_id",
+    "default_audio_stream",
+    "duration",
+    "episode",
+    "file_snapshot",
+    "id",
+    "import_root",
+    "media_state",
+    "path",
+    "path_key",
+    "rel_path",
+    "root_id",
+    "source_type",
+    "streams",
+    "subtitle_path",
+    "updated_at",
+    "version",
+    "visual_binding_id",
+    "work"
+   ]
+  },
+  "SourceHandle": {
+   "title": "SourceHandle",
+   "type": "object",
+   "properties": {
+    "aid": {
+     "type": "integer"
+    },
+    "audioDelay": {
+     "type": "number"
+    },
+    "audioFile": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "coverage": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
+    "duration": {
+     "type": "number"
+    },
+    "hasVideo": {
+     "type": "boolean"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "aid",
+    "audioDelay",
+    "audioFile",
+    "coverage",
+    "duration",
+    "hasVideo",
+    "path"
+   ]
+  },
+  "SourceIdParams": {
+   "title": "SourceIdParams",
+   "type": "object",
+   "properties": {
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "SourceIdsParams": {
+   "title": "SourceIdsParams",
+   "type": "object",
+   "properties": {
+    "sourceIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "sourceIds"
+   ]
+  },
+  "SourceRelocated": {
+   "title": "SourceRelocated",
+   "type": "object",
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "streamsChanged": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "path",
+    "sourceId",
+    "streamsChanged"
+   ]
+  },
+  "SourceRoot": {
+   "title": "SourceRoot",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "online": {
+     "type": "boolean"
+    },
+    "path": {
+     "type": "string"
+    },
+    "sources": {
+     "type": "integer"
+    },
+    "works": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "id",
+    "online",
+    "path",
+    "sources",
+    "works"
+   ]
+  },
+  "SourceRow": {
+   "title": "SourceRow",
+   "type": "object",
+   "properties": {
+    "audio_streams": {
+     "type": "integer"
+    },
+    "counts": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SourceCounts"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "default_audio_stream": {
+     "type": "integer"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "episode": {
+     "type": "string"
+    },
+    "has_picture": {
+     "type": "boolean"
+    },
+    "has_video": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "import_root": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "media_state": {
+     "enum": [
+      "available",
+      "released"
+     ]
+    },
+    "missing": {
+     "type": "boolean"
+    },
+    "path": {
+     "type": "string"
+    },
+    "rel_path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "root_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "source_type": {
+     "type": "string"
+    },
+    "subtitle_path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    },
+    "work": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "audio_streams",
+    "counts",
+    "created_at",
+    "default_audio_stream",
+    "duration",
+    "episode",
+    "has_picture",
+    "has_video",
+    "id",
+    "import_root",
+    "media_state",
+    "missing",
+    "path",
+    "rel_path",
+    "root_id",
+    "source_type",
+    "subtitle_path",
+    "version",
+    "work"
+   ]
+  },
+  "SourceStream": {
+   "title": "SourceStream",
+   "type": "object",
+   "properties": {
+    "bit_depth": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "channels": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "codec": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "container_index": {
+     "type": "integer"
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "is_attached_pic": {
+     "type": "boolean"
+    },
+    "kind": {
+     "enum": [
+      "audio",
+      "video"
+     ]
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ordinal": {
+     "type": "integer"
+    },
+    "sample_rate": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "source_id": {
+     "type": "string"
+    },
+    "start_time": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "title": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "bit_depth",
+    "channels",
+    "codec",
+    "container_index",
+    "duration",
+    "is_attached_pic",
+    "kind",
+    "language",
+    "ordinal",
+    "sample_rate",
+    "source_id",
+    "start_time",
+    "title"
+   ]
+  },
+  "SourcesAddParams": {
+   "title": "SourcesAddParams",
+   "type": "object",
+   "properties": {
+    "importRoot": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "paths": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "paths"
+   ]
+  },
+  "StemRegistered": {
+   "title": "StemRegistered",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "stem": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "assetId",
+    "model",
+    "stem"
+   ]
+  },
+  "StreamAssetCreated": {
+   "title": "StreamAssetCreated",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ordinal": {
+     "type": "integer"
+    },
+    "skipped": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "assetId",
+    "ordinal",
+    "skipped"
+   ]
+  },
+  "StudioEnv": {
+   "title": "StudioEnv",
+   "type": "object",
+   "properties": {
+    "app": {
+     "type": "string"
+    },
+    "data_dir": {
+     "type": "string"
+    },
+    "model_dir": {
+     "type": "string"
+    },
+    "python": {
+     "type": "string"
+    },
+    "resources": {
+     "type": "string"
+    },
+    "runtime_file": {
+     "type": "string"
+    },
+    "version": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "worker": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "app",
+    "data_dir",
+    "model_dir",
+    "python",
+    "resources",
+    "runtime_file",
+    "version",
+    "worker"
+   ]
+  },
+  "StudioModel": {
+   "title": "StudioModel",
+   "type": "object",
+   "properties": {
+    "aliases": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "category": {},
+    "files": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "stems": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "threeTrack": {
+     "type": "boolean"
+    },
+    "vocal": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "aliases",
+    "category",
+    "files",
+    "name",
+    "stems",
+    "threeTrack",
+    "vocal"
+   ]
+  },
+  "StudioStatus": {
+   "title": "StudioStatus",
+   "description": "``ok`` 为假时只有 ``error``。",
+   "type": "object",
+   "properties": {
+    "env": {
+     "$ref": "#/$defs/StudioEnv"
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "listingJob": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "models": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/StudioModel"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "ok"
+   ]
+  },
+  "SubtitleBatchRow": {
+   "title": "SubtitleBatchRow",
+   "description": "批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键）。",
+   "type": "object",
+   "properties": {
+    "counts": {
+     "$ref": "#/$defs/SubtitleCounts"
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "fileName": {
+     "type": "string"
+    },
+    "problems": {
+     "type": "integer"
+    },
+    "skipped": {
+     "enum": [
+      "no-subtitle"
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "versionState": {
+     "enum": [
+      "current",
+      "new",
+      "switch"
+     ]
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "SubtitleCounts": {
+   "title": "SubtitleCounts",
+   "type": "object",
+   "properties": {
+    "importable": {
+     "type": "integer"
+    },
+    "invalid": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "registered": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "importable",
+    "invalid",
+    "oped",
+    "registered"
+   ]
+  },
+  "SubtitleImportItem": {
+   "title": "SubtitleImportItem",
+   "type": "object",
+   "properties": {
+    "sourceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId",
+    "token"
+   ]
+  },
+  "SubtitleImportManyParams": {
+   "title": "SubtitleImportManyParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleImportItem"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
+  "SubtitleImportManyRow": {
+   "title": "SubtitleImportManyRow",
+   "description": "批量导入的一行：出错时只有 sourceId + error，否则同 SubtitleImportResult。",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "imported": {
+     "type": "integer"
+    },
+    "invalid": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleInvalidLine"
+     }
+    },
+    "newVersion": {
+     "type": "boolean"
+    },
+    "problems": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleProblem"
+     }
+    },
+    "skipped": {
+     "$ref": "#/$defs/SubtitleSkipped"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "switched": {
+     "type": "boolean"
+    },
+    "versionId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "SubtitleImportParams": {
+   "title": "SubtitleImportParams",
+   "type": "object",
+   "properties": {
+    "lines": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "integer"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId",
+    "token"
+   ]
+  },
+  "SubtitleImportResult": {
+   "title": "SubtitleImportResult",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "imported": {
+     "type": "integer"
+    },
+    "invalid": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleInvalidLine"
+     }
+    },
+    "newVersion": {
+     "type": "boolean"
+    },
+    "problems": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleProblem"
+     }
+    },
+    "skipped": {
+     "$ref": "#/$defs/SubtitleSkipped"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "switched": {
+     "type": "boolean"
+    },
+    "versionId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "editId",
+    "imported",
+    "invalid",
+    "newVersion",
+    "problems",
+    "skipped",
+    "sourceId",
+    "switched",
+    "versionId"
+   ]
+  },
+  "SubtitleInvalidLine": {
+   "title": "SubtitleInvalidLine",
+   "type": "object",
+   "properties": {
+    "no": {
+     "type": "integer"
+    },
+    "reason": {
+     "type": "string"
+    },
+    "ref": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "no",
+    "reason",
+    "ref"
+   ]
+  },
+  "SubtitlePreview": {
+   "title": "SubtitlePreview",
+   "type": "object",
+   "properties": {
+    "counts": {
+     "$ref": "#/$defs/SubtitleCounts"
+    },
+    "fileName": {
+     "type": "string"
+    },
+    "fingerprint": {
+     "type": "string"
+    },
+    "format": {
+     "type": "string"
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitlePreviewLine"
+     }
+    },
+    "path": {
+     "type": "string"
+    },
+    "problems": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleProblem"
+     }
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "versionState": {
+     "enum": [
+      "current",
+      "new",
+      "switch"
+     ]
+    }
+   },
+   "required": [
+    "counts",
+    "fileName",
+    "fingerprint",
+    "format",
+    "lines",
+    "path",
+    "problems",
+    "sourceId",
+    "token",
+    "versionState"
+   ]
+  },
+  "SubtitlePreviewLine": {
+   "title": "SubtitlePreviewLine",
+   "type": "object",
+   "properties": {
+    "alignText": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "sfx"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "no": {
+     "type": "integer"
+    },
+    "oped": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "opedPartial": {
+     "type": "boolean"
+    },
+    "reason": {
+     "enum": [
+      "beyond-end",
+      "empty",
+      "negative-start"
+     ]
+    },
+    "ref": {
+     "type": "string"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "status": {
+     "enum": [
+      "importable",
+      "invalid",
+      "oped",
+      "registered"
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "alignText",
+    "end",
+    "kind",
+    "name",
+    "no",
+    "ref",
+    "speakers",
+    "start",
+    "status",
+    "text"
+   ]
+  },
+  "SubtitlePreviewParams": {
+   "title": "SubtitlePreviewParams",
+   "type": "object",
+   "properties": {
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "SubtitleProblem": {
+   "title": "SubtitleProblem",
+   "type": "object",
+   "properties": {
+    "line": {
+     "type": "integer"
+    },
+    "reason": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "line",
+    "reason"
+   ]
+  },
+  "SubtitleSampleCounts": {
+   "title": "SubtitleSampleCounts",
+   "type": "object",
+   "properties": {
+    "no-name": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "out-of-track": {
+     "type": "integer"
+    },
+    "pending": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "no-name",
+    "oped",
+    "out-of-track",
+    "pending"
+   ]
+  },
+  "SubtitleSampleLine": {
+   "title": "SubtitleSampleLine",
+   "type": "object",
+   "properties": {
+    "annotationId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "rawText": {
+     "type": "string"
+    },
+    "sampleEnd": {
+     "type": "number"
+    },
+    "sampleStart": {
+     "type": "number"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "status": {
+     "enum": [
+      "no-name",
+      "oped",
+      "out-of-track",
+      "pending"
+     ]
+    }
+   },
+   "required": [
+    "annotationId",
+    "end",
+    "name",
+    "rawText",
+    "sampleEnd",
+    "sampleStart",
+    "speakers",
+    "start",
+    "status"
+   ]
+  },
+  "SubtitleSamplePreview": {
+   "title": "SubtitleSamplePreview",
+   "type": "object",
+   "properties": {
+    "counts": {
+     "$ref": "#/$defs/SubtitleSampleCounts"
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "sfx"
+     ]
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleSampleLine"
+     }
+    },
+    "missingDefault": {
+     "type": "boolean"
+    },
+    "noSubtitles": {
+     "type": "boolean"
+    },
+    "pads": {
+     "type": "array",
+     "minItems": 2,
+     "maxItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "items": false
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "trackId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "counts",
+    "kind",
+    "lines",
+    "missingDefault",
+    "noSubtitles",
+    "pads",
+    "sourceId",
+    "token",
+    "trackId"
+   ]
+  },
+  "SubtitleSamplesCreateParams": {
+   "title": "SubtitleSamplesCreateParams",
+   "type": "object",
+   "properties": {
+    "annotationIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "token": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "annotationIds",
+    "kind",
+    "sourceId",
+    "token"
+   ]
+  },
+  "SubtitleSamplesCreated": {
+   "title": "SubtitleSamplesCreated",
+   "type": "object",
+   "properties": {
+    "created": {
+     "type": "integer"
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "created",
+    "ids"
+   ]
+  },
+  "SubtitleSamplesPreviewParams": {
+   "title": "SubtitleSamplesPreviewParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "kind",
+    "sourceId"
+   ]
+  },
+  "SubtitleSkipped": {
+   "title": "SubtitleSkipped",
+   "type": "object",
+   "properties": {
+    "invalid": {
+     "type": "integer"
+    },
+    "registered": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "invalid",
+    "registered"
+   ]
+  },
+  "SuggestParams": {
+   "title": "SuggestParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "localMarker": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start"
+   ]
+  },
+  "ThumbRequest": {
+   "title": "ThumbRequest",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "sample",
+      "source"
+     ]
+    },
+    "size": {
+     "enum": [
+      "list",
+      "poster"
+     ]
+    }
+   },
+   "required": [
+    "id",
+    "kind"
+   ]
+  },
+  "ThumbResult": {
+   "title": "ThumbResult",
+   "type": "object",
+   "properties": {
+    "data": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "sample",
+      "source"
+     ]
+    },
+    "size": {
+     "enum": [
+      "list",
+      "poster"
+     ]
+    },
+    "state": {
+     "enum": [
+      "failed",
+      "none",
+      "pending",
+      "ready"
+     ]
+    }
+   },
+   "required": [
+    "id",
+    "kind",
+    "size",
+    "state"
+   ]
+  },
+  "ThumbsParams": {
+   "title": "ThumbsParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ThumbRequest"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
+  "TrackRow": {
+   "title": "TrackRow",
+   "type": "object",
+   "properties": {
+    "duplicates": {
+     "type": "integer"
+    },
+    "id": {
+     "type": "string"
+    },
+    "isFullTrack": {
+     "type": "boolean"
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "origin": {
+     "enum": [
+      "flatten",
+      "reimport",
+      "separation",
+      "stream"
+     ]
+    },
+    "production": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    },
+    "stemName": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "streamOrdinal": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "duplicates",
+    "id",
+    "isFullTrack",
+    "language",
+    "origin",
+    "production",
+    "roles",
+    "stemName",
+    "streamOrdinal",
+    "version"
+   ]
+  },
+  "Tracks": {
+   "title": "Tracks",
+   "type": "object",
+   "properties": {
+    "defaults": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "sourceVersion": {
+     "type": "integer"
+    },
+    "tracks": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TrackRow"
+     }
+    }
+   },
+   "required": [
+    "defaults",
+    "sourceVersion",
+    "tracks"
+   ]
+  },
+  "UiGetParams": {
+   "title": "UiGetParams",
+   "type": "object",
+   "properties": {
+    "page": {
+     "type": "string"
+    },
+    "window": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "page"
+   ]
+  },
+  "UiSetParams": {
+   "title": "UiSetParams",
+   "type": "object",
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "page": {
+     "type": "string"
+    },
+    "value": {},
+    "window": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "key",
+    "page",
+    "value"
+   ]
+  },
+  "UndoPeek": {
+   "title": "UndoPeek",
+   "type": "object",
+   "properties": {
+    "edit_id": {
+     "type": "string"
+    },
+    "label": {
+     "$ref": "#/$defs/EditLabel"
+    }
+   },
+   "required": [
+    "edit_id",
+    "label"
+   ]
+  },
+  "WholeSamplesParams": {
+   "title": "WholeSamplesParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "nature": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "ids"
+   ]
+  },
+  "WorkFolder": {
+   "title": "WorkFolder",
+   "description": "作品文件夹：原片文件夹的第一层子文件夹。",
+   "type": "object",
+   "properties": {
+    "bindPictures": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "rootId": {
+     "type": "string"
+    },
+    "sourceType": {
+     "type": "string"
+    },
+    "sources": {
+     "type": "integer"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "bindPictures",
+    "id",
+    "name",
+    "path",
+    "rootId",
+    "sourceType",
+    "sources",
+    "version"
+   ]
+  },
+  "WorkRenameParams": {
+   "title": "WorkRenameParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "name"
+   ]
+  },
+  "WorkRenamed": {
+   "title": "WorkRenamed",
+   "type": "object",
+   "properties": {
+    "renamed": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "renamed"
+   ]
+  },
+  "WorkSettingsParams": {
+   "title": "WorkSettingsParams",
+   "type": "object",
+   "properties": {
+    "bindPictures": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "sourceType": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  }
+ }
+}

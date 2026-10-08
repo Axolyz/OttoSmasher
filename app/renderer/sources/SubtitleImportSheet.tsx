@@ -49,7 +49,7 @@ export function SubtitleImportSheet(props: { source: SourceRow | null; onClose: 
       if (!props.source) return null;
       setError(null);
       try {
-        const r = await call<SubtitlePreview>("subtitles.preview", { sourceId: props.source.id, path: p });
+        const r = await call("subtitles.preview", { sourceId: props.source.id, path: p });
         setPv(r);
         setChecked(new Set(r.lines.filter((l) => DEFAULT_ON.has(l.status)).map((l) => keyOf(l.no))));
         return r;
@@ -88,7 +88,7 @@ export function SubtitleImportSheet(props: { source: SourceRow | null; onClose: 
     setBusy(true);
     try {
       const lines = pv.lines.filter((l) => checked.has(keyOf(l.no)) && DEFAULT_ON.has(l.status)).map((l) => l.no);
-      const r = await call<SubtitleImportResult>("subtitles.import", { sourceId: props.source.id, token: pv.token, lines, path });
+      const r = await call("subtitles.import", { sourceId: props.source.id, token: pv.token, lines, path });
       toast({
         text: t(r.switched && !r.imported ? "subimport.doneSwitched" : r.newVersion ? "subimport.doneNewVersion" : "subimport.done", {
           n: r.imported,
@@ -200,6 +200,9 @@ export function SubtitleImportSheet(props: { source: SourceRow | null; onClose: 
   );
 }
 
+/** 批量预览里可导入的一行（其余是 skipped 或 error） */
+type BatchOk = SubtitleBatchRow & Required<Pick<SubtitleBatchRow, "fileName" | "token" | "versionState" | "counts" | "problems">>;
+
 export function SubtitleBatchSheet(props: { sources: SourceRow[]; onClose: () => void; onDone: () => void }) {
   const toast = useApp((st) => st.toast);
   const [rows, setRows] = useState<SubtitleBatchRow[] | null>(null);
@@ -207,12 +210,12 @@ export function SubtitleBatchSheet(props: { sources: SourceRow[]; onClose: () =>
   const [busy, setBusy] = useState(false);
   const open = props.sources.length > 0;
   const byId = useMemo(() => new Map(props.sources.map((r) => [r.id, r])), [props.sources]);
-  const ok = (r: SubtitleBatchRow): r is Extract<SubtitleBatchRow, { token: string }> => "token" in r;
+  const ok = (r: SubtitleBatchRow): r is BatchOk => "token" in r;
   const usable = (r: SubtitleBatchRow) => ok(r) && (r.counts.importable + r.counts.oped > 0 || r.versionState === "switch");
 
   useEffect(() => {
     if (!open) return setRows(null);
-    void call<SubtitleBatchRow[]>("subtitles.previewMany", { sourceIds: props.sources.map((r) => r.id) }).then((r) => {
+    void call("subtitles.previewMany", { sourceIds: props.sources.map((r) => r.id) }).then((r) => {
       setRows(r);
       setChecked(new Set(r.filter(usable).map((x) => x.sourceId)));
     });
@@ -222,12 +225,12 @@ export function SubtitleBatchSheet(props: { sources: SourceRow[]; onClose: () =>
     if (!rows || busy) return;
     setBusy(true);
     try {
-      const items = rows.filter((r) => ok(r) && checked.has(r.sourceId)).map((r) => ({ sourceId: r.sourceId, token: (r as { token: string }).token }));
-      const res = await call<Array<SubtitleImportResult | { sourceId: string; error: { code: string; args: Record<string, unknown> } }>>("subtitles.importMany", { items });
+      const items = rows.filter((r) => ok(r) && checked.has(r.sourceId)).map((r) => ({ sourceId: r.sourceId, token: r.token! }));
+      const res = await call("subtitles.importMany", { items });
       const failed = res.filter((r) => "error" in r);
-      const total = res.reduce((a, r) => a + ("imported" in r ? r.imported : 0), 0);
+      const total = res.reduce((a, r) => a + (r.imported ?? 0), 0);
       toast({ text: t("subimport.batchDone", { n: res.length - failed.length, lines: total, failed: failed.length }), tone: failed.length ? "error" : "info" });
-      for (const f of failed) if ("error" in f) toast({ text: t("subimport.batchFailedOne", { name: displayTitle(byId.get(f.sourceId)!), error: errorText(f.error) }), tone: "error" });
+      for (const f of failed) if (f.error) toast({ text: t("subimport.batchFailedOne", { name: displayTitle(byId.get(f.sourceId)!), error: errorText(f.error) }), tone: "error" });
       props.onDone();
       props.onClose();
     } finally {
@@ -270,7 +273,7 @@ export function SubtitleBatchSheet(props: { sources: SourceRow[]; onClose: () =>
               {
                 id: "file",
                 label: t("subimport.col.file"),
-                render: (r) => (ok(r) ? <span data-user-data="">{r.fileName}</span> : "skipped" in r ? <span className={s.muted}>{t("subimport.skipped.noSubtitle")}</span> : <span className={s.warn}>{errorText(r.error)}</span>),
+                render: (r) => (ok(r) ? <span data-user-data="">{r.fileName}</span> : "skipped" in r ? <span className={s.muted}>{t("subimport.skipped.noSubtitle")}</span> : <span className={s.warn}>{r.error ? errorText(r.error) : ""}</span>),
               },
               { id: "imp", label: t("subimport.stat.importableShort"), align: "end", render: (r) => (ok(r) ? <span className="num">{r.counts.importable}</span> : "") },
               { id: "oped", label: t("subimport.stat.opedShort"), align: "end", render: (r) => (ok(r) ? <span className="num">{r.counts.oped}</span> : "") },

@@ -21,7 +21,7 @@ export function TopBar() {
   const undo = useUndo();
   const [peek, setPeek] = useState<{ label: EditLabel } | null>(null);
   const refreshPeek = () => {
-    if (ready) void call<{ label: EditLabel } | null>("edits.peekUndo").then(setPeek, () => setPeek(null));
+    if (ready) void call("edits.peekUndo").then(setPeek, () => setPeek(null));
   };
   useEffect(refreshPeek, [ready]);
   useCoreEvent("data.changed", refreshPeek);

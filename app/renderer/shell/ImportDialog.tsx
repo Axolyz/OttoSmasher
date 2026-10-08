@@ -4,7 +4,7 @@
 // 所有者 2026-10-07：原片只有一种，两个入口唯一的区别是这个勾选的默认值（采样库勾、原片页不勾）；已登记过的文件不重复登记，勾了就再建一个全长采样。
 import { useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { Nature } from "../api/types";
+import type { ImportPreview, ImportResult, JobSummary, Nature } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Checkbox, ProgressBar, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
@@ -15,36 +15,10 @@ import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import s from "./Import.module.css";
 
-export interface ImportResult {
-  created: number;
-  existing: number;
-  failed: Array<{ path: string; error: { code: string; args: Record<string, unknown> } }>;
-  sourceIds: string[];
-  sampleIds: string[];
-}
-
-interface Preview {
-  total: number;
-  importable: number;
-  videos: number;
-  existing: number;
-  withPicture: number;
-  withoutPicture: number;
-  unreadable: Array<{ path: string; error: { code: string; args: Record<string, unknown> } }>;
-  conflicts: Array<{ path: string; picture: string; others: string[] }>;
-  roots: string[];
-  /** 按文件名推断时的分组：[作品, 个数]，"" = 未指定作品（只算新文件） */
-  inferredGroups: Array<[string, number]>;
-  /** “统一设为”的预填：新文件推断出同一个作品就用它，否则唯一的文件夹名 */
-  suggestedWork: string;
-}
+export type { ImportResult };
+type Preview = ImportPreview;
 const GROUPS_MAX = 6;
-interface Job {
-  id: string;
-  status: string;
-  progress: { done: number; total: number; percent?: number } | null;
-  error: { code: string; args: Record<string, unknown> } | null;
-}
+type Job = JobSummary;
 const LIST_MAX = 20;
 
 export function ImportDialog(props: {
@@ -81,7 +55,7 @@ export function ImportDialog(props: {
     setWorkMode("unified");
     workTouched.current = false;
     jobId.current = null;
-    void call<Job>("imports.scan", { paths: props.paths })
+    void call("imports.scan", { paths: props.paths })
       .then((j) => {
         jobId.current = j.id;
         onJob(seen.current.get(j.id) ?? j);
@@ -95,7 +69,7 @@ export function ImportDialog(props: {
   const onJob = (j: Job) => {
     setJob(j);
     if (j.status === "succeeded") {
-      void call<Preview>("imports.preview", { jobId: j.id })
+      void call("imports.preview", { jobId: j.id })
         .then((p) => {
           setPv(p);
           if (!workTouched.current) setWork(p.suggestedWork);
@@ -114,7 +88,7 @@ export function ImportDialog(props: {
     if (!job || !pv || busy) return;
     setBusy(true);
     try {
-      const r = await call<ImportResult>("imports.commit", { jobId: job.id, workMode, work, sourceType: type, wholeSample: whole, nature, bindPictures: bind });
+      const r = await call("imports.commit", { jobId: job.id, workMode, work, sourceType: type, wholeSample: whole, nature, bindPictures: bind });
       const parts = [t("import.doneSources", { n: r.created })];
       if (whole) parts.push(t("import.doneSamples", { n: r.sampleIds.length }));
       if (r.existing) parts.push(t(whole ? "import.doneExistingWhole" : "import.doneExisting", { n: r.existing }));
@@ -208,7 +182,7 @@ export function ImportDialog(props: {
         </Callout>
       ) : scanning ? (
         <ProgressBar
-          value={p?.total ? (p.done / p.total) * 100 : null}
+          value={p?.total ? ((p.done ?? 0) / p.total) * 100 : null}
           max={100}
           label={t("import.scanning")}
           showValue={p?.total ? t("import.scanningN", { done: p.done, total: p.total }) : t("import.scanning")}

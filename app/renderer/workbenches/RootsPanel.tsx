@@ -16,7 +16,7 @@ export function RootsPanel() {
   const toast = useApp((st) => st.toast);
   const [roots, setRoots] = useState<SourceRoot[]>([]);
   const [removing, setRemoving] = useState<SourceRoot | null>(null);
-  const reload = useCallback(() => void call<SourceRoot[]>("roots.list").then(setRoots), []);
+  const reload = useCallback(() => void call("roots.list").then(setRoots), []);
   useEffect(reload, [reload]);
   useCoreEvent("sources.scanned", reload);
   useCoreEvent("data.changed", (d) => {

@@ -5,6 +5,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
+import type { EditBatch } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Chips, Segmented } from "../components/Controls";
 import { TextField, TimeField } from "../components/Fields";
@@ -57,7 +58,7 @@ export function AnnotationDialog(props: { target: AnnTarget | null; duration: nu
     setDraft("");
   };
 
-  const run = async (batch: Record<string, unknown>, done: string) => {
+  const run = async (batch: EditBatch, done: string) => {
     setBusy(true);
     try {
       await call("edits.apply", { batch });

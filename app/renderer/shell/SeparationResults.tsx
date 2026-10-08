@@ -3,6 +3,7 @@
 import { GripVertical, Play, Save, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
+import type { AssetRecord } from "../api/types";
 import { Button } from "../components/Button";
 import { beginDragOut } from "../dragout";
 import { seconds } from "../format";
@@ -10,19 +11,14 @@ import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import s from "./TaskDrawer.module.css";
 
-interface ResultAsset {
-  id: string;
-  stem_name: string;
-  duration: number;
-  roles: string[];
-}
+type ResultAsset = AssetRecord;
 
 export function SeparationResults({ jobId }: { jobId: string }) {
   const toast = useApp((st) => st.toast);
   const [rows, setRows] = useState<ResultAsset[] | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   useEffect(() => {
-    void call<ResultAsset[]>("separation.results", { jobId }).then(setRows, () => setRows([]));
+    void call("separation.results", { jobId }).then(setRows, () => setRows([]));
   }, [jobId]);
   const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
 
@@ -42,8 +38,8 @@ export function SeparationResults({ jobId }: { jobId: string }) {
   };
   const save = async (a: ResultAsset) => {
     try {
-      const sg = await call<{ name: string }>("samples.suggest", { assetId: a.id, start: 0, end: a.duration, localMarker: t("naming.local") });
-      const smp = await call<{ name: string }>("samples.create", { assetId: a.id, start: 0, end: a.duration, name: `${sg.name} · ${a.stem_name}`, nature: "unclassified" });
+      const sg = await call("samples.suggest", { assetId: a.id, start: 0, end: a.duration, localMarker: t("naming.local") });
+      const smp = await call("samples.create", { assetId: a.id, start: 0, end: a.duration, name: `${sg.name} · ${a.stem_name}`, nature: "unclassified" });
       toast({ text: t("clip.saved", { name: smp.name }) });
     } catch (e) {
       fail(e);
@@ -62,7 +58,7 @@ export function SeparationResults({ jobId }: { jobId: string }) {
           onPointerDown={(e) => {
             if ((e.target as Element).closest("button")) return;
             beginDragOut(e, async () => [
-              (await call<{ path: string }>("exports.wav", { assetId: a.id, start: 0, end: a.duration, content: a.stem_name, track: a.stem_name })).path,
+              (await call("exports.wav", { assetId: a.id, start: 0, end: a.duration, content: a.stem_name ?? "", track: a.stem_name ?? "" })).path,
             ]);
           }}
         >

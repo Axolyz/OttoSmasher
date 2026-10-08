@@ -4,18 +4,12 @@
 import { useEffect, useState } from "react";
 import type { CoreEvent } from "../../shared/protocol";
 import { call } from "./core";
+import type { ThumbRequest, ThumbResult } from "./generated";
 
-export type ThumbKind = "source" | "sample";
-/** list = 列表行（88×50 / 56×32）；poster = 短音频查看器的画面（320×180） */
-export type ThumbSize = "list" | "poster";
-type State = { state: "pending" | "ready" | "none" | "failed"; url?: string };
-interface Res {
-  kind: ThumbKind;
-  id: string;
-  size: ThumbSize;
-  state: State["state"];
-  data?: Uint8Array;
-}
+export type ThumbKind = ThumbRequest["kind"];
+/** list = 列表行（88×50 / 56×32）；poster = 查看器的画面（320×180） */
+export type ThumbSize = NonNullable<ThumbRequest["size"]>;
+type State = { state: ThumbResult["state"]; url?: string };
 
 const cache = new Map<string, State>();
 const listeners = new Map<string, Set<() => void>>();
@@ -48,11 +42,11 @@ async function flush(): Promise<void> {
   if (queue.size) timer = setTimeout(() => void flush(), 16);
   const items = keys.map((k) => {
     const [kind, size] = k.split(":", 2);
-    return { kind, size, id: k.slice(kind!.length + size!.length + 2) };
+    return { kind: kind as ThumbKind, size: size as ThumbSize, id: k.slice(kind!.length + size!.length + 2) };
   });
-  let res: Res[];
+  let res: ThumbResult[];
   try {
-    res = await call<Res[]>("thumbs.get", { items });
+    res = await call("thumbs.get", { items });
   } catch {
     for (const k of keys) set(k, { state: "failed" });
     return;

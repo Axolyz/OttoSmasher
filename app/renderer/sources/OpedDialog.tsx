@@ -3,7 +3,7 @@
 // 所有新建、删除都走统一编辑通道，可撤销；删除 / 撤销不删已有采样。
 import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { SettingEntry, SourceRow } from "../api/types";
+import type { IdentifyResult, Oped, OpedPair, SettingEntry, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Segmented } from "../components/Controls";
 import { NumberField, TimeField } from "../components/Fields";
@@ -15,28 +15,9 @@ import { useApp } from "../state/store";
 import { displayTitle } from "./SourceList";
 import s from "./Sources.module.css";
 
-type Kind = "OP" | "ED";
-interface Oped {
-  id: string;
-  kind: Kind;
-  start: number;
-  end: number;
-  via: "rule" | "confirm" | "mark";
-}
-interface Pair {
-  start: number;
-  end: number;
-  suggest: Kind;
-  refs: string[];
-  overlaps: string | null;
-}
-export interface IdentifyResult {
-  sourceId: string;
-  pairs: Pair[];
-  errors: Array<{ code: string; refs: string[]; count?: number }>;
-  applied: number;
-  skippedOverlap: number;
-}
+type Kind = Oped["kind"];
+type Pair = OpedPair;
+export type { IdentifyResult };
 
 export function identifyText(r: IdentifyResult): string {
   if (r.errors.length) return t("oped.identifyErrors", { n: r.errors.length, pairs: r.pairs.length });
@@ -58,14 +39,14 @@ export function OpedDialog(props: { source: SourceRow | null; initial?: Identify
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
-    if (src) setRows(await call<Oped[]>("oped.list", { sourceId: src.id }));
+    if (src) setRows(await call("oped.list", { sourceId: src.id }));
   }, [src]);
   useEffect(() => {
     if (!src) return;
     setResult(props.initial ?? null);
     setKinds({});
     void reload();
-    void call<Record<string, SettingEntry>>("settings.list").then((st) =>
+    void call("settings.list").then((st) =>
       setMarkers({ start: st["subtitle.oped_start"]!.value as string[], end: st["subtitle.oped_end"]!.value as string[] }),
     );
   }, [src?.id, props.initial]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -80,7 +61,7 @@ export function OpedDialog(props: { source: SourceRow | null; initial?: Identify
     if (!src) return;
     setBusy(true);
     try {
-      const r = await call<IdentifyResult>("oped.identify", { sourceId: src.id });
+      const r = await call("oped.identify", { sourceId: src.id });
       setResult(r);
       setKinds({});
       if (r.applied) done(identifyText(r));

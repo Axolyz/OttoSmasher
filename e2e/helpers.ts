@@ -14,8 +14,8 @@ export async function launch(opts: { locale?: string; workspace?: string } = {})
   const workspace = opts.workspace ?? join(mkdtempSync(join(tmpdir(), "otto-e2e-")), "工作区 test");
   const app = await electron.launch({
     args: ["."],
-    // OTTO_MPV_AO=null：测试不出声（仍按实时推进）
-    env: { ...process.env, OTTO_WORKSPACE: workspace, OTTO_DEV: "1", OTTO_LOCALE: opts.locale ?? "zh-CN", OTTO_MPV_AO: process.env.OTTO_MPV_AO ?? "null" },
+    // OTTO_MPV_AO=null：测试不出声（仍按实时推进）；OTTO_STRICT_API=1：Core 核对每个命令的返回值与命令目录一致（ROADMAP L2）
+    env: { ...process.env, OTTO_WORKSPACE: workspace, OTTO_DEV: "1", OTTO_STRICT_API: "1", OTTO_LOCALE: opts.locale ?? "zh-CN", OTTO_MPV_AO: process.env.OTTO_MPV_AO ?? "null" },
   });
   const page = await app.firstWindow();
   await page.waitForLoadState("domcontentloaded");

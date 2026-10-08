@@ -4,7 +4,7 @@
 import { RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { SettingEntry } from "../api/types";
+import type { Classified, SettingEntry } from "../api/types";
 import { Button } from "../components/Button";
 import { TextArea, TextField } from "../components/Fields";
 import { errorText, t } from "../i18n";
@@ -19,13 +19,6 @@ export const SUBTITLE_RULE_KEYS = [
 ] as const;
 type Key = (typeof SUBTITLE_RULE_KEYS)[number];
 type Rules = Record<Key, string>;
-
-interface Classified {
-  kind: "line" | "sfx";
-  name: string;
-  speakers: string[];
-  alignText: string;
-}
 
 const OPTIONAL: Partial<Record<Key, string>> = {
   "subtitle.speaker_split": "settings.subtitle.speaker_split.example",
@@ -50,7 +43,7 @@ export function SubtitleRulesEditor(props: { settings: Record<string, SettingEnt
   useEffect(() => {
     let live = true;
     const timer = setTimeout(() => {
-      call<Classified>("subtitles.ruleTest", { text: sample, rules: draft })
+      call("subtitles.ruleTest", { text: sample, rules: draft })
         .then((r) => {
           if (!live) return;
           setResult(r);

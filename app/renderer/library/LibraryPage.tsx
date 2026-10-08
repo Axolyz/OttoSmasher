@@ -87,7 +87,7 @@ export function LibraryPage() {
 
   const load = useCallback(
     async (off: number) => {
-      const r = await call<SamplePage>("samples.list", { ...query, offset: off, limit: PAGE });
+      const r = await call("samples.list", { ...query, offset: off, limit: PAGE });
       setData(r);
       return r;
     },
@@ -97,7 +97,7 @@ export function LibraryPage() {
   // 分栏比例：重启恢复（UI_PLAN §2）
   useEffect(() => {
     if (!ready) return;
-    void call<Record<string, unknown>>("ui.get", { page: "library" }).then((v) => {
+    void call("ui.get", { page: "library" }).then((v) => {
       if (typeof v.split === "number") setSplit(v.split);
       splitRestored.current = true;
     });
@@ -155,7 +155,7 @@ export function LibraryPage() {
   useEffect(() => {
     if (!openSample || !ready) return;
     void (async () => {
-      const r = await call<SamplePage>("samples.list", { offset: 0, limit: PAGE });
+      const r = await call("samples.list", { offset: 0, limit: PAGE });
       setPurpose("all");
       setText("");
       setStarredOnly(false);
@@ -172,7 +172,7 @@ export function LibraryPage() {
     const inPage = data?.rows.find((r) => r.id === focus);
     if (inPage) setFocusRow((f) => (f?.id === inPage.id ? { ...f, ...inPage } : inPage));
     // 舞台要有效标签：总是再取一次完整资料
-    void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
+    void call("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
   }, [focus, data]);
 
   // 试听状态
@@ -204,7 +204,7 @@ export function LibraryPage() {
   const edit = async (ids: string[], fields: Record<string, unknown>, label: string) => {
     const targets = rows.filter((r) => ids.includes(r.id));
     const missing = ids.filter((id) => !targets.some((r) => r.id === id));
-    const extra = await Promise.all(missing.map((id) => call<SampleRow>("samples.get", { id })));
+    const extra = await Promise.all(missing.map((id) => call("samples.get", { id })));
     const all = [...targets, ...extra];
     try {
       await call("edits.apply", {
@@ -213,7 +213,7 @@ export function LibraryPage() {
       // 就地更新，不重排（改完该行留在原位，刷新后按新条件归位）
       setData((d) => d && { ...d, rows: d.rows.map((r) => (ids.includes(r.id) ? { ...r, ...fields, version: r.version + 1 } : r)) });
       setFocusRow((f) => (f && ids.includes(f.id) ? { ...f, ...fields, version: f.version + 1 } : f));
-      if (focus && ids.includes(focus)) void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
+      if (focus && ids.includes(focus)) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
       toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo().then(() => load(offset)) } });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -225,7 +225,7 @@ export function LibraryPage() {
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
     if (focus && (c.sample?.includes(focus) || c.annotation || c.source || c.asset)) {
-      void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
+      void call("samples.get", { id: focus }).then(setFocusRow, () => {});
     }
   });
 
@@ -239,10 +239,10 @@ export function LibraryPage() {
   };
   const refreshAfterPromote = () => {
     void load(offset);
-    if (focus) void call<SampleRow>("samples.get", { id: focus }).then(setFocusRow, () => {});
+    if (focus) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
   };
 
-  const checkAllMatching = async () => setChecked(new Set(await call<string[]>("samples.ids", query)));
+  const checkAllMatching = async () => setChecked(new Set(await call("samples.ids", query)));
 
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -256,7 +256,7 @@ export function LibraryPage() {
   const removeConfirmed = async () => {
     if (!deleteIds) return;
     try {
-      const r = await call<{ deleted: number }>("samples.delete", { ids: deleteIds });
+      const r = await call("samples.delete", { ids: deleteIds });
       toast({ text: t("library.deleted", { n: r.deleted }) });
       setChecked((c) => new Set([...c].filter((id) => !deleteIds.includes(id))));
       if (focus && deleteIds.includes(focus)) setFocus(null);
@@ -378,7 +378,7 @@ export function LibraryPage() {
           // ⌥ 拖出：在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
           if ((e.target as Element).closest("button, input, label")) return;
           const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
-          beginDragOut(e, () => call<string[]>("exports.samples", { ids, words: trackWords() }));
+          beginDragOut(e, () => call("exports.samples", { ids, words: trackWords() }));
         }}
         empty={
           data ? (

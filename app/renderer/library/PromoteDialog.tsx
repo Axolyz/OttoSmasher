@@ -3,7 +3,7 @@
 // 应用后：本地标签消失，有效标签仍在（改为来自区段）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { SampleRow } from "../api/types";
+import type { PromoteInfo, SampleRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Checkbox, Segmented } from "../components/Controls";
 import { TimeField } from "../components/Fields";
@@ -14,14 +14,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import s from "./Library.module.css";
 
-interface Info {
-  batch: Record<string, unknown>;
-  scope: "role" | "asset";
-  role: "vocal" | "sfx" | null;
-  roles: Array<"vocal" | "sfx">;
-  start: number;
-  end: number;
-}
+type Info = PromoteInfo;
 
 export function PromoteDialog(props: { sample: SampleRow | null; onClose: () => void; onDone: () => void }) {
   const toast = useApp((st) => st.toast);
@@ -52,7 +45,7 @@ export function PromoteDialog(props: { sample: SampleRow | null; onClose: () => 
     let live = true;
     void (async () => {
       try {
-        const r = await call<Info>("tags.promoteBatch", { sampleId: smp.id, tags: [...chosen], role, start: range?.a, end: range?.b });
+        const r = await call("tags.promoteBatch", { sampleId: smp.id, tags: [...chosen], role, start: range?.a, end: range?.b });
         await call("edits.preview", { batch: r.batch });
         if (!live) return;
         setInfo(r);

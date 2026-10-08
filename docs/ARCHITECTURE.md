@@ -183,10 +183,11 @@ app/                     Electron + 前端（TypeScript）
     workbenches/         拉平台、字幕导入、设置（全屏工作台面板）
     components/          自有组件清单（§1.3，交互基础用 React Aria 包装）：Wave（自研画布：峰值按视口取、细节窗样本级、选区、区段、车道、叠加曲线）、BlockCanvas、Collection（统一选择规则）、Menu、Popover、Modal、Sheet…
     i18n/                t()、locales/zh-CN.json、伪语言生成
-    api/                 由 Core 命令定义生成的 TypeScript 类型与客户端
+    api/                 core.ts（call() 按命令名推断类型）+ generated.ts（由 Core 的命令目录生成，不手改）
   native/mpv-bridge/     C++（node-addon-api）：libmpv 播放器、render API（软件或 GL）、共享帧缓冲
 core/                    Python
   ottosmasher/
+    api/                 命令目录（ROADMAP L2）：types.py（参数与返回的 TypedDict）、registry.py（登记、参数校验、严格模式核对返回值）、catalog.py（导出 docs/api/commands.json 与前端 generated.ts）
     core/                Core 进程：rpc、services/、edits（统一编辑通道）、scheduler、search_coordinator、cleaner
     domain/              纯领域逻辑：mapping、overlap、naming、tag_expr、facets、subtitle_rules、nature_rules、oped、filename
     algo/                基线算法（纯函数 + numpy）：有效范围、强度、音块、停顿、语段、量化、拉伸映射、语音检索、音高检索、拉平定音与掩码、声学指标
@@ -608,7 +609,7 @@ class LanguageProfile(Protocol):
    若采用本机网络端点，要补上规格 16 R23.2 的本机来源校验（外部 Host → 403、外站 Origin 写请求 → 403）。
 2. **权限分级**：检索、试听、读取可放开；写入默认“先预览、人确认再应用”；删除原片/采样、独立化、覆盖类操作永远要人确认；模型任务有额度与并发上限。
 3. **来源标记（actor）**：编辑记录、任务、新建的采样与资产记录“谁做的”（用户 / 脚本 / agent + 会话 ID），能按来源筛选、整批撤回。→ QUESTIONS Q23
-4. **机器可读的命令目录**：从命令定义（msgspec）导出命令清单、参数与返回的 JSON Schema、错误码表。同一份产物供界面类型生成、阶段 11 的“接口文档”、agent 的工具定义。→ QUESTIONS Q24
+4. ~~**机器可读的命令目录**~~（已做，阶段 4.0）：`docs/api/commands.json` = 每条命令的作用类别（read / write / job / ui / app / dev）、一句说明、参数与返回的 JSON Schema，加错误码表（码、参数名、说明）；前端 `app/renderer/api/generated.ts` 由同一份产物生成。→ QUESTIONS Q24
 5. **编排层**：“自动制作音MAD”需要把采样排到时间线上（按旋律、歌词、节拍），规格里没有这一层。自然的边界是：agent 用我们的检索、卡拍、导出，
    产出 REAPER 工程或条目，成片仍在 REAPER 里完成；我们不在应用里做多轨编辑器。
 6. **数据外发**：若 agent 使用云端大模型，台词文本、甚至音频会离开本机。测试素材（fixtures）按规则不得上传；用户自己的素材是否允许外发，需要一个明确的设置，默认不允许。
@@ -616,4 +617,5 @@ class LanguageProfile(Protocol):
 ### 15.3 现在就保持的做法（成本低，越早越省）
 
 - 业务逻辑只写在 Core 命令里，界面不做业务判断（已是规则，见 AGENTS §9）。
-- Q23、Q24 所有者 2026-10-07 已同意：actor 字段已加（迁移 0004，`core/actor.py`：Core 连接上的临时触发器按请求来源填写，RPC 可带 `actor`）；命令目录与前端类型生成一起在阶段 4 开头做。
+- Q23、Q24 所有者 2026-10-07 已同意：actor 字段已加（迁移 0004，`core/actor.py`：Core 连接上的临时触发器按请求来源填写，RPC 可带 `actor`）；命令目录已做（阶段 4.0，`core/ottosmasher/api/`）。
+- 新命令一律在 `Core._register` 登记（名称、作用类别、参数与返回类型、一句英文说明），类型写在 `api/types.py`，然后运行 `.venv/bin/python -m ottosmasher.api.catalog`；测试与 e2e 打开 `OTTO_STRICT_API=1`，返回值与目录不符直接报 `result-mismatch`。

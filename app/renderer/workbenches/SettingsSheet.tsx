@@ -1,7 +1,7 @@
 // 设置工作台（UI_PLAN §1、规格 13 §13.2）：每项写明默认值怎样生效；修改走可撤销编辑通道，只作用于之后的操作。
 import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { SettingEntry } from "../api/types";
+import type { InferTest, SettingEntry } from "../api/types";
 import { Button } from "../components/Button";
 import { NumberField, Select, Switch, TextArea, TextField } from "../components/Fields";
 import { Sheet } from "../components/Overlay";
@@ -76,15 +76,8 @@ function LinesField(props: { value: string[]; label: string; onSave: (v: string[
 /** 有序正则列表类设置（P10）：整行宽的规则编辑器 + 试算框。 */
 const RULE_LISTS = new Set(["source.infer_rules"]);
 
-interface InferTest {
-  work: string | null;
-  episode: string | null;
-  rule: number | null;
-  timedOut: number[];
-}
-
 async function inferTrial(sample: string, rules: string[]): Promise<TrialResult> {
-  const r = await call<InferTest>("sources.inferTest", { filename: sample, rules });
+  const r = await call("sources.inferTest", { filename: sample, rules });
   const unknown = t("rules.unknown");
   return {
     rule: r.rule,
@@ -114,7 +107,7 @@ export function SettingsSheet() {
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({});
 
   const reload = useCallback(() => {
-    if (ready) void call<Record<string, SettingEntry>>("settings.list").then(setSettings);
+    if (ready) void call("settings.list").then(setSettings);
   }, [ready]);
   useEffect(() => {
     if (open) reload();

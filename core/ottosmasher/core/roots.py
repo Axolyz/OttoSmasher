@@ -175,7 +175,7 @@ class RootService:
         for j in self.conn.execute("SELECT id FROM job WHERE kind='sources.scan' AND status IN ('queued', 'running')"):
             return {"id": j[0]}  # 已经在扫了
         known = [r[0] for r in self.conn.execute("SELECT path_key FROM source")]
-        return self.jobs.submit("sources.scan", {"roots": roots, "known": known})
+        return {"id": self.jobs.submit("sources.scan", {"roots": roots, "known": known})["id"]}
 
     def _adopt_scan(self, job: dict[str, Any], result: dict[str, Any]) -> None:
         src = self.jobs.jobs_dir / job["id"] / "cache" / "Peaks"

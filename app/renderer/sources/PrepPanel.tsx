@@ -3,27 +3,14 @@
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { call, useCoreEvent } from "../api/core";
-import type { SourceRow } from "../api/types";
+import type { Prep, PrepAsset, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { StepsBar } from "../components/Controls";
 import { AnchoredPanel } from "../components/Panel";
 import { t } from "../i18n";
 import s from "./Sources.module.css";
 
-interface AssetRef {
-  origin: string;
-  streamOrdinal: number | null;
-  stem: string | null;
-  model: string | null;
-}
-interface Prep {
-  subtitle: { ok: boolean; markers: number; associated: boolean };
-  separation: { ok: boolean; asset: AssetRef | null };
-  defaultVocal: { ok: boolean; asset: AssetRef | null };
-  defaultSfx: { ok: boolean; asset: AssetRef | null };
-  oped: { ok: boolean; count: number };
-  lineSamples: { ok: boolean; count: number };
-}
+type AssetRef = PrepAsset;
 export type PrepAction = "subimport" | "separate" | "tracks" | "oped" | "subsample";
 
 function assetText(a: AssetRef | null): string {
@@ -35,7 +22,7 @@ function assetText(a: AssetRef | null): string {
 export function PrepPanel(props: { source: SourceRow; onAction: (a: PrepAction) => void }) {
   const [prep, setPrep] = useState<Prep | null>(null);
   const [open, setOpen] = useState(false);
-  const load = useCallback(() => void call<Prep>("sources.prep", { id: props.source.id }).then(setPrep, () => setPrep(null)), [props.source.id]);
+  const load = useCallback(() => void call("sources.prep", { id: props.source.id }).then(setPrep, () => setPrep(null)), [props.source.id]);
   useEffect(load, [load, props.source.version]);
   useCoreEvent("data.changed", load);
   if (!prep) return null;

@@ -3,7 +3,7 @@
 // → 大数字（待创建 / OP/ED 排除 / 无有效名称 / 轨道范围外）→ 起止秒 +「预览范围」→ 表格（默认一项都不勾，表头跨页全选）→「创建 N 项」。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { SourceDetail, SourceRow } from "../api/types";
+import type { EditOp, SourceDetail, SourceRow, SubtitleSampleLine, SubtitleSamplePreview } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, EmptyState, Stats } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
@@ -18,26 +18,8 @@ import { type Tracks, trackName } from "./TracksDialog";
 
 type Kind = "line" | "sfx";
 const ROLE: Record<Kind, "vocal" | "sfx"> = { line: "vocal", sfx: "sfx" };
-interface Line {
-  annotationId: string;
-  name: string;
-  rawText: string;
-  speakers: string[];
-  start: number;
-  end: number;
-  sampleStart: number;
-  sampleEnd: number;
-  status: "pending" | "oped" | "out-of-track" | "no-name";
-}
-interface Preview {
-  trackId: string | null;
-  missingDefault: boolean;
-  noSubtitles: boolean;
-  pads: [number, number];
-  token: string;
-  lines: Line[];
-  counts: Record<Line["status"], number>;
-}
+type Line = SubtitleSampleLine;
+type Preview = SubtitleSamplePreview;
 
 export function SubtitleSampleSheet(props: { source: SourceRow | null; kind: Kind; onClose: () => void }) {
   const toast = useApp((st) => st.toast);
@@ -56,9 +38,9 @@ export function SubtitleSampleSheet(props: { source: SourceRow | null; kind: Kin
     async (r = range) => {
       if (!src) return;
       const [p, tr, d] = await Promise.all([
-        call<Preview>("subtitleSamples.preview", { sourceId: src.id, kind: props.kind, start: r.a ?? undefined, end: r.b ?? undefined }),
-        call<Tracks>("assets.tracks", { sourceId: src.id }),
-        call<SourceDetail>("sources.get", { id: src.id }),
+        call("subtitleSamples.preview", { sourceId: src.id, kind: props.kind, start: r.a ?? undefined, end: r.b ?? undefined }),
+        call("assets.tracks", { sourceId: src.id }),
+        call("sources.get", { id: src.id }),
       ]);
       setPv(p);
       setTracks(tr);
@@ -84,7 +66,7 @@ export function SubtitleSampleSheet(props: { source: SourceRow | null; kind: Kin
     if (!src || !tracks) return;
     const tr = tracks.tracks.find((x) => x.id === assetId);
     if (!tr) return;
-    const ops: unknown[] = [];
+    const ops: EditOp[] = [];
     if (!tr.roles.includes(role)) ops.push({ entity: "asset", id: tr.id, version: tr.version, fields: { roles: [...tr.roles, role] } });
     ops.push({ entity: "source", id: src.id, version: tracks.sourceVersion, fields: { [`default_${role}`]: tr.id } });
     try {
@@ -101,7 +83,7 @@ export function SubtitleSampleSheet(props: { source: SourceRow | null; kind: Kin
     setBusy(true);
     try {
       const ids = rows.filter((l) => checked.has(l.id) && l.status === "pending").map((l) => l.id);
-      const r = await call<{ created: number }>("subtitleSamples.create", {
+      const r = await call("subtitleSamples.create", {
         sourceId: src.id,
         kind: props.kind,
         token: pv.token,

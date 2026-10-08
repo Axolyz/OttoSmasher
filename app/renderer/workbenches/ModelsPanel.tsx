@@ -11,7 +11,7 @@ export function ModelsPanel() {
   const toast = useApp((st) => st.toast);
   const [st, setSt] = useState<ModelsStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const reload = useCallback(() => void call<ModelsStatus>("models.status").then(setSt), []);
+  const reload = useCallback(() => void call("models.status").then(setSt), []);
   useEffect(reload, [reload]);
   useCoreEvent("models.changed", reload);
   useCoreEvent("job.updated", (d) => {
@@ -24,7 +24,7 @@ export function ModelsPanel() {
   });
   const verify = async () => {
     try {
-      const job = await call<JobSummary>("models.verify");
+      const job = await call("models.verify");
       setBusy(job.id);
     } catch (e) {
       if (e instanceof CoreFailure) toast({ text: errorText(e.wire), tone: "error" });

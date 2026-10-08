@@ -26,7 +26,7 @@ export function ClipPanel(props: { assetId: string | null; track: string; sel: {
   useEffect(() => {
     if (!props.isOpen || !props.assetId || !props.sel) return;
     setError(null);
-    call<SampleSuggestion>("samples.suggest", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, localMarker: t("naming.local") })
+    call("samples.suggest", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, localMarker: t("naming.local") })
       .then((sg) => {
         setName(sg.name);
         setNature(sg.nature);
@@ -39,7 +39,7 @@ export function ClipPanel(props: { assetId: string | null; track: string; sel: {
     if (!props.assetId || !props.sel || busy) return;
     setBusy(true);
     try {
-      const smp = await call<SampleRow>("samples.create", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, name, nature });
+      const smp = await call("samples.create", { assetId: props.assetId, start: props.sel.a, end: props.sel.b, name, nature });
       props.onOpenChange(false);
       toast({ text: t("clip.saved", { name: smp.name }) });
       setOpenSample(smp.id);

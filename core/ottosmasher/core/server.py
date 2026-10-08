@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .. import __version__
+from ..api import types as T
+from ..api.registry import CommandSet
 from ..domain import naming, subtitle_rules
 from ..models import registry
 from ..store.db import connect, current_version, migrate, transaction
@@ -45,14 +47,13 @@ from .waveforms import WaveformService
 
 log = logging.getLogger(__name__)
 
-Handler = Callable[[dict[str, Any]], Any]
-
-
 class Core:
     def __init__(self, workspace: Path, *, support_dir: Path | None = None, dev: bool = False) -> None:
         self.ws = Workspace(workspace)
         self.support_dir = support_dir or registry.default_support_dir()
         self.dev = dev
+        # 严格模式：核对每个命令的返回值与命令目录一致（开发模式的 e2e 与测试打开，ROADMAP L2）
+        self.strict_api = os.environ.get("OTTO_STRICT_API") == "1"
         self.writer: FrameWriter | None = None
         self._q: queue.Queue[tuple[str, Any]] = queue.Queue()
         self._lock = WorkspaceLock(self.ws)
@@ -66,104 +67,135 @@ class Core:
         self.samples: SampleService
         self.interrupted_on_start = 0
         self._stop = False
-        self.commands: dict[str, Handler] = {
-            "core.hello": self._hello,
-            "settings.list": lambda p: settings_mod.read_all(self.conn),
-            "sources.inferTest": self._infer_test,
-            "subtitles.ruleTest": self._subtitle_rule_test,
-            "subtitles.preview": lambda p: self.subtitles.preview(p["sourceId"], p.get("path")),
-            "subtitles.import": lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("lines"), p.get("path")),
-            "subtitles.previewMany": lambda p: self.subtitles.preview_many(list(p["sourceIds"])),
-            "subtitles.importMany": lambda p: self.subtitles.import_many(list(p["items"])),
-            "subtitleSamples.preview": lambda p: self.subtitle_samples.preview(p["sourceId"], p["kind"], p.get("start"), p.get("end")),
-            "subtitleSamples.create": lambda p: self.subtitle_samples.create(
-                p["sourceId"], p["kind"], p["token"], list(p["annotationIds"]), p.get("start"), p.get("end")
-            ),
-            "studio.status": lambda p: self.separation.status(),
-            "separation.submit": lambda p: self.separation.submit(
-                p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems")
-            ),
-            "separation.results": lambda p: self.separation.results(p["jobId"]),
-            "oped.list": lambda p: self.oped.list(p["sourceId"]),
-            "oped.identify": lambda p: self.oped.identify(p["sourceId"]),
-            "oped.identifyMany": lambda p: self.oped.identify_many(list(p["sourceIds"])),
-            "oped.add": lambda p: self.oped.add(p["sourceId"], p["kind"], float(p["start"]), float(p["end"]), p.get("via", "mark"), p.get("refs")),
-            "oped.delete": lambda p: self.oped.delete(p["id"]),
-            "sources.add": lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")),
-            "sources.list": self._sources_list,
-            "sources.prep": lambda p: annotations_mod.prep(self.conn, p["id"]),
-            "annotations.list": lambda p: annotations_mod.list_for_source(self.conn, p["sourceId"]),
-            "sources.get": lambda p: self.sources.get(p["id"]),
-            "sources.relocate": lambda p: self.sources.relocate(p["id"], p["path"]),
-            "sources.deletePreview": lambda p: self.sources.delete_preview(p["id"]),
-            "sources.delete": lambda p: self.sources.delete(p["id"]),
-            "assets.listForSource": lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]),
-            "assets.get": lambda p: assets_mod.get(self.conn, p["id"]),
-            "assets.tracks": lambda p: assets_mod.tracks(self.conn, p["sourceId"]),
-            "playback.resolveSource": lambda p: playback_mod.resolve_source(
-                self.conn, p["sourceId"], p.get("ordinal"), asset_id=p.get("assetId"), workspace_root=self.ws.root
-            ),
-            "dev.registerStem": self._dev_register_stem,
-            "playback.resolveAsset": lambda p: playback_mod.resolve_asset(
-                self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])
-            ),
-            "samples.suggest": lambda p: self.samples.suggest(
-                p["assetId"], float(p["start"]), float(p["end"]), local_marker=p.get("localMarker", "")
-            ),
-            "samples.create": lambda p: self.samples.create(
-                p["assetId"], float(p["start"]), float(p["end"]), name=p["name"], nature=p.get("nature"),
-                created_via=p.get("createdVia", "manual"), parent_sample_id=p.get("parentSampleId"),
-            ),
-            "samples.list": lambda p: self.samples.list(
-                offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
-                starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"), sort=p.get("sort", "created"),
-            ),
-            "samples.ids": lambda p: self.samples.ids(
-                natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId")
-            ),
-            "samples.get": lambda p: self.samples.get(p["id"]),
-            "samples.delete": lambda p: self.samples.delete(list(p["ids"])),
-            "exports.samples": lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))),
-            "imports.scan": lambda p: self.imports.scan(list(p["paths"])),
-            "imports.preview": lambda p: self.imports.preview(p["jobId"]),
-            "imports.commit": lambda p: self.imports.commit(
-                p["jobId"], work=None if p.get("workMode", "unified") == "infer" else str(p.get("work", "")), source_type=str(p.get("sourceType", "")),
-                whole_sample=bool(p.get("wholeSample", False)), nature=str(p.get("nature", "unclassified")),
-                bind_pictures=bool(p.get("bindPictures", True)),
-            ),
-            "roots.list": lambda p: self.roots.list(),
-            "roots.add": lambda p: self.roots.add(str(p["path"])),
-            "roots.remove": lambda p: self.roots.remove(str(p["id"])),
-            "roots.relocate": lambda p: self.roots.relocate(str(p["id"]), str(p["path"])),
-            "sources.rescan": lambda p: self.roots.rescan(),
-            "works.list": lambda p: self.roots.works(),
-            "works.rename": lambda p: self.roots.rename(str(p["id"]), str(p["name"])),
-            "works.settingsBatch": lambda p: self.roots.settings_batch(str(p["id"]), str(p.get("sourceType", "")), bool(p.get("bindPictures", True))),
-            "sources.wholeSamples": lambda p: self.imports.whole_samples(list(p["ids"]), p.get("nature")),
-            "tags.promoteBatch": lambda p: annotations_mod.promote_batch(
-                self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")
-            ),
-            "thumbs.get": lambda p: self.thumbs.get(list(p["items"])),
-            "peaks.get": lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))),
-            "exports.wav": lambda p: self.exports.export_wav(
-                p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
-                local_prefix=p.get("localPrefix"), processing=p.get("processing", ""), directory=p.get("directory"),
-            ),
-            "edits.preview": lambda p: self.edits.preview(p["batch"]),
-            "edits.apply": lambda p: self.edits.apply(p["batch"]),
-            "edits.undo": lambda p: self.edits.undo(),
-            "edits.peekUndo": lambda p: self.edits.peek_undo(),
-            "jobs.list": lambda p: self.jobs.list(int(p.get("limit", 200))),
-            "jobs.submit": lambda p: self.jobs.submit(p["kind"], p.get("params", {}), p.get("affects")),
-            "jobs.cancel": lambda p: self.jobs.cancel(p["id"]),
-            "jobs.retry": lambda p: self.jobs.retry(p["id"]),
-            "models.status": self._models_status,
-            "models.verify": self._models_verify,
-            "ui.get": self._ui_get,
-            "ui.set": self._ui_set,
-            "app.prepareQuit": lambda p: {"active": self.jobs.active_count()},
-            "app.quit": self._quit,
-        }
+        self.api = CommandSet()
+        self._register(self.api)
+
+    def _register(self, api: CommandSet) -> None:
+        """全部公开命令（ROADMAP L2）：名称、作用类别、参数与返回类型、一句说明（英文，进命令目录）、处理函数。"""
+        r = api.add
+        # ---- 应用、设置、界面状态
+        r("core.hello", "read", T.NoParams, T.Hello, "Core version, workspace and schema version.", self._hello)
+        r("settings.list", "read", T.NoParams, dict[str, T.SettingEntry], "All settings with value, default and version (edit via edits.apply, entity 'setting').",
+          lambda p: settings_mod.read_all(self.conn))
+        r("sources.inferTest", "read", T.InferTestParams, T.InferTest, "Try the work/episode inference rules (draft or current) on a file name.", self._infer_test)
+        r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test)
+        r("models.status", "read", T.NoParams, T.ModelsStatus, "Model files, ONNX Runtime and inference probe status.", self._models_status)
+        r("models.verify", "job", T.NoParams, T.JobSummary, "Submit a job that hashes the model files.", self._models_verify)
+        r("ui.get", "ui", T.UiGetParams, dict[str, Any], "Restore UI state of one page.", self._ui_get)
+        r("ui.set", "ui", T.UiSetParams, None, "Save one UI state value (not user data, no undo).", self._ui_set)
+        r("app.prepareQuit", "app", T.NoParams, T.PrepareQuit, "Number of active jobs that quitting would cancel.", lambda p: {"active": self.jobs.active_count()})
+        r("app.quit", "app", T.QuitParams, T.Quit, "Cancel jobs and stop Core.", self._quit)
+        # ---- 编辑通道、任务
+        r("edits.preview", "read", T.EditBatchParams, T.EditPreview, "Validate an edit batch and show its changes without writing.", lambda p: self.edits.preview(p["batch"]))
+        r("edits.apply", "write", T.EditBatchParams, T.EditApplied, "Apply an edit batch atomically (undoable).", lambda p: self.edits.apply(p["batch"]))
+        r("edits.undo", "write", T.NoParams, T.EditUndone, "Undo the latest edit that can be undone safely.", lambda p: self.edits.undo())
+        r("edits.peekUndo", "read", T.NoParams, T.UndoPeek | None, "What undo would revert next.", lambda p: self.edits.peek_undo())
+        r("jobs.list", "read", T.JobsListParams, list[T.JobSummary], "Recent jobs, newest first.", lambda p: self.jobs.list(int(p.get("limit", 200))))
+        r("jobs.submit", "job", T.JobSubmitParams, T.JobSummary, "Submit a job of a registered kind (low-level; prefer the specific commands).",
+          lambda p: self.jobs.submit(p["kind"], p.get("params", {}), p.get("affects")))
+        r("jobs.cancel", "job", T.IdParams, T.JobSummary, "Cancel a queued or running job (kills its whole process tree).", lambda p: self.jobs.cancel(p["id"]))
+        r("jobs.retry", "job", T.IdParams, T.JobSummary, "Retry a failed, cancelled or interrupted job as a new job.", lambda p: self.jobs.retry(p["id"]))
+        # ---- 原片
+        r("sources.add", "write", T.SourcesAddParams, list[T.AddResult], "Register source files (each succeeds or fails on its own).",
+          lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")))
+        r("sources.list", "read", T.NoParams, list[T.SourceRow], "All sources with per-source counts.", self._sources_list)
+        r("sources.get", "read", T.IdParams, T.SourceDetail, "One source with its streams.", lambda p: self.sources.get(p["id"]))
+        r("sources.prep", "read", T.IdParams, T.Prep, "Preparation checklist state of one source.", lambda p: annotations_mod.prep(self.conn, p["id"]))
+        r("sources.relocate", "write", T.RelocateParams, T.SourceRelocated, "Point a source at a moved file (reports changed streams, does not refuse).",
+          lambda p: self.sources.relocate(p["id"], p["path"]))
+        r("sources.deletePreview", "read", T.IdParams, T.DeletePreview, "What deleting a source would remove.", lambda p: self.sources.delete_preview(p["id"]))
+        r("sources.delete", "write", T.IdParams, T.DeletePreview, "Delete a source with its assets, samples and annotations (not undoable).",
+          lambda p: self.sources.delete(p["id"]))
+        r("sources.wholeSamples", "write", T.WholeSamplesParams, T.SampleIds, "Create one full-length sample per source on its default track.",
+          lambda p: self.imports.whole_samples(list(p["ids"]), p.get("nature")))
+        r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files.", lambda p: self.roots.rescan())
+        r("roots.list", "read", T.NoParams, list[T.SourceRoot], "Source folders.", lambda p: self.roots.list())
+        r("roots.add", "write", T.PathParams, T.RootAdded, "Add a source folder (adopts sources already inside, then scans).", lambda p: self.roots.add(str(p["path"])))
+        r("roots.remove", "write", T.IdParams, T.RootRemoved, "Stop treating a folder as a source folder (sources stay).", lambda p: self.roots.remove(str(p["id"])))
+        r("roots.relocate", "write", T.RelocateParams, T.RootRelocated, "A whole source folder moved: re-point its sources by relative path, then scan.",
+          lambda p: self.roots.relocate(str(p["id"]), str(p["path"])))
+        r("works.list", "read", T.NoParams, list[T.WorkFolder], "Work folders (first-level subfolders of source folders).", lambda p: self.roots.works())
+        r("works.rename", "write", T.WorkRenameParams, T.WorkRenamed, "Rename a work: renames the folder on disk (not undoable).",
+          lambda p: self.roots.rename(str(p["id"]), str(p["name"])))
+        r("works.settingsBatch", "read", T.WorkSettingsParams, T.EditBatch, "Edit batch for a work's settings (apply with edits.apply).",
+          lambda p: self.roots.settings_batch(str(p["id"]), str(p.get("sourceType", "")), bool(p.get("bindPictures", True))))
+        r("imports.scan", "job", T.PathsParams, T.JobSummary, "Scan files/folders to import (background job).", lambda p: self.imports.scan(list(p["paths"])))
+        r("imports.preview", "read", T.JobIdParams, T.ImportPreview, "Preview of a finished import scan.", lambda p: self.imports.preview(p["jobId"]))
+        r("imports.commit", "write", T.ImportCommitParams, T.ImportResult, "Register the scanned files (optionally with full-length samples).",
+          lambda p: self.imports.commit(
+              p["jobId"], work=None if p.get("workMode", "unified") == "infer" else str(p.get("work") or ""), source_type=str(p.get("sourceType") or ""),
+              whole_sample=bool(p.get("wholeSample", False)), nature=str(p.get("nature", "unclassified")),
+              bind_pictures=bool(p.get("bindPictures", True)),
+          ))
+        # ---- 资产、播放、波形、缩略图
+        r("assets.listForSource", "read", T.SourceIdParams, list[T.AssetInfo], "All sound assets of a source, full tracks first.",
+          lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]))
+        r("assets.get", "read", T.IdParams, T.AssetRecord, "One sound asset.", lambda p: assets_mod.get(self.conn, p["id"]))
+        r("assets.tracks", "read", T.SourceIdParams, T.Tracks, "Tracks that can be default tracks, with roles and current defaults.",
+          lambda p: assets_mod.tracks(self.conn, p["sourceId"]))
+        r("playback.resolveSource", "read", T.ResolveSourceParams, T.SourceHandle, "Playback handle for the source player (file, audio track, external stem).",
+          lambda p: playback_mod.resolve_source(self.conn, p["sourceId"], p.get("ordinal"), asset_id=p.get("assetId"), workspace_root=self.ws.root))
+        r("playback.resolveAsset", "read", T.AssetRangeParams, T.AssetHandle, "Playback handle for auditioning an asset range (file seconds).",
+          lambda p: playback_mod.resolve_asset(self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])))
+        r("peaks.get", "read", T.PeaksParams, T.Peaks, "Waveform peaks for an asset range (pending while the cache is built).",
+          lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))))
+        r("thumbs.get", "read", T.ThumbsParams, list[T.ThumbResult], "List thumbnails (pending while generated).", lambda p: self.thumbs.get(list(p["items"])))
+        r("dev.registerStem", "dev", T.RegisterStemParams, T.StemRegistered, "Dev hook: register an existing stem file as a full-track asset (S1.2).",
+          self._dev_register_stem)
+        # ---- 采样、导出、标签
+        r("samples.suggest", "read", T.SuggestParams, T.SampleSuggestion, "Suggested name and nature for a new sample on an asset range.",
+          lambda p: self.samples.suggest(p["assetId"], float(p["start"]), float(p["end"]), local_marker=p.get("localMarker", "")))
+        r("samples.create", "write", T.SampleCreateParams, T.SampleRow, "Create a sample on an asset range (always a new sample).",
+          lambda p: self.samples.create(
+              p["assetId"], float(p["start"]), float(p["end"]), name=p["name"], nature=p.get("nature"),
+              created_via=p.get("createdVia", "manual"), parent_sample_id=p.get("parentSampleId"),
+          ))
+        r("samples.list", "read", T.SamplesListParams, T.SamplePage, "One page of samples matching the filter, with the total.",
+          lambda p: self.samples.list(
+              offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
+              starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"), sort=p.get("sort", "created"),
+          ))
+        r("samples.ids", "read", T.SampleFilter, list[str], "IDs of all samples matching the filter (select all across pages).",
+          lambda p: self.samples.ids(natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId")))
+        r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
+        r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
+        r("exports.samples", "write", T.ExportSamplesParams, list[str], "Export samples as WAV files for drag-out; returns file paths.",
+          lambda p: export_samples(self.exports, list(p["ids"]), dict(p.get("words", {}))))
+        r("exports.wav", "write", T.ExportWavParams, T.ExportedWav, "Export an asset range as a WAV file (reuses an identical export).",
+          lambda p: self.exports.export_wav(
+              p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
+              local_prefix=p.get("localPrefix"), processing=p.get("processing", ""), directory=p.get("directory"),
+          ))
+        r("tags.promoteBatch", "read", T.PromoteParams, T.PromoteInfo, "Edit batch that promotes local tags to a segment tag (apply with edits.apply).",
+          lambda p: annotations_mod.promote_batch(self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")))
+        # ---- 字幕标记、标注、OP/ED
+        r("subtitles.preview", "read", T.SubtitlePreviewParams, T.SubtitlePreview, "Preview importing subtitle markers of one source.",
+          lambda p: self.subtitles.preview(p["sourceId"], p.get("path")))
+        r("subtitles.import", "write", T.SubtitleImportParams, T.SubtitleImportResult, "Import subtitle markers from a preview (insert only, atomic, undoable).",
+          lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("lines"), p.get("path")))
+        r("subtitles.previewMany", "read", T.SourceIdsParams, list[T.SubtitleBatchRow], "Batch preview of subtitle import (sources without subtitles are skipped).",
+          lambda p: self.subtitles.preview_many(list(p["sourceIds"])))
+        r("subtitles.importMany", "write", T.SubtitleImportManyParams, list[T.SubtitleImportManyRow], "Batch subtitle import, each source atomic on its own.",
+          lambda p: self.subtitles.import_many(list(p["items"])))
+        r("annotations.list", "read", T.SourceIdParams, T.AnnotationList, "Subtitle/segment annotations, OP/ED and derived samples of a source.",
+          lambda p: annotations_mod.list_for_source(self.conn, p["sourceId"]))
+        r("subtitleSamples.preview", "read", T.SubtitleSamplesPreviewParams, T.SubtitleSamplePreview, "Preview creating samples from subtitle lines or sound effects.",
+          lambda p: self.subtitle_samples.preview(p["sourceId"], p["kind"], p.get("start"), p.get("end")))
+        r("subtitleSamples.create", "write", T.SubtitleSamplesCreateParams, T.SubtitleSamplesCreated, "Create samples from chosen subtitle lines (atomic).",
+          lambda p: self.subtitle_samples.create(p["sourceId"], p["kind"], p["token"], list(p["annotationIds"]), p.get("start"), p.get("end")))
+        r("oped.list", "read", T.SourceIdParams, list[T.Oped], "OP/ED ranges of a source.", lambda p: self.oped.list(p["sourceId"]))
+        r("oped.identify", "write", T.SourceIdParams, T.IdentifyResult, "Identify OP/ED from subtitle rules; applies non-overlapping pairs when there are no errors.",
+          lambda p: self.oped.identify(p["sourceId"]))
+        r("oped.identifyMany", "write", T.SourceIdsParams, list[T.IdentifyManyRow], "Batch OP/ED identification.", lambda p: self.oped.identify_many(list(p["sourceIds"])))
+        r("oped.add", "write", T.OpedAddParams, T.OpedAdded, "Mark or confirm an OP/ED range (undoable).",
+          lambda p: self.oped.add(p["sourceId"], p["kind"], float(p["start"]), float(p["end"]), p.get("via", "mark"), p.get("refs")))
+        r("oped.delete", "write", T.IdParams, T.EditRef, "Delete an OP/ED range (undoable).", lambda p: self.oped.delete(p["id"]))
+        # ---- 分离（PyMSS Studio）
+        r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
+          lambda p: self.separation.status())
+        r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
+          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems")))
+        r("separation.results", "read", T.JobIdParams, list[T.AssetRecord], "Assets registered by a separation job.", lambda p: self.separation.results(p["jobId"]))
 
     # ---------- 打开与关闭
 
@@ -254,15 +286,20 @@ class Core:
     def dispatch(self, msg: dict[str, Any]) -> dict[str, Any]:
         rid = msg.get("id")
         method = msg.get("m")
-        handler = self.commands.get(method)  # type: ignore[arg-type]
+        cmd = self.api.get(method)
         try:
-            if handler is None:
+            if cmd is None:
                 raise CoreError("unknown-method", method=method)
+            params = cmd.parse(msg.get("p"))
             kind, session = actor_mod.parse(msg.get("actor"))
             with actor_mod.acting(self.conn, kind, session):
-                result = handler(msg.get("p") or {})
+                result = cmd.handler(params)
+            if self.strict_api:
+                cmd.check_result(result)
             return {"t": "res", "id": rid, "ok": True, "r": result}
         except CoreError as exc:
+            if exc.code == "result-mismatch":
+                log.error("%s", exc)
             return {"t": "res", "id": rid, "ok": False, "e": exc.to_wire()}
         except (KeyError, TypeError, ValueError) as exc:
             log.exception("bad request %s", method)

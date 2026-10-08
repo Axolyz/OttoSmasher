@@ -42,11 +42,11 @@ export function App() {
   // Core 就绪：握手、恢复界面状态（规格 03 §3.1：重启恢复各页条件与当前对象）
   useEffect(() => {
     if (st.core.state !== "ready") return;
-    void call<Hello>("core.hello").then((h) => {
+    void call("core.hello").then((h) => {
       st.setHello(h);
       if (h.interrupted_on_start > 0) st.toast({ text: t("tasks.interruptedOnStart", { n: h.interrupted_on_start }) });
     });
-    void call<Record<string, unknown>>("ui.get", { page: "shell" }).then((v) => {
+    void call("ui.get", { page: "shell" }).then((v) => {
       if (typeof v.page === "string" && PAGES.includes(v.page as Page)) st.setPage(v.page as Page);
       if (v.theme === "light" || v.theme === "dark") st.setTheme(v.theme);
       restored.current = true;

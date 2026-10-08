@@ -26,7 +26,7 @@ export function WholeSampleDialog(props: { ids: string[] | null; onClose: () => 
     if (!props.ids || busy) return;
     setBusy(true);
     try {
-      const r = await call<{ sampleIds: string[] }>("sources.wholeSamples", { ids: props.ids, nature: mode === "auto" ? null : nature });
+      const r = await call("sources.wholeSamples", { ids: props.ids, nature: mode === "auto" ? null : nature });
       const first = r.sampleIds[0];
       toast({
         text: t("whole.done", { n: r.sampleIds.length }),

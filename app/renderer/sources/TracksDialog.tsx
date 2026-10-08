@@ -3,7 +3,7 @@
 // 与原型的差异：原型把默认轨画成表里的两列单选；这里是表上方两个下拉（跨表格行的单选列做不成一个无障碍的单选组），功能相同。
 import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { SourceDetail, SourceRow } from "../api/types";
+import type { EditOp, SourceDetail, SourceRow, TrackRow, Tracks } from "../api/types";
 import { Callout, Checkbox } from "../components/Controls";
 import { Select } from "../components/Fields";
 import { DialogBox } from "../components/Overlay";
@@ -16,22 +16,7 @@ import s from "./Sources.module.css";
 type Role = "vocal" | "sfx";
 const ROLES: Role[] = ["vocal", "sfx"];
 
-export interface TrackRow {
-  id: string;
-  origin: "stream" | "separation" | "flatten" | "reimport";
-  streamOrdinal: number | null;
-  stemName: string | null;
-  production: { model?: string } | null;
-  language: string | null;
-  roles: Role[];
-  version: number;
-  duplicates: number;
-}
-export interface Tracks {
-  sourceVersion: number;
-  defaults: Partial<Record<Role, string>>;
-  tracks: TrackRow[];
-}
+export type { TrackRow, Tracks };
 
 /** 音轨的显示名：容器音频流“原混音 · 第 n 条音轨 · 语言”；分离声部“模型 · 声部名” */
 export function trackName(tr: TrackRow, detail?: SourceDetail | null): string {
@@ -51,7 +36,7 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
 
   const reload = useCallback(async () => {
     if (!src) return;
-    const [d, tr] = await Promise.all([call<SourceDetail>("sources.get", { id: src.id }), call<Tracks>("assets.tracks", { sourceId: src.id })]);
+    const [d, tr] = await Promise.all([call("sources.get", { id: src.id }), call("assets.tracks", { sourceId: src.id })]);
     setDetail(d);
     setData(tr);
   }, [src]);
@@ -64,7 +49,7 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
     if (c.asset || c.source) void reload();
   });
 
-  const apply = async (ops: unknown[], text: string) => {
+  const apply = async (ops: EditOp[], text: string) => {
     try {
       await call("edits.apply", { batch: { label: { code: "tracks", args: {} }, ops } });
       toast({ text, action: { label: t("common.undo"), run: () => void undo() } });
@@ -77,7 +62,7 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
   const toggleRole = (tr: TrackRow, role: Role, on: boolean) => {
     if (!src || !data) return;
     const roles = on ? [...new Set([...tr.roles, role])] : tr.roles.filter((r) => r !== role);
-    const ops: unknown[] = [{ entity: "asset", id: tr.id, version: tr.version, fields: { roles } }];
+    const ops: EditOp[] = [{ entity: "asset", id: tr.id, version: tr.version, fields: { roles } }];
     const wasDefault = !on && data.defaults[role] === tr.id;
     // 去掉默认轨的角色 = 同时取消这个默认轨（明确写在提示里，不静默）
     if (wasDefault) ops.push({ entity: "source", id: src.id, version: data.sourceVersion, fields: { [`default_${role}`]: null } });

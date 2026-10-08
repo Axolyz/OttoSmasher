@@ -39,7 +39,7 @@ export function WorkSettingsDialog(props: { folder: WorkFolder | null; onClose: 
         props.onRenamed?.(f.name, name.trim());
       }
       if (settingsChanged) {
-        const batch = await call<Record<string, unknown>>("works.settingsBatch", { id: f.id, sourceType: type.trim(), bindPictures: bind });
+        const batch = await call("works.settingsBatch", { id: f.id, sourceType: type.trim(), bindPictures: bind });
         await call("edits.apply", { batch });
       }
       if (renaming || settingsChanged)

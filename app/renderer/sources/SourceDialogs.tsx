@@ -33,7 +33,7 @@ export function InputSettingsDialog(props: {
     setD(null);
     setError(null);
     if (!props.sourceId) return;
-    void call<SourceDetail>("sources.get", { id: props.sourceId }).then((x) => {
+    void call("sources.get", { id: props.sourceId }).then((x) => {
       setD(x);
       setWork(x.work);
       setEpisode(x.episode);
@@ -141,7 +141,7 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
   useEffect(() => {
     setPreviews(null);
     if (!props.ids?.length) return;
-    void Promise.all(props.ids.map((id) => call<DeletePreview>("sources.deletePreview", { id })))
+    void Promise.all(props.ids.map((id) => call("sources.deletePreview", { id })))
       .then(setPreviews)
       .catch((e) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" }));
   }, [props.ids, toast]);

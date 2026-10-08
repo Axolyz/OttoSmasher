@@ -3,6 +3,7 @@
 // 双击 = 播放该句；OP/ED 内的连续行折成一块“♪ OP · 排除字幕采样与批量分析”（单击选中整段）；音效行斜体。
 import { FileText, Info } from "lucide-react";
 import { useMemo } from "react";
+import type { AnnotationRow, OpedRange } from "../api/types";
 import { ActionList } from "../components/ActionList";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/Controls";
@@ -11,27 +12,8 @@ import { clock } from "../format";
 import { t } from "../i18n";
 import s from "./Sources.module.css";
 
-export interface Ann {
-  id: string;
-  version: number;
-  kind: "line" | "sfx" | "song" | "tag";
-  scope: "source" | "role" | "asset";
-  scopeRole: "vocal" | "sfx" | null;
-  tags: string[];
-  start: number;
-  end: number;
-  text: string;
-  name: string;
-  speakers: string[];
-  oped: "OP" | "ED" | null;
-}
-export interface Oped {
-  id: string;
-  version: number;
-  kind: "OP" | "ED";
-  start: number;
-  end: number;
-}
+export type Ann = AnnotationRow;
+export type Oped = OpedRange;
 
 type Row = { id: string; kind: "ann"; ann: Ann } | { id: string; kind: "oped"; oped: Oped; n: number };
 

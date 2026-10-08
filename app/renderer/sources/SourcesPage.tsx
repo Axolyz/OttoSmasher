@@ -51,7 +51,7 @@ export function SourcesPage() {
   const [works, setWorks] = useState<WorkFolder[]>([]);
   const [workSettingsFor, setWorkSettingsFor] = useState<WorkFolder | null>(null);
   const reload = useCallback(async () => {
-    const [r, rs, ws] = await Promise.all([call<SourceRow[]>("sources.list"), call<SourceRoot[]>("roots.list"), call<WorkFolder[]>("works.list")]);
+    const [r, rs, ws] = await Promise.all([call("sources.list"), call("roots.list"), call("works.list")]);
     setRows(r);
     setRoots(rs);
     setWorks(ws);
@@ -62,7 +62,7 @@ export function SourcesPage() {
     if (!ready) return;
     void (async () => {
       const r = await reload();
-      const ui = await call<Record<string, unknown>>("ui.get", { page: "sources" });
+      const ui = await call("ui.get", { page: "sources" });
       if (typeof ui.current === "string" && r.some((x) => x.id === ui.current)) setCurrent(ui.current);
       if (Array.isArray(ui.expanded)) setExpanded(ui.expanded as string[]);
       if (typeof ui.listHidden === "boolean") setListHidden(ui.listHidden);
@@ -175,7 +175,7 @@ export function SourcesPage() {
   const undo = useUndo();
   // 整片分离：输入 = 该原片的分析音轨（整轨资产）
   const separateFull = async (r: SourceRow) => {
-    const list = await call<Array<{ id: string; origin: string; stream_ordinal: number | null; duration: number }>>("assets.listForSource", { sourceId: r.id });
+    const list = await call("assets.listForSource", { sourceId: r.id });
     const a = list.find((x) => x.origin === "stream" && x.stream_ordinal === r.default_audio_stream) ?? list.find((x) => x.origin === "stream");
     if (!a) return;
     setSepInput({ assetId: a.id, trackLabel: t("sources.trackN", { n: (a.stream_ordinal ?? 0) + 1 }), duration: a.duration, selection: null, scope: "full" });
@@ -183,7 +183,7 @@ export function SourcesPage() {
   // 从字幕识别 OP/ED（规格 05 §5.6.1）：没有错误直接登记；有错误就打开 OP/ED 弹窗逐对确认
   const identifyOne = async (r: SourceRow) => {
     try {
-      const res = await call<IdentifyResult>("oped.identify", { sourceId: r.id });
+      const res = await call("oped.identify", { sourceId: r.id });
       if (res.errors.length) setOpedFor({ row: r, initial: res });
       toast({ text: identifyText(res), tone: res.errors.length ? "error" : "info", action: res.applied ? { label: t("common.undo"), run: () => void undo() } : undefined });
     } catch (e) {
@@ -191,7 +191,7 @@ export function SourcesPage() {
     }
   };
   const identifyMany = async (ids: string[]) => {
-    const res = await call<Array<IdentifyResult | { sourceId: string; error: { code: string; args: Record<string, unknown> } }>>("oped.identifyMany", { sourceIds: ids });
+    const res = await call("oped.identifyMany", { sourceIds: ids });
     const ok = res.filter((x): x is IdentifyResult => "pairs" in x);
     const applied = ok.reduce((a, x) => a + x.applied, 0);
     const withErrors = ok.filter((x) => x.errors.length).length;
@@ -207,7 +207,7 @@ export function SourcesPage() {
     const [path] = await window.otto.files.pick("media-one");
     if (!path) return;
     try {
-      const r = await call<{ streamsChanged: boolean }>("sources.relocate", { id, path });
+      const r = await call("sources.relocate", { id, path });
       await reload();
       toast({ text: r.streamsChanged ? t("sources.relocatedChanged") : t("sources.relocated"), tone: r.streamsChanged ? "error" : "info" });
     } catch (e) {

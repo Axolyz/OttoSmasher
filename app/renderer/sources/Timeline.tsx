@@ -33,15 +33,6 @@ export interface Sel {
   b: number;
 }
 
-interface PeaksWire {
-  state: "ready" | "pending";
-  start?: number;
-  step?: number;
-  min?: Uint8Array;
-  max?: Uint8Array;
-  count?: number;
-}
-
 interface Peaks {
   start: number;
   step: number;
@@ -74,7 +65,7 @@ function cssVar(name: string): string {
 }
 
 async function fetchPeaks(assetId: string, a: number, b: number, points: number): Promise<Peaks | "pending"> {
-  const r = await call<PeaksWire>("peaks.get", { assetId, start: a, end: b, points: Math.max(1, Math.min(32000, Math.round(points))) });
+  const r = await call("peaks.get", { assetId, start: a, end: b, points: Math.max(1, Math.min(32000, Math.round(points))) });
   if (r.state !== "ready") return "pending";
   return { start: r.start!, step: r.step!, min: toFloats(r.min), max: toFloats(r.max) };
 }

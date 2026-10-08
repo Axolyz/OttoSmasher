@@ -3,7 +3,7 @@
 // 输入与设备在提交时冻结；结果是新的声音资产，不自动保存为采样、不自动设为默认轨；同输入同模型已有结果时直接复用。
 import { useEffect, useMemo, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { SettingEntry } from "../api/types";
+import type { SettingEntry, StudioModel, StudioStatus } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Checkbox, RadioList, Segmented } from "../components/Controls";
 import { DialogBox } from "../components/Overlay";
@@ -12,20 +12,6 @@ import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
-interface StudioModel {
-  name: string;
-  aliases: string[];
-  stems: string[];
-  vocal: boolean;
-  threeTrack: boolean;
-}
-interface StudioStatus {
-  ok: boolean;
-  error?: { code: string; args: Record<string, unknown> };
-  env?: { version: string | null; app: string };
-  models: StudioModel[] | null;
-  listingJob: string | null;
-}
 type Scope = "full" | "sel";
 
 export interface SeparationInput {
@@ -47,13 +33,13 @@ export function SeparationDialog(props: { input: SeparationInput | null; onClose
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({});
   const [busy, setBusy] = useState(false);
 
-  const load = async () => setStatus(await call<StudioStatus>("studio.status"));
+  const load = async () => setStatus(await call("studio.status"));
   useEffect(() => {
     if (!inp) return;
     setScope(inp.scope === "sel" && inp.selection ? "sel" : "full");
     setStems(new Set());
     void load();
-    void call<Record<string, SettingEntry>>("settings.list").then(setSettings);
+    void call("settings.list").then(setSettings);
   }, [inp]); // eslint-disable-line react-hooks/exhaustive-deps
   // 列模型任务完成后刷新
   useCoreEvent("job.updated", (d) => {
@@ -79,7 +65,7 @@ export function SeparationDialog(props: { input: SeparationInput | null; onClose
     setBusy(true);
     try {
       const range = scope === "sel" && inp.selection ? { start: inp.selection.a, end: inp.selection.b } : {};
-      const r = await call<{ reused?: string[]; job?: { id: string } }>("separation.submit", {
+      const r = await call("separation.submit", {
         assetId: inp.assetId,
         model: chosen.name,
         stems: stems.size ? chosen.stems.filter((x) => stems.has(x)) : null,

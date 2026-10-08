@@ -14,7 +14,7 @@ export function useJobs(): JobSummary[] {
   const ready = useApp((st) => st.core.state === "ready");
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   useEffect(() => {
-    if (ready) void call<JobSummary[]>("jobs.list").then(setJobs, () => setJobs([]));
+    if (ready) void call("jobs.list").then(setJobs, () => setJobs([]));
   }, [ready]);
   useCoreEvent("job.updated", (d) => {
     const j = d as JobSummary;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -8,6 +9,9 @@ import pytest
 from ottosmasher.core.clock import new_id, now_iso
 from ottosmasher.store.db import connect, migrate
 from ottosmasher.store.workspace import Workspace
+
+# 测试里的 Core（含子进程）都核对命令返回值与命令目录一致（ROADMAP L2）
+os.environ.setdefault("OTTO_STRICT_API", "1")
 
 
 @pytest.fixture

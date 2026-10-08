@@ -2,22 +2,17 @@
 // 可把人声模型设为“默认人声模型”。读取模型列表是一个轻量任务（会起一次 Studio 子进程），完成后自动刷新。
 import { useCallback, useEffect, useState } from "react";
 import { call, useCoreEvent } from "../api/core";
+import type { StudioStatus } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout } from "../components/Controls";
 import { errorText, t } from "../i18n";
 import s from "./Settings.module.css";
 
-interface Status {
-  ok: boolean;
-  error?: { code: string; args: Record<string, unknown> };
-  env?: { app: string; version: string | null; python: string; model_dir: string; runtime_file: string };
-  models: Array<{ name: string; stems: string[]; vocal: boolean; threeTrack: boolean }> | null;
-  listingJob: string | null;
-}
+type Status = StudioStatus;
 
 export function StudioPanel(props: { vocalModel: string; onVocalModel: (name: string) => void }) {
   const [st, setSt] = useState<Status | null>(null);
-  const load = useCallback(async () => setSt(await call<Status>("studio.status")), []);
+  const load = useCallback(async () => setSt(await call("studio.status")), []);
   useEffect(() => void load(), [load]);
   useCoreEvent("job.updated", (d) => {
     const j = d as { id: string; status: string };

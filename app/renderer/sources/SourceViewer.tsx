@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { AssetInfo, SourceDetail, SourceRow } from "../api/types";
+import type { AssetInfo, DerivedSample, EditOp, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
@@ -30,14 +30,7 @@ import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
 
 type LayerId = "sub" | "seg" | "none";
 type LaneId = "sub" | "seg" | "derived";
-interface Derived {
-  id: string;
-  name: string;
-  nature: string;
-  assetId: string;
-  start: number;
-  end: number;
-}
+type Derived = DerivedSample;
 const DERIVED_MENU_MAX = 40;
 const LAYER_IDS: LayerId[] = ["sub", "seg", "none"];
 const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
@@ -105,7 +98,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   });
   useEffect(() => {
     let live = true;
-    void call<{ annotations: Ann[]; opeds: OpedRange[]; derived: Derived[] }>("annotations.list", { sourceId: row.id }).then((r) => {
+    void call("annotations.list", { sourceId: row.id }).then((r) => {
       if (!live) return;
       setAnns(r.annotations);
       setOpeds(r.opeds);
@@ -179,7 +172,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const saveEdit = async () => {
     if (!editBands || !baseOverlay) return;
     const before = new Map(baseOverlay.bands.map((b) => [b.id, b]));
-    const ops: Array<Record<string, unknown>> = [];
+    const ops: EditOp[] = [];
     const done = new Set<string>();
     for (const b of editBands) {
       const o = b.id ? before.get(b.id) : undefined;
@@ -238,7 +231,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   });
   useEffect(() => {
     let live = true;
-    void Promise.all([call<SourceDetail>("sources.get", { id: row.id }), call<AssetInfo[]>("assets.listForSource", { sourceId: row.id })]).then(
+    void Promise.all([call("sources.get", { id: row.id }), call("assets.listForSource", { sourceId: row.id })]).then(
       ([d, a]) => {
         if (!live) return;
         setDetail(d);
@@ -338,7 +331,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     if (!covers(r.a, r.b)) throw new CoreFailure({ code: "out-of-coverage", args: { a: clock(cov[0]), b: clock(cov[1]) } });
     const content = t("sources.exportContent", { name: displayName(row), a: clock(r.a), b: clock(r.b) });
     const l = local(r);
-    const out = await call<{ path: string; reused: boolean }>("exports.wav", { assetId: asset.id, start: l.a, end: l.b, content, track: exportTrack });
+    const out = await call("exports.wav", { assetId: asset.id, start: l.a, end: l.b, content, track: exportTrack });
     return [out.path];
   };
 
@@ -348,7 +341,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     setExporting(true);
     try {
       const content = t("sources.exportContent", { name: displayName(row), a: clock(sel.a), b: clock(sel.b) });
-      const r = await call<{ path: string; reused: boolean }>("exports.wav", {
+      const r = await call("exports.wav", {
         assetId: asset.id,
         start: selLocal.a,
         end: selLocal.b,
