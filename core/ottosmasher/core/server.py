@@ -39,6 +39,8 @@ from .samples import SampleService
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
 from .separation import SeparationService
+from .probes import record_probes
+from .speech import SpeechService
 from .subtitle_samples import SubtitleSamples
 from .sources import SourceService
 from .imports import ImportService
@@ -47,19 +49,6 @@ from .thumbnails import ThumbnailService
 from .waveforms import WaveformService
 
 log = logging.getLogger(__name__)
-
-def record_probes(conn: sqlite3.Connection, probes: list[dict[str, Any]]) -> None:
-    ts = now_iso()
-    with transaction(conn):
-        for pr in probes:
-            conn.execute(
-                "INSERT INTO model_probe(model, device_setting, file_sha, status, ep_node_counts, error, tested_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-                " ON CONFLICT(model, device_setting) DO UPDATE SET file_sha=excluded.file_sha, status=excluded.status,"
-                " ep_node_counts=excluded.ep_node_counts, error=excluded.error, tested_at=excluded.tested_at",
-                (pr["model"], dumps(pr["device"]), pr.get("file_sha"), pr["status"], dumps(pr["nodes"]) if pr.get("nodes") is not None else None,
-                 pr.get("error"), ts),
-            )
-
 
 class Core:
     def __init__(self, workspace: Path, *, support_dir: Path | None = None, dev: bool = False) -> None:
@@ -121,7 +110,7 @@ class Core:
           lambda p: self.sources.add(p["paths"], import_root=p.get("importRoot")))
         r("sources.list", "read", T.NoParams, list[T.SourceRow], "All sources with per-source counts.", self._sources_list)
         r("sources.get", "read", T.IdParams, T.SourceDetail, "One source with its streams.", lambda p: self.sources.get(p["id"]))
-        r("sources.prep", "read", T.IdParams, T.Prep, "Preparation checklist state of one source.", lambda p: annotations_mod.prep(self.conn, p["id"]))
+        r("sources.prep", "read", T.IdParams, T.Prep, "Preparation checklist state of one source.", self._sources_prep)
         r("sources.relocate", "write", T.RelocateParams, T.SourceRelocated, "Point a source at a moved file (reports changed streams, does not refuse).",
           lambda p: self.sources.relocate(p["id"], p["path"]))
         r("sources.deletePreview", "read", T.IdParams, T.DeletePreview, "What deleting a source would remove.", lambda p: self.sources.delete_preview(p["id"]))
@@ -212,6 +201,13 @@ class Core:
           lambda p: self.oped.add(p["sourceId"], p["kind"], float(p["start"]), float(p["end"]), p.get("via", "mark"), p.get("refs")))
         r("oped.delete", "write", T.IdParams, T.EditRef, "Delete an OP/ED range (undoable).", lambda p: self.oped.delete(p["id"]))
         # ---- 分离（PyMSS Studio）
+        # ---- 语音分析（08 §8.4）
+        r("speech.preview", "read", T.SpeechPlanParams, T.SpeechPreview,
+          "What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons.",
+          lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
+        r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
+          lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
+        r("speech.results", "read", T.JobIdParams, list[T.SpeechResultRow], "Per-item results of a speech analysis job.", lambda p: self.speech.results(p["jobId"]))
         r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status())
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
@@ -252,6 +248,7 @@ class Core:
         self.jobs.adopters["dictionary.preview"] = self._adopt_probes
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
+        self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
@@ -444,9 +441,15 @@ class Core:
         return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
 
     def _sources_list(self, p: dict[str, Any]) -> list[dict[str, Any]]:
-        """原片列表 + 每个原片的统计（05 §5.8：句数、OP/ED、派生采样数）。"""
+        """原片列表 + 每个原片的统计（05 §5.8：句数、OP/ED、派生采样数；阶段 4：语音采样数与已分析数）。"""
         c = annotations_mod.counts(self.conn)
-        return [r | {"counts": c.get(r["id"])} for r in self.sources.list()]
+        sp = self.speech.analyzed_counts()
+        zero = {"speech": 0, "analyzed": 0}
+        return [r | {"counts": None if r["id"] not in c else c[r["id"]] | sp.get(r["id"], zero)} for r in self.sources.list()]
+
+    def _sources_prep(self, p: dict[str, Any]) -> dict[str, Any]:
+        sp = self.speech.analyzed_counts(p["id"]).get(p["id"], {"speech": 0, "analyzed": 0})
+        return annotations_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["speech"] > 0 and sp["analyzed"] == sp["speech"], **sp}}
 
     def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:
         """开发期测试钩子（S1.2；只在开发模式）：把现成的分离声部文件登记为原片的整轨声部（原地引用，不复制）。

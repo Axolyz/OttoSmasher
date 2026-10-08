@@ -23,14 +23,17 @@ export interface TableColumn<T> {
   render: (row: T) => ReactNode;
 }
 
+const EMPTY: ReadonlySet<string> = new Set();
+
 export function PagedTable<T extends { id: string }>(props: {
   label: string;
   columns: Array<TableColumn<T>>;
   rows: T[];
-  checked: ReadonlySet<string>;
-  onChecked: (next: Set<string>) => void;
+  /** 不给 ``checked`` = 只读表格（没有勾选列与“已勾选”计数） */
+  checked?: ReadonlySet<string>;
+  onChecked?: (next: Set<string>) => void;
   isSelectable?: (row: T) => boolean;
-  checkLabel: (row: T) => string;
+  checkLabel?: (row: T) => string;
   pageSize?: number;
   empty?: ReactNode;
   /** 底部左侧额外信息 */
@@ -48,32 +51,36 @@ export function PagedTable<T extends { id: string }>(props: {
   }, [props.rows, props.isSelectable]);
   const allIds = useMemo(() => props.rows.map((r) => r.id), [props.rows]);
   const selectableIds = useMemo(() => allIds.filter(selectable), [allIds, selectable]);
-  const head = headerState(props.checked, selectableIds);
+  const withCheck = props.checked !== undefined;
+  const checked: ReadonlySet<string> = props.checked ?? EMPTY;
+  const head = headerState(checked, selectableIds);
   const anchor = useRef<string | null>(null);
   const shift = useRef(false);
 
   const onRow = (id: string) => {
-    const next = shift.current ? extendChecked(props.checked, allIds, anchor.current, id, selectable) : toggleChecked(props.checked, id, selectable);
+    const next = shift.current ? extendChecked(checked, allIds, anchor.current, id, selectable) : toggleChecked(checked, id, selectable);
     anchor.current = id;
-    props.onChecked(next);
+    props.onChecked?.(next);
   };
-  const nChecked = selectableIds.filter((id) => props.checked.has(id)).length;
+  const nChecked = selectableIds.filter((id) => checked.has(id)).length;
 
   return (
     <div className={s.wrap} data-testid={props.testId} onPointerDownCapture={(e) => (shift.current = e.shiftKey)} onKeyDownCapture={() => (shift.current = false)}>
       <div className={s.scroll}>
         <Table aria-label={props.label} className={s.table}>
           <TableHeader className={s.head}>
-            <Column className={s.th} style={{ width: 36 }}>
-              <Checkbox
-                isSelected={head === "all"}
-                isIndeterminate={head === "some"}
-                isDisabled={!selectableIds.length}
-                onChange={() => props.onChecked(toggleHeader(props.checked, selectableIds))}
-                label={t("table.checkAllPages", { n: selectableIds.length })}
-                testId="table-check-all"
-              />
-            </Column>
+            {withCheck ? (
+              <Column className={s.th} style={{ width: 36 }}>
+                <Checkbox
+                  isSelected={head === "all"}
+                  isIndeterminate={head === "some"}
+                  isDisabled={!selectableIds.length}
+                  onChange={() => props.onChecked?.(toggleHeader(checked, selectableIds))}
+                  label={t("table.checkAllPages", { n: selectableIds.length })}
+                  testId="table-check-all"
+                />
+              </Column>
+            ) : null}
             {props.columns.map((c) => (
               <Column key={c.id} id={c.id} isRowHeader={c.isRowHeader} className={s.th} data-align={c.align} style={c.width ? { width: c.width } : undefined}>
                 {c.label}
@@ -84,10 +91,12 @@ export function PagedTable<T extends { id: string }>(props: {
             {shown.map((r) => {
               const ok = selectable(r.id);
               return (
-                <Row key={r.id} id={r.id} className={s.tr} data-disabled-row={!ok || undefined} data-checked={props.checked.has(r.id) || undefined} data-testid="table-row">
-                  <Cell className={s.td}>
-                    <Checkbox isSelected={props.checked.has(r.id)} isDisabled={!ok} onChange={() => onRow(r.id)} label={props.checkLabel(r)} />
-                  </Cell>
+                <Row key={r.id} id={r.id} className={s.tr} data-disabled-row={(withCheck && !ok) || undefined} data-checked={checked.has(r.id) || undefined} data-testid="table-row">
+                  {withCheck ? (
+                    <Cell className={s.td}>
+                      <Checkbox isSelected={checked.has(r.id)} isDisabled={!ok} onChange={() => onRow(r.id)} label={props.checkLabel?.(r) ?? r.id} />
+                    </Cell>
+                  ) : null}
                   {props.columns.map((c) => (
                     <Cell key={c.id} className={s.td} data-align={c.align}>
                       {c.render(r)}
@@ -100,7 +109,7 @@ export function PagedTable<T extends { id: string }>(props: {
         </Table>
       </div>
       <div className={s.foot}>
-        <span data-testid="table-checked">{t("table.checkedOf", { n: nChecked, total: selectableIds.length })}</span>
+        {withCheck ? <span data-testid="table-checked">{t("table.checkedOf", { n: nChecked, total: selectableIds.length })}</span> : null}
         {props.footer}
         <span className={s.grow} />
         {pages > 1 ? (

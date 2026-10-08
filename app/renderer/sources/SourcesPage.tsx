@@ -30,6 +30,7 @@ export function SourcesPage() {
   const ready = useApp((st) => st.core.state === "ready");
   const page = useApp((st) => st.page);
   const toast = useApp((st) => st.toast);
+  const requestSpeech = useApp((st) => st.requestSpeech);
   const [rows, setRows] = useState<SourceRow[] | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -233,6 +234,7 @@ export function SourcesPage() {
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
             { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => setWholeFor(ids) },
+            { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
             { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
@@ -249,6 +251,7 @@ export function SourcesPage() {
             { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
             { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
             { id: "whole", label: t("whole.menu"), run: () => setWholeFor([r.id]) },
+            { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids: [r.id] }) },
             "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
@@ -334,6 +337,7 @@ export function SourcesPage() {
                 else if (a === "separate") void separateFull(currentRow);
                 else if (a === "tracks") setTracksFor(currentRow);
                 else if (a === "oped") setOpedFor({ row: currentRow, initial: null });
+                else if (a === "speech") requestSpeech({ entry: "source", ids: [currentRow.id] });
                 else setSubSamples({ row: currentRow, kind: "line" });
               }}
             />

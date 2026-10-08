@@ -61,6 +61,22 @@ def v_text(*, min_len: int = 0, max_len: int = 10_000, strip: bool = True) -> Va
     return check
 
 
+def v_opt_text(max_len: int) -> Validator:
+    """可空文字：None 或去掉首尾空白后为空 → None。"""
+
+    def check(v: Any) -> str | None:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise _Invalid("not-text")
+        s = v.strip()
+        if len(s) > max_len:
+            raise _Invalid("too-long", max=max_len)
+        return s or None
+
+    return check
+
+
 def v_bool(v: Any) -> bool:
     if not isinstance(v, bool):
         raise _Invalid("not-boolean")
@@ -189,6 +205,8 @@ _register(
             "starred": FieldSpec(v_bool),
             "nature": FieldSpec(v_enum("speech", "pitched", "unpitched", "unclassified")),
             "local_tags": FieldSpec(v_tags(512), custom="local_tags"),
+            # 人工对齐文本（规格 08 §8.2.1、§8.7「改对齐文本」「提供台词并分析」）：原字幕不变；空 = 不用人工文本；保存后要显式重跑
+            "align_text_manual": FieldSpec(v_opt_text(10_000)),
         },
     )
 )

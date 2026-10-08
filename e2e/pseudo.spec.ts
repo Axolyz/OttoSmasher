@@ -73,10 +73,17 @@ test("伪语言下没有写死的界面文字", async () => {
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("whole-dialog")).toHaveCount(0);
-  // 批量「作品与类型…」框（批量菜单第 4 项）
+  // 批量「语音分析…」确认框（批量菜单第 4 项）与「作品与类型…」框（第 5 项）
   await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).locator("label").first().click();
   await page.getByTestId("page-sources").getByTestId("batch-actions").click();
   await page.getByRole("menuitem").nth(3).click();
+  await expect(page.getByTestId("speech-dialog")).toBeVisible();
+  await expect(page.getByTestId("speech-run")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("speech-dialog")).toHaveCount(0);
+  await page.getByTestId("page-sources").getByTestId("batch-actions").click();
+  await page.getByRole("menuitem").nth(4).click();
   await expect(page.getByTestId("work-type-dialog")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");

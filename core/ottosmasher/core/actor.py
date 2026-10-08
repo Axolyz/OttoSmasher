@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from typing import Any
 
 KINDS = ("user", "script", "agent")
-TABLES = ("edit", "job", "source", "sound_asset", "sample")
+TABLES = ("edit", "job", "source", "sound_asset", "sample", "measure_run")
 SESSION_MAX = 200
 
 

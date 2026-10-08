@@ -11,7 +11,7 @@ import { t } from "../i18n";
 import s from "./Sources.module.css";
 
 type AssetRef = PrepAsset;
-export type PrepAction = "subimport" | "separate" | "tracks" | "oped" | "subsample";
+export type PrepAction = "subimport" | "separate" | "tracks" | "oped" | "subsample" | "speech";
 
 function assetText(a: AssetRef | null): string {
   if (!a) return "";
@@ -47,6 +47,15 @@ export function PrepPanel(props: { source: SourceRow; onAction: (a: PrepAction) 
       action: "subsample",
       label: t("prep.fromSubtitle"),
       disabled: !prep.subtitle.ok,
+    },
+    {
+      key: "sp",
+      ok: prep.speech.ok,
+      name: t("prep.speech"),
+      state: t("prep.speechN", { analyzed: prep.speech.analyzed, n: prep.speech.speech }),
+      action: "speech",
+      label: t("prep.speechAction"),
+      disabled: prep.speech.speech === 0,
     },
   ];
   return (

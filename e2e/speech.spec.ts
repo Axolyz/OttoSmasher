@@ -1,0 +1,80 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { expect, test } from "@playwright/test";
+import { launch } from "./helpers";
+
+// 语音分析（规格 08 §8.4、16 S1.7）：采样库批量入口 → 确认框 M/N/K → 排队 → 任务里看逐条结果 → 勾失败项再分析；再发起时已是最新的跳过
+const MODELS = resolve("dev-workspace/Models");
+
+test("语音分析：确认框、任务、结果表、再发起", async () => {
+  test.skip(!existsSync(join(MODELS, "pydomino", "phoneme_transition_model.onnx")), "dev models missing");
+  const base = mkdtempSync(join(tmpdir(), "otto-speech-"));
+  const workspace = join(base, "工作区 speech");
+  mkdirSync(workspace);
+  symlinkSync(MODELS, join(workspace, "Models"));
+  const wav = join(base, "v.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=6", "-ar", "44100", wav]);
+  const { app, page } = await launch({ workspace });
+  await page.evaluate(async (p) => {
+    const req = window.otto.core.request;
+    const add = (await req<Array<{ assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const aid = add.r[0]!.assets[0]!.assetId;
+    for (const [s, e, n, text] of [[1, 2, "ああ", "あー"], [3, 4, "おと", "♪"], [4.5, 5.5, "なし", ""]] as const) {
+      const c = (await req<{ id: string; version: number }>("samples.create", { assetId: aid, start: s, end: e, name: n, nature: "speech" })) as { r: { id: string; version: number } };
+      if (text) await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { align_text_manual: text } }] } });
+    }
+  }, wav);
+  await page.getByTestId("nav-library").click();
+  await page.getByTestId("refresh-lists").click();
+  const rows = page.getByTestId("sample-row");
+  await expect(rows).toHaveCount(3);
+  await rows.first().click();
+  await page.keyboard.press("Meta+a"); // 集合里 ⌘A = 勾选全部（UI_PLAN §6.1）
+  await page.getByTestId("batch-actions").click();
+  await page.getByRole("menuitem", { name: "语音分析所选 3 项…" }).click();
+
+  const dlg = page.getByTestId("speech-dialog");
+  await expect(dlg.getByTestId("speech-run")).toContainText("2");
+  await expect(dlg.getByTestId("speech-fresh")).toContainText("0");
+  await expect(dlg.getByTestId("speech-blocked")).toContainText("1");
+  await expect(dlg.getByTestId("speech-blocked-list")).toContainText("缺对齐文本");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: ".cache/playwright-results/speech-dialog.png" });
+  await dlg.getByTestId("speech-submit").click();
+  await expect(page.getByText("已排队分析 2 条")).toBeVisible();
+
+  await page.getByTestId("nav-tasks").click();
+  const job = page.getByTestId("job").first();
+  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
+  await expect(job.getByTestId("speech-summary")).toHaveText("1 条成功 · 1 条失败");
+  await job.getByTestId("job-results").click();
+  const res = job.getByTestId("speech-results");
+  await expect(res).toContainText("成功");
+  await expect(res).toContainText("文本前端失败");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: ".cache/playwright-results/speech-results.png" });
+  // 勾失败项再分析 → 确认框只有这一条
+  await res.getByTestId("table-check-all").click(); // 只有失败项可勾
+  await res.getByTestId("speech-rerun-failed").click();
+  await expect(dlg.getByTestId("speech-run")).toContainText("1");
+  await page.keyboard.press("Escape");
+  await expect(dlg).toBeHidden();
+
+  // 再从全部三条发起：成功的那条已是最新，跳过
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("speech-results")).toBeHidden();
+  // 列表里的分析状态（刷新后）
+  await page.getByTestId("refresh-lists").click();
+  await expect(rows.filter({ hasText: "ああ" }).getByTestId("row-analysis")).toHaveText("手动截取 · 已分析");
+  await expect(rows.filter({ hasText: "おと" }).getByTestId("row-analysis")).toHaveText("手动截取 · 分析失败");
+
+  await page.getByTestId("batch-actions").click();
+  await page.getByRole("menuitem", { name: "语音分析所选 3 项…" }).click();
+  await expect(dlg.getByTestId("speech-fresh")).toContainText("1");
+  await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 条");
+  await dlg.getByTestId("speech-rerun").click();
+  await expect(dlg.getByTestId("speech-run")).toContainText("2");
+  await app.close();
+});

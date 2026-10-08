@@ -512,6 +512,7 @@ export interface Prep {
   lineSamples: PrepCount;
   oped: PrepCount;
   separation: PrepTrack;
+  speech: PrepSpeech;
   subtitle: PrepSubtitle;
 }
 
@@ -526,6 +527,12 @@ export interface PrepAsset {
 export interface PrepCount {
   count: number;
   ok: boolean;
+}
+
+export interface PrepSpeech {
+  analyzed: number;
+  ok: boolean;
+  speech: number;
 }
 
 export interface PrepSubtitle {
@@ -638,6 +645,7 @@ export interface SamplePage {
 }
 
 export interface SampleRow {
+  analysis: "failed" | "manual" | "none" | "ok";
   asset_id: string;
   asset_origin: string;
   created_at: string;
@@ -706,10 +714,12 @@ export interface SettingEntry {
 }
 
 export interface SourceCounts {
+  analyzed: number;
   hasMarkers: boolean;
   lines: number;
   oped: number;
   samples: number;
+  speech: number;
 }
 
 export interface SourceDetail {
@@ -810,6 +820,37 @@ export interface SourceStream {
 export interface SourcesAddParams {
   importRoot?: string | null;
   paths: string[];
+}
+
+export interface SpeechBlocked {
+  id: string;
+  name: string;
+  reason: string;
+}
+
+export interface SpeechPlanParams {
+  entry: "samples" | "source";
+  ids: string[];
+  rerunFresh?: boolean;
+}
+
+/** 确认框：将分析 M 条；N 条已是最新，跳过；K 条无法处理（原因）。 */
+export interface SpeechPreview {
+  blocked: number;
+  blockedList: SpeechBlocked[];
+  fresh: number;
+  freshAll: number;
+  mixBound: number;
+  run: number;
+}
+
+export interface SpeechResultRow {
+  deleted: boolean;
+  error: ErrorWire | null;
+  idx: number;
+  name: string | null;
+  sampleId: string;
+  status: "failed" | "ok" | "queued" | "skipped";
 }
 
 export interface StemRegistered {
@@ -1228,6 +1269,12 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Create one full-length sample per source on its default track. */
   "sources.wholeSamples": { params: WholeSamplesParams; result: SampleIds; effect: "write" };
+  /** What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons. */
+  "speech.preview": { params: SpeechPlanParams; result: SpeechPreview; effect: "read" };
+  /** Per-item results of a speech analysis job. */
+  "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
+  /** Queue a speech analysis job (inputs frozen now; one process for all items). */
+  "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
   /** Create samples from chosen subtitle lines (atomic). */
@@ -1339,6 +1386,9 @@ export type ErrorCode =
   | "source-no-audio"
   | "source-not-found"
   | "source-path-taken"
+  | "speech-blocked"
+  | "speech-invalid"
+  | "speech-nothing-to-do"
   | "stream-not-found"
   | "studio-failed"
   | "studio-model-missing"

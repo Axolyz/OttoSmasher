@@ -303,6 +303,9 @@ class SourceCounts(TypedDict):
     hasMarkers: bool
     oped: int
     samples: int
+    # 语音性质的采样数与其中已分析（当前头为成功测量）的数
+    speech: int
+    analyzed: int
 
 
 class SourceRow(TypedDict):
@@ -443,9 +446,16 @@ class PrepCount(TypedDict):
     count: int
 
 
+class PrepSpeech(TypedDict):
+    ok: bool
+    speech: int
+    analyzed: int
+
+
 class Prep(TypedDict):
     """准备清单的现状（UI_PLAN §4；没有顺序、不强制）。"""
 
+    speech: PrepSpeech
     subtitle: PrepSubtitle
     separation: PrepTrack
     defaultVocal: PrepTrack
@@ -753,6 +763,8 @@ class SampleRow(TypedDict):
     media_state: str
     # 人物（说话人显示层：character: 在前，participants: 在后，只显示名字）
     people: list[str]
+    # 语音分析：ok 已分析 / manual 人工版本 / failed 分析失败（没有成功结果）/ none 未分析
+    analysis: Literal["ok", "manual", "failed", "none"]
     # 有效标签（只有 samples.get 返回）
     tags: NotRequired[list[EffectiveTag]]
 
@@ -1184,3 +1196,42 @@ class SeparationSubmitted(TypedDict):
 
     reused: NotRequired[list[str]]
     job: NotRequired[JobSummary]
+
+
+# ---------------------------------------------------------------- 语音分析（规格 08 §8.4）
+
+
+class SpeechPlanParams(TypedDict):
+    # source = 原片入口（默认范围：语音、有对齐文本、原字幕区间不在 OP/ED 里）；samples = 所选采样（有对齐文本的）
+    entry: Literal["source", "samples"]
+    ids: list[str]
+    # 也重新分析已是最新的（排查用，默认不勾）
+    rerunFresh: NotRequired[bool]
+
+
+class SpeechBlocked(TypedDict):
+    id: str
+    name: str
+    reason: str
+
+
+class SpeechPreview(TypedDict):
+    """确认框：将分析 M 条；N 条已是最新，跳过；K 条无法处理（原因）。"""
+
+    run: int
+    fresh: int
+    blocked: int
+    blockedList: list[SpeechBlocked]
+    # 范围内绑在原混音或无角色资产上的采样数（提示：想用人声分析先分离、设默认人声轨）
+    mixBound: int
+    # 不勾「也重新分析」时已是最新的条数（复选框文案用）
+    freshAll: int
+
+
+class SpeechResultRow(TypedDict):
+    idx: int
+    sampleId: str
+    name: str | None
+    status: Literal["queued", "ok", "failed", "skipped"]
+    error: ErrorWire | None
+    deleted: bool

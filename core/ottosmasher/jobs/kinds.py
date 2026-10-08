@@ -6,6 +6,7 @@ from __future__ import annotations
 KINDS: dict[str, str] = {
     "models.verify": "light",
     "models.probe": "model",
+    "speech.analyze": "model",
     "dictionary.compile": "light",
     "dictionary.preview": "light",
     "studio.models": "light",

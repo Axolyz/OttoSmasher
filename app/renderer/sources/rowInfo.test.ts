@@ -23,7 +23,7 @@ describe("source row info", () => {
   it("no subtitles = no file and no markers", () => {
     expect(noSubtitles(row({}))).toBe(true);
     expect(noSubtitles(row({ subtitle_path: "/a.srt" }))).toBe(false);
-    expect(noSubtitles(row({ counts: { lines: 0, hasMarkers: true, oped: 0, samples: 0 } }))).toBe(false);
+    expect(noSubtitles(row({ counts: { lines: 0, hasMarkers: true, oped: 0, samples: 0, speech: 0, analyzed: 0 } }))).toBe(false);
   });
   it("source-folder rows show the subfolder inside the work folder", () => {
     expect(relDir(row({ root_id: "r", rel_path: "Game/se/ui/hit.ogg" }))).toBe("se/ui");

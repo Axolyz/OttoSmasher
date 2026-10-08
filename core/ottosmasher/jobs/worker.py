@@ -254,7 +254,58 @@ def _dictionary_preview(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     }
 
 
+def _speech_analyze(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """批量语音分析（08 §8.4）：一个进程处理全部条目；模型只加载一次；同一句文本只跑一次前端；逐条结果写进任务目录并报告。"""
+    from ..lang.ja.runtime import JaRuntime
+    from ..models import domino, registry
+    from ..models.onnx import Device, create_session
+    from .speech import align_item
+
+    device = Device.of(ctx.device)
+    models, support = Path(params["models_dir"]), Path(params["support_dir"])
+    d = params["dictionary"]
+    rt = JaRuntime(models, support, device, Path(d["path"]) if d.get("path") else None, d["version"])
+    path, sha = registry.locate(domino.MODEL_ID, domino.MODEL_FILE, models, support)
+    if sha != params["versions"]["model"]["sha256"]:
+        raise CoreError("model-sha-mismatch", model=domino.MODEL_ID, path=str(path), expected=params["versions"]["model"]["sha256"], got=sha)
+    aligner = domino.Aligner(create_session(domino.MODEL_ID, path, sha, device))
+    out_dir = ctx.job_dir / "items"
+    out_dir.mkdir(exist_ok=True)
+    cache = ctx.job_dir / "cache"
+    fronts: dict[str, Any] = {}
+    items = params["items"]
+    ok = failed = 0
+    for n, it in enumerate(items):
+        ctx.progress("align", n, len(items), "speech-aligning")
+        try:
+            text = it["text"]
+            if text not in fronts:
+                try:
+                    fronts[text] = rt.analyze(text)
+                except CoreError as exc:
+                    fronts[text] = exc
+            f = fronts[text]
+            if isinstance(f, CoreError):
+                raise f
+            res = align_item(it, lambda _t, f=f: f, aligner, cache=cache)
+            name = f"{it['idx']}.json"
+            (out_dir / name).write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+            ctx.emit({"type": "item", "idx": it["idx"], "status": "ok", "ref": name})
+            ok += 1
+        except CoreError as exc:
+            ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": exc.to_wire()})
+            failed += 1
+        except Exception as exc:  # noqa: BLE001 — 一条出错不拖垮整批；原因写明
+            traceback.print_exc()
+            ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": {"code": "job-exception", "args": {"type": type(exc).__name__, "message": str(exc)}}})
+            failed += 1
+    ctx.progress("align", len(items), len(items), "speech-aligning")
+    probes = [s.probe for s in (rt.session, aligner.session) if s.probe]
+    return {"ok": ok, "failed": failed, "probes": probes}
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "speech.analyze": _speech_analyze,
     "dictionary.compile": _dictionary_compile,
     "dictionary.preview": _dictionary_preview,
     "models.probe": _models_probe,

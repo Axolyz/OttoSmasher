@@ -687,6 +687,42 @@
    }
   },
   {
+   "name": "speech.preview",
+   "effect": "read",
+   "summary": "What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons.",
+   "params": {
+    "$ref": "#/$defs/SpeechPlanParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeechPreview"
+   }
+  },
+  {
+   "name": "speech.results",
+   "effect": "read",
+   "summary": "Per-item results of a speech analysis job.",
+   "params": {
+    "$ref": "#/$defs/JobIdParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SpeechResultRow"
+    }
+   }
+  },
+  {
+   "name": "speech.submit",
+   "effect": "job",
+   "summary": "Queue a speech analysis job (inputs frozen now; one process for all items).",
+   "params": {
+    "$ref": "#/$defs/SpeechPlanParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "studio.status",
    "effect": "read",
    "summary": "PyMSS Studio installation and model list (submits a listing job when unknown).",
@@ -1461,6 +1497,29 @@
     "path"
    ],
    "summary": "Another source is registered at this path."
+  },
+  {
+   "code": "speech-blocked",
+   "args": [
+    "reason"
+   ],
+   "summary": "This sample cannot be analyzed (reason given)."
+  },
+  {
+   "code": "speech-invalid",
+   "args": [
+    "field",
+    "reason"
+   ],
+   "summary": "Speech analysis request rejected."
+  },
+  {
+   "code": "speech-nothing-to-do",
+   "args": [
+    "blocked",
+    "fresh"
+   ],
+   "summary": "Nothing to analyze: everything is up to date or blocked."
   },
   {
    "code": "stream-not-found",
@@ -4043,6 +4102,9 @@
     "separation": {
      "$ref": "#/$defs/PrepTrack"
     },
+    "speech": {
+     "$ref": "#/$defs/PrepSpeech"
+    },
     "subtitle": {
      "$ref": "#/$defs/PrepSubtitle"
     }
@@ -4053,6 +4115,7 @@
     "lineSamples",
     "oped",
     "separation",
+    "speech",
     "subtitle"
    ]
   },
@@ -4119,6 +4182,26 @@
    "required": [
     "count",
     "ok"
+   ]
+  },
+  "PrepSpeech": {
+   "title": "PrepSpeech",
+   "type": "object",
+   "properties": {
+    "analyzed": {
+     "type": "integer"
+    },
+    "ok": {
+     "type": "boolean"
+    },
+    "speech": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "analyzed",
+    "ok",
+    "speech"
    ]
   },
   "PrepSubtitle": {
@@ -4595,6 +4678,14 @@
    "title": "SampleRow",
    "type": "object",
    "properties": {
+    "analysis": {
+     "enum": [
+      "failed",
+      "manual",
+      "none",
+      "ok"
+     ]
+    },
     "asset_id": {
      "type": "string"
     },
@@ -4728,6 +4819,7 @@
     }
    },
    "required": [
+    "analysis",
     "asset_id",
     "asset_origin",
     "created_at",
@@ -4941,6 +5033,9 @@
    "title": "SourceCounts",
    "type": "object",
    "properties": {
+    "analyzed": {
+     "type": "integer"
+    },
     "hasMarkers": {
      "type": "boolean"
     },
@@ -4952,13 +5047,18 @@
     },
     "samples": {
      "type": "integer"
+    },
+    "speech": {
+     "type": "integer"
     }
    },
    "required": [
+    "analyzed",
     "hasMarkers",
     "lines",
     "oped",
-    "samples"
+    "samples",
+    "speech"
    ]
   },
   "SourceDetail": {
@@ -5511,6 +5611,138 @@
    },
    "required": [
     "paths"
+   ]
+  },
+  "SpeechBlocked": {
+   "title": "SpeechBlocked",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "reason": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "name",
+    "reason"
+   ]
+  },
+  "SpeechPlanParams": {
+   "title": "SpeechPlanParams",
+   "type": "object",
+   "properties": {
+    "entry": {
+     "enum": [
+      "samples",
+      "source"
+     ]
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "rerunFresh": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "entry",
+    "ids"
+   ]
+  },
+  "SpeechPreview": {
+   "title": "SpeechPreview",
+   "description": "确认框：将分析 M 条；N 条已是最新，跳过；K 条无法处理（原因）。",
+   "type": "object",
+   "properties": {
+    "blocked": {
+     "type": "integer"
+    },
+    "blockedList": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechBlocked"
+     }
+    },
+    "fresh": {
+     "type": "integer"
+    },
+    "freshAll": {
+     "type": "integer"
+    },
+    "mixBound": {
+     "type": "integer"
+    },
+    "run": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "blocked",
+    "blockedList",
+    "fresh",
+    "freshAll",
+    "mixBound",
+    "run"
+   ]
+  },
+  "SpeechResultRow": {
+   "title": "SpeechResultRow",
+   "type": "object",
+   "properties": {
+    "deleted": {
+     "type": "boolean"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "idx": {
+     "type": "integer"
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "status": {
+     "enum": [
+      "failed",
+      "ok",
+      "queued",
+      "skipped"
+     ]
+    }
+   },
+   "required": [
+    "deleted",
+    "error",
+    "idx",
+    "name",
+    "sampleId",
+    "status"
    ]
   },
   "StemRegistered": {

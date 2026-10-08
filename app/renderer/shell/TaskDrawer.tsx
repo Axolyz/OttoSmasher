@@ -5,6 +5,7 @@ import type { JobSummary } from "../api/types";
 import { Button } from "../components/Button";
 import { ProgressBar } from "../components/Controls";
 import { SeparationResults } from "./SeparationResults";
+import { SpeechResults } from "./SpeechResults";
 import { Drawer } from "../components/Overlay";
 import { errorText, hasKey, t } from "../i18n";
 import { useApp } from "../state/store";
@@ -64,6 +65,11 @@ function JobRow({ job }: { job: JobSummary }) {
           />
         </div>
       ) : null}
+      {job.kind === "speech.analyze" && job.items && !active ? (
+        <div className={s.meta} data-testid="speech-summary">
+          {t("speech.jobSummary", { ok: job.items.ok ?? 0, failed: job.items.failed ?? 0 })}
+        </div>
+      ) : null}
       {job.error ? (
         <div className={s.err}>
           <div>{errorText(job.error)}</div>
@@ -80,7 +86,7 @@ function JobRow({ job }: { job: JobSummary }) {
             {t("tasks.cancel")}
           </Button>
         ) : null}
-        {job.kind === "separate" && job.status === "succeeded" ? (
+        {(job.kind === "separate" && job.status === "succeeded") || (job.kind === "speech.analyze" && job.status === "succeeded") ? (
           <Button size="sm" variant={open ? "secondary" : "flat"} onPress={() => setOpen((v) => !v)} data-testid="job-results">
             {t("tasks.openResults")}
           </Button>
@@ -91,7 +97,8 @@ function JobRow({ job }: { job: JobSummary }) {
           </Button>
         ) : null}
       </div>
-      {open ? <SeparationResults jobId={job.id} /> : null}
+      {open && job.kind === "separate" ? <SeparationResults jobId={job.id} /> : null}
+      {open && job.kind === "speech.analyze" ? <SpeechResults jobId={job.id} /> : null}
     </div>
   );
 }

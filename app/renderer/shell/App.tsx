@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import { SourcesPage } from "../sources/SourcesPage";
 import { type Page, useApp } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
+import { SpeechDialog } from "./SpeechDialog";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
@@ -122,6 +123,7 @@ export function App() {
       </div>
       <TaskDrawer jobs={jobs} />
       <SettingsSheet />
+      <SpeechDialog />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>
           <tbody>

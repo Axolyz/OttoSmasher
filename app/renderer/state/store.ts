@@ -22,6 +22,12 @@ export interface SourceJump {
   assetId?: string;
 }
 
+/** 语音分析确认框的请求（规格 08 §8.4：不同入口只是默认范围不同） */
+export interface SpeechRequest {
+  entry: "source" | "samples";
+  ids: string[];
+}
+
 interface AppState {
   page: Page;
   openSample: string | null;
@@ -39,6 +45,8 @@ interface AppState {
   refreshTick: number;
   refreshLists(): void;
   toasts: Toast[];
+  speechRequest: SpeechRequest | null;
+  requestSpeech(r: SpeechRequest | null): void;
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
   setSettingsOpen(v: boolean): void;
@@ -58,6 +66,8 @@ export const useApp = create<AppState>((set) => ({
   openSample: null,
   sourceJump: null,
   setOpenSample: (openSample) => set({ openSample }),
+  speechRequest: null,
+  requestSpeech: (speechRequest) => set({ speechRequest }),
   setSourceJump: (sourceJump) => set({ sourceJump }),
   tasksOpen: false,
   settingsOpen: false,

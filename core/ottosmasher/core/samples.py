@@ -129,7 +129,11 @@ class SampleService:
         's.id, s.asset_id, s.start, s."end", s.name, s.nature, s.starred, s.rating, s.language, s.created_via,'
         " s.parent_sample_id, s.parent_label, s.created_at, s.version,"
         " a.source_id, a.mapping, a.origin AS asset_origin, a.stream_ordinal,"
-        " src.work, src.episode, src.path AS source_path, src.media_state"
+        " src.work, src.episode, src.path AS source_path, src.media_state,"
+        # 语音分析状态（08 §8.8：“已分析”= 当前头是成功测量）：manual / ok / failed（当前头失败或只有失败记录）/ none
+        " (SELECT CASE WHEN r.status='ok' AND r.manual=1 THEN 'manual' ELSE r.status END FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
+        "   WHERE h.owner_type='sample' AND h.owner_id=s.id AND h.kind='alignment') AS analysis_head,"
+        " EXISTS(SELECT 1 FROM measure_run m WHERE m.owner_type='sample' AND m.owner_id=s.id AND m.kind='alignment' AND m.status='failed') AS analysis_failed"
     )
     _FROM = " FROM sample s JOIN sound_asset a ON a.id = s.asset_id JOIN source src ON src.id = a.source_id"
 
@@ -143,6 +147,8 @@ class SampleService:
         d["duration"] = d["end"] - d["start"]
         d["starred"] = bool(d["starred"])
         d["source_name"] = source_display_name(d["work"], d["episode"], d["source_path"])
+        head, failed = d.pop("analysis_head"), d.pop("analysis_failed")
+        d["analysis"] = head if head in ("ok", "manual") else ("failed" if (head == "failed" or failed) else "none")
         return d
 
     def get(self, sample_id: str) -> dict[str, Any]:

@@ -55,6 +55,7 @@ export function LibraryPage() {
   const ready = useApp((st) => st.core.state === "ready");
   const page = useApp((st) => st.page);
   const toast = useApp((st) => st.toast);
+  const requestSpeech = useApp((st) => st.requestSpeech);
   const openSample = useApp((st) => st.openSample);
   const setOpenSample = useApp((st) => st.setOpenSample);
   const setPage = useApp((st) => st.setPage);
@@ -283,6 +284,8 @@ export function LibraryPage() {
     { id: "star", label: t("library.starOn"), shortcut: "S", run: () => void edit(ids, { starred: true }, "sample-star") },
     { id: "unstar", label: t("library.starOff"), run: () => void edit(ids, { starred: false }, "sample-star") },
     "-",
+    { id: "speech", label: t("speech.menuN", { n: ids.length }), run: () => requestSpeech({ entry: "samples", ids }) },
+    "-",
     { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
   ];
   const sampleMenu = (r: SampleRow, ids: string[], multi: boolean): MenuSpec =>
@@ -297,6 +300,7 @@ export function LibraryPage() {
             { id: "star", label: r.starred ? t("library.starOff") : t("library.starOn"), shortcut: "S", run: () => void edit([r.id], { starred: !r.starred }, "sample-star") },
             "-",
             { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
+            { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "samples", ids: [r.id] }) },
             "-",
             { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
           ],
@@ -408,7 +412,9 @@ export function LibraryPage() {
                 </span>
               </div>
               <div className={s.meta}>
-                <span>{r.created_via === "manual" ? t("library.manualUnanalyzed") : t(`nature.${r.nature}`)}</span>
+                <span data-testid="row-analysis" data-analysis={r.analysis}>
+                  {t(`library.via.${r.created_via}`)} · {t(`library.analysis.${r.analysis}`)}
+                </span>
                 {r.people.length ? (
                   <span className={s.who} lang="ja" data-user-data="">
                     {r.people.join(t("settings.subtitle.speakerSep"))}

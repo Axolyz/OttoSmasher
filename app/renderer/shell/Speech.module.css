@@ -1,0 +1,8 @@
+/* 语音分析确认框与结果（阶段 4.5；原型 analysisModal / 结果表） */
+.body { display: flex; flex-direction: column; gap: 10px; }
+.say { color: var(--sub); font-size: var(--fs-sm); }
+.faint { color: var(--faint); font-size: var(--fs-xs); }
+.results { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.ok { color: var(--ok); }
+.bad { color: var(--bad); }
+.muted { color: var(--muted); }

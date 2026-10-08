@@ -215,6 +215,8 @@ class Scheduler:
                 total = prog.get("total") or 0
                 prog["percent"] = round(100 * (prog.get("done") or 0) / total, 1) if total else None
                 self.post(lambda p=prog: self._progress(jid, p))
+            elif t == "item":
+                self.post(lambda m=msg: self._item(jid, m))
             elif t == "result":
                 run.result = msg.get("result") or {}
             elif t == "error":
@@ -223,6 +225,28 @@ class Scheduler:
         logf.close()
         run.tree.close()
         self.post(lambda: self._exited(jid, run, code))
+
+    def add_items(self, jid: str, items: list[tuple[str, str]]) -> None:
+        """批量任务的逐条记录（target, 初始状态 queued / skipped），提交后立即写（规格 08 §8.4 结果表）。"""
+        with transaction(self.conn):
+            self.conn.executemany(
+                "INSERT INTO job_item(job_id, idx, target, status) VALUES (?, ?, ?, ?)", [(jid, i, t, st) for i, (t, st) in enumerate(items)]
+            )
+            self.conn.execute(
+                "UPDATE job SET items_total=?, items_ok=0, items_failed=0 WHERE id=?", (sum(1 for _, st in items if st == "queued"), jid)
+            )
+
+    def _item(self, jid: str, msg: dict[str, Any]) -> None:
+        """工作进程报告一条的结果：只记状态与原因；登记由任务结束时的采纳函数做（取消不留半成品登记）。"""
+        status = "ok" if msg.get("status") == "ok" else "failed"
+        err = msg.get("error")
+        cur = self.conn.execute(
+            "UPDATE job_item SET status=?, error=?, result_ref=? WHERE job_id=? AND idx=?",
+            (status, dumps(err) if err else None, msg.get("ref"), jid, int(msg.get("idx", -1))),
+        )
+        if cur.rowcount:
+            col = "items_ok" if status == "ok" else "items_failed"
+            self.conn.execute(f"UPDATE job SET {col}=COALESCE({col}, 0) + 1 WHERE id=?", (jid,))
 
     def _progress(self, jid: str, prog: dict[str, Any]) -> None:
         cur = self.conn.execute("UPDATE job SET progress=? WHERE id=? AND status='running'", (dumps(prog), jid))
