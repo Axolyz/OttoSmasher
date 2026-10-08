@@ -1183,6 +1183,60 @@
    "summary": "Export file name is too long even after shortening."
   },
   {
+   "code": "flatten-edge-insufficient",
+   "args": [
+    "frames",
+    "side"
+   ],
+   "summary": "Not enough reliable F0 near the chosen edge; the other side is never used automatically."
+  },
+  {
+   "code": "flatten-f0-insufficient",
+   "args": [
+    "frames"
+   ],
+   "summary": "Not enough reliable F0 frames to choose a target."
+  },
+  {
+   "code": "flatten-inner-invalid",
+   "args": [
+    "ms",
+    "reason"
+   ],
+   "summary": "Inner region is out of bounds or its plateau is too short."
+  },
+  {
+   "code": "flatten-invalid",
+   "args": [
+    "field",
+    "reason"
+   ],
+   "summary": "Flatten request rejected."
+  },
+  {
+   "code": "flatten-needs-alignment",
+   "args": [
+    "reason"
+   ],
+   "summary": "This range needs an alignment covering the selection (same physical sound)."
+  },
+  {
+   "code": "flatten-output-invalid",
+   "args": [
+    "expected",
+    "got",
+    "reason"
+   ],
+   "summary": "Vocoder output has the wrong length or non-finite samples."
+  },
+  {
+   "code": "flatten-target-invalid",
+   "args": [
+    "reason"
+   ],
+   "summary": "Manual target must be a note name (A4, C#5) or a frequency with unit (445Hz)."
+  },
+  {
    "code": "frontend-failed",
    "args": [
     "detail",
