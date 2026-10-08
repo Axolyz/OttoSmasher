@@ -272,7 +272,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 | 表 | 内容 | 失效条件 |
 |---|---|---|
-| `rhythm_cache` | 每个“采样 + 分析版本 + 路线 + 拆点/占格 + 停顿参数 + 惩罚度”的音块、停顿、停顿段、语段、占格骨架 | 任一上游变化 |
+| `rhythm_cache` | 每个“采样 + 分析版本 + 拆点/占格 + 停顿参数 + 惩罚度”的音块、停顿、停顿段、语段、占格骨架 | 任一上游变化。**阶段 6 现状**：Core 内存里按身份缓存（`core/rhythm.py`），还没有落库；阶段 7 建检索索引时再定 |
 | `speech_index_row` | 每采样（含语段）一行：音块列数组（起音、结束、首元音、前导辅音、可靠帧 MIDI 中位数、P10/P90、覆盖率、走势、停顿段内相对音高、相对响度、强度、有效起止、持续终点、停顿段号、语段号）+ 占格骨架 | 同上；采样绑定变化、删除 |
 | `scheme_cache` | (采样, 方案身份, BPM, 密度) → 速度、目标拍、映射控制点 | 方案身份任一项变化（规格 09 §9.5.3） |
 | `Data/Cache/` 文件 | 波形峰值金字塔、缩略图、频谱、临时解码 PCM（带租约） | 可清理 |
@@ -510,8 +510,16 @@ class LanguageProfile(Protocol):
 
 - 拖出：Option/Alt 按下时冻结请求 → 移动 > 4 px 才请求 Core 生成 → 生成期间提示，Esc/松手/失焦放弃 → 完成且仍按住时主进程 `webContents.startDrag`；
   进入系统拖拽后 Esc 交给系统。生成失败用消息提示（不吞错误）。（Electron 的 startDrag 必须在拖动手势中调用，阶段 2 探针验证“生成后再发起”的时序。）
-- REAPER：Core 生成未烘焙原声 WAV 与 `<ITEM …>` 文本（规格 12 §12.3，12 位小数、引号选择、单调性校验）；主进程用 `clipboard.writeBuffer('REAPERMedia', …)`
-  写入（NUL 分隔、双 NUL 结尾），写后回读校验。Windows 实测前标“未验收”。
+- REAPER：Core 生成未烘焙原声 WAV（`Library/REAPER/<日期>/`）与 `<ITEM …>` 文本（规格 12 §12.3，12 位小数、引号选择、单调性校验；`domain/reaper.py`、`core/handoff.py`）；
+  主进程（`reaper:copy`）向 Core 要文本，用 Electron 44 的 `clipboard.write([new ClipboardItem({'electron application/osclipboard;format="REAPERMedia"': …})])`
+  写入（NUL 分隔、双 NUL 结尾），写后 `clipboard.read()` 回读校验；页面不能往剪贴板写任意内容。Windows 实测前标“未验收”。
+
+### 10.5 节奏与卡拍（阶段 6）
+
+- 算法：`algo/rhythm.py`（音块、停顿、语段、时值、原节奏束搜索、纯 mora、目标拍、逐音属性）、`algo/stretch.py`（控制点、帧域时间映射、语音速度、候选密度、原速二分）；纯函数。
+- 渲染：`media/stretch.py`，桥与弹性停顿片分别用 Rubber Band CLI `-3 -D <秒>` 伸缩到精确帧数（实测精确；time map 偏 20 ms 以上所以不用），核心逐样本复制，桥两端 3 ms 交叉淡化。
+- Core：`core/rhythm.py`（逐采样参数 `sample.rhythm`、节奏视图、方案按需计算、试听渲染缓存 `Data/Cache/rhythm/<键>.wav`、全局 BPM 设置 `rhythm.bpm`），
+  试听播放器按键解析渲染结果（`playback.resolveRender`），不接受路径。导出与交接在 `core/handoff.py`（卡拍 WAV 的清单写 `Data/Manifests/`，组合两层映射）。
 
 ---
 
