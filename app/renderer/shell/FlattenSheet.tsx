@@ -16,7 +16,7 @@ import { Sheet } from "../components/Overlay";
 import { seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { assetLabel } from "../library/StageSpeech";
-import { type Layer, type Sel, Timeline } from "../sources/Timeline";
+import { type Curve, type Layer, type Sel, Timeline } from "../sources/Timeline";
 import { type FlattenRequest, useApp } from "../state/store";
 import s from "./Flatten.module.css";
 
@@ -98,6 +98,7 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
   const missing = useMissingModels(req !== null);
   const [op, setOp] = useState<FlattenOpened | null>(null);
   const [asset, setAsset] = useState<AssetRecord | null>(null);
+  const [curve, setCurve] = useState<Curve | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const [range, setRange] = useState<Range>("whole");
   const [target, setTarget] = useState<Target>("auto");
@@ -137,6 +138,19 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
       (e) => live && setOpenError(e instanceof CoreFailure ? errorText(e.wire) : String(e)),
     );
     void call("assets.get", { id: req.assetId }).then((a) => live && setAsset(a), () => live && setAsset(null));
+    // 金色 F0 线：输入资产已缓存的测量（只画可靠帧），平移到输入局部秒；没测过就不画
+    setCurve(null);
+    void call("measure.f0", { assetId: req.assetId, start: req.start, end: req.end }).then(
+      (r) => {
+        if (!live || !r.measured) return;
+        const f = (b: Uint8Array) => new Float32Array(b.slice().buffer);
+        const [f0, conf, en] = [f(r.f0), f(r.confidence), f(r.energy)];
+        const v = new Float32Array(r.count);
+        for (let i = 0; i < r.count; i++) v[i] = conf[i]! >= 0.5 && en[i]! > 1e-10 && f0[i]! > 0 ? f0[i]! : Number.NaN;
+        setCurve({ t0: r.t0 - req.start, step: r.step, values: v });
+      },
+      () => {},
+    );
     return () => {
       live = false;
     };
@@ -257,7 +271,9 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
       }
     >
       {openError ? (
-        <Callout tone="bad">{openError}</Callout>
+        <div className={s.pad} data-testid="flatten-open-error">
+          <Callout tone="bad">{openError}</Callout>
+        </div>
       ) : (
         <div className={s.layout}>
           <div className={s.main}>
@@ -284,6 +300,7 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
                     onPlayFrom={(at) => void play(at, d)}
                     overlay={overlay}
                     lanes={lanes}
+                    curve={curve}
                   />
                 ) : null}
               </div>
@@ -318,7 +335,7 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
                 </span>
               </div>
               {range === "inner" ? <div className={s.faint}>{t("flatten.innerHint")}</div> : null}
-              {range !== "whole" && range !== "inner" && !op?.alignment ? <Callout tone="warn">{t("flatten.needAlignment")}</Callout> : null}
+              {range !== "whole" && range !== "inner" && !op?.alignment && !estError ? <Callout tone="warn">{t("flatten.needAlignment")}</Callout> : null}
               {op?.alignment?.manual ? <div className={s.faint}>{t("flatten.manualAlignment")}</div> : null}
             </section>
             <section className={s.card}>

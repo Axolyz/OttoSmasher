@@ -55,7 +55,7 @@ export function FlattenResults({ jobId }: { jobId: string }) {
               r.deleted ? (
                 <span className={s.muted}>{t("speech.results.deleted")}</span>
               ) : (
-                <span lang="ja" data-user-data="">
+                <span lang="ja" data-user-data="" className={s.clamp} title={r.name ?? undefined}>
                   {r.name}
                 </span>
               ),
