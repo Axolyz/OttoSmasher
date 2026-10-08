@@ -92,8 +92,6 @@ export function LibraryPage() {
   const [playing, setPlaying] = useState<string | null>(null);
   /** 正在试听的版本与声音（"original:voice"、"stretched:voice+click" …） */
   const setNowPlaying = useApp((st) => st.setNowPlaying);
-  const rememberVersion = useApp((st) => st.rememberVersion);
-  const lastVersion = useApp((st) => st.lastVersion);
   const stageRhythm = useApp((st) => st.stageRhythm);
   const [playingVer, setPlayingVer] = useState<string | null>(null);
   // 播放条停止或播完（nowPlaying 变成空）→ 本页的“正在试听”也清掉
@@ -234,7 +232,7 @@ export function LibraryPage() {
 
   const rows = data?.rows ?? [];
   /** 试听一个采样（PB1：原声、卡拍都一步）：原声直接读绑定区间（R22.3）；卡拍与咔哒声先由 Core 渲染（方案按需计算）。
-   *  成功开始播放才记为“最近试听的版本”（拖出跟随它，12 §12.1）。再按一次同一个 = 停止。 */
+   *  再按一次同一个 = 停止。 */
   const audition = async (r: SampleRow, version: AuditionVersion = "original", opts: AuditionOpts = {}) => {
     const sound = opts.sound ?? "voice";
     const key = `${version}:${sound}`;
@@ -261,7 +259,6 @@ export function LibraryPage() {
         auditionGen.current = await window.otto.player.auditionRender(rr.key);
         setNowPlaying({ sampleId: r.id, name: r.name, version, sound, plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
       }
-      rememberVersion(r.id, version);
     } catch (e) {
       setPlaying(null);
       setNowPlaying(null);
@@ -298,8 +295,8 @@ export function LibraryPage() {
     }
     if (ids.length > 1 && done.length) toast({ text: t("library.exportedN", { n: done.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(done[0]!) } });
   };
-  /** ``baked``：卡好拍的声音 + 起音拉伸标记；否则未烘焙原声 + 卡拍拉伸标记（12 §12.3） */
-  const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked = false) => {
+  /** ``baked``：卡好拍的声音 + 起音拉伸标记；false = 未烘焙原声 + 卡拍拉伸标记（12 §12.3）；不给 = 按设置（⌘C） */
+  const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked?: boolean) => {
     const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked });
     if (!r.ok) return toast({ text: errorText(r.e), tone: "error" });
     toast({ text: t(r.r.count > 1 ? "reaper.copiedN" : "reaper.copied", { n: r.r.count }) });
@@ -321,7 +318,7 @@ export function LibraryPage() {
           { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportStretched([r.id], opts) },
           "-",
           { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void copyReaper([r.id], opts, true) },
-          { id: "reaper", label: t("handoff.reaper"), run: () => void copyReaper([r.id], opts) },
+          { id: "reaper", label: t("handoff.reaper"), run: () => void copyReaper([r.id], opts, false) },
           { id: "rtt", label: t("handoff.rtt"), run: () => void reaperTemplate([r.id], opts) },
         ];
 
@@ -423,7 +420,7 @@ export function LibraryPage() {
       label: t("handoff.reaperMenu"),
       items: [
         { id: "reaperBaked", label: t("handoff.reaperBakedN", { n: ids.length }), run: () => void copyReaper(ids, {}, true) },
-        { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids) },
+        { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids, {}, false) },
       ],
     },
     "-",
@@ -454,6 +451,33 @@ export function LibraryPage() {
             { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
           ],
         };
+
+  // ⌘C（所有者 2026-10-08 选丙）：采样库里复制 REAPER 交接——勾选集，没有勾选就是当前采样；哪种按设置「导出」。
+  // macOS 上应用菜单的「拷贝」先接走按键、变成页面的 copy 事件；按键直接到页面时（Windows 或没有菜单时）听 keydown。两路去重。
+  // 输入框里、或页面上选中了文字时照常复制文字；舞台上的方案与临时纯 mora 只作用于当前采样（勾选集用默认）。
+  const lastCopy = useRef(0);
+  useEffect(() => {
+    if (page !== "library") return;
+    const run = (ev: Event): void => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el?.closest("input, textarea, [contenteditable=true], [role=dialog]") || (window.getSelection()?.toString() ?? "") !== "") return;
+      const ids = checked.size ? [...checked] : focusRow ? [focusRow.id] : [];
+      if (!ids.length) return;
+      ev.preventDefault();
+      if (performance.now() - lastCopy.current < 500) return;
+      lastCopy.current = performance.now();
+      void copyReaper(ids, ids.length === 1 ? stageOpts(ids[0]!) : {});
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c") run(e);
+    };
+    document.addEventListener("copy", run);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("copy", run);
+      window.removeEventListener("keydown", onKey);
+    };
+  });
 
   const onKey = (e: React.KeyboardEvent, it: SampleRow | null): boolean => {
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
@@ -532,10 +556,11 @@ export function LibraryPage() {
         rowTestId="sample-row"
         rowData={(r) => ({ "data-nature": r.nature })}
         onRowPointerDown={(e, r) => {
-          // ⌥ 拖出：在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
+          // ⌥ 拖出原声、⌥⇧ 拖出卡拍（所有者 2026-10-08 选丙）；在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
           if ((e.target as Element).closest("button, input, label")) return;
           const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
-          const versions = Object.fromEntries(ids.map((id) => [id, lastVersion[id] ?? "original"]));
+          const version = e.shiftKey ? "stretched" : "original";
+          const versions = Object.fromEntries(ids.map((id) => [id, version] as const));
           beginDragOut(e, () => call("exports.samples", { ids, words: trackWords(), versions }));
         }}
         empty={

@@ -1679,7 +1679,8 @@ class StretchedExportParams(TypedDict):
 
 
 class ReaperParams(TypedDict):
-    """REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记（默认 = 未烘焙原声 + 卡拍拉伸标记）。"""
+    """REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记 / false = 未烘焙原声 + 卡拍拉伸标记 /
+    不给 = 按设置 export.reaper_kind（⌘C 用）。"""
 
     ids: list[str]
     words: NotRequired[dict[str, str]]

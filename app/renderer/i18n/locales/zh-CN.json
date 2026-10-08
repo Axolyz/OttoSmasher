@@ -1248,7 +1248,7 @@
   "reaper.copied": "已复制 · 在 REAPER 选择轨道和光标位置后粘贴",
   "reaper.copiedN": "已复制 {n} 条（依次排开、间隔一小节）· 在 REAPER 选择轨道和光标位置后粘贴",
   "library.auditionStretched": "试听卡拍",
-  "library.auditionBoth": "试听：左键原声，右键卡拍",
+  "library.auditionBoth": "试听：左键原声，右键卡拍 · ⌥ 拖出原声，⌥⇧ 拖出卡拍",
   "library.exportedN": "已导出 {n} 个文件",
   "stage.stretched": "卡拍",
   "top.bpm.tip": "全局目标 BPM（20–400）。留空：保持原语速的卡拍；指定 BPM：默认使用不慢于原速的最近二进制方案。",
@@ -1330,5 +1330,12 @@
   "specimen.segWrap": "分段选择（可换行）",
   "handoff.reaperBaked": "复制 REAPER 交接（卡好拍＋起音标记）",
   "handoff.reaperBakedN": "卡好拍＋起音标记（{n} 项，依次排开）",
-  "handoff.reaperMenu": "复制 REAPER 交接"
+  "handoff.reaperMenu": "复制 REAPER 交接",
+  "settings.export.reaper_kind.label": "⌘C 复制哪种 REAPER 交接",
+  "settings.export.reaper_kind.hint": "采样库里按 ⌘C（不在输入框时）复制勾选的采样，没有勾选就是当前采样。菜单里两种都有。",
+  "settings.export.reaper_kind.baked": "卡好拍＋起音标记",
+  "settings.export.reaper_kind.unbaked": "原声＋拉伸标记（可再调）",
+  "shortcuts.audition": "试听原声 / 卡拍（采样库列表）",
+  "shortcuts.dragOut": "按住拖动：⌥ 拖出原声 WAV，⌥⇧ 拖出卡拍 WAV",
+  "shortcuts.reaper": "复制 REAPER 交接（哪种见设置「导出」）"
 }

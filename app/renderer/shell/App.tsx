@@ -138,6 +138,9 @@ export function App() {
               ["⌘Z", t("shortcuts.undo")],
               ["?", t("shortcuts.help")],
               ["Esc", t("shortcuts.esc")],
+              ["Space / B", t("shortcuts.audition")],
+              ["⌥ / ⌥⇧", t("shortcuts.dragOut")],
+              ["⌘C", t("shortcuts.reaper")],
             ].map(([k, v]) => (
               <tr key={k}>
                 <td className="mono">{k}</td>

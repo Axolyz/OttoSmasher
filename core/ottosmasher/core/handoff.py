@@ -172,10 +172,12 @@ class HandoffService:
         p.write_text(dumps({"kind": kind, "snap": settings_mod.values(self.conn)["export.reaper_snap"], "items": meta, "createdAt": now_iso()}), encoding="utf-8")
         return p
 
-    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False) -> dict[str, Any]:
-        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。"""
+    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None) -> dict[str, Any]:
+        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。"""
         if not ids:
             raise CoreError("reaper-empty")
+        if baked is None:
+            baked = settings_mod.values(self.conn)["export.reaper_kind"] == "baked"
         items, meta = self._items(ids, words, plan, mora, long_vowel, baked)
         text = reaper.clipboard(items)
         manifest = self._write_manifest(meta, "clipboard")

@@ -94,9 +94,6 @@ interface AppState {
   setBpm(v: number | null): void;
   nowPlaying: NowPlaying | null;
   setNowPlaying(v: NowPlaying | null): void;
-  /** 拖出跟随最近一次成功试听的版本（只在本次运行期间记住，12 §12.1、D4） */
-  lastVersion: Record<string, AuditionVersion>;
-  rememberVersion(id: string, v: AuditionVersion): void;
   stageRhythm: StageRhythm;
   setStageRhythm(patch: Partial<StageRhythm>): void;
   setPage(p: Page): void;
@@ -139,8 +136,6 @@ export const useApp = create<AppState>((set) => ({
   setBpm: (bpm) => set({ bpm }),
   nowPlaying: null,
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),
-  lastVersion: {},
-  rememberVersion: (id, v) => set((st) => ({ lastVersion: { ...st.lastVersion, [id]: v } })),
   stageRhythm: { sampleId: null, plan: "near_fast", mora: false, longVowel: false, sound: "voice" },
   setStageRhythm: (patch) =>
     set((st) => {

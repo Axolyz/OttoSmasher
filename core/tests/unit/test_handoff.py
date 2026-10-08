@@ -103,7 +103,7 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
     align(core, a)
     align(core, b)
     core.rhythm.set_bpm(150)
-    h = core.handoff.reaper_handoff([a], WORDS)
+    h = core.handoff.reaper_handoff([a], WORDS, baked=False)
     lines = h["clipboard"].rstrip("\0").split("\0")
     assert lines[0] == "<ITEM" and h["clipboard"].endswith("\0\0")
     f = h["files"][0]
@@ -123,21 +123,21 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
     assert float(snap[1]) == pytest.approx(first["tgt"], abs=1 / SR)
     assert (core.ws.library / "REAPER").exists() and h["manifest"].endswith(".json")
     # 再交接一次：同名同内容复用文件
-    assert core.handoff.reaper_handoff([a], WORDS)["files"] == [f]
+    assert core.handoff.reaper_handoff([a], WORDS, baked=False)["files"] == [f]
     # 批量依次排开、间隔一小节
-    hb = core.handoff.reaper_handoff([a, b], WORDS)
+    hb = core.handoff.reaper_handoff([a, b], WORDS, baked=False)
     blocks = hb["clipboard"].rstrip("\0").split("\0")
     pos = [float(ln.split()[1]) for ln in blocks if ln.startswith("POSITION")]
     lens = [float(ln.split()[1]) for ln in blocks if ln.startswith("LENGTH")]
     assert pos[0] == 0 and pos[1] == pytest.approx(lens[0] + 4 * 60 / 150, abs=1e-9)
-    t = core.handoff.reaper_template([a], WORDS)
+    t = core.handoff.reaper_template([a], WORDS, baked=False)
     assert t["path"].endswith(".RTrackTemplate") and open(t["path"], encoding="utf-8").read().startswith("<ITEM\n")
     # 同名但内容不同 → 报错
     with open(f, "r+b") as fh:
         fh.seek(-4, 2)
         fh.write(b"\x01\x02\x03\x04")
     with pytest.raises(CoreError) as e:
-        core.handoff.reaper_handoff([a], WORDS)
+        core.handoff.reaper_handoff([a], WORDS, baked=False)
     assert e.value.code == "reaper-file-conflict"
 
 
@@ -182,3 +182,14 @@ def test_reaper_baked_and_drag_reuses_the_audition_render(core, monkeypatch):  #
         assert any(abs(float(m[0]) - o) < 1.5 / SR for m in sm)
     length = float(next(ln for ln in lines if ln.startswith("LENGTH")).split()[1])
     assert abs(length - frames / SR) < 1e-9
+
+
+@need_rb
+def test_reaper_default_kind_follows_setting(core):  # noqa: F811
+    from test_rhythm_service import set_setting
+
+    s = sample(core)
+    align(core, s)
+    assert "_stretch-" in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]  # 默认：卡好拍＋起音标记
+    set_setting(core, "export.reaper_kind", "unbaked")
+    assert "_stretch-" not in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]

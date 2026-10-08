@@ -51,12 +51,13 @@ const CHOICES: Record<string, string[]> = {
   "flatten.batch_target": ["auto", "edge"],
   // REAPER 交接的吸附（12 §12.3）
   "export.reaper_snap": ["onset", "start"],
+  "export.reaper_kind": ["baked", "unbaked"],
 };
 const choiceLabel = (key: string, v: string) =>
   key === "studio.device"
     ? t(`settings.studio.device.${v}`)
-    : key === "export.reaper_snap"
-      ? t(`settings.export.reaper_snap.${v}`)
+    : key === "export.reaper_snap" || key === "export.reaper_kind"
+      ? t(`settings.${key}.${v}`)
       : key.startsWith("flatten.")
       ? t(key.endsWith("_range") ? `flatten.range.${v}` : `flatten.target.${v}`)
       : t(`settings.lang.${v}`);

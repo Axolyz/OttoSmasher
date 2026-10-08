@@ -139,6 +139,18 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
     }
     return null;
   });
+  // ⌘C（所有者选丙）：采样库里复制 REAPER 交接，默认“卡好拍＋起音标记”。真实的 ⌘C 走应用菜单的「拷贝」= webContents.copy（Playwright 的合成按键不经过原生菜单）
+  const readClip = () =>
+    app.evaluate(async ({ clipboard }) => {
+      const fmt = 'electron application/osclipboard;format="REAPERMedia"';
+      for (const item of await clipboard.read()) {
+        if (item.types.includes(fmt)) return Buffer.from(await ((await item.getType(fmt)) as Blob).arrayBuffer()).toString("utf8");
+      }
+      return "";
+    });
+  await page.getByTestId("stage-title").click();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.copy());
+  await expect.poll(readClip, { timeout: 15000 }).toContain("卡拍-180BPM");
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), before); // 还原所有者的剪贴板（文字）
   expect(clip).not.toBeNull();
   expect(clip!.startsWith("<ITEM\0")).toBe(true);

@@ -181,7 +181,7 @@ class Core:
         r("reaper.handoff", "write", T.ReaperParams, T.ReaperHandoff,
           "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
           lambda p: self.handoff.reaper_handoff(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
-                                                bool(p.get("baked"))))
+                                                p.get("baked")))
         r("reaper.template", "write", T.ReaperParams, T.ReaperTemplate, "Write the same items as an .RTrackTemplate file (experimental).",
           lambda p: self.handoff.reaper_template(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
                                                  bool(p.get("baked"))))
