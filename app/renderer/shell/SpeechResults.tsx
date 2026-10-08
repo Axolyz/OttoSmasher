@@ -30,6 +30,7 @@ export function SpeechResults({ jobId }: { jobId: string }) {
         onChecked={setChecked}
         isSelectable={(r) => r.status === "failed" && !r.deleted && r.sampleId !== null}
         checkLabel={(r) => r.name ?? r.sampleId ?? ""}
+        fadeUnselectable={false}
         columns={[
           {
             id: "line",

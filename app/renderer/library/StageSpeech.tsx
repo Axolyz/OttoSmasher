@@ -421,7 +421,7 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           </div>
         ) : null}
         {view?.text && view.head && headOk && view.head.text !== view.text ? <Callout tone="warn">{t("speech.textChanged")}</Callout> : null}
-        <div className={s.stageActions}>
+        <div className={s.speechActions}>
           <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!view?.text || editing} data-testid="speech-analyze">
             {t("speech.menu")}
           </Button>

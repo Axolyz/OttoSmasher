@@ -2,7 +2,7 @@
 // 绑在原混音或无角色资产上的提示、默认不勾的「也重新分析已是最新的 N 条」。确认后排队一个任务（提交时冻结输入）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { SpeechPreview } from "../api/types";
+import type { ModelsStatus, SpeechPreview } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Checkbox, Stats } from "../components/Controls";
 import { DialogBox } from "../components/Overlay";
@@ -25,6 +25,13 @@ export function SpeechDialog() {
   const [pv, setPv] = useState<SpeechPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [models, setModels] = useState<ModelsStatus | null>(null);
+  useEffect(() => {
+    if (req) void call("models.status").then(setModels, () => setModels(null));
+  }, [req]);
+  // 语音分析要用的模型：对齐、读音预测、音高
+  const needed = ["pydomino", "tsqyomi", "fcpe"];
+  const missing = (models?.files ?? []).filter((m) => needed.includes(m.model) && m.state === "missing").map((m) => t(`models.name.${m.model}`));
 
   useEffect(() => {
     if (!req) {
@@ -96,12 +103,17 @@ export function SpeechDialog() {
               testId="speech-blocked-list"
               columns={[
                 { id: "name", label: t("speech.col.blocked"), isRowHeader: true, render: (b) => <span lang="ja" data-user-data="">{b.name}</span> },
-                { id: "reason", label: t("speech.col.reason"), render: (b) => blockedReason(b.reason) },
+                { id: "reason", label: t("speech.col.reason"), width: "40%", render: (b) => blockedReason(b.reason) },
               ]}
             />
           ) : null}
           {pv.blocked > pv.blockedList.length ? <div className={s.faint}>{t("speech.blockedMore", { n: pv.blocked - pv.blockedList.length })}</div> : null}
           {src && pv.mixBound ? <Callout tone="warn">{t("speech.mixBound", { n: pv.mixBound })}</Callout> : null}
+          {missing.length ? (
+            <Callout tone="bad">{t("speech.envMissing", { models: missing.join(t("settings.subtitle.speakerSep")) })}</Callout>
+          ) : models ? (
+            <div className={s.faint}>{t("speech.envOk")}</div>
+          ) : null}
           {pv.freshAll ? (
             <Checkbox isSelected={rerun} onChange={setRerun} label={t("speech.rerunFresh", { n: pv.freshAll })} testId="speech-rerun">
               {t("speech.rerunFresh", { n: pv.freshAll })}

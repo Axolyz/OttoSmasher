@@ -34,6 +34,8 @@ export function PagedTable<T extends { id: string }>(props: {
   onChecked?: (next: Set<string>) => void;
   isSelectable?: (row: T) => boolean;
   checkLabel?: (row: T) => string;
+  /** 不可勾选的行是否画淡（默认是：不可选 = 不可用）；结果表里不可勾的行只是不需要勾，传 false */
+  fadeUnselectable?: boolean;
   pageSize?: number;
   empty?: ReactNode;
   /** 底部左侧额外信息 */
@@ -91,7 +93,7 @@ export function PagedTable<T extends { id: string }>(props: {
             {shown.map((r) => {
               const ok = selectable(r.id);
               return (
-                <Row key={r.id} id={r.id} className={s.tr} data-disabled-row={(withCheck && !ok) || undefined} data-checked={checked.has(r.id) || undefined} data-testid="table-row">
+                <Row key={r.id} id={r.id} className={s.tr} data-disabled-row={(withCheck && !ok && props.fadeUnselectable !== false) || undefined} data-checked={checked.has(r.id) || undefined} data-testid="table-row">
                   {withCheck ? (
                     <Cell className={s.td}>
                       <Checkbox isSelected={checked.has(r.id)} isDisabled={!ok} onChange={() => onRow(r.id)} label={props.checkLabel?.(r) ?? r.id} />

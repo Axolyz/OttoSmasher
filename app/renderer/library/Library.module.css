@@ -63,3 +63,4 @@
 .textLine { display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-sm); flex-wrap: wrap; }
 .editBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); }
 .editBar b { color: var(--accent); font-weight: 600; }
+.speechActions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

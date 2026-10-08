@@ -993,6 +993,8 @@
   "speech.blocked.range-differs": "截取范围与原台词不同且没有对应文本",
   "speech.mixBound": "范围内 {n} 条绑在原混音或无角色资产上。想用人声分析：先整轨分离、设默认人声轨，再从字幕建采样。",
   "speech.rerunFresh": "也重新分析已是最新的 {n} 条",
+  "speech.envOk": "环境：模型文件就位（只代表文件存在，不代表推理已实测；设置「环境与模型」里可实测）",
+  "speech.envMissing": "缺少模型文件：{models}。任务会失败；请先按设置「环境与模型」里的路径放好",
   "speech.submit": "排队分析 {n} 条",
   "speech.queued": "已排队分析 {n} 条 · 完成后在任务里看逐条结果",
   "speech.openTasks": "打开任务",
