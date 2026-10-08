@@ -748,6 +748,17 @@
    }
   },
   {
+   "name": "speech.saveManual",
+   "effect": "write",
+   "summary": "Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+   "params": {
+    "$ref": "#/$defs/SpeechManualParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeechHeadRef"
+   }
+  },
+  {
    "name": "speech.submit",
    "effect": "job",
    "summary": "Queue a speech analysis job (inputs frozen now; one process for all items).",
@@ -756,6 +767,28 @@
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "speech.submitRange",
+   "effect": "job",
+   "summary": "Analyze an asset range with a given text segment (no sample needed).",
+   "params": {
+    "$ref": "#/$defs/SpeechRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "speech.switchHead",
+   "effect": "write",
+   "summary": "Make another successful version the current one.",
+   "params": {
+    "$ref": "#/$defs/SpeechSwitchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeechHeadRef"
    }
   },
   {
@@ -1542,6 +1575,24 @@
    "summary": "This sample cannot be analyzed (reason given)."
   },
   {
+   "code": "speech-edit-conflict",
+   "args": [
+    "actual",
+    "expected"
+   ],
+   "summary": "The analysis changed since it was loaded; reload and edit again."
+  },
+  {
+   "code": "speech-edit-invalid",
+   "args": [
+    "expected",
+    "got",
+    "line",
+    "reason"
+   ],
+   "summary": "Phoneme time edit rejected (only times may change; line given)."
+  },
+  {
    "code": "speech-invalid",
    "args": [
     "field",
@@ -1993,7 +2044,14 @@
      "type": "string"
     },
     "sampleId": {
-     "type": "string"
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     }
    },
    "required": [
@@ -3734,6 +3792,26 @@
     }
    },
    "required": []
+  },
+  "ManualPhone": {
+   "title": "ManualPhone",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "start"
+   ]
   },
   "ModelFileStatus": {
    "title": "ModelFileStatus",
@@ -5766,6 +5844,16 @@
     "manual": {
      "type": "boolean"
     },
+    "projectedFrom": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "result": {
      "anyOf": [
       {
@@ -5822,6 +5910,7 @@
    "required": [
     "createdAt",
     "manual",
+    "projectedFrom",
     "result",
     "runId",
     "status",
@@ -5829,6 +5918,61 @@
     "textSource",
     "version",
     "window"
+   ]
+  },
+  "SpeechHeadRef": {
+   "title": "SpeechHeadRef",
+   "type": "object",
+   "properties": {
+    "runId": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "runId",
+    "version"
+   ]
+  },
+  "SpeechManualParams": {
+   "title": "SpeechManualParams",
+   "type": "object",
+   "properties": {
+    "phones": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/ManualPhone"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "sampleId",
+    "version"
    ]
   },
   "SpeechPhone": {
@@ -5947,6 +6091,30 @@
     "run"
    ]
   },
+  "SpeechRangeParams": {
+   "title": "SpeechRangeParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start",
+    "text"
+   ]
+  },
   "SpeechResult": {
    "title": "SpeechResult",
    "type": "object",
@@ -6023,7 +6191,14 @@
      ]
     },
     "sampleId": {
-     "type": "string"
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "status": {
      "enum": [
@@ -6155,6 +6330,26 @@
     "sampleId",
     "text",
     "textSource"
+   ]
+  },
+  "SpeechSwitchParams": {
+   "title": "SpeechSwitchParams",
+   "type": "object",
+   "properties": {
+    "runId": {
+     "type": "string"
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "runId",
+    "sampleId",
+    "version"
    ]
   },
   "SpeechWord": {

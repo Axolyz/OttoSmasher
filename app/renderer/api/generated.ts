@@ -47,7 +47,7 @@ export interface AssetAlignment {
   manual: boolean;
   phones: AlignedPhone[];
   runId: string;
-  sampleId: string;
+  sampleId: string | null;
 }
 
 export interface AssetHandle {
@@ -411,6 +411,12 @@ export interface JobSummary {
 
 export interface JobsListParams {
   limit?: number;
+}
+
+export interface ManualPhone {
+  end: number;
+  label: string;
+  start: number;
 }
 
 export interface ModelFileStatus {
@@ -855,6 +861,7 @@ export interface SpeechBlocked {
 export interface SpeechHead {
   createdAt: string;
   manual: boolean;
+  projectedFrom: string | null;
   result: SpeechResult | null;
   runId: string;
   status: string;
@@ -862,6 +869,18 @@ export interface SpeechHead {
   textSource: string | null;
   version: number;
   window: number[] | null;
+}
+
+export interface SpeechHeadRef {
+  runId: string;
+  version: number;
+}
+
+export interface SpeechManualParams {
+  phones?: ManualPhone[] | null;
+  sampleId: string;
+  text?: string | null;
+  version: number;
 }
 
 /** 一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。 */
@@ -892,6 +911,13 @@ export interface SpeechPreview {
   run: number;
 }
 
+export interface SpeechRangeParams {
+  assetId: string;
+  end: number;
+  start: number;
+  text: string;
+}
+
 export interface SpeechResult {
   aligner?: Record<string, unknown>;
   derived?: Record<string, unknown>;
@@ -907,7 +933,7 @@ export interface SpeechResultRow {
   error: ErrorWire | null;
   idx: number;
   name: string | null;
-  sampleId: string;
+  sampleId: string | null;
   status: "failed" | "ok" | "queued" | "skipped";
 }
 
@@ -927,6 +953,12 @@ export interface SpeechSampleView {
   sampleId: string;
   text: string | null;
   textSource: string | null;
+}
+
+export interface SpeechSwitchParams {
+  runId: string;
+  sampleId: string;
+  version: number;
 }
 
 export interface SpeechWord {
@@ -1364,8 +1396,14 @@ export interface Commands {
   "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
   /** Speech analysis of one sample: alignment text, current head with phonemes, all versions. */
   "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
+  /** Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed). */
+  "speech.saveManual": { params: SpeechManualParams; result: SpeechHeadRef; effect: "write" };
   /** Queue a speech analysis job (inputs frozen now; one process for all items). */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
+  /** Analyze an asset range with a given text segment (no sample needed). */
+  "speech.submitRange": { params: SpeechRangeParams; result: JobSummary; effect: "job" };
+  /** Make another successful version the current one. */
+  "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
   /** Create samples from chosen subtitle lines (atomic). */
@@ -1478,6 +1516,8 @@ export type ErrorCode =
   | "source-not-found"
   | "source-path-taken"
   | "speech-blocked"
+  | "speech-edit-conflict"
+  | "speech-edit-invalid"
   | "speech-invalid"
   | "speech-nothing-to-do"
   | "stream-not-found"

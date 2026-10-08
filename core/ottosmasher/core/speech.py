@@ -19,6 +19,9 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+import math
+
+from ..algo import speech as derive
 from ..domain.overlap import overlaps
 from ..lang.ja import dictionary as dict_mod
 from ..lang.ja import frontend as fe_mod
@@ -111,8 +114,24 @@ class SpeechService:
         txt = self.text_of(s)
         if txt["text"] is None:
             raise CoreError("speech-blocked", reason=txt["reason"])
-        start, end = float(s["start"]), float(s["end"])
-        asset, ref, win, media = self._locate(s["asset_id"], start, end, memo)
+        return self._build("sample", s["id"], s["name"], s["asset_id"], float(s["start"]), float(s["end"]), txt, ver, memo)
+
+    @staticmethod
+    def range_owner(asset_id: str, start: float, end: float) -> str:
+        """“资产选区 + 文字区段”的测量归属（不需要采样，08 §8.4 第三个入口）：同一资产同一区间是同一个归属。"""
+        return hashlib.sha256(f"{asset_id}|{round(start, 6)}|{round(end, 6)}".encode()).hexdigest()[:32]
+
+    def item_for_range(self, asset_id: str, start: float, end: float, text: str, ver: dict[str, Any], memo: dict[str, Any] | None = None) -> dict[str, Any]:
+        text = text.strip()
+        if not text:
+            raise CoreError("speech-blocked", reason="no-text")
+        txt = {"text": text, "source": "selection", "version": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], "equalsSubtitle": False}
+        return self._build("asset_text", self.range_owner(asset_id, start, end), text, asset_id, start, end, txt, ver, memo)
+
+    def _build(
+        self, owner_type: str, owner: str, name: str, asset_id: str, start: float, end: float, txt: dict[str, Any], ver: dict[str, Any], memo: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        asset, ref, win, media = self._locate(asset_id, start, end, memo)
         snap = media["snapshot"] or {}
         before, after = ver["tolerance"]
         lo = max(0.0, win.local_start)
@@ -134,7 +153,7 @@ class SpeechService:
             "model": ver["model"], "target": [round(start, 6), round(end, 6)], "tolerance": ver["tolerance"], "audio": audio,
         }
         return {
-            "sample": s["id"], "asset": asset["id"], "name": s["name"],
+            "ownerType": owner_type, "owner": owner, "sample": owner if owner_type == "sample" else None, "asset": asset["id"], "name": name,
             "text": txt["text"], "textSource": txt["source"], "textVersion": txt["version"], "equalsSubtitle": txt["equalsSubtitle"],
             "target": [start, end], "window": [w0, w1], "requested": ver["tolerance"], "actual": [round(start - w0, 6), round(w1 - end, 6)],
             "truncated": [start - before < lo - 1e-9, end + after > hi + 1e-9],
@@ -215,9 +234,25 @@ class SpeechService:
         p = self.plan(entry, ids, rerun_fresh)
         if not p["run"]:
             raise CoreError("speech-nothing-to-do", fresh=len(p["fresh"]), blocked=len(p["blocked"]))
-        ver = p["versions"]
+        return self._submit_items(p["run"], p["fresh"], p["versions"])
+
+    def submit_range(self, asset_id: str, start: float, end: float, text: str) -> dict[str, Any]:
+        """对“资产选区 + 文字区段”做语音分析（详情里的局部分析；不需要先保存采样）。复用规则相同；人工版本保护相同。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        from ..domain.mapping import check_range
+
+        start, end = check_range(float(start), float(end), float(asset["duration"]), frame=1.0 / assets_mod.rate_of(self.conn, asset))
+        ver = self._versions()
+        it = self.item_for_range(asset_id, start, end, text, ver)
+        head = self._head_row(it["owner"], "asset_text")
+        it["baseHead"] = head["run_id"] if head else None
+        if head is not None and head["status"] == "ok" and loads(head["inputs"]).get("fingerprint") == it["fingerprint"]:
+            raise CoreError("speech-nothing-to-do", fresh=1, blocked=0)
+        return self._submit_items([it], [], ver)
+
+    def _submit_items(self, run: list[dict[str, Any]], fresh: list[dict[str, Any]], ver: dict[str, Any]) -> dict[str, Any]:
         items = []
-        for i, it in enumerate(p["run"]):
+        for i, it in enumerate(run):
             items.append({**it, "idx": i})
         params = {
             "items": items,
@@ -227,10 +262,115 @@ class SpeechService:
             "support_dir": str(self.support_dir),
         }
         params["f0"] = self._f0_plan(items)
-        affects = {"sample": [it["sample"] for it in items]}
+        affects = {"sample": [it["sample"] for it in items if it["sample"]], "asset": sorted({it["asset"] for it in items})}
         job = self.jobs.submit(JOB_KIND, params, affects)
-        self.jobs.add_items(job["id"], [(it["sample"], "queued") for it in items] + [(it["sample"], "skipped") for it in p["fresh"]])
+        self.jobs.add_items(job["id"], [(it["owner"], "queued") for it in items] + [(it["owner"], "skipped") for it in fresh])
         return self.jobs.summary(job["id"])
+
+    # ------------------------------------------------------------ 人工修正（08 §8.7）
+
+    def _head_full(self, owner: str, owner_type: str) -> tuple[sqlite3.Row, sqlite3.Row]:
+        head = self.conn.execute("SELECT * FROM measure_head WHERE owner_type=? AND owner_id=? AND kind=?", (owner_type, owner, KIND)).fetchone()
+        if head is None:
+            raise CoreError("speech-edit-invalid", reason="no-analysis")
+        run = self.conn.execute("SELECT * FROM measure_run WHERE id=?", (head["run_id"],)).fetchone()
+        if run["status"] != "ok":
+            raise CoreError("speech-edit-invalid", reason="no-analysis")
+        return head, run
+
+    @staticmethod
+    def parse_times(text: str) -> list[dict[str, Any]]:
+        """精确时间文本：每行「开始秒 Tab 结束秒 Tab 音素」（空行忽略）。"""
+        out = []
+        for i, raw in enumerate(text.replace("\r\n", "\n").split("\n"), start=1):
+            if not raw.strip():
+                continue
+            parts = raw.strip().split("\t") if "\t" in raw else raw.split()
+            if len(parts) != 3:
+                raise CoreError("speech-edit-invalid", reason="format", line=i)
+            try:
+                a, b = float(parts[0]), float(parts[1])
+            except ValueError:
+                raise CoreError("speech-edit-invalid", reason="number", line=i) from None
+            out.append({"start": a, "end": b, "label": parts[2].strip()})
+        return out
+
+    def save_manual(self, owner: str, version: int, phones: list[dict[str, Any]] | None, text: str | None, owner_type: str = "sample") -> dict[str, Any]:
+        """编辑音素时间 → 新的人工版本并成为当前头（之后的自动重跑不覆盖它）。只能改时间：行数、标签、顺序不变；
+        前一个结束 ≤ 本个开始 < 本个结束 ≤ 范围终点（不重叠，允许空隙；句中停顿可以零长度）。版本变了要求重新载入。"""
+        head, run = self._head_full(owner, owner_type)
+        if int(head["version"]) != int(version):
+            raise CoreError("speech-edit-conflict", expected=int(version), actual=int(head["version"]))
+        if text is not None:
+            phones = self.parse_times(text)
+        res = loads(run["result"])
+        inputs = loads(run["inputs"])
+        old = res["phones"]
+        new = list(phones or [])
+        if len(new) != len(old):
+            raise CoreError("speech-edit-invalid", reason="count", expected=len(old), got=len(new))
+        w0, w1 = (inputs.get("window") or [run["range_start"], run["range_end"]])
+        prev = float(w0)
+        out = []
+        for i, (o, n) in enumerate(zip(old, new, strict=True), start=1):
+            if str(n.get("label", "")) != o["label"]:
+                raise CoreError("speech-edit-invalid", reason="label", line=i)
+            a, b = n.get("start"), n.get("end")
+            if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in (a, b)):
+                raise CoreError("speech-edit-invalid", reason="number", line=i)
+            a, b = round(float(a), 6), round(float(b), 6)
+            if a < prev - 1e-9 or b > float(w1) + 1e-9 or not (a < b or (a == b and o["label"] == "pau")):
+                raise CoreError("speech-edit-invalid", reason="order", line=i)
+            prev = b
+            ph = {k: v for k, v in o.items() if k not in ("start", "end", "eff", "strength")} | {"start": a, "end": b}
+            if o["label"] in derive.EFFECTIVE_LABELS or o.get("orig") in derive.EFFECTIVE_LABELS:
+                ph["eff"] = [a, b]  # 人工版本不收缩
+            out.append(ph)
+        # 起音强度按新时间重算（18 A15）
+        strengths = self._strengths(run["asset_id"], float(w0), float(w1), [(p.get("orig", p["label"]), p["start"], p["end"]) for p in out])
+        for p, st in zip(out, strengths, strict=True):
+            if st is not None:
+                p["strength"] = round(float(st), 6)
+        rid = new_id()
+        with transaction(self.conn):
+            self.conn.execute(
+                "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?)",
+                (rid, KIND, owner_type, owner, run["asset_id"], run["range_start"], run["range_end"], dumps(inputs | {"manualOf": run["id"]}),
+                 dumps(res | {"phones": out}), now_iso()),
+            )
+            self.conn.execute("UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type=? AND owner_id=? AND kind=?", (rid, owner_type, owner, KIND))
+        self._changed(owner)
+        return {"runId": rid, "version": int(head["version"]) + 1}
+
+    def switch_head(self, owner: str, run_id: str, version: int, owner_type: str = "sample") -> dict[str, Any]:
+        """切换版本：在同一归属的历史成功版本（人工/模型）之间换当前头。"""
+        head, _ = self._head_full(owner, owner_type)
+        if int(head["version"]) != int(version):
+            raise CoreError("speech-edit-conflict", expected=int(version), actual=int(head["version"]))
+        r = self.conn.execute("SELECT status FROM measure_run WHERE id=? AND owner_type=? AND owner_id=? AND kind=?", (run_id, owner_type, owner, KIND)).fetchone()
+        if r is None or r["status"] != "ok":
+            raise CoreError("speech-edit-invalid", reason="not-a-version")
+        with transaction(self.conn):
+            self.conn.execute("UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type=? AND owner_id=? AND kind=?", (run_id, owner_type, owner, KIND))
+        self._changed(owner)
+        return {"runId": run_id, "version": int(head["version"]) + 1}
+
+    def _changed(self, owner: str) -> None:
+        if self.on_change:
+            cs = ChangeSet()
+            cs.add("measure", owner)
+            self.on_change(cs)
+
+    def _strengths(self, asset_id: str, w0: float, w1: float, phones: list[tuple[str, float, float]]) -> list[float | None]:
+        from ..media import decode as dec
+
+        asset, ref, win, media = self._locate(asset_id, w0, w1, None)
+        sr = ref.sample_rate
+        a, b = round(win.to_file(w0) * sr), round(win.to_file(w1) * sr)
+        pcm = dec.decode_frames(ref, a, b, cache=self.ws.data / "Cache")
+        t0 = win.to_local(a / sr)
+        return derive.onset_strengths(pcm, sr, [(lab, s - t0, e - t0) for lab, s, e in phones])
 
     # ------------------------------------------------------------ F0（08 §8.1 第 4 项、10 §10.1：该声音没测过才测）
 
@@ -297,11 +437,11 @@ class SpeechService:
 
     # ------------------------------------------------------------ 采纳
 
-    def _head_row(self, sample_id: str) -> sqlite3.Row | None:
+    def _head_row(self, owner: str, owner_type: str = "sample") -> sqlite3.Row | None:
         return self.conn.execute(
             "SELECT h.run_id, h.version, r.status, r.manual, r.inputs FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
-            " WHERE h.owner_type='sample' AND h.owner_id=? AND h.kind=?",
-            (sample_id, KIND),
+            " WHERE h.owner_type=? AND h.owner_id=? AND h.kind=?",
+            (owner_type, owner, KIND),
         ).fetchone()
 
     def _adopt(self, job: dict[str, Any], result: dict[str, Any]) -> None:
@@ -318,9 +458,13 @@ class SpeechService:
                 it = items.get(r["idx"])
                 if it is None:
                     continue
-                s = self.conn.execute(f"SELECT {self._SAMPLE_COLS} FROM sample WHERE id=?", (it["sample"],)).fetchone()
-                if s is None or s["asset_id"] != it["asset"]:
-                    continue  # 采样在任务期间被删了或换了绑定：不登记
+                otype, owner = it.get("ownerType", "sample"), it.get("owner") or it["sample"]
+                if otype == "sample":
+                    s = self.conn.execute(f"SELECT {self._SAMPLE_COLS} FROM sample WHERE id=?", (owner,)).fetchone()
+                    if s is None or s["asset_id"] != it["asset"]:
+                        continue  # 采样在任务期间被删了或换了绑定：不登记
+                elif self.conn.execute("SELECT 1 FROM sound_asset WHERE id=?", (it["asset"],)).fetchone() is None:
+                    continue
                 inputs = {k: it[k] for k in ("text", "textSource", "textVersion", "equalsSubtitle", "target", "window", "requested", "actual", "truncated", "audio", "fingerprint")}
                 inputs |= {"versions": params["versions"], "device": loads(job["device"]), "job": job["id"]}
                 if r["status"] == "ok":
@@ -332,22 +476,27 @@ class SpeechService:
                 rid = new_id()
                 self.conn.execute(
                     "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at)"
-                    " VALUES (?, ?, 'sample', ?, ?, ?, ?, ?, ?, 0, ?, ?)",
-                    (rid, KIND, it["sample"], it["asset"], it["target"][0], it["target"][1], dumps(inputs), status, dumps(res), ts),
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+                    (rid, KIND, otype, owner, it["asset"], it["target"][0], it["target"][1], dumps(inputs), status, dumps(res), ts),
                 )
-                cs.add("measure", it["sample"])
+                cs.add("measure", owner)
                 if status != "ok":
                     continue
-                head = self._head_row(it["sample"])
+                head = self._head_row(owner, otype)
                 if head is not None and (head["manual"] or head["run_id"] != it.get("baseHead")):
                     continue  # 人工版本或已被更新：只进历史
                 try:
-                    changed = self.item_for(s, ver_now, memo)["fingerprint"] != it["fingerprint"]
+                    now = (
+                        self.item_for(s, ver_now, memo)
+                        if otype == "sample"
+                        else self.item_for_range(it["asset"], it["target"][0], it["target"][1], it["text"], ver_now, memo)
+                    )
+                    changed = now["fingerprint"] != it["fingerprint"]
                 except CoreError:
                     changed = True
                 if changed:
                     continue  # 输入在任务期间变了：只进历史
-                self._set_head(it["sample"], rid, head)
+                self._set_head(owner, rid, head, otype)
         with transaction(self.conn):
             self._adopt_f0(job["id"], result.get("f0") or [], ts)
         record_probes(self.conn, result.get("probes") or [])
@@ -356,12 +505,12 @@ class SpeechService:
         if cs.entities and self.on_change:
             self.on_change(cs)
 
-    def _set_head(self, sample_id: str, run_id: str, head: sqlite3.Row | None) -> None:
+    def _set_head(self, owner: str, run_id: str, head: sqlite3.Row | None, owner_type: str = "sample") -> None:
         if head is None:
-            self.conn.execute("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('sample', ?, ?, ?, 1)", (sample_id, KIND, run_id))
+            self.conn.execute("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES (?, ?, ?, ?, 1)", (owner_type, owner, KIND, run_id))
         else:
             self.conn.execute(
-                "UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type='sample' AND owner_id=? AND kind=?", (run_id, sample_id, KIND)
+                "UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type=? AND owner_id=? AND kind=?", (run_id, owner_type, owner, KIND)
             )
 
     # ------------------------------------------------------------ 读取（无副作用）
@@ -384,7 +533,10 @@ class SpeechService:
             head_obj = {
                 "runId": r["id"], "version": head["version"], "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
                 "text": inp.get("text"), "textSource": inp.get("textSource"), "window": inp.get("window"), "result": loads(r["result"]) if r["status"] == "ok" else None,
+                "projectedFrom": None,
             }
+        else:
+            head_obj = self._projection(s)
         out_runs = []
         for r in runs:
             res = loads(r["result"]) if r["result"] else {}
@@ -397,6 +549,31 @@ class SpeechService:
             "head": head_obj, "runs": out_runs,
         }
 
+    def _projection(self, s: sqlite3.Row) -> dict[str, Any] | None:
+        """子采样（截取）自己没有测量时，用覆盖它、属于同一物理声音的成功测量的投影（08 §8.8）；处理过的声音不借用（它们是别的资产）。"""
+        start, end = float(s["start"]), float(s["end"])
+        rows = self.conn.execute(
+            "SELECT h.owner_type, h.owner_id, h.version, r.id, r.manual, r.created_at, r.inputs, r.result FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
+            " WHERE h.kind='alignment' AND r.status='ok' AND r.asset_id=? AND r.range_start <= ? AND r.range_end >= ? ORDER BY (r.range_end - r.range_start), r.created_at DESC",
+            (s["asset_id"], start + 1e-6, end - 1e-6),
+        ).fetchall()
+        for r in rows:
+            inp = loads(r["inputs"])
+            try:
+                _, _, _, media = self._locate(s["asset_id"], start, end, None)
+            except CoreError:
+                return None
+            if (inp.get("audio") or {}).get("snapshot") != {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}:
+                continue
+            res = loads(r["result"])
+            phones = [p | {"start": max(p["start"], start), "end": min(p["end"], end)} for p in res["phones"] if p["end"] > start and p["start"] < end]
+            return {
+                "runId": r["id"], "version": r["version"], "status": "ok", "manual": bool(r["manual"]), "createdAt": r["created_at"],
+                "text": inp.get("text"), "textSource": inp.get("textSource"), "window": inp.get("window"), "result": res | {"phones": phones},
+                "projectedFrom": r["owner_id"],
+            }
+        return None
+
     def for_asset(self, asset_id: str, start: float, end: float) -> list[dict[str, Any]]:
         """原片视口的音素层（08 §8.8）：这个资产上各采样当前头的成功测量，只取同一物理声音（文件快照一致）的；读取没有副作用。时间：资产局部秒。"""
         asset = assets_mod.get(self.conn, asset_id)
@@ -406,7 +583,7 @@ class SpeechService:
         except CoreError:
             return []
         rows = self.conn.execute(
-            "SELECT h.owner_id, r.id, r.manual, r.inputs, r.result, r.range_start, r.range_end FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
+            "SELECT h.owner_type, h.owner_id, r.id, r.manual, r.inputs, r.result, r.range_start, r.range_end FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
             " WHERE h.kind='alignment' AND r.asset_id=? AND r.status='ok' AND r.range_end > ? AND r.range_start < ? ORDER BY r.range_start",
             (asset_id, start, end),
         )
@@ -416,18 +593,27 @@ class SpeechService:
             if (inp.get("audio") or {}).get("snapshot") != snap:
                 continue  # 文件指纹不同 → 不显示（R11.10）
             res = loads(r["result"])
-            out.append({"sampleId": r["owner_id"], "runId": r["id"], "manual": bool(r["manual"]), "phones": [{"label": p["label"], "start": p["start"], "end": p["end"]} for p in res["phones"]]})
+            out.append({"sampleId": r["owner_id"] if r["owner_type"] == "sample" else None, "runId": r["id"], "manual": bool(r["manual"]), "phones": [{"label": p["label"], "start": p["start"], "end": p["end"]} for p in res["phones"]]})
         return out
 
     def results(self, job_id: str) -> list[dict[str, Any]]:
+        job = self.conn.execute("SELECT params FROM job WHERE id=?", (job_id,)).fetchone()
+        if job is None:
+            raise CoreError("job-not-found", id=job_id)
+        names = {it["owner"]: (it.get("ownerType", "sample"), it["name"]) for it in loads(job["params"]).get("items", []) if it.get("owner")}
         rows = self.conn.execute(
             "SELECT j.idx, j.target, j.status, j.error, s.name FROM job_item j LEFT JOIN sample s ON s.id=j.target WHERE j.job_id=? ORDER BY j.status='skipped', j.idx",
             (job_id,),
         )
-        return [
-            {"idx": r["idx"], "sampleId": r["target"], "name": r["name"], "status": r["status"], "error": loads(r["error"]) if r["error"] else None, "deleted": r["name"] is None}
-            for r in rows
-        ]
+        out = []
+        for r in rows:
+            otype, pname = names.get(r["target"], ("sample", None))
+            is_sample = otype == "sample"
+            out.append({
+                "idx": r["idx"], "sampleId": r["target"] if is_sample else None, "name": r["name"] if is_sample else pname,
+                "status": r["status"], "error": loads(r["error"]) if r["error"] else None, "deleted": is_sample and r["name"] is None,
+            })
+        return out
 
     def analyzed_counts(self, source_id: str | None = None) -> dict[str, dict[str, int]]:
         """每个原片：语音性质采样数与“已分析”（当前头为成功测量）数。"""

@@ -76,5 +76,38 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 条");
   await dlg.getByTestId("speech-rerun").click();
   await expect(dlg.getByTestId("speech-run")).toContainText("2");
+  await page.keyboard.press("Escape");
+  await expect(dlg).toBeHidden();
+
+  // 人工修正（08 §8.7、S5.3）：舞台 → 编辑音素时间（编辑条、Esc 放弃）→ 精确时间保存为人工版本 → 再分析（勾“也重新分析”）不覆盖
+  await page.getByTestId("batch-clear").click();
+  await rows.filter({ hasText: "ああ" }).click();
+  await expect(page.getByTestId("speech-status")).toHaveText("已分析 · pydomino");
+  await page.getByTestId("speech-edit").click();
+  await expect(page.getByTestId("phone-edit-bar")).toBeVisible();
+  await page.getByTestId("stage-wave").getByTestId("timeline").click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("phone-edit-bar")).toBeHidden();
+  await page.getByTestId("speech-times").click();
+  const times = page.getByTestId("speech-times-text");
+  const lines = (await times.inputValue()).split("\n");
+  const [a0, b0, l0] = lines[0]!.split("\t");
+  const nb = (Number(b0) - 0.02).toFixed(3);
+  lines[0] = [a0, nb, l0].join("\t");
+  const [, b1, l1] = lines[1]!.split("\t");
+  lines[1] = [nb, b1, l1].join("\t");
+  await times.fill(lines.join("\n"));
+  await page.getByTestId("speech-times-save").click();
+  await expect(page.getByTestId("speech-status")).toHaveText("人工版本");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: ".cache/playwright-results/speech-manual.png" });
+  await page.getByTestId("speech-analyze").click();
+  await dlg.getByTestId("speech-rerun").click();
+  await dlg.getByTestId("speech-submit").click();
+  await expect.poll(async () => page.evaluate(async () => {
+    const r = await window.otto.core.request<Array<{ kind: string; status: string }>>("jobs.list");
+    return r.ok ? r.r.filter((j) => j.kind === "speech.analyze" && j.status === "succeeded").length : 0;
+  }), { timeout: 60000 }).toBe(2);
+  await expect(page.getByTestId("speech-status")).toHaveText("人工版本");
   await app.close();
 });

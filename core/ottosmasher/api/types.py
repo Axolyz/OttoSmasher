@@ -1230,7 +1230,8 @@ class SpeechPreview(TypedDict):
 
 class SpeechResultRow(TypedDict):
     idx: int
-    sampleId: str
+    # 资产选区的分析为 null
+    sampleId: str | None
     name: str | None
     status: Literal["queued", "ok", "failed", "skipped"]
     error: ErrorWire | None
@@ -1291,6 +1292,8 @@ class SpeechHead(TypedDict):
     textSource: str | None
     window: list[float] | None
     result: SpeechResult | None
+    # 子采样借用的投影：来源测量的归属（采样 ID 或资产选区）；自己的测量为 null
+    projectedFrom: str | None
 
 
 class SpeechRun(TypedDict):
@@ -1319,7 +1322,41 @@ class AlignedPhone(TypedDict):
 
 
 class AssetAlignment(TypedDict):
-    sampleId: str
+    # 资产选区上的分析（不属于采样）为 null
+    sampleId: str | None
     runId: str
     manual: bool
     phones: list[AlignedPhone]
+
+
+class SpeechRangeParams(TypedDict):
+    assetId: str
+    start: float
+    end: float
+    text: str
+
+
+class ManualPhone(TypedDict):
+    label: str
+    start: float
+    end: float
+
+
+class SpeechManualParams(TypedDict):
+    sampleId: str
+    # 读到的当前头版本（乐观并发）
+    version: int
+    phones: NotRequired[list[ManualPhone] | None]
+    # 精确时间文本（每行 开始秒 Tab 结束秒 Tab 音素），给了就用它
+    text: NotRequired[str | None]
+
+
+class SpeechSwitchParams(TypedDict):
+    sampleId: str
+    runId: str
+    version: int
+
+
+class SpeechHeadRef(TypedDict):
+    runId: str
+    version: int

@@ -18,7 +18,7 @@ export function SpeechResults({ jobId }: { jobId: string }) {
   useEffect(load, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   useCoreEvent("job.updated", (d) => (d as { id: string }).id === jobId && load());
   if (!rows) return null;
-  const failed = rows.filter((r) => r.status === "failed" && !r.deleted);
+  const failed = rows.filter((r) => r.status === "failed" && !r.deleted && r.sampleId !== null);
   const tone = (st: Row["status"]) => (st === "ok" ? s.ok : st === "failed" ? s.bad : s.muted);
   return (
     <div className={s.results} data-testid="speech-results">
@@ -28,8 +28,8 @@ export function SpeechResults({ jobId }: { jobId: string }) {
         pageSize={50}
         checked={checked}
         onChecked={setChecked}
-        isSelectable={(r) => r.status === "failed" && !r.deleted}
-        checkLabel={(r) => r.name ?? r.sampleId}
+        isSelectable={(r) => r.status === "failed" && !r.deleted && r.sampleId !== null}
+        checkLabel={(r) => r.name ?? r.sampleId ?? ""}
         columns={[
           {
             id: "line",
@@ -53,7 +53,7 @@ export function SpeechResults({ jobId }: { jobId: string }) {
           <Button
             size="sm"
             isDisabled={!checked.size}
-            onPress={() => requestSpeech({ entry: "samples", ids: rows.filter((r) => checked.has(r.id)).map((r) => r.sampleId) })}
+            onPress={() => requestSpeech({ entry: "samples", ids: rows.filter((r) => checked.has(r.id) && r.sampleId).map((r) => r.sampleId!) })}
             data-testid="speech-rerun-failed"
           >
             {t("speech.results.rerun")}

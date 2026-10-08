@@ -195,3 +195,63 @@ def test_sample_view_and_asset_layer(core):
     core.speech.sample_view(s1)
     core.speech.for_asset(core.aid, 0.0, 20.0)
     assert core.conn.total_changes == n
+
+
+def _fake_ok(core, sid, phones):
+    """直接登记一个成功的自动结果并设为当前头（模拟一次分析）。"""
+    _fake_run(core, [sid], rerun=True)
+    head = core.speech._head_row(sid)
+    res = {"phones": phones, "morae": ["ア", "ア"], "words": [], "frontend": {}}
+    core.conn.execute("UPDATE measure_run SET result=? WHERE id=?", (json.dumps(res), head["run_id"]))
+    return core.speech._head_row(sid)
+
+
+def test_manual_edit_rules_r11_6(core):
+    s1 = sample(core, 0.0, 1.0, snapshot={"alignText": "ああ"})
+    head = _fake_ok(core, s1, [{"label": "a", "start": 0.1, "end": 0.4, "mora": 0, "word": 0}, {"label": "a", "start": 0.4, "end": 0.8, "mora": 1, "word": 0, "eff": [0.45, 0.7]}])
+    v = head["version"]
+    # 改标签 → “标签”
+    with pytest.raises(CoreError) as e:
+        core.speech.save_manual(s1, v, None, "0.1\t0.5\ta\n0.5\t0.8\ti")
+    assert (e.value.code, e.value.args_["reason"], e.value.args_["line"]) == ("speech-edit-invalid", "label", 2)
+    # 行数、次序
+    with pytest.raises(CoreError) as e:
+        core.speech.save_manual(s1, v, None, "0.1\t0.5\ta")
+    assert e.value.args_["reason"] == "count"
+    with pytest.raises(CoreError) as e:
+        core.speech.save_manual(s1, v, None, "0.1\t0.6\ta\n0.5\t0.8\ta")
+    assert e.value.args_["reason"] == "order"
+    # .1 .5 a / .5 .8 a → 新人工版本、mora [0, 1]、有效范围不收缩、强度按新时间重算
+    r = core.speech.save_manual(s1, v, None, ".1\t.5\ta\n.5\t.8\ta")
+    view = core.speech.sample_view(s1)
+    ph = view["head"]["result"]["phones"]
+    assert view["head"]["manual"] and view["head"]["version"] == r["version"] == v + 1
+    assert [(p["start"], p["end"], p["mora"]) for p in ph] == [(0.1, 0.5, 0), (0.5, 0.8, 1)]
+    assert ph[1]["eff"] == [0.5, 0.8] and "strength" in ph[0] and ph[0]["strength"] == pytest.approx(1.0, abs=0.05)
+    # 用旧版本提交 → “版本”
+    with pytest.raises(CoreError) as e:
+        core.speech.save_manual(s1, v, None, ".1\t.5\ta\n.5\t.8\ta")
+    assert e.value.code == "speech-edit-conflict"
+    # 之后的自动结果被拒（只进历史）
+    _fake_run(core, [s1], rerun=True)
+    assert core.speech.sample_view(s1)["head"]["runId"] == r["runId"]
+    # 切换版本（R11.7）：选历史的模型结果 → 当前头更新
+    model = next(x for x in core.speech.sample_view(s1)["runs"] if not x["manual"] and x["status"] == "ok")
+    sw = core.speech.switch_head(s1, model["id"], r["version"])
+    assert core.speech.sample_view(s1)["head"]["runId"] == model["id"] and sw["version"] == r["version"] + 1
+
+
+def test_range_analysis_and_child_projection(core):
+    parent = sample(core, 1.0, 3.0, snapshot={"alignText": "あ"})
+    _fake_ok(core, parent, [{"label": "a", "start": 1.2, "end": 1.8, "mora": 0, "word": 0}, {"label": "a", "start": 1.8, "end": 2.6, "mora": 1, "word": 0}])
+    child = sample(core, 1.5, 2.0, parent=parent, name="子")
+    v = core.speech.sample_view(child)
+    assert v["head"]["projectedFrom"] == parent
+    assert [(p["start"], p["end"]) for p in v["head"]["result"]["phones"]] == [(1.5, 1.8), (1.8, 2.0)]
+    assert core.samples.get(child)["analysis"] == "ok"
+    # 资产选区 + 文字区段：不需要采样，归属是资产选区
+    job = core.speech.submit_range(core.aid, 5.0, 6.0, "い")
+    params = json.loads(core.conn.execute("SELECT params FROM job WHERE id=?", (job["id"],)).fetchone()[0])
+    it = params["items"][0]
+    assert it["ownerType"] == "asset_text" and it["sample"] is None and it["owner"] == core.speech.range_owner(core.aid, 5.0, 6.0)
+    assert core.conn.execute("SELECT target FROM job_item WHERE job_id=?", (job["id"],)).fetchone()[0] == it["owner"]

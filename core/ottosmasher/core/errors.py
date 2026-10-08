@@ -136,6 +136,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "speech-blocked": (("reason",), "This sample cannot be analyzed (reason given)."),
     "speech-invalid": (("field", "reason"), "Speech analysis request rejected."),
     "speech-nothing-to-do": (("blocked", "fresh"), "Nothing to analyze: everything is up to date or blocked."),
+    "speech-edit-invalid": (("expected", "got", "line", "reason"), "Phoneme time edit rejected (only times may change; line given)."),
+    "speech-edit-conflict": (("actual", "expected"), "The analysis changed since it was loaded; reload and edit again."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),
     "studio-no-runtime": (("detail", "path"), "PyMSS Studio has no active inference environment."),

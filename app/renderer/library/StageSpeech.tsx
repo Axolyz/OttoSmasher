@@ -4,14 +4,16 @@
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { AssetRecord, SampleRow, SpeechPhone, SpeechSampleView } from "../api/types";
+import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Segmented, Token } from "../components/Controls";
-import { TextField } from "../components/Fields";
+import { Select, TextArea, TextField } from "../components/Fields";
+import { AnchoredPanel } from "../components/Panel";
 import { seconds } from "../format";
 import { errorText, hasKey, t } from "../i18n";
 import { useApp } from "../state/store";
-import { type Curve, type Layer, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
+import { useUndo } from "../shell/useUndo";
+import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
 import s from "./Library.module.css";
 
 type LayerId = "ph" | "mora" | "none";
@@ -31,14 +33,22 @@ export function assetLabel(a: AssetRecord | null): string {
   return [model, a.stem_name].filter(Boolean).join(" · ");
 }
 
-/** 音素 → 覆盖层的色带 */
-function phoneBands(phones: SpeechPhone[]): Layer {
+/** 音素 → 覆盖层的色带（编辑时带 id = 序号，才能拖） */
+function phoneBands(phones: SpeechPhone[], withIds = false): Layer {
   return {
     id: "ph",
     label: t("speech.layer.ph"),
-    bands: phones.map((p) => ({ a: p.start, b: p.end, label: p.label, tone: p.label === "pau" ? ("pause" as const) : VOWELS.has(p.label) ? ("vowel" as const) : ("consonant" as const) })),
+    bands: phones.map((p, i) => ({
+      a: p.start,
+      b: p.end,
+      label: p.label,
+      tone: p.label === "pau" ? ("pause" as const) : VOWELS.has(p.label) ? ("vowel" as const) : ("consonant" as const),
+      ...(withIds ? { id: `p:${i}` } : {}),
+    })),
   };
 }
+
+const timesText = (phones: SpeechPhone[]) => phones.map((p) => `${p.start.toFixed(3)}\t${p.end.toFixed(3)}\t${p.label}`).join("\n");
 
 /** 同一个 mora 的音素合成一段，标签是假名 */
 function moraBands(phones: SpeechPhone[], morae: string[]): Layer {
@@ -57,6 +67,18 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
   const smp = props.sample;
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
+  const undo = useUndo();
+  // 编辑音素时间（UI_PLAN §3.1：覆盖层加把手、编辑条、不能切覆盖层、Esc 放弃）
+  const [editBands, setEditBands] = useState<LayerBand[] | null>(null);
+  const [editFocus, setEditFocus] = useState<string | null>(null);
+  const [timesOpen, setTimesOpen] = useState(false);
+  const [timesDraft, setTimesDraft] = useState("");
+  const [textOpen, setTextOpen] = useState(false);
+  const [textDraft, setTextDraft] = useState("");
+  const [g2pJob, setG2pJob] = useState<string | null>(null);
+  const [g2p, setG2p] = useState<string | null>(null);
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [rangeText, setRangeText] = useState("");
   const [asset, setAsset] = useState<AssetRecord | null>(null);
   const [view, setView] = useState<SpeechSampleView | null>(null);
   const [curve, setCurve] = useState<Curve | null>(null);
@@ -106,12 +128,105 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
   }, [asset, smp.start, smp.end]);
 
   const res = view?.head?.result ?? null;
+  const editing = editBands !== null;
+  const ownHead = view?.head && view.head.status === "ok" && !view.head.projectedFrom ? view.head : null;
   const layers = useMemo(() => {
     if (!res) return { ph: null, mora: null };
     return { ph: phoneBands(res.phones), mora: moraBands(res.phones, res.morae) };
   }, [res]);
-  const overlay = layer === "none" ? null : layers[layer];
-  const lanes = (["ph", "mora"] as const).filter((k) => k !== layer && layers[k]).map((k) => layers[k]!);
+  const overlay = editing ? { ...phoneBands(res?.phones ?? []), bands: editBands } : layer === "none" ? null : layers[layer];
+  const lanes = (["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!);
+
+  const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+  const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
+    if (!ownHead) return false;
+    try {
+      await call("speech.saveManual", { sampleId: smp.id, version: ownHead.version, ...args });
+      toast({ text: t("speech.manualSaved") });
+      loadSpeech();
+      return true;
+    } catch (e) {
+      fail(e);
+      if (e instanceof CoreFailure && e.wire.code === "speech-edit-conflict") loadSpeech();
+      return false;
+    }
+  };
+  const startEdit = () => {
+    if (!ownHead?.result) return;
+    setLayer("ph");
+    setEditBands(phoneBands(ownHead.result.phones, true).bands);
+    setEditFocus(null);
+  };
+  const stopEdit = () => {
+    setEditBands(null);
+    setEditFocus(null);
+  };
+  // 编辑期间 Esc = 放弃（捕获阶段，先于集合的 Esc 清除勾选）
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      e.preventDefault();
+      stopEdit();
+      toast({ text: t("speech.editDiscarded") });
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveEdit = async () => {
+    if (!editBands) return;
+    const byIdx = [...editBands].sort((x, y) => Number(x.id!.slice(2)) - Number(y.id!.slice(2)));
+    if (await saveManual({ phones: byIdx.map((b) => ({ label: b.label, start: b.a, end: b.b })) })) stopEdit();
+  };
+  const switchTo = async (runId: string) => {
+    if (!ownHead || runId === ownHead.runId) return;
+    try {
+      await call("speech.switchHead", { sampleId: smp.id, runId, version: ownHead.version });
+      loadSpeech();
+    } catch (e) {
+      fail(e);
+      loadSpeech();
+    }
+  };
+  const saveText = async () => {
+    try {
+      const cur = await call("samples.get", { id: smp.id });
+      await call("edits.apply", { batch: { label: { code: "align-text", args: {} }, ops: [{ entity: "sample", id: smp.id, version: cur.version, fields: { align_text_manual: textDraft.trim() || null } }] } });
+      toast({ text: t("speech.textSaved"), action: { label: t("common.undo"), run: () => void undo().then(loadSpeech) } });
+      setTextOpen(false);
+      loadSpeech();
+    } catch (e) {
+      fail(e);
+    }
+  };
+  const previewText = async () => {
+    setG2p(null);
+    try {
+      setG2pJob((await call("dictionary.preview", { sentence: textDraft })).id);
+    } catch (e) {
+      fail(e);
+    }
+  };
+  useCoreEvent("job.updated", (d) => {
+    const j = d as JobSummary;
+    if (j.id !== g2pJob || j.status === "queued" || j.status === "running") return;
+    setG2pJob(null);
+    if (j.status === "succeeded") {
+      const r = j.result as { words: Array<{ reading: string }>; phonemes: string[] };
+      setG2p(`${r.words.map((w) => w.reading).join(" ")} · ${r.phonemes.join(" ")}`);
+    } else if (j.error) setG2p(errorText(j.error));
+  });
+  const alignRange = async () => {
+    if (!sel) return;
+    try {
+      await call("speech.submitRange", { assetId: smp.asset_id, start: sel.a, end: sel.b, text: rangeText });
+      toast({ text: t("speech.rangeQueued") });
+      setRangeOpen(false);
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   const provide = async () => {
     const text = draft.trim();
@@ -160,8 +275,8 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           <Segmented
             size="sm"
             label={t("speech.layer.label")}
-            value={layer}
-            onChange={setLayer}
+            value={editing ? "ph" : layer}
+            onChange={(v) => !editing && setLayer(v)}
             options={[
               { id: "ph", label: t("speech.layer.ph") },
               { id: "mora", label: t("speech.layer.mora") },
@@ -173,6 +288,19 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
             {t("speech.fit")}
           </Button>
         </div>
+        {editing ? (
+          <div className={s.editBar} data-testid="phone-edit-bar">
+            <b>{t("speech.editing")}</b>
+            <span className={s.mutedText}>{t("speech.editHint")}</span>
+            <div className={s.grow} />
+            <Button size="sm" variant="flat" onPress={() => (stopEdit(), toast({ text: t("speech.editDiscarded") }))} data-testid="phone-edit-discard">
+              {t("edit.discard")}
+            </Button>
+            <Button size="sm" variant="primary" onPress={() => void saveEdit()} data-testid="phone-edit-save">
+              {t("speech.editSave")}
+            </Button>
+          </div>
+        ) : null}
         <div className={s.waveBox}>
           {asset ? (
             <Timeline
@@ -187,8 +315,12 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
               onPlayFrom={(at) => props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : smp.end))}
               overlay={overlay}
               lanes={lanes}
-              onLaneDoubleClick={(id) => setLayer(id as LayerId)}
+              onLaneDoubleClick={(id) => !editing && setLayer(id as LayerId)}
               curve={curve}
+              editing={editing}
+              editFocus={editFocus}
+              onEditBands={setEditBands}
+              onEditFocus={setEditFocus}
             />
           ) : null}
         </div>
@@ -198,6 +330,30 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
             <Button size="sm" variant="flat" onPress={() => props.onPlayRange(sel.a, sel.b)}>
               {t("speech.playSel")}
             </Button>
+            <AnchoredPanel
+              title={t("speech.rangeTitle")}
+              aux={t("speech.selection", { a: seconds(sel.a), b: seconds(sel.b) })}
+              isOpen={rangeOpen}
+              onOpenChange={(o) => {
+                setRangeOpen(o);
+                if (o) setRangeText(view?.text ?? "");
+              }}
+              width={360}
+              testId="speech-range-panel"
+              trigger={
+                <Button size="sm" variant="flat" isDisabled={editing} data-testid="speech-range">
+                  {t("speech.range")}
+                </Button>
+              }
+              footer={
+                <Button size="sm" variant="primary" isDisabled={!rangeText.trim()} onPress={() => void alignRange()} data-testid="speech-range-go">
+                  {t("speech.rangeGo")}
+                </Button>
+              }
+            >
+              <div className={s.hintText}>{t("speech.rangeHint")}</div>
+              <TextField value={rangeText} onChange={setRangeText} label={t("speech.rangeText")} testId="speech-range-text" />
+            </AnchoredPanel>
           </div>
         ) : null}
       </section>
@@ -207,6 +363,19 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
           <span className={headOk ? s.okText : lastFail ? s.badText : s.mutedText} data-testid="speech-status">
             {status}
           </span>
+          {view?.head?.projectedFrom ? <span className={s.mutedText}>{t("speech.projected")}</span> : null}
+          <div className={s.grow} />
+          {ownHead && (view?.runs.filter((r) => r.status === "ok").length ?? 0) > 1 ? (
+            <Select
+              label={t("speech.version")}
+              prefix={t("speech.version")}
+              value={ownHead.runId}
+              onChange={(id) => void switchTo(id)}
+              options={view!.runs
+                .filter((r) => r.status === "ok")
+                .map((r) => ({ id: r.id, label: `${r.manual ? t("speech.versionManual") : t("speech.versionModel")} · ${r.createdAt.replace("T", " ").slice(5, 16)}` }))}
+            />
+          ) : null}
         </div>
         {res ? (
           <div className={s.moras} data-testid="speech-moras">
@@ -253,9 +422,74 @@ export function StageSpeech(props: { sample: SampleRow; playhead: () => number |
         ) : null}
         {view?.text && view.head && headOk && view.head.text !== view.text ? <Callout tone="warn">{t("speech.textChanged")}</Callout> : null}
         <div className={s.stageActions}>
-          <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!view?.text} data-testid="speech-analyze">
+          <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!view?.text || editing} data-testid="speech-analyze">
             {t("speech.menu")}
           </Button>
+          <Button size="sm" variant="flat" onPress={startEdit} isDisabled={!ownHead || editing} data-testid="speech-edit">
+            {t("speech.edit")}
+          </Button>
+          <div className={s.grow} />
+          <AnchoredPanel
+            title={t("speech.textPanel")}
+            isOpen={textOpen}
+            onOpenChange={(o) => {
+              setTextOpen(o);
+              if (o) {
+                setTextDraft(view?.text ?? "");
+                setG2p(null);
+              }
+            }}
+            width={380}
+            placement="bottom end"
+            testId="speech-text-panel"
+            trigger={
+              <Button size="sm" variant="flat" isDisabled={editing} data-testid="speech-text-edit">
+                {t("speech.textPanel")}
+              </Button>
+            }
+            footer={
+              <>
+                <Button size="sm" variant="flat" onPress={() => void previewText()} isDisabled={!textDraft.trim() || g2pJob !== null}>
+                  {g2pJob ? t("dict.previewing") : t("dict.preview")}
+                </Button>
+                <Button size="sm" variant="primary" onPress={() => void saveText()} data-testid="speech-text-save">
+                  {t("common.save")}
+                </Button>
+              </>
+            }
+          >
+            <TextField value={textDraft} onChange={setTextDraft} label={t("speech.textPanel")} testId="speech-text-input" />
+            <div className={s.mutedText}>{t("speech.textNote")}</div>
+            {g2p ? (
+              <div className={s.hintText} lang="ja" data-user-data="">
+                {g2p}
+              </div>
+            ) : null}
+          </AnchoredPanel>
+          <AnchoredPanel
+            title={t("speech.times")}
+            isOpen={timesOpen}
+            onOpenChange={(o) => {
+              setTimesOpen(o);
+              if (o && ownHead?.result) setTimesDraft(timesText(ownHead.result.phones));
+            }}
+            width={340}
+            placement="bottom end"
+            testId="speech-times-panel"
+            trigger={
+              <Button size="sm" variant="flat" isDisabled={!ownHead || editing} data-testid="speech-times">
+                {t("speech.times")}
+              </Button>
+            }
+            footer={
+              <Button size="sm" variant="primary" onPress={() => void saveManual({ text: timesDraft }).then((ok) => ok && setTimesOpen(false))} data-testid="speech-times-save">
+                {t("speech.editSave")}
+              </Button>
+            }
+          >
+            <TextArea value={timesDraft} onChange={setTimesDraft} label={t("speech.times")} rows={10} mono tabInserts testId="speech-times-text" />
+            <div className={s.mutedText}>{t("speech.timesNote")}</div>
+          </AnchoredPanel>
         </div>
       </section>
     </>

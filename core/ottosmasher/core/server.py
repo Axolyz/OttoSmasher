@@ -207,6 +207,13 @@ class Core:
           lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
         r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
           lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
+        r("speech.submitRange", "job", T.SpeechRangeParams, T.JobSummary, "Analyze an asset range with a given text segment (no sample needed).",
+          lambda p: self.speech.submit_range(p["assetId"], float(p["start"]), float(p["end"]), str(p["text"])))
+        r("speech.saveManual", "write", T.SpeechManualParams, T.SpeechHeadRef,
+          "Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+          lambda p: self.speech.save_manual(p["sampleId"], int(p["version"]), p.get("phones"), p.get("text")))
+        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version the current one.",
+          lambda p: self.speech.switch_head(p["sampleId"], p["runId"], int(p["version"])))
         r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis of one sample: alignment text, current head with phonemes, all versions.",
           lambda p: self.speech.sample_view(p["id"]))
         r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Current alignments of all samples on an asset range (same physical audio only).",
