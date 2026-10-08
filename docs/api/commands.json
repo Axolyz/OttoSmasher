@@ -202,6 +202,75 @@
    }
   },
   {
+   "name": "flatten.estimate",
+   "effect": "read",
+   "summary": "Estimate the target from cached measurements only (no model run).",
+   "params": {
+    "$ref": "#/$defs/FlattenEstimateParams"
+   },
+   "result": {
+    "$ref": "#/$defs/FlattenEstimate"
+   }
+  },
+  {
+   "name": "flatten.open",
+   "effect": "read",
+   "summary": "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
+   "params": {
+    "$ref": "#/$defs/FlattenOpenParams"
+   },
+   "result": {
+    "$ref": "#/$defs/FlattenOpened"
+   }
+  },
+  {
+   "name": "flatten.rerunFailed",
+   "effect": "job",
+   "summary": "Re-queue only the failed items of a flatten job with the same options.",
+   "params": {
+    "$ref": "#/$defs/JobIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "flatten.results",
+   "effect": "read",
+   "summary": "Per-item results of a flatten job (product sample and target).",
+   "params": {
+    "$ref": "#/$defs/JobIdParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/FlattenResultRow"
+    }
+   }
+  },
+  {
+   "name": "flatten.submit",
+   "effect": "job",
+   "summary": "Queue one flatten (checks the frozen asset is unchanged).",
+   "params": {
+    "$ref": "#/$defs/FlattenSubmitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "flatten.submitBatch",
+   "effect": "job",
+   "summary": "Queue a batch flatten: one job, each sample targets independently (auto only).",
+   "params": {
+    "$ref": "#/$defs/FlattenBatchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "imports.commit",
    "effect": "write",
    "summary": "Register the scanned files (optionally with full-length samples).",
@@ -1183,6 +1252,11 @@
    "summary": "Export file name is too long even after shortening."
   },
   {
+   "code": "flatten-asset-changed",
+   "args": [],
+   "summary": "The frozen sound asset changed since the workbench was opened; reopen it."
+  },
+  {
    "code": "flatten-edge-insufficient",
    "args": [
     "frames",
@@ -1209,6 +1283,7 @@
    "code": "flatten-invalid",
    "args": [
     "field",
+    "max",
     "reason"
    ],
    "summary": "Flatten request rejected."
@@ -3153,6 +3228,535 @@
     "measured",
     "step",
     "t0"
+   ]
+  },
+  "FlattenAlignment": {
+   "title": "FlattenAlignment",
+   "type": "object",
+   "properties": {
+    "manual": {
+     "type": "boolean"
+    },
+    "phones": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FlattenPhone"
+     }
+    },
+    "runId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "manual",
+    "phones",
+    "runId"
+   ]
+  },
+  "FlattenBatchParams": {
+   "title": "FlattenBatchParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "options": {
+     "$ref": "#/$defs/FlattenOptions"
+    }
+   },
+   "required": [
+    "ids",
+    "options"
+   ]
+  },
+  "FlattenDefaults": {
+   "title": "FlattenDefaults",
+   "type": "object",
+   "properties": {
+    "range": {
+     "enum": [
+      "first",
+      "inner",
+      "vowels",
+      "whole"
+     ]
+    },
+    "side": {
+     "enum": [
+      "left",
+      "right"
+     ]
+    },
+    "target": {
+     "enum": [
+      "auto",
+      "edge",
+      "manual"
+     ]
+    }
+   },
+   "required": [
+    "range",
+    "side",
+    "target"
+   ]
+  },
+  "FlattenEstimate": {
+   "title": "FlattenEstimate",
+   "type": "object",
+   "properties": {
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "intervals": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "status": {
+     "enum": [
+      "in-job",
+      "insufficient",
+      "ok"
+     ]
+    },
+    "target": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/FlattenTarget"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "intervals",
+    "status",
+    "target"
+   ]
+  },
+  "FlattenEstimateParams": {
+   "title": "FlattenEstimateParams",
+   "type": "object",
+   "properties": {
+    "options": {
+     "$ref": "#/$defs/FlattenOptions"
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "token": {
+     "$ref": "#/$defs/FlattenToken"
+    }
+   },
+   "required": [
+    "options",
+    "token"
+   ]
+  },
+  "FlattenOpenParams": {
+   "title": "FlattenOpenParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "entry": {
+     "enum": [
+      "batch",
+      "detail",
+      "single"
+     ]
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "entry",
+    "start"
+   ]
+  },
+  "FlattenOpened": {
+   "title": "FlattenOpened",
+   "type": "object",
+   "properties": {
+    "alignment": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/FlattenAlignment"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "defaults": {
+     "$ref": "#/$defs/FlattenDefaults"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "inner": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "token": {
+     "$ref": "#/$defs/FlattenToken"
+    },
+    "transition": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "alignment",
+    "defaults",
+    "duration",
+    "inner",
+    "name",
+    "token",
+    "transition"
+   ]
+  },
+  "FlattenOptions": {
+   "title": "FlattenOptions",
+   "type": "object",
+   "properties": {
+    "inner": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "manual": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "range": {
+     "enum": [
+      "first",
+      "inner",
+      "vowels",
+      "whole"
+     ]
+    },
+    "side": {
+     "anyOf": [
+      {
+       "enum": [
+        "left",
+        "right"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "target": {
+     "enum": [
+      "auto",
+      "edge",
+      "manual"
+     ]
+    },
+    "transition": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "range",
+    "target"
+   ]
+  },
+  "FlattenPhone": {
+   "title": "FlattenPhone",
+   "description": "输入局部秒（外选区起点 = 0）。",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "start"
+   ]
+  },
+  "FlattenResultRow": {
+   "title": "FlattenResultRow",
+   "type": "object",
+   "properties": {
+    "deleted": {
+     "type": "boolean"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "idx": {
+     "type": "integer"
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "productId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "status": {
+     "enum": [
+      "failed",
+      "ok",
+      "queued",
+      "skipped"
+     ]
+    },
+    "target": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "deleted",
+    "error",
+    "idx",
+    "name",
+    "productId",
+    "sampleId",
+    "status",
+    "target"
+   ]
+  },
+  "FlattenSubmitParams": {
+   "title": "FlattenSubmitParams",
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "options": {
+     "$ref": "#/$defs/FlattenOptions"
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "token": {
+     "$ref": "#/$defs/FlattenToken"
+    }
+   },
+   "required": [
+    "name",
+    "options",
+    "token"
+   ]
+  },
+  "FlattenTarget": {
+   "title": "FlattenTarget",
+   "type": "object",
+   "properties": {
+    "hz": {
+     "type": "number"
+    },
+    "method": {
+     "type": "string"
+    },
+    "midi": {
+     "type": "number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "originalMidi": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ref": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "shiftSemitones": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "side": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "hz",
+    "method",
+    "midi",
+    "name",
+    "originalMidi",
+    "ref",
+    "shiftSemitones",
+    "side"
+   ]
+  },
+  "FlattenToken": {
+   "title": "FlattenToken",
+   "description": "打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "media": {
+     "type": "string"
+    },
+    "snapshot": {
+     "type": "object"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "media",
+    "snapshot",
+    "start"
    ]
   },
   "Hello": {

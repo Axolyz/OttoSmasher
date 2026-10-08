@@ -350,6 +350,13 @@ def _measure_f0(plan: list[dict[str, Any]], ctx: Ctx, models: Path, support: Pat
     return done, errors
 
 
+def _flatten(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """拉平（规格 11 §11.3）：一个进程处理全部条目；登记由 Core 做。"""
+    from .flatten import run
+
+    return run(params, ctx)
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "speech.analyze": _speech_analyze,
     "dictionary.compile": _dictionary_compile,
@@ -357,6 +364,7 @@ HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "models.probe": _models_probe,
     "studio.models": _studio_models,
     "separate": _separate,
+    "flatten": _flatten,
     "import.scan": _import_scan,
     "sources.scan": _sources_scan,
     "models.verify": _models_verify,

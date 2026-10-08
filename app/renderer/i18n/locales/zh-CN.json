@@ -297,6 +297,8 @@
   "error.flatten-edge-insufficient": "所选一侧没有足够的可靠音高（向内 100 ms 内少于 {frames} 帧）：请换另一侧、改用段内自动或手动指定（不会自动换侧）",
   "error.flatten-needs-alignment": "这个处理范围需要覆盖外选区的语音分析结果：{reason}。请先做语音分析，或改用整段 / 内部拉平",
   "error.flatten-inner-invalid": "内部拉平的内区不合法：{reason}",
+  "error.flatten-asset-changed": "声音资产已改变，请重新打开拉平台",
+  "reason.nothing-failed": "这个任务没有失败的项",
   "error.flatten-output-invalid": "声码器输出不合格：{reason}",
   "reason.bare-number": "纯数字含义不明，请写音名（A4）或带单位的频率（440Hz）",
   "reason.target-empty": "没有填写",

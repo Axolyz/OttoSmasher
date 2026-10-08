@@ -133,6 +133,14 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("frontend.user_dictionary", {"text": "", "compiled": None}, _user_dictionary, "frontend"),
         SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
         SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),
+        # 拉平：各入口的默认处理范围与定音方式（03 §3.7；只是默认值，拉平台上随时可改，改范围不自动改定音，Q6）。
+        # 详情 = 首元音起 + 交界左；其他单个入口 = 整段 + 段内自动；批量 = 仅元音 + 段内自动（批量只有自动定音、没有内部拉平，Q10）
+        SettingSpec("flatten.detail_range", "first", _choice("whole", "vowels", "first", "inner"), "flatten"),
+        SettingSpec("flatten.detail_target", "edge", _choice("auto", "edge", "manual"), "flatten"),
+        SettingSpec("flatten.single_range", "whole", _choice("whole", "vowels", "first", "inner"), "flatten"),
+        SettingSpec("flatten.single_target", "auto", _choice("auto", "edge", "manual"), "flatten"),
+        SettingSpec("flatten.batch_range", "vowels", _choice("whole", "vowels", "first"), "flatten"),
+        SettingSpec("flatten.batch_target", "auto", _choice("auto", "edge"), "flatten"),
         # 任务并发（规格 13 §13.1.2、16 R19.3：模型 1、轻量 2；可设 1–4，0 拒绝）
         SettingSpec("jobs.concurrency_model", 1, _int_range(1, 4), "jobs"),
         SettingSpec("jobs.concurrency_light", 2, _int_range(1, 4), "jobs"),

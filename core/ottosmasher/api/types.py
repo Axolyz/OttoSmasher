@@ -1360,3 +1360,119 @@ class SpeechSwitchParams(TypedDict):
 class SpeechHeadRef(TypedDict):
     runId: str
     version: int
+
+
+# ---------------------------------------------------------------- 拉平（规格 11）
+
+FlattenRange = Literal["whole", "vowels", "first", "inner"]
+FlattenTargetMethod = Literal["auto", "edge", "manual"]
+FlattenSide = Literal["left", "right"]
+
+
+class FlattenToken(TypedDict):
+    """打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。"""
+
+    assetId: str
+    start: float
+    end: float
+    media: str
+    snapshot: dict[str, Any]
+
+
+class FlattenOpenParams(TypedDict):
+    assetId: str
+    start: float
+    end: float
+    # detail = 采样详情（舞台）；single = 其他单个入口；batch 不用打开
+    entry: Literal["detail", "single", "batch"]
+    sampleId: NotRequired[str | None]
+
+
+class FlattenDefaults(TypedDict):
+    range: FlattenRange
+    target: FlattenTargetMethod
+    side: FlattenSide
+
+
+class FlattenPhone(TypedDict):
+    """输入局部秒（外选区起点 = 0）。"""
+
+    label: str
+    start: float
+    end: float
+
+
+class FlattenAlignment(TypedDict):
+    manual: bool
+    runId: str
+    phones: list[FlattenPhone]
+
+
+class FlattenOpened(TypedDict):
+    token: FlattenToken
+    duration: float
+    defaults: FlattenDefaults
+    alignment: FlattenAlignment | None
+    name: str
+    # 内部拉平的初始内区（输入局部秒）与默认过渡
+    inner: list[float]
+    transition: float
+
+
+class FlattenOptions(TypedDict):
+    range: FlattenRange
+    target: FlattenTargetMethod
+    side: NotRequired[FlattenSide | None]
+    manual: NotRequired[str | None]
+    # 输入局部秒
+    inner: NotRequired[list[float] | None]
+    transition: NotRequired[list[float] | None]
+
+
+class FlattenTarget(TypedDict):
+    midi: float
+    name: str
+    hz: float
+    method: str
+    originalMidi: float | None
+    shiftSemitones: float | None
+    ref: list[float] | None
+    side: str | None
+
+
+class FlattenEstimateParams(TypedDict):
+    token: FlattenToken
+    options: FlattenOptions
+    sampleId: NotRequired[str | None]
+
+
+class FlattenEstimate(TypedDict):
+    # ok = 缓存预估；in-job = 没有缓存的音高，任务中确定；insufficient = 缓存里证据不足（error 说明）
+    status: Literal["ok", "in-job", "insufficient"]
+    target: FlattenTarget | None
+    intervals: list[list[float]]
+    error: NotRequired[ErrorWire]
+
+
+class FlattenSubmitParams(TypedDict):
+    token: FlattenToken
+    options: FlattenOptions
+    name: str
+    sampleId: NotRequired[str | None]
+
+
+class FlattenBatchParams(TypedDict):
+    ids: list[str]
+    options: FlattenOptions
+
+
+class FlattenResultRow(TypedDict):
+    idx: int
+    sampleId: str | None
+    name: str | None
+    deleted: bool
+    status: Literal["queued", "ok", "failed", "skipped"]
+    error: ErrorWire | None
+    # 成品采样与目标音名（成功时）
+    productId: str | None
+    target: str | None

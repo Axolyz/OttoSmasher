@@ -395,12 +395,19 @@ class SpeechService:
         ]
 
     def _adopt_f0(self, job_id: str, entries: list[dict[str, Any]], ts: str) -> None:
+        self._adopt_f0_dirs(job_id, entries, ts, {})
+
+    def _adopt_f0_dirs(self, job_id: str, entries: list[dict[str, Any]], ts: str, files: dict[str, dict[int, Path]]) -> None:
+        """``files``：资产 → {段号: 文件}；没给的按语音分析任务的布局（任务目录/f0/<资产>/<段号>.npy）。"""
         for e in entries:
             src = self.jobs.jobs_dir / job_id / "f0" / e["asset"]
             if self.conn.execute("SELECT 1 FROM sound_asset WHERE id=?", (e["asset"],)).fetchone() is None:
                 continue
+            given = files.get(e["asset"], {})
             for k in e["chunks"]:
-                f0store.adopt_chunk(self.ws.f0, e["asset"], e["identity"], int(k), src / f"{k}.npy", {"model": self.f0_sha(), "frontend": fcpe.FRONTEND_VERSION})
+                f0store.adopt_chunk(
+                    self.ws.f0, e["asset"], e["identity"], int(k), given.get(int(k), src / f"{k}.npy"), {"model": self.f0_sha(), "frontend": fcpe.FRONTEND_VERSION}
+                )
             have = sorted(f0store.present(self.ws.f0, e["asset"], e["identity"]))
             rid = new_id()
             self.conn.execute(
@@ -415,20 +422,33 @@ class SpeechService:
             else:
                 self.conn.execute("UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type='asset' AND owner_id=? AND kind='f0'", (rid, e["asset"]))
 
-    def f0(self, asset_id: str, start: float, end: float) -> dict[str, Any]:
-        """资产区间的 F0 帧（读取没有副作用）；没测的帧标 missing。时间：资产局部秒，第一帧的中心为 ``t0``。"""
+    def f0_identity(self, asset_id: str, start: float, end: float) -> tuple[dict[str, Any], str]:
+        """存放 [start, end) 的那段声音的 F0 测量身份（f0store.identity）；读取与登记（拉平成品）共用。"""
         asset = assets_mod.get(self.conn, asset_id)
-        dur = float(asset["duration"])
-        if not (0 <= start < end <= dur + 1e-6):
-            raise CoreError("range-invalid", reason="out-of-bounds", start=start, end=end, duration=dur)
-        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, min(end, dur))
+        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
         audio = {
             "asset": asset["id"], "mapping": asset["mapping"], "media": media["media_file_id"],
             "snapshot": {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}, "ordinal": ref.ordinal,
             "storage": [win.local_start, win.local_end, win.file_start],
         }
-        ident = f0store.identity(audio, self.f0_sha())
-        i0, frames, have = f0store.read(self.ws.f0, asset_id, ident, start, min(end, dur), dur)
+        return asset, f0store.identity(audio, self.f0_sha())
+
+    def f0_frames(self, asset_id: str, start: float, end: float) -> tuple[int, Any, Any]:
+        """资产区间的 F0 帧（第一帧序号、[n, 3]、是否已测）；读取没有副作用。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        dur = float(asset["duration"])
+        if not (0 <= start < end <= dur + 1e-6):
+            raise CoreError("range-invalid", reason="out-of-bounds", start=start, end=end, duration=dur)
+        _, ident = self.f0_identity(asset_id, start, min(end, dur))
+        return f0store.read(self.ws.f0, asset_id, ident, start, min(end, dur), dur)
+
+    def record_f0(self, asset_id: str, identity: str, chunks: dict[int, Path], job_id: str, ts: str) -> None:
+        """把任务测好的 F0 段放进测量目录，并写测量记录（kind=f0、归属资产）。在调用方事务里执行。"""
+        self._adopt_f0_dirs(job_id, [{"asset": asset_id, "identity": identity, "chunks": sorted(chunks)}], ts, {asset_id: chunks})
+
+    def f0(self, asset_id: str, start: float, end: float) -> dict[str, Any]:
+        """资产区间的 F0 帧（读取没有副作用）；没测的帧标 missing。时间：资产局部秒，第一帧的中心为 ``t0``。"""
+        i0, frames, have = self.f0_frames(asset_id, start, end)
         return {
             "t0": (i0 * fcpe.HOP + fcpe.HOP / 2) / fcpe.SR, "step": fcpe.HOP / fcpe.SR, "count": len(frames),
             "f0": frames[:, 0].astype("<f4").tobytes(), "confidence": frames[:, 1].astype("<f4").tobytes(), "energy": frames[:, 2].astype("<f4").tobytes(),

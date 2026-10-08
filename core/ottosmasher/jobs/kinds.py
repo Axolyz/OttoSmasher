@@ -11,6 +11,7 @@ KINDS: dict[str, str] = {
     "dictionary.preview": "light",
     "studio.models": "light",
     "separate": "model",
+    "flatten": "model",
     "import.scan": "light",
     "sources.scan": "light",
 }

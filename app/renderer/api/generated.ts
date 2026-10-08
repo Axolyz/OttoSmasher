@@ -272,6 +272,108 @@ export interface F0Frames {
   t0: number;
 }
 
+export interface FlattenAlignment {
+  manual: boolean;
+  phones: FlattenPhone[];
+  runId: string;
+}
+
+export interface FlattenBatchParams {
+  ids: string[];
+  options: FlattenOptions;
+}
+
+export interface FlattenDefaults {
+  range: "first" | "inner" | "vowels" | "whole";
+  side: "left" | "right";
+  target: "auto" | "edge" | "manual";
+}
+
+export interface FlattenEstimate {
+  error?: ErrorWire;
+  intervals: number[][];
+  status: "in-job" | "insufficient" | "ok";
+  target: FlattenTarget | null;
+}
+
+export interface FlattenEstimateParams {
+  options: FlattenOptions;
+  sampleId?: string | null;
+  token: FlattenToken;
+}
+
+export interface FlattenOpenParams {
+  assetId: string;
+  end: number;
+  entry: "batch" | "detail" | "single";
+  sampleId?: string | null;
+  start: number;
+}
+
+export interface FlattenOpened {
+  alignment: FlattenAlignment | null;
+  defaults: FlattenDefaults;
+  duration: number;
+  inner: number[];
+  name: string;
+  token: FlattenToken;
+  transition: number;
+}
+
+export interface FlattenOptions {
+  inner?: number[] | null;
+  manual?: string | null;
+  range: "first" | "inner" | "vowels" | "whole";
+  side?: "left" | "right" | null;
+  target: "auto" | "edge" | "manual";
+  transition?: number[] | null;
+}
+
+/** 输入局部秒（外选区起点 = 0）。 */
+export interface FlattenPhone {
+  end: number;
+  label: string;
+  start: number;
+}
+
+export interface FlattenResultRow {
+  deleted: boolean;
+  error: ErrorWire | null;
+  idx: number;
+  name: string | null;
+  productId: string | null;
+  sampleId: string | null;
+  status: "failed" | "ok" | "queued" | "skipped";
+  target: string | null;
+}
+
+export interface FlattenSubmitParams {
+  name: string;
+  options: FlattenOptions;
+  sampleId?: string | null;
+  token: FlattenToken;
+}
+
+export interface FlattenTarget {
+  hz: number;
+  method: string;
+  midi: number;
+  name: string;
+  originalMidi: number | null;
+  ref: number[] | null;
+  shiftSemitones: number | null;
+  side: string | null;
+}
+
+/** 打开拉平台时冻结的音源与外选区（资产局部秒）和存放它的文件快照；提交时核对。 */
+export interface FlattenToken {
+  assetId: string;
+  end: number;
+  media: string;
+  snapshot: Record<string, unknown>;
+  start: number;
+}
+
 export interface Hello {
   dev: boolean;
   interrupted_on_start: number;
@@ -1304,6 +1406,18 @@ export interface Commands {
   "exports.samples": { params: ExportSamplesParams; result: string[]; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */
   "exports.wav": { params: ExportWavParams; result: ExportedWav; effect: "write" };
+  /** Estimate the target from cached measurements only (no model run). */
+  "flatten.estimate": { params: FlattenEstimateParams; result: FlattenEstimate; effect: "read" };
+  /** Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name. */
+  "flatten.open": { params: FlattenOpenParams; result: FlattenOpened; effect: "read" };
+  /** Re-queue only the failed items of a flatten job with the same options. */
+  "flatten.rerunFailed": { params: JobIdParams; result: JobSummary; effect: "job" };
+  /** Per-item results of a flatten job (product sample and target). */
+  "flatten.results": { params: JobIdParams; result: FlattenResultRow[]; effect: "read" };
+  /** Queue one flatten (checks the frozen asset is unchanged). */
+  "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
+  /** Queue a batch flatten: one job, each sample targets independently (auto only). */
+  "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
   /** Register the scanned files (optionally with full-length samples). */
   "imports.commit": { params: ImportCommitParams; result: ImportResult; effect: "write" };
   /** Preview of a finished import scan. */
@@ -1467,6 +1581,7 @@ export type ErrorCode =
   | "export-modified"
   | "file-missing"
   | "filename-too-long"
+  | "flatten-asset-changed"
   | "flatten-edge-insufficient"
   | "flatten-f0-insufficient"
   | "flatten-inner-invalid"

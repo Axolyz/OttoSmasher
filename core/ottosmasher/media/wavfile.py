@@ -53,3 +53,17 @@ def write_wav24(fh: BinaryIO, pcm: np.ndarray, rate: int) -> None:
 def save_wav24(path: Path, pcm: np.ndarray, rate: int) -> None:
     with open(path, "wb") as fh:
         write_wav24(fh, pcm, rate)
+
+
+def save_wav_f32(path: Path, pcm: np.ndarray, rate: int) -> None:
+    """32 位浮点 WAV（加工的中间结果，例如拉平成品编码 MP3 之前：重合成的声音可能略超过 ±1，不在这里削波）。只写 1–2 声道。"""
+    if pcm.ndim != 2 or pcm.shape[1] > 2:
+        raise ValueError("pcm must be (frames, 1|2)")
+    frames, channels = pcm.shape
+    block = channels * 4
+    data_len = frames * block
+    fmt = struct.pack("<HHIIHH", 3, channels, rate, rate * block, block, 32)
+    with open(path, "wb") as fh:
+        fh.write(b"RIFF" + struct.pack("<I", 4 + 8 + len(fmt) + 8 + data_len) + b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt)
+        fh.write(b"data" + struct.pack("<I", data_len))
+        fh.write(np.ascontiguousarray(pcm, dtype="<f4").tobytes())

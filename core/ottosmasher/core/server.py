@@ -38,6 +38,7 @@ from .exports import ExportService, export_samples
 from .samples import SampleService
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
+from .flatten import FlattenService
 from .separation import SeparationService
 from .probes import record_probes
 from .speech import SpeechService
@@ -225,6 +226,19 @@ class Core:
           lambda p: self.separation.status())
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
           lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems")))
+        r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
+          "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
+          lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))
+        r("flatten.estimate", "read", T.FlattenEstimateParams, T.FlattenEstimate, "Estimate the target from cached measurements only (no model run).",
+          lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
+        r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged).",
+          lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId")))
+        r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue a batch flatten: one job, each sample targets independently (auto only).",
+          lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"])))
+        r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
+          lambda p: self.flatten.rerun_failed(p["jobId"]))
+        r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
+          lambda p: self.flatten.results(p["jobId"]))
         r("separation.results", "read", T.JobIdParams, list[T.AssetRecord], "Assets registered by a separation job.", lambda p: self.separation.results(p["jobId"]))
 
     # ---------- 打开与关闭
@@ -262,6 +276,7 @@ class Core:
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
+        self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）

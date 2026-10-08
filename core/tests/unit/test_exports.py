@@ -151,6 +151,14 @@ def test_track_label():
     assert track_label({"origin": "flatten", "roles": ["vocal"]}, w) == "拉平"
 
 
+def test_processing_label():
+    from ottosmasher.core.exports import processing_label
+
+    w = {"flatten": "拉平"}
+    assert processing_label({"origin": "flatten", "production": {"target": {"name": "G♯5"}}}, w) == "拉平-G♯5"
+    assert processing_label({"origin": "stream", "production": None}, w) == ""
+
+
 def test_export_samples_reuses(env, db):
     from ottosmasher.core.exports import export_samples
     from ottosmasher.core.samples import SampleService

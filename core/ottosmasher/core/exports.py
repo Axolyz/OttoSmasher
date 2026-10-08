@@ -164,6 +164,15 @@ def track_label(asset: dict[str, Any], words: dict[str, str]) -> str:
     return words.get("original", "original")
 
 
+def processing_label(asset: dict[str, Any], words: dict[str, str]) -> str:
+    """导出文件名的“处理信息”段（规格 12 §12.1）：拉平成品为「拉平-<音名>」（音名取登记时记录的目标音）；其余为空（整段省略）。"""
+    if asset["origin"] == "flatten":
+        name = ((asset.get("production") or {}).get("target") or {}).get("name")
+        if name:
+            return f"{words.get('flatten', 'flatten')}-{name}"
+    return ""
+
+
 def export_samples(svc: ExportService, ids: list[str], words: dict[str, str]) -> list[str]:
     """整个采样导出 WAV（拖出、交接）：内容 = 采样当前名称；同一请求复用同一文件。"""
     out = []
@@ -172,6 +181,6 @@ def export_samples(svc: ExportService, ids: list[str], words: dict[str, str]) ->
         if row is None:
             raise CoreError("sample-not-found", id=sid)
         asset = assets_mod.get(svc.conn, row[0])
-        r = svc.export_wav(row[0], row[1], row[2], content=row[3], track=track_label(asset, words))
+        r = svc.export_wav(row[0], row[1], row[2], content=row[3], track=track_label(asset, words), processing=processing_label(asset, words))
         out.append(r["path"])
     return out

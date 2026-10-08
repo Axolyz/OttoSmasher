@@ -139,12 +139,13 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "speech-edit-invalid": (("expected", "got", "line", "reason"), "Phoneme time edit rejected (only times may change; line given)."),
     "speech-edit-conflict": (("actual", "expected"), "The analysis changed since it was loaded; reload and edit again."),
     # ---- 拉平（规格 11）
-    "flatten-invalid": (("field", "reason"), "Flatten request rejected."),
+    "flatten-invalid": (("field", "max", "reason"), "Flatten request rejected."),
     "flatten-target-invalid": (("reason",), "Manual target must be a note name (A4, C#5) or a frequency with unit (445Hz)."),
     "flatten-f0-insufficient": (("frames",), "Not enough reliable F0 frames to choose a target."),
     "flatten-edge-insufficient": (("frames", "side"), "Not enough reliable F0 near the chosen edge; the other side is never used automatically."),
     "flatten-needs-alignment": (("reason",), "This range needs an alignment covering the selection (same physical sound)."),
     "flatten-inner-invalid": (("ms", "reason"), "Inner region is out of bounds or its plateau is too short."),
+    "flatten-asset-changed": ((), "The frozen sound asset changed since the workbench was opened; reopen it."),
     "flatten-output-invalid": (("expected", "got", "reason"), "Vocoder output has the wrong length or non-finite samples."),
     # ---- PyMSS Studio
     "studio-not-found": (("path",), "PyMSS Studio is not installed."),

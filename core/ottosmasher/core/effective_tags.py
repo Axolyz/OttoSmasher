@@ -8,7 +8,8 @@
   判定区间 = 采样的“标签判定区间”（字幕采样 = 原字幕时间，原片秒）或采样选区经资产映射到原片秒；
   原片作用域：所有资产；角色作用域：资产必须带该角色（state=on）；资产作用域：只对这一个资产，用资产局部秒比较；
   只算当前字幕版本的标注（手动建的标注没有版本，始终参与）和未删除的标注；端点相接不算交叠；
-- 自动：拉平目标音 ``pitch:`` 等（阶段 5 起）。
+- 自动：拉平成品的目标音 ``pitch:音名``——取绑定资产登记时记录的目标音（``production.target``，不是重测结果），
+  按绑定音频实时求值：在拉平成品上再截取也带；同范围绑回原音频则不带（规格 11 §11.4）。
 
 同名只记一行：本地 ＞ 原片 ＞ 区段 ＞ 自动（本地优先，04 §4.2.9）；计数按采样计（R8.6）。
 
@@ -35,7 +36,7 @@ _PRIORITY = {"local": 0, "source": 1, "segment": 2, "auto": 3}
 def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, str | None]]:
     """一个采样的有效标签：[(tag, provenance, provenance_ref)]，按标签排序。"""
     s = conn.execute(
-        'SELECT s.id, s.start, s."end", s.tag_judge_start, s.tag_judge_end, s.asset_id, a.mapping, a.source_id,'
+        'SELECT s.id, s.start, s."end", s.tag_judge_start, s.tag_judge_end, s.asset_id, a.mapping, a.source_id, a.origin, a.production,'
         " src.work, src.source_type, src.current_subtitle_version_id"
         " FROM sample s JOIN sound_asset a ON a.id=s.asset_id JOIN source src ON src.id=a.source_id WHERE s.id=?",
         (sample_id,),
@@ -73,6 +74,10 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
         " AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)",
         (s["source_id"], s["current_subtitle_version_id"]),
     )
+    if s["origin"] == "flatten" and s["production"]:
+        name = (loads(s["production"]).get("target") or {}).get("name")
+        if name:
+            add(f"pitch:{name}", "auto", s["asset_id"])
     for r in rows:
         if r["scope"] == "asset":
             if r["scope_asset_id"] != s["asset_id"] or not overlaps(s["start"], s["end"], r["start"], r["end"]):
