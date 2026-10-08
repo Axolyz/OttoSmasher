@@ -43,3 +43,21 @@
 .inline { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .form { display: grid; grid-template-columns: 56px 1fr; gap: 10px 12px; align-items: center; }
 .formLabel { color: var(--sub); font-size: var(--fs-sm); }
+/* 舞台的声音与语音（阶段 4.6；UI_PLAN §3、§3.1） */
+.waveHead { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.grow { flex: 1; }
+.waveBox { height: 200px; min-width: 0; display: flex; }
+.waveBox > * { flex: 1; min-width: 0; }
+.selLine { display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: var(--fs-sm); }
+.okText { color: var(--ok); font-size: var(--fs-xs); }
+.badText { color: var(--bad); font-size: var(--fs-xs); }
+.mutedText { color: var(--muted); font-size: var(--fs-xs); }
+.hintText { color: var(--sub); font-size: var(--fs-sm); }
+.moras { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.mora { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.kana { font-family: var(--font-ja); font-size: var(--fs-md); color: var(--text); min-height: 1.2em; }
+.phs { display: flex; gap: 2px; }
+.provide { display: flex; flex-direction: column; gap: 6px; }
+.provideRow { display: flex; gap: 8px; }
+.provideRow > :first-child { flex: 1; min-width: 0; }
+.textLine { display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-sm); flex-wrap: wrap; }

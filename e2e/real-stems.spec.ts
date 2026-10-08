@@ -53,8 +53,8 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   await page.keyboard.press("Meta+2");
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 60000 });
-  const tl = page.getByTestId("timeline");
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 60000 });
+  const tl = page.getByTestId("source-viewer").getByTestId("timeline");
   const box = (await tl.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.33, box.y + box.height / 2);
   await page.mouse.down();

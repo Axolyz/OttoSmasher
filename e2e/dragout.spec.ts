@@ -29,8 +29,8 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   }, wav);
   await page.getByTestId("source-group").first().click();
   await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).click();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
-  const tl = (await page.getByTestId("timeline").boundingBox())!;
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  const tl = (await page.getByTestId("source-viewer").getByTestId("timeline").boundingBox())!;
   const y = tl.y + tl.height / 2;
   await page.mouse.move(tl.x + tl.width * 0.25, y);
   await page.mouse.down();

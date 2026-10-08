@@ -172,3 +172,26 @@ def test_results_table_and_counts(core):
     assert core.speech.analyzed_counts()[core.sid] == {"speech": 2, "analyzed": 1}
     prep = core.dispatch({"id": 1, "m": "sources.prep", "p": {"id": core.sid}})
     assert prep["ok"] and prep["r"]["speech"] == {"ok": False, "speech": 2, "analyzed": 1}
+
+
+def test_sample_view_and_asset_layer(core):
+    s1 = sample(core, 1.0, 2.0, snapshot={"alignText": "あ"})
+    v = core.speech.sample_view(s1)
+    assert v["head"] is None and v["text"] == "あ" and v["runs"] == []
+    _fake_run(core, [s1])
+    v = core.speech.sample_view(s1)
+    assert v["head"]["status"] == "ok" and v["head"]["result"]["phones"][0]["label"] == "a" and len(v["runs"]) == 1
+    layer = core.speech.for_asset(core.aid, 0.0, 20.0)
+    assert [x["sampleId"] for x in layer] == [s1] and layer[0]["phones"][0]["start"] == 1.0
+    assert core.speech.for_asset(core.aid, 5.0, 20.0) == []
+    # 文件指纹不同（记录里的快照对不上）→ 不显示（R11.10）
+    rid = v["head"]["runId"]
+    inp = json.loads(core.conn.execute("SELECT inputs FROM measure_run WHERE id=?", (rid,)).fetchone()[0])
+    inp["audio"]["snapshot"]["size"] = 1
+    core.conn.execute("UPDATE measure_run SET inputs=? WHERE id=?", (json.dumps(inp), rid))
+    assert core.speech.for_asset(core.aid, 0.0, 20.0) == []
+    # 读取没有副作用
+    n = core.conn.total_changes
+    core.speech.sample_view(s1)
+    core.speech.for_asset(core.aid, 0.0, 20.0)
+    assert core.conn.total_changes == n

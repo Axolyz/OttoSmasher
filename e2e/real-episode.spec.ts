@@ -26,7 +26,7 @@ test("真实素材 YY2-07：登记、波形、范围截停、导出", async () =
   // 两条都是日语 → 默认分析音轨是第一条；下拉里有两条
   await expect(page.getByTestId("source-viewer").getByRole("button", { name: /第 1 条音轨 · jpn/ })).toBeVisible();
   await expect(page.getByTestId("source-row").first()).toContainText("2 条音轨");
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 20000 });
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 20000 });
 
   // 原片播放器：真实 HEVC 上的范围截停（静音输出）
   await page.evaluate(() => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
-import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, Segmented, StepsBar } from "../components/Controls";
+import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, Segmented, StepsBar, Token } from "../components/Controls";
 import { NumberField, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
@@ -250,6 +250,14 @@ export function Specimen() {
       <section>
         <h4>{t("specimen.textArea")}</h4>
         <TextArea value={area} onChange={setArea} label={t("specimen.textArea")} rows={3} mono tabInserts placeholder={t("dict.placeholder")} testId="specimen-textarea" />
+      </section>
+      <section>
+        <h4>{t("specimen.tokens")}</h4>
+        <div style={{ display: "flex", gap: 4 }}>
+          {["k", "a", "N", "pau"].map((x, i) => (
+            <Token key={x} label={x} strong={x === "a" || x === "N"} selected={i === 1} />
+          ))}
+        </div>
       </section>
       <section>
         <h4>{t("specimen.list")}</h4>

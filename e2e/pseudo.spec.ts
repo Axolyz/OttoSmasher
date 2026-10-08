@@ -52,8 +52,8 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("nav-sources").click();
   await page.getByTestId("source-group").first().click();
   await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).click();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
-  const tl = (await page.getByTestId("timeline").boundingBox())!;
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  const tl = (await page.getByTestId("source-viewer").getByTestId("timeline").boundingBox())!;
   await page.mouse.move(tl.x + tl.width * 0.2, tl.y + tl.height / 2);
   await page.mouse.down();
   await page.mouse.move(tl.x + tl.width * 0.4, tl.y + tl.height / 2, { steps: 5 });

@@ -15,6 +15,12 @@ export interface AddResult {
   work?: string | null;
 }
 
+export interface AlignedPhone {
+  end: number;
+  label: string;
+  start: number;
+}
+
 export interface AnnotationList {
   annotations: AnnotationRow[];
   derived: DerivedSample[];
@@ -35,6 +41,13 @@ export interface AnnotationRow {
   tags: string[];
   text: string;
   version: number;
+}
+
+export interface AssetAlignment {
+  manual: boolean;
+  phones: AlignedPhone[];
+  runId: string;
+  sampleId: string;
 }
 
 export interface AssetHandle {
@@ -839,6 +852,30 @@ export interface SpeechBlocked {
   reason: string;
 }
 
+export interface SpeechHead {
+  createdAt: string;
+  manual: boolean;
+  result: SpeechResult | null;
+  runId: string;
+  status: string;
+  text: string | null;
+  textSource: string | null;
+  version: number;
+  window: number[] | null;
+}
+
+/** 一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。 */
+export interface SpeechPhone {
+  eff?: number[];
+  end: number;
+  label: string;
+  mora: number | null;
+  orig?: string;
+  start: number;
+  strength?: number;
+  word: number | null;
+}
+
 export interface SpeechPlanParams {
   entry: "samples" | "source";
   ids: string[];
@@ -855,6 +892,16 @@ export interface SpeechPreview {
   run: number;
 }
 
+export interface SpeechResult {
+  aligner?: Record<string, unknown>;
+  derived?: Record<string, unknown>;
+  frontend: Record<string, unknown>;
+  morae: string[];
+  phones: SpeechPhone[];
+  window?: number[];
+  words: SpeechWord[];
+}
+
 export interface SpeechResultRow {
   deleted: boolean;
   error: ErrorWire | null;
@@ -862,6 +909,33 @@ export interface SpeechResultRow {
   name: string | null;
   sampleId: string;
   status: "failed" | "ok" | "queued" | "skipped";
+}
+
+export interface SpeechRun {
+  createdAt: string;
+  error: ErrorWire | null;
+  id: string;
+  manual: boolean;
+  status: "cancelled" | "failed" | "ok" | "stale";
+  text: string | null;
+}
+
+export interface SpeechSampleView {
+  head: SpeechHead | null;
+  reason: string | null;
+  runs: SpeechRun[];
+  sampleId: string;
+  text: string | null;
+  textSource: string | null;
+}
+
+export interface SpeechWord {
+  end: number | null;
+  mapped: boolean;
+  moraStart: number;
+  reading: string;
+  start: number | null;
+  text: string;
 }
 
 export interface StemRegistered {
@@ -1282,10 +1356,14 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Create one full-length sample per source on its default track. */
   "sources.wholeSamples": { params: WholeSamplesParams; result: SampleIds; effect: "write" };
+  /** Current alignments of all samples on an asset range (same physical audio only). */
+  "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
   /** What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons. */
   "speech.preview": { params: SpeechPlanParams; result: SpeechPreview; effect: "read" };
   /** Per-item results of a speech analysis job. */
   "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
+  /** Speech analysis of one sample: alignment text, current head with phonemes, all versions. */
+  "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
   /** Queue a speech analysis job (inputs frozen now; one process for all items). */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */

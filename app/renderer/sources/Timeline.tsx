@@ -18,7 +18,7 @@ export interface LayerBand {
   b: number;
   label: string;
   /** 颜色：台词 / 音效 / OP·ED / 区段 / 派生采样 */
-  tone: "line" | "sfx" | "oped" | "seg" | "derived";
+  tone: "line" | "sfx" | "oped" | "seg" | "derived" | "vowel" | "consonant" | "pause";
   /** 派生轨：采样 ID */
   id?: string;
 }
@@ -26,6 +26,13 @@ export interface Layer {
   id: string;
   label: string;
   bands: LayerBand[];
+}
+
+/** 叠在波形上的曲线（F0）：第 i 个值在 t0 + i × step（原片秒）；NaN = 不画（不可靠帧） */
+export interface Curve {
+  t0: number;
+  step: number;
+  values: Float32Array;
 }
 
 export interface Sel {
@@ -106,6 +113,8 @@ export const Timeline = forwardRef<
     onDragOut?: (sel: Sel) => Promise<string[]>;
     /** 覆盖层（UI_PLAN §3.1：只有一个，盖住整个波形高度；Shift 吸附只对它生效） */
     overlay?: Layer | null;
+    /** F0 曲线（金色，对数刻度，按视口里的可见值自动缩放） */
+    curve?: Curve | null;
     /** 其他图层：波形下方各一条车道；单击 = 选中那个区间，悬停投影到波形，双击 = 换成覆盖层 */
     lanes?: Layer[];
     onLaneDoubleClick?: (id: string) => void;
@@ -302,7 +311,10 @@ export const Timeline = forwardRef<
     }
     if (useDetail) drawPeaks(ctx, detail, v0, v1, size.w, waveTop, waveH, d0, d1);
     // 覆盖层：半透明色带盖住整个波形高度，边界线，标签贴底
-    const toneColor = (tone: LayerBand["tone"]) => cssVar(tone === "sfx" ? "--nat-unpitched" : tone === "oped" ? "--warn" : tone === "seg" ? "--nat-pitched" : tone === "derived" ? "--accent" : "--nat-speech");
+    const toneColor = (tone: LayerBand["tone"]) =>
+      cssVar(
+        tone === "sfx" ? "--nat-unpitched" : tone === "oped" ? "--warn" : tone === "seg" ? "--nat-pitched" : tone === "derived" ? "--accent" : tone === "consonant" ? "--sub" : tone === "pause" ? "--faint" : "--nat-speech",
+      );
     const X = (tt: number) => ((tt - v0) / span) * size.w;
     for (const band of props.overlay?.bands ?? []) {
       if (band.b < v0 || band.a > v1) continue;
@@ -315,15 +327,52 @@ export const Timeline = forwardRef<
       ctx.fillRect(Math.round(xa), waveTop, 1, waveH);
       ctx.fillRect(Math.round(xb), waveTop, 1, waveH);
       ctx.globalAlpha = 1;
-      if (xb - xa > 28) {
+      ctx.font = `11px ${cssVar("--font-ja")}`;
+      const tw = ctx.measureText(band.label).width;
+      if (xb - xa > tw + 6) {
         ctx.save();
         ctx.beginPath();
         ctx.rect(xa + 2, waveTop, xb - xa - 4, waveH);
         ctx.clip();
         ctx.fillStyle = cssVar("--text");
-        ctx.font = `11px ${cssVar("--font-ja")}`;
-        ctx.fillText(band.label, xa + 4, waveTop + waveH - 5);
+        ctx.fillText(band.label, xa + Math.max(3, (xb - xa - tw) / 2), waveTop + waveH - 5);
         ctx.restore();
+      }
+    }
+    // F0 曲线：可见范围内可靠值的对数刻度（上下各留 15%）
+    const cv = props.curve;
+    if (cv && cv.values.length) {
+      const i0 = Math.max(0, Math.floor((v0 - cv.t0) / cv.step));
+      const i1 = Math.min(cv.values.length - 1, Math.ceil((v1 - cv.t0) / cv.step));
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = i0; i <= i1; i++) {
+        const v = cv.values[i]!;
+        if (Number.isFinite(v) && v > 0) {
+          lo = Math.min(lo, Math.log2(v));
+          hi = Math.max(hi, Math.log2(v));
+        }
+      }
+      if (Number.isFinite(lo)) {
+        const pad = Math.max(0.25, (hi - lo) * 0.15);
+        const Y = (v: number) => waveTop + waveH - ((Math.log2(v) - (lo - pad)) / (hi - lo + 2 * pad)) * waveH;
+        ctx.strokeStyle = cssVar("--gold");
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let pen = false;
+        for (let i = i0; i <= i1; i++) {
+          const v = cv.values[i]!;
+          if (!(Number.isFinite(v) && v > 0)) {
+            pen = false;
+            continue;
+          }
+          const x = X(cv.t0 + i * cv.step);
+          if (pen) ctx.lineTo(x, Y(v));
+          else ctx.moveTo(x, Y(v));
+          pen = true;
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
       }
     }
     // 编辑模式：可拖的边界画成把手，正在编辑的那条描边
@@ -396,7 +445,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.lanes, props.editing, props.editFocus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {

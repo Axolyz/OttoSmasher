@@ -249,3 +249,21 @@ export function RadioList(props: { value: string | null; onChange: (v: string) =
     </RadioGroup>
   );
 }
+
+/** 小记号按钮（音素、音块等一串可单击的短标签；UI_PLAN §3 语音面板）。``strong`` = 强调色（元音、核心） */
+export function Token(props: { label: string; onPress?: () => void; strong?: boolean; selected?: boolean; title?: string; lang?: string; testId?: string }) {
+  return (
+    <RacButton
+      className={s.token}
+      data-strong={props.strong || undefined}
+      data-selected={props.selected || undefined}
+      onPress={props.onPress}
+      aria-label={props.title ? `${props.label} ${props.title}` : props.label}
+      data-testid={props.testId}
+    >
+      <span lang={props.lang} title={props.title} data-user-data="">
+        {props.label}
+      </span>
+    </RacButton>
+  );
+}

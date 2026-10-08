@@ -1247,3 +1247,79 @@ class F0Frames(TypedDict):
     confidence: bytes
     energy: bytes
     measured: int
+
+
+class SpeechPhone(TypedDict):
+    """一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。"""
+
+    label: str
+    start: float
+    end: float
+    mora: int | None
+    word: int | None
+    orig: NotRequired[str]
+    eff: NotRequired[list[float]]
+    strength: NotRequired[float]
+
+
+class SpeechWord(TypedDict):
+    text: str
+    start: int | None
+    end: int | None
+    reading: str
+    mapped: bool
+    moraStart: int
+
+
+class SpeechResult(TypedDict):
+    phones: list[SpeechPhone]
+    morae: list[str]
+    words: list[SpeechWord]
+    frontend: dict[str, Any]
+    aligner: NotRequired[dict[str, Any]]
+    derived: NotRequired[dict[str, Any]]
+    window: NotRequired[list[float]]
+
+
+class SpeechHead(TypedDict):
+    runId: str
+    version: int
+    status: str
+    manual: bool
+    createdAt: str
+    text: str | None
+    textSource: str | None
+    window: list[float] | None
+    result: SpeechResult | None
+
+
+class SpeechRun(TypedDict):
+    id: str
+    status: Literal["ok", "failed", "cancelled", "stale"]
+    manual: bool
+    createdAt: str
+    error: ErrorWire | None
+    text: str | None
+
+
+class SpeechSampleView(TypedDict):
+    sampleId: str
+    # 当前会用的对齐文本（没有时给 reason：no-text / range-differs）
+    text: str | None
+    textSource: str | None
+    reason: str | None
+    head: SpeechHead | None
+    runs: list[SpeechRun]
+
+
+class AlignedPhone(TypedDict):
+    label: str
+    start: float
+    end: float
+
+
+class AssetAlignment(TypedDict):
+    sampleId: str
+    runId: str
+    manual: bool
+    phones: list[AlignedPhone]

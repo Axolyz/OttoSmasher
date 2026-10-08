@@ -698,6 +698,20 @@
    }
   },
   {
+   "name": "speech.forAsset",
+   "effect": "read",
+   "summary": "Current alignments of all samples on an asset range (same physical audio only).",
+   "params": {
+    "$ref": "#/$defs/AssetRangeParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AssetAlignment"
+    }
+   }
+  },
+  {
    "name": "speech.preview",
    "effect": "read",
    "summary": "What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons.",
@@ -720,6 +734,17 @@
     "items": {
      "$ref": "#/$defs/SpeechResultRow"
     }
+   }
+  },
+  {
+   "name": "speech.sample",
+   "effect": "read",
+   "summary": "Speech analysis of one sample: alignment text, current head with phonemes, all versions.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeechSampleView"
    }
   },
   {
@@ -1807,6 +1832,26 @@
     "path"
    ]
   },
+  "AlignedPhone": {
+   "title": "AlignedPhone",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "start"
+   ]
+  },
   "AnnotationList": {
    "title": "AnnotationList",
    "type": "object",
@@ -1929,6 +1974,33 @@
     "tags",
     "text",
     "version"
+   ]
+  },
+  "AssetAlignment": {
+   "title": "AssetAlignment",
+   "type": "object",
+   "properties": {
+    "manual": {
+     "type": "boolean"
+    },
+    "phones": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignedPhone"
+     }
+    },
+    "runId": {
+     "type": "string"
+    },
+    "sampleId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "manual",
+    "phones",
+    "runId",
+    "sampleId"
    ]
   },
   "AssetHandle": {
@@ -5684,6 +5756,136 @@
     "reason"
    ]
   },
+  "SpeechHead": {
+   "title": "SpeechHead",
+   "type": "object",
+   "properties": {
+    "createdAt": {
+     "type": "string"
+    },
+    "manual": {
+     "type": "boolean"
+    },
+    "result": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechResult"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "runId": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "textSource": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "version": {
+     "type": "integer"
+    },
+    "window": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "createdAt",
+    "manual",
+    "result",
+    "runId",
+    "status",
+    "text",
+    "textSource",
+    "version",
+    "window"
+   ]
+  },
+  "SpeechPhone": {
+   "title": "SpeechPhone",
+   "description": "一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。",
+   "type": "object",
+   "properties": {
+    "eff": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "orig": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "strength": {
+     "type": "number"
+    },
+    "word": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "mora",
+    "start",
+    "word"
+   ]
+  },
   "SpeechPlanParams": {
    "title": "SpeechPlanParams",
    "type": "object",
@@ -5745,6 +5947,51 @@
     "run"
    ]
   },
+  "SpeechResult": {
+   "title": "SpeechResult",
+   "type": "object",
+   "properties": {
+    "aligner": {
+     "type": "object"
+    },
+    "derived": {
+     "type": "object"
+    },
+    "frontend": {
+     "type": "object"
+    },
+    "morae": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "phones": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechPhone"
+     }
+    },
+    "window": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
+    "words": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechWord"
+     }
+    }
+   },
+   "required": [
+    "frontend",
+    "morae",
+    "phones",
+    "words"
+   ]
+  },
   "SpeechResultRow": {
    "title": "SpeechResultRow",
    "type": "object",
@@ -5794,6 +6041,166 @@
     "name",
     "sampleId",
     "status"
+   ]
+  },
+  "SpeechRun": {
+   "title": "SpeechRun",
+   "type": "object",
+   "properties": {
+    "createdAt": {
+     "type": "string"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "manual": {
+     "type": "boolean"
+    },
+    "status": {
+     "enum": [
+      "cancelled",
+      "failed",
+      "ok",
+      "stale"
+     ]
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "createdAt",
+    "error",
+    "id",
+    "manual",
+    "status",
+    "text"
+   ]
+  },
+  "SpeechSampleView": {
+   "title": "SpeechSampleView",
+   "type": "object",
+   "properties": {
+    "head": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechHead"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "runs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechRun"
+     }
+    },
+    "sampleId": {
+     "type": "string"
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "textSource": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "head",
+    "reason",
+    "runs",
+    "sampleId",
+    "text",
+    "textSource"
+   ]
+  },
+  "SpeechWord": {
+   "title": "SpeechWord",
+   "type": "object",
+   "properties": {
+    "end": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mapped": {
+     "type": "boolean"
+    },
+    "moraStart": {
+     "type": "integer"
+    },
+    "reading": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "mapped",
+    "moraStart",
+    "reading",
+    "start",
+    "text"
    ]
   },
   "StemRegistered": {

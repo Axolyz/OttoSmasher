@@ -33,10 +33,10 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await expect(viewer).toContainText("第 2 条音轨 · jpn"); // 默认分析音轨 = 日语那条
 
   // 波形生成后状态提示消失
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
 
   // 拖出选区（20% → 40% ≈ 1.6–3.2 秒）
-  const tl = page.getByTestId("timeline");
+  const tl = page.getByTestId("source-viewer").getByTestId("timeline");
   const box = (await tl.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width * 0.2, y);

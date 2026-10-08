@@ -28,6 +28,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
 import s from "./Library.module.css";
+import { StageSpeech } from "./StageSpeech";
 
 const PAGE = 100;
 
@@ -176,15 +177,32 @@ export function LibraryPage() {
     void call("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
   }, [focus, data]);
 
-  // 试听状态
+  // 试听状态；舞台波形的播放头 = 试听区间起点 + 区间本地秒（资产局部秒）
+  const auditionFrom = useRef(0);
+  const auditionAt = useRef<number | null>(null);
   useEffect(
     () =>
       window.otto.player.onState((st: PlayerState) => {
         if (st.player !== "audition" || st.gen !== auditionGen.current) return;
-        if (st.ended || st.error) setPlaying(null);
+        auditionAt.current = st.time == null ? null : auditionFrom.current + st.time;
+        if (st.ended || st.error) {
+          setPlaying(null);
+          auditionAt.current = null;
+        }
       }),
     [],
   );
+  /** 在舞台波形上播放资产的一段（双击处、选区） */
+  const playRange = async (r: SampleRow, a: number, b: number) => {
+    try {
+      setPlaying(r.id);
+      auditionFrom.current = a;
+      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b);
+    } catch (e) {
+      setPlaying(null);
+      toast({ text: errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
+    }
+  };
 
   const rows = data?.rows ?? [];
   const audition = async (r: SampleRow) => {
@@ -195,6 +213,7 @@ export function LibraryPage() {
     }
     try {
       setPlaying(r.id);
+      auditionFrom.current = r.start;
       auditionGen.current = await window.otto.player.audition(r.asset_id, r.start, r.end);
     } catch (e) {
       setPlaying(null);
@@ -525,6 +544,7 @@ export function LibraryPage() {
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
             </Button>
           </div>
+          <StageSpeech sample={focusRow} playhead={() => (playing === focusRow.id ? auditionAt.current : null)} playing={playing === focusRow.id} onPlayRange={(a, b) => void playRange(focusRow, a, b)} />
           <section className={s.card}>
             <h3 className={s.cardTitle}>{t("library.info")}</h3>
             <div className={s.field}>

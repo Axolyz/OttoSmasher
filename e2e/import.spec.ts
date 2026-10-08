@@ -55,7 +55,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await expect(page.getByTestId("bound-picture")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("transcript")).toBeVisible();
   await expect(page.getByTestId("prep")).toBeVisible();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
   await page.screenshot({ path: ".cache/playwright-results/import-audio-viewer.png" });
   // 导入的视频：照常播放画面
   await page.getByTestId("source-row").filter({ hasText: "clip.mp4" }).click();

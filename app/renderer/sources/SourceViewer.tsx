@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { AssetInfo, DerivedSample, EditOp, SourceDetail, SourceRow } from "../api/types";
+import type { AssetAlignment, AssetInfo, DerivedSample, EditOp, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
@@ -28,11 +28,12 @@ import { boundaries, limits, moveBoundary } from "./bounds";
 import { type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "./Timeline";
 import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
 
-type LayerId = "sub" | "seg" | "none";
-type LaneId = "sub" | "seg" | "derived";
+type LayerId = "sub" | "seg" | "ph" | "none";
+type LaneId = "sub" | "seg" | "ph" | "derived";
 type Derived = DerivedSample;
 const DERIVED_MENU_MAX = 40;
-const LAYER_IDS: LayerId[] = ["sub", "seg", "none"];
+const LAYER_IDS: LayerId[] = ["sub", "seg", "ph", "none"];
+const VOWEL_LABELS = new Set(["a", "i", "u", "e", "o", "N", "cl"]);
 const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
   const n = new Set(x);
   if (on) n.add(v);
@@ -111,8 +112,24 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   // 只按内容调整（所有者 2026-10-07：原片只有一种）：没有视频又没有字幕时上面一行缩矮
   const compact = !hasVideo && noSubtitles(row);
   const [overlayId, setOverlayId] = useState<LayerId>("sub");
-  const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "derived"]));
+  const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "ph", "derived"]));
+  // 音素层（08 §8.8）：当前音源资产上所有采样的当前对齐结果（同一物理声音；多句同时显示），资产局部秒 + offset = 原片秒
+  const [aligned, setAligned] = useState<AssetAlignment[]>([]);
+  const phOffset = useRef(0);
   const layer = (id: LaneId): Layer => {
+    if (id === "ph")
+      return {
+        id,
+        label: t("layers.ph"),
+        bands: aligned.flatMap((r) =>
+          r.phones.map((p) => ({
+            a: p.start + phOffset.current,
+            b: p.end + phOffset.current,
+            label: p.label,
+            tone: p.label === "pau" ? ("pause" as const) : VOWEL_LABELS.has(p.label) ? ("vowel" as const) : ("consonant" as const),
+          })),
+        ),
+      };
     // 派生轨（03 §3.9、R7.6）：该原片的所有用户采样，按原片时间；单击打开（跳到采样库），重叠时弹出选择菜单
     if (id === "derived")
       return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id })) };
@@ -151,8 +168,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   // 短音频原片没有字幕：只有派生采样车道
   const baseOverlay = overlayId === "none" ? null : layer(overlayId);
   const overlay = baseOverlay && editBands ? { ...baseOverlay, bands: editBands } : baseOverlay;
-  const lanes = (["sub", "seg", "derived"] as const)
-    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0))
+  const lanes = (["sub", "seg", "ph", "derived"] as const)
+    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0) && (id !== "ph" || aligned.length > 0))
     .map(layer);
 
   const startEdit = () => {
@@ -250,6 +267,18 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const asset = useMemo(() => assets.find((a) => a.id === assetSel) ?? mainAsset, [assets, assetSel, mainAsset]);
   // 原片秒 = 局部秒 + offset（只列未变速的资产）
   const offset = asset ? (hangOffset(asset.mapping) ?? 0) : 0;
+  phOffset.current = offset;
+  useEffect(() => {
+    if (!asset) return setAligned([]);
+    let live = true;
+    void call("speech.forAsset", { assetId: asset.id, start: 0, end: asset.duration }).then(
+      (r) => live && setAligned(r),
+      () => live && setAligned([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [asset?.id, annNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 播放器：打开原片（换音源时只换音轨 / 外挂声部，选区保留）
   useEffect(() => {
@@ -530,7 +559,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             options={sourceOptions.map((a) => ({ id: a.id, label: assetLabel(a) }))}
           />
           <span className={s.grow} />
-          <Button size="sm" variant="flat" icon={<Pencil />} isDisabled={!baseOverlay || editing} onPress={startEdit} data-testid="edit-bounds">
+          <Button size="sm" variant="flat" icon={<Pencil />} isDisabled={!baseOverlay || editing || overlayId === "ph"} onPress={startEdit} data-testid="edit-bounds">
             {baseOverlay ? t("edit.button", { layer: t(`layers.${overlayId}`) }) : t("edit.buttonNone")}
           </Button>
           <Button size="sm" variant="flat" onPress={() => tl.current?.fit()} title={t("sources.fitTip")}>
@@ -605,7 +634,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             options={LAYER_IDS.map((id) => ({ id, label: t(`layers.${id}`) }))}
           />
           <span className={s.groupLabel}>{t("layers.lanes")}</span>
-          {(["sub", "seg", "derived"] as const).map((id) => (
+          {(["sub", "seg", "ph", "derived"] as const).map((id) => (
             <Checkbox key={id} isSelected={laneIds.has(id)} isDisabled={overlayId === (id as LayerId)} onChange={(on) => setLaneIds((x) => toggleSet(x, id, on))} label={t(`layers.${id}`)}>
               {t(`layers.${id}`)}
             </Checkbox>

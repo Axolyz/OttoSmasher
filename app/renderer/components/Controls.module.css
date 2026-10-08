@@ -86,3 +86,9 @@
 .radioRow[data-selected] .radioDot { border: 4px solid var(--accent); }
 .radioLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radioNote { color: var(--muted); font-size: var(--fs-xs); }
+/* 小记号按钮（音素、音块） */
+.token { font: 12px var(--font-mono); padding: 1px 5px; border-radius: var(--r-sm); border: 1px solid var(--line2); background: var(--s2); color: var(--sub); cursor: default; outline: none; }
+.token[data-strong] { color: var(--nat-speech); border-color: color-mix(in srgb, var(--nat-speech) 40%, transparent); }
+.token[data-hovered] { background: var(--s3); }
+.token[data-selected] { background: var(--sel); border-color: var(--accent); color: var(--text); }
+.token[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: 1px; }

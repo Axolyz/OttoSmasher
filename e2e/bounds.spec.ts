@@ -29,8 +29,8 @@ test("边界编辑、区段标签、歌词、提升本地标签", async () => {
   await page.keyboard.press("Escape");
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
-  const tl = page.getByTestId("timeline");
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  const tl = page.getByTestId("source-viewer").getByTestId("timeline");
   const box = (await tl.boundingBox())!;
   const xOf = async (t: number) => {
     const [v0, v1] = (await tl.getAttribute("data-view"))!.split(",").map(Number) as [number, number];

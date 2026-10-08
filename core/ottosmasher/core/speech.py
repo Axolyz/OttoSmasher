@@ -93,15 +93,26 @@ class SpeechService:
             "tolerance": [float(values["analysis.tolerance_before"]), float(values["analysis.tolerance_after"])],
         }
 
-    def item_for(self, s: sqlite3.Row, ver: dict[str, Any]) -> dict[str, Any]:
+    def _locate(self, asset_id: str, start: float, end: float, memo: dict[str, Any] | None) -> tuple[dict[str, Any], Any, Any, dict[str, Any]]:
+        """资产与存放 [start, end) 的文件窗口；同一次计划里按资产记住（分离资产的定位要探测文件，几百条采样不能每条都探测）。"""
+        hit = memo.get(asset_id) if memo is not None else None
+        if hit is not None and hit[2].covers(start, end):
+            return hit
+        asset = assets_mod.get(self.conn, asset_id)
+        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
+        assets_mod.check_media(media)  # 文件缺失或被改动 → 明确报错（进 K），不回退别的轨
+        out = (asset, ref, win, media)
+        if memo is not None:
+            memo[asset_id] = out
+        return out
+
+    def item_for(self, s: sqlite3.Row, ver: dict[str, Any], memo: dict[str, Any] | None = None) -> dict[str, Any]:
         """一个采样的冻结输入；处理不了抛 CoreError（原因进 K）。"""
         txt = self.text_of(s)
         if txt["text"] is None:
             raise CoreError("speech-blocked", reason=txt["reason"])
-        asset = assets_mod.get(self.conn, s["asset_id"])
         start, end = float(s["start"]), float(s["end"])
-        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
-        assets_mod.check_media(media)  # 文件缺失或被改动 → 明确报错（进 K），不回退别的轨
+        asset, ref, win, media = self._locate(s["asset_id"], start, end, memo)
         snap = media["snapshot"] or {}
         before, after = ver["tolerance"]
         lo = max(0.0, win.local_start)
@@ -172,9 +183,10 @@ class SpeechService:
         fresh: list[dict[str, Any]] = []
         blocked: list[dict[str, Any]] = []
         mix = 0
+        memo: dict[str, Any] = {}
         for r in rows:
             try:
-                it = self.item_for(r, ver)
+                it = self.item_for(r, ver, memo)
             except CoreError as e:
                 blocked.append({"id": r["id"], "name": r["name"], "reason": e.args_.get("reason") if e.code == "speech-blocked" else e.code})
                 continue
@@ -184,17 +196,19 @@ class SpeechService:
                 mix += 1
             head = self._head_row(r["id"])
             it["baseHead"] = head["run_id"] if head else None
-            if head is not None and head["status"] == "ok" and loads(head["inputs"]).get("fingerprint") == it["fingerprint"] and not rerun_fresh:
+            is_fresh = head is not None and head["status"] == "ok" and loads(head["inputs"]).get("fingerprint") == it["fingerprint"]
+            if is_fresh and not rerun_fresh:
                 fresh.append(it)
             else:
-                run.append(it)
+                run.append(it | {"wasFresh": True} if is_fresh else it)
         return {"run": run, "fresh": fresh, "blocked": blocked, "mix": mix, "versions": ver}
 
     def preview(self, entry: str, ids: list[str], rerun_fresh: bool) -> dict[str, Any]:
         p = self.plan(entry, ids, rerun_fresh)
+        fresh_all = sum(1 for it in p["run"] if it.get("wasFresh")) + len(p["fresh"])
         return {
             "run": len(p["run"]), "fresh": len(p["fresh"]), "blocked": len(p["blocked"]),
-            "blockedList": p["blocked"][:BLOCKED_LIST_MAX], "mixBound": p["mix"], "freshAll": len(self.plan(entry, ids, False)["fresh"]) if rerun_fresh else len(p["fresh"]),
+            "blockedList": p["blocked"][:BLOCKED_LIST_MAX], "mixBound": p["mix"], "freshAll": fresh_all,
         }
 
     def submit(self, entry: str, ids: list[str], rerun_fresh: bool) -> dict[str, Any]:
@@ -296,6 +310,7 @@ class SpeechService:
         rows = self.conn.execute("SELECT idx, status, error, result_ref FROM job_item WHERE job_id=? AND status IN ('ok', 'failed')", (job["id"],)).fetchall()
         item_dir = self.jobs.jobs_dir / job["id"] / "items"
         ver_now = self._versions()
+        memo: dict[str, Any] = {}
         cs = ChangeSet()
         ts = now_iso()
         with transaction(self.conn):
@@ -327,7 +342,7 @@ class SpeechService:
                 if head is not None and (head["manual"] or head["run_id"] != it.get("baseHead")):
                     continue  # 人工版本或已被更新：只进历史
                 try:
-                    changed = self.item_for(s, ver_now)["fingerprint"] != it["fingerprint"]
+                    changed = self.item_for(s, ver_now, memo)["fingerprint"] != it["fingerprint"]
                 except CoreError:
                     changed = True
                 if changed:
@@ -350,6 +365,59 @@ class SpeechService:
             )
 
     # ------------------------------------------------------------ 读取（无副作用）
+
+    def sample_view(self, sample_id: str) -> dict[str, Any]:
+        """舞台语音面板：对齐文本现状、当前头（含音素）、同一采样的全部版本（新的在前）。"""
+        s = self.conn.execute(f"SELECT {self._SAMPLE_COLS} FROM sample WHERE id=?", (sample_id,)).fetchone()
+        if s is None:
+            raise CoreError("sample-not-found", id=sample_id)
+        txt = self.text_of(s)
+        runs = self.conn.execute(
+            "SELECT id, status, manual, created_at, inputs, result FROM measure_run WHERE owner_type='sample' AND owner_id=? AND kind=? ORDER BY created_at DESC, rowid DESC",
+            (sample_id, KIND),
+        ).fetchall()
+        head = self._head_row(sample_id)
+        head_obj = None
+        if head is not None:
+            r = next(x for x in runs if x["id"] == head["run_id"])
+            inp = loads(r["inputs"])
+            head_obj = {
+                "runId": r["id"], "version": head["version"], "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
+                "text": inp.get("text"), "textSource": inp.get("textSource"), "window": inp.get("window"), "result": loads(r["result"]) if r["status"] == "ok" else None,
+            }
+        out_runs = []
+        for r in runs:
+            res = loads(r["result"]) if r["result"] else {}
+            out_runs.append({
+                "id": r["id"], "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
+                "error": res.get("error") if r["status"] != "ok" else None, "text": loads(r["inputs"]).get("text"),
+            })
+        return {
+            "sampleId": sample_id, "text": txt["text"], "textSource": txt.get("source"), "reason": txt.get("reason"),
+            "head": head_obj, "runs": out_runs,
+        }
+
+    def for_asset(self, asset_id: str, start: float, end: float) -> list[dict[str, Any]]:
+        """原片视口的音素层（08 §8.8）：这个资产上各采样当前头的成功测量，只取同一物理声音（文件快照一致）的；读取没有副作用。时间：资产局部秒。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        try:
+            _, _, media = assets_mod.locate(self.conn, self.ws.root, asset, max(0.0, start), min(float(asset["duration"]), end))
+            snap = {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}
+        except CoreError:
+            return []
+        rows = self.conn.execute(
+            "SELECT h.owner_id, r.id, r.manual, r.inputs, r.result, r.range_start, r.range_end FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
+            " WHERE h.kind='alignment' AND r.asset_id=? AND r.status='ok' AND r.range_end > ? AND r.range_start < ? ORDER BY r.range_start",
+            (asset_id, start, end),
+        )
+        out = []
+        for r in rows:
+            inp = loads(r["inputs"])
+            if (inp.get("audio") or {}).get("snapshot") != snap:
+                continue  # 文件指纹不同 → 不显示（R11.10）
+            res = loads(r["result"])
+            out.append({"sampleId": r["owner_id"], "runId": r["id"], "manual": bool(r["manual"]), "phones": [{"label": p["label"], "start": p["start"], "end": p["end"]} for p in res["phones"]]})
+        return out
 
     def results(self, job_id: str) -> list[dict[str, Any]]:
         rows = self.conn.execute(

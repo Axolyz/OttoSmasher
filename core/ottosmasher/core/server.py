@@ -207,6 +207,10 @@ class Core:
           lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
         r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
           lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
+        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis of one sample: alignment text, current head with phonemes, all versions.",
+          lambda p: self.speech.sample_view(p["id"]))
+        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Current alignments of all samples on an asset range (same physical audio only).",
+          lambda p: self.speech.for_asset(p["assetId"], float(p["start"]), float(p["end"])))
         r("measure.f0", "read", T.AssetRangeParams, T.F0Frames, "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
           lambda p: self.speech.f0(p["assetId"], float(p["start"]), float(p["end"])))
         r("speech.results", "read", T.JobIdParams, list[T.SpeechResultRow], "Per-item results of a speech analysis job.", lambda p: self.speech.results(p["jobId"]))

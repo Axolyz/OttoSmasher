@@ -17,9 +17,9 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
-  await expect(page.getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
 
-  const tl = page.getByTestId("timeline");
+  const tl = page.getByTestId("source-viewer").getByTestId("timeline");
   const box = (await tl.boundingBox())!;
   const drag = async (fa: number, fb: number) => {
     await page.mouse.move(box.x + box.width * fa, box.y + box.height / 2);
@@ -83,7 +83,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("readout")).toHaveAttribute("data-a", /\d/);
   // 时间线放大到该区间（不是整段）
   await expect.poll(async () => {
-    const v = (await page.getByTestId("timeline").getAttribute("data-view"))!.split(",").map(Number);
+    const v = (await page.getByTestId("source-viewer").getByTestId("timeline").getAttribute("data-view"))!.split(",").map(Number);
     return v[1]! - v[0]!;
   }).toBeLessThan(4);
   // 画面不是黑的：原片页隐藏时加载，切回来后应重画当前帧
