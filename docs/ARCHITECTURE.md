@@ -221,7 +221,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 **文件快照**（取代内容指纹，所有者 2026-10-06）：大小 + 修改时间 + 流签名（各音频/视频流的编解码、采样率、声道、时长）。不读文件内容、不算哈希。
 播放/导出/处理/测量前核对快照，不一致即报“音源已改变”（不替换、不回退；用户可“重新定位”到正确文件）。库内生成文件同样用快照。
-仍然保留的哈希只有两类（都不是媒体内容指纹）：字幕文件内容哈希（规格 06 §6.1 按内容区分字幕版本，文件很小）；模型文件 SHA-256（规格 14 的定型校验与 Studio 模型指纹）。
+仍然保留的哈希只有两类（都不是媒体内容指纹）：字幕文件内容指纹（记在段的来源记录里；字幕版本已取消，所有者 2026-10-09）；模型文件 SHA-256（规格 14 的定型校验与 Studio 模型指纹）。
 
 ### 4.2 声音资产、角色、默认轨
 
@@ -236,30 +236,36 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 映射（`domain.mapping.Mapping`）：控制点 `[(local, source)]` 两列严格递增，首点 local=0、末点 local=资产时长；分段线性；越界报错，不外推不夹取；
 提供 `crop(a,b)`、`compose(child)`、`to_source(t)`、`to_local(t)`；帧/样本舍入允许一帧。**所有时钟换算只走这里**（规格 17 §17.1 #1）。
 
-### 4.3 字幕、标注、OP/ED
+### 4.3 原片上的时间对象：文本层的段、音效提示、区段标签、OP/ED（所有者 2026-10-09【基线变更】，迁移 0012 / 0013）
+
+原片上的四类对象各做一件事（docs/QUESTIONS.md「原片上的四类对象」）：段 = 说了什么（给分析）；音效提示 = 给人工拣选；区段标签 = 时间上的属性；采样 = 哪段有价值。
+字幕导入是一次显式操作、四类一起进（`core/subtitle_import.py`）；**没有字幕版本**：重新导入就是一次批量编辑（新增 / 无变化 / 替换 / 跳过，碰到受保护的段跳过，可逐行强制替换），整次导入一个编辑批次、可撤销。
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `subtitle_version` | id, source_id, content_fingerprint, file_name, language, rules_snapshot, imported_at | 按文件内容区分；同内容再导入只补登 |
-| `subtitle_line` | id, version_id, line_no, start, end, raw_text | 该版本的原始行（内容快照） |
-| `annotation` | id, source_id, kind(`line`/`sfx`/`song`/`tag`), scope(`source`/`role`/`asset`), scope_role, scope_asset_id, start, end（原片秒或资产局部秒，由 scope 决定）, raw_text, clean_text, align_text_auto, align_text_manual, tags[], subtitle_version_id, subtitle_line_id, user_edited, deleted, version | 字幕导入只插入不覆盖（`user_edited` 的不改写）；非当前版本的标注各处不参与 |
-| `annotation_revision` | annotation_id, version, snapshot, edit_id | 每次编辑留版本 |
-| `oped` | id, source_id, kind(OP/ED), start, end, origin(`subtitle_rule`/`manual`), evidence, deleted | 绑定原片 ID（不含路径），重新定位后仍有效 |
+| `text_segment` | id, source_id, start, end（原片秒）, text（= 对齐文本，保留换行）, speakers（JSON 有序名单）, origin(`subtitle`/`typed`), provenance（字幕文件名、指纹、行号、原文、导入时间）, edited, speaker_edited, deleted, version, actor | 每个原片一层，不设作用域；字幕来源与手输同级。**受保护** = edited（改过文本或边界、拆分合并产物、切开后缩短的旧段、手输段）或任一条轨上有人工音素版本；只改说话人记 speaker_edited（只让「按当前规则重新生成说话人」跳过）。段长度上限 120 秒（查询下界）。复合操作在 `core/text_layer.py`：加段（重叠时替换 / 切开 / 取消）、拆分、合并（删旧建新） |
+| `sfx_hint` | id, source_id, start, end, text（括号内容）, origin(`subtitle`/`manual`), provenance, edited, deleted, version | 作用于整个原片、所有轨可见；不对齐、不带标签。手动新增或改过的受保护 |
+| `range_tag` | id, source_id, scope(`source`/`role`/`asset`), scope_role, scope_asset_id, start, end（`asset` 作用域用资产局部秒）, label, tags[], deleted, version | 用户显式画的区段标签（原 `annotation.kind=tag`）；本地标签「提升为区段标签」也建在这里 |
+| `oped` | id, source_id, kind(OP/ED), start, end, origin(`subtitle_rule`/`manual`), evidence, edited, deleted | 规则无错时随字幕导入登记；有错时在导入页逐对确认。人工标记 / 确认、改过边界的受保护 |
+
+说话人是段的属性，经段参与标签继承：只对带人声角色的资产生效（一人 `character:`、多人 `participants:` + `speaker-status:多人未分段`，来源记为“区段”）。
+旧的 `annotation`、`annotation_revision`、`subtitle_version`、`subtitle_line` 与 `sample.align_text_manual`、`source.current_subtitle_version_id` 在 0012 迁成上面几张表后由 0013 删除；
+0012 在编辑历史里插一道“屏障”，撤销不越过它。
 
 ### 4.4 采样
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `sample` | id, asset_id, start, end（资产局部秒，创建后不变）, name, nature(`speech`/`pitched`/`unpitched`/`unclassified`), starred, rating, note, language, created_via, parent_sample_id, parent_label（父被删后保留的来源说明）, origin（预览行、字幕版本、命中、任务等）, text_snapshot（原文、自动对齐文本、原字幕时间）, tag_judge_start/end, align_text_manual, independent(bool), visual_binding_id, version | 显式保存一律新建；删除是硬删除（带确认），固定结果里的成员保留位置并标“已删除” |
+| `sample` | id, asset_id, start, end（资产局部秒，创建后不变）, name, nature(`speech`/`pitched`/`unpitched`/`unclassified`), starred, rating, note, language, created_via(`manual`/`segment`/`hint`/`hit`/`processed`/`import`/`reimport`), parent_sample_id, parent_label（父被删后保留的来源说明）, origin（来源：段 / 提示 / 命中 / 任务等）, text_snapshot（建立时的文本，用于命名与显示，之后不追改）, tag_judge_start/end（**判定区间**，原片秒）, independent(bool), visual_binding_id, version | 采样不拥有分析，只读取。判定区间可见、可编辑，必须在采样范围内（编辑通道的 `judge` 字段用资产局部秒），同时决定标签继承与读哪些段；从段或提示建的 = 段或提示的区间，其余 = 选区（插入时没给就由触发器按映射补成选区）。所有建采样入口是一个动作（`core/sample_plan.py`：`samples.plan` / `samples.createPlanned`，来源 = 选区 / 段 / 提示 / 分离声部 / 整段原片，单条与批量产物相同）。显式保存一律新建；删除是硬删除（带确认），固定结果里的成员保留位置并标“已删除” |
 | `sample_tag` | sample_id, tag | 本地标签（≤512 个/采样） |
-| `sample_effective_tag` | sample_id, tag, facet, provenance(`local`/`source`/`segment`/`auto`), provenance_ref | **派生索引**，不是冻结：由 Core 在同一个写事务里按规则增量维护（标注、角色、原片属性、本地标签、绑定变化都会触发）；语义仍是“实时求值”，测试要求它恒等于完整重算（R8.8） |
+| `sample_effective_tag` | sample_id, tag, facet, provenance(`local`/`source`/`segment`/`auto`), provenance_ref | **派生索引**，不是冻结：由 Core 在同一个写事务里按规则增量维护（段的说话人与边界、区段标签、判定区间、角色、原片属性、本地标签、绑定变化都会触发）；语义仍是“实时求值”，测试要求它恒等于完整重算（R8.8） |
 
 ### 4.5 测量（不是缓存）
 
 | 表 / 文件 | 关键字段 | 说明 |
 |---|---|---|
 | `measure_run` | id, kind(`alignment`/`f0`/`acoustic`), owner_type(`asset_text`/`asset`), owner_id, asset_id, range（目标）, span_start/span_end（首个到末个非停顿音素，迁移 0011）, inputs（语言、文本与来源、句名、辞典版本、前端版本、模型身份与指纹、目标区间、窗口、容差、音频身份、设备）, status(`ok`/`failed`/`cancelled`/`stale`), manual(bool), result（对齐结果；F0 指向文件）, created_at | 不可变版本 |
-| `measure_head` | owner_type, owner_id, kind, run_id, version | 当前采用的版本（version 供人工修正与切换版本的乐观并发）；采纳规则见规格 08 §8.4。**语音测量只属于“声音资产 + 文本单元”（句）**（所有者 2026-10-08【基线变更，细化 D41】，`core/units.py`）：owner_type = `asset_text`，owner_id = `line:<标注>@<资产>`（字幕的一行；目标 = 字幕区间 ± 字幕采样扩展量，裁到资产覆盖）或 `typed:<资产>@<起>-<止>`（手输台词；目标 = 输入时的选区）。不属于任何采样：删采样、改扩展量重建，分析和人工修正都在。采样读取规则：有自己的文本（字幕采样、手输过台词的）→ 只读自己那一句；没有 → 读同一物理声音上音素跨度与范围交叠的句，只读到一部分标 ◐，两句的非停顿音素在范围内交叠 → 节奏不可用（`rhythm-units-conflict`）。几句合成时去掉各句首尾停顿、句间补停顿、mora/词序号依次平移，音素裁到采样范围 |
+| `measure_head` | owner_type, owner_id, kind, run_id, version | 当前采用的版本（version 供人工修正与切换版本的乐观并发）；采纳规则见规格 08 §8.4。**语音测量属于“段 + 具体那条声音资产”**（所有者 2026-10-09【基线变更】，`core/units.py`）：owner_type = `asset_text`，owner_id = `seg:<段>@<资产>`；目标 = 段区间映射到资产、裁到覆盖范围，窗口 = 目标 ± 对齐容差（0.65 秒），只送这段的文本。`measure_run` 另记 seg_start / seg_end / seg_text（分析时段的内容）：**可用** = 成功、内容与段现在一致、文件快照一致；当前头内容不一致时退回到内容一致的最新成功版本（人工优先），所以撤销一次段修改不用重跑就恢复。改段的文本或边界后旧分析立即停用；设置「改段后自动在后台重跑」（默认关）。人工版本保护只在头的内容与段一致时生效。不属于任何采样：删采样，分析和人工修正都在。**采样读取规则只有一条**：读与判定区间正长度交叠的所有段在采样所在资产上的可用分析；任何一段不可用 → 节奏不可用并写明哪段（`rhythm-segments-missing` / `rhythm-segment-stale`）；两段的非停顿音素在采样范围内交叠 → 不可用（`rhythm-units-conflict`，“第 X 段与第 Y 段在 a–b 秒重叠”，X、Y 是读取时按存活段排出的序号）。合成时去掉各段首尾停顿、段间补停顿、mora/词序号依次平移，音素裁到采样范围，被裁掉一部分的非停顿音素标 `clipped`（音素上的 ◐）。列表与舞台标题的 ◐（状态 `partial`）= 采样范围没有盖住读到的某一段（可用版本的目标区间） |
 | `Data/Measurements/f0/<asset_id>/<身份>/` | 每 60 秒一段 `<段号>.npy`（6000×3：F0、置信度、能量，float32 逐帧无损，两侧各 1 秒上下文推理）+ `manifest.json` | 按资产共享；身份 = 文件快照 + 音频流 + 存储窗口 + 映射 + 模型与算法版本（`models/f0store.py`）；只测用到且没测过的段；测量记录 kind=f0、归属 asset（阶段 4.5b） |
 | （音高检索索引） | 阶段 7：完整检索直接读 F0 测量（上一行），不另建 50 ms 摘要；“已索引” = 范围所在的 F0 段都已测 | F0 就是音高检索索引，**不当缓存删**（规格 10 §10.2.5） |
 
@@ -273,7 +279,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 | 表 | 内容 | 失效条件 |
 |---|---|---|
 | `rhythm_cache` | （阶段 7 起合并进 `speech_index`）| 舞台的节奏视图仍在 Core 内存里按身份缓存（`core/rhythm.py`） |
-| `speech_index`（迁移 0008，阶段 7 实现） | 每采样一行：失效键 + msgpack（逐块属性按列：起音、结束、前导辅音开始、首元音、前导辅音、MIDI 中位数、波动、覆盖率、走势、相对音高、相对响度、强度、持续终点、角色、停顿段号、语段号；整句与各语段的占格、停顿、切口、窗口）。由「准备检索索引」任务构建（`jobs/search.py`，只读、进程池并行），采纳时核对失效键 | 失效键全部来自数据库（`core/search_index.py::speech_keys`：采样范围与节奏参数、采样读到的句与版本〔`units.reads_sql`〕、F0 测量头、存储签名与文件快照、台词标注、惩罚度、算法版本）；改名、星标、普通标签不失效（R14.14）；采样删除级联 |
+| `speech_index`（迁移 0008，阶段 7 实现） | 每采样一行：失效键 + msgpack（逐块属性按列：起音、结束、前导辅音开始、首元音、前导辅音、MIDI 中位数、波动、覆盖率、走势、相对音高、相对响度、强度、持续终点、角色（产生该块的那一段的说话人）、停顿段号、语段号；整句与各语段的占格、停顿、切口、窗口）。由「准备检索索引」任务构建（`jobs/search.py`，只读、进程池并行），采纳时核对失效键 | 失效键全部来自数据库（`core/search_index.py::speech_keys`：采样范围、判定区间与节奏参数、读到的段〔区间、文本、说话人〕与各段用的分析版本〔`units.reads_sql`〕、区段标签、F0 测量头、存储签名与文件快照、惩罚度、算法版本）；改名、星标、普通标签不失效（R14.14）；采样删除级联 |
 | `scheme_cache` | 没有落库：检索进程内存里按（采样 + 失效键, 范围, BPM）缓存（3 万条冷启动 S3 2.8 s，不需要） | — |
 | `acoustic_metric`（迁移 0009） | 每采样一行单音指标（JSON）；有效 = 资产、范围、存储签名、算法版本都等于现在的（SQL 里核对，筛选直接分页） | 内容变了失效 |
 | `Data/Cache/` 文件 | 波形峰值金字塔、缩略图、频谱、临时解码 PCM（带租约） | 可清理 |
@@ -304,12 +310,12 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 按所有者选定的形态 (b)（规格 04 §4.8、18 D32/D48）：
 
-0. **语音分析**（所有者 2026-10-08：分析属于句，不属于采样）：独立化时要把采样读到的句（自己那一句或范围内的句）一起保留并在物化后的声音上继续可读（文件快照核对要认物化切片；删原片时这些句的测量不级联删除）。阶段 9 实现（ROADMAP L32）。
+0. **语音分析**（所有者 2026-10-09：分析属于“段 + 资产”，采样只读取）：独立化时要把采样读到的分析（判定区间里的段在这条资产上的可用版本）一起物化到新的音频资产上，在物化后的声音上继续可读（删原片时这些段与测量不级联删除）。阶段 9 实现（ROADMAP L32）。
 1. **声音**：对每个要独立化的采样，把它绑定资产的 `[start, end)`（两端各留 1 帧余量）解码为**无损 WAV 切片**（源是无损时用与源相同位深的整数 PCM；源是 MP3 正式音轨时用 32-bit float，与解码结果逐样本相同）写入
    `Library/Independent/<source-key>/`，作为该资产的 `asset_storage(kind=materialized_slice)`。采样的绑定（资产 + 区间）**不变**，
    所以测量（按资产共享）、固定结果、来源记录都继续有效——测的就是同一段声音（PCM 相同，切片无损正是为此）。
 2. **画面**：按该采样的画面绑定生成视频片段（同步视频取原片对应区间），存入同一目录，作为采样的 `visual_binding(mode=materialized_clip)`。
-3. **原片元数据**：删除原片时，若仍有已独立化的采样，原片记录保留为 `media_state=released`：作品、集数、来源类型、字幕版本与标注、OP/ED、
+3. **原片元数据**：删除原片时，若仍有已独立化的采样，原片记录保留为 `media_state=released`：作品、集数、来源类型、文本层的段、音效提示、区段标签、OP/ED、
    资产角色等都在，标签继承与来源追溯照常工作；原片文件引用置空，未被切片覆盖的资产区间不可播放（明确报错）。
 4. 删除原片时**不删**已独立化的采样及其切片/片段；其他采样、库内整轨、测量按规格 04 §4.5 级联删除（只删库内生成文件，不删磁盘原片与导出）。
 5. 界面区分“已独立化”（采样徽标）与“媒体已释放”（原片徽标）；独立化采样不能再“返回原片”看前后文，界面说明原因。
@@ -423,7 +429,7 @@ class LanguageProfile(Protocol):
     default_subtitle_rules: SubtitleRules        # 默认字幕规则（日语：规格 06 §6.2.1）
 ```
 
-- 语言是**数据属性**：音频流、字幕版本、采样（及对齐文本）、测量输入都记录语言；默认取来源的语言标记或“首选语言”（默认 `ja`）。
+- 语言是**数据属性**：音频流、文本层的段、采样、测量输入都记录语言；默认取来源的语言标记或“首选语言”（默认 `ja`）。
 - 与语言无关、直接复用：FCPE、停顿检测、音块合组的时间规则（以 `core_phonemes` 为参数）、占格推断、卡拍与映射、音高检索、拉平、导出、REAPER。
 - 采样库按语言筛选是交集条件；在只有一种语言时不显示入口（规格 04 §4.9）。
 - 本轮只注册 `ja`；新语言的前端与对齐模型由所有者另行定型。
@@ -452,7 +458,7 @@ class LanguageProfile(Protocol):
 - 所有者 2026-10-08：**完整检索**——每个允许的 10 ms 起点都严格判定（不再 50 ms 粗筛 + 2000 候选），相邻合格起点成组取最好；忽略八度、时长弹性、滑音块。
 - 实现：同一资产上候选区间合并读 F0（`Data/Measurements/f0`，不另建摘要索引），全部声音拼成一条数组；带内可靠帧、距离、能量、缺口用前缀和 O(1) 判每个起点；
   便宜的必要条件（缺口、每块可靠帧数）先筛；忽略八度先用“折叠到一个八度”的下界预筛再逐个八度精判；滑音块逐帧累计；稳定度只对剩下的起点算分位数。
-- 原片音轨模式：整轨测完 F0 的音轨才检索；句首/句尾用台词标注（按映射换成资产秒）。
+- 原片音轨模式：整轨测完 F0 的音轨才检索；句首/句尾用文本层的段（按映射换成资产秒）。
 
 ### 9.4 单音指标
 
@@ -476,7 +482,7 @@ class LanguageProfile(Protocol):
   解码仍用硬件（`hwdec=videotoolbox-copy` / `d3d11va-copy`）。性能不够时改为 GL 渲染到共享纹理（同一接口）。
 - 范围播放：mpv 的 `ab-loop-a/b`（循环）与 `end`（单次）让**引擎**截停；任何普通跳转或播放/暂停先清除范围（规格 05 §5.3.1）。
 - 外挂声部：`audio-files` + `aid` + `audio-delay`（= 原片范围起点 − 资产选区起点），加载期间原音轨静音；不转码不代理（R22.1）。
-- 字幕：mpv 自带字幕关闭（`sid=no`）；当前字幕版本的原文用 HTML 叠加在画面 `<canvas>` 上（纯文本、白字黑边、按画面高度缩放）。
+- 字幕：mpv 自带字幕关闭（`sid=no`）；文本层的段（段文本，与台本、字幕层一致）用 HTML 叠加在画面 `<canvas>` 上（纯文本、白字黑边、按画面高度缩放；右键 = 这段的菜单）。
 - 时钟：状态（播放/暂停/结束/代次）约每 50 ms 推送；**播放头每帧取 `player.position()`**：preload 里保存引擎逐帧推来的最新 time-pos（不节流）加流逝时间，正常播放中不小幅后退（实测 YY2-07-A 4 秒：每帧偏差 P95 7.2 ms、最大 15.7 ms、后退 0 次；旧的 50 ms 外推为 10.9 / 34.5 ms、后退 45 次）。不在每帧同步读 mpv 属性——会等 mpv 内部锁，打开/跳转时卡住页面（实测）。换源时用代次号丢弃旧事件。
 - **波形组件与 mpv 的关系**：波形只做显示与交互（峰值与细节窗样本由 Core 按视口给出，不在浏览器解码音频）；播放全部交给 mpv。
   选区只能拖两端、不能整体拖；刻度、总览条、播放头、音素/字幕/区段车道、F0 金线、命中框都是同一组件的图层。
