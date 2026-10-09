@@ -166,7 +166,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
   - F0：`SpeechService.f0_frames` / `f0_identity` / `record_f0` 可直接用；拉平成品已有 F0 测量。
   - 组件：`RadioList` 有 `stack`（选项卡片）；时间线有 `selectionTone="gold"`、可用 `offset=-a` + `duration=d` 只显示资产的一段（拉平台的输入局部秒）。
 
-### 阶段 7 三大搜索（2026-10-08 完成，等所有者验收；子步骤与验收清单在 STATUS）
+### 阶段 7 三大搜索（所有者 2026-10-09 验收通过；子步骤与验收清单在 STATUS）
 
 - **必读**：规格 09 §9.6–§9.7、10 全部；04 §4.2.10（固定结果）；ARCHITECTURE §9；UI_PLAN §2.1、§2.4、§6.3。
 - **验收**：S3、S5；R14、R15、R16；3 万条 × 3 秒合成库常见查询 30 秒内（规格 15 §15.2）。
