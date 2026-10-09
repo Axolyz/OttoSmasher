@@ -157,6 +157,11 @@ export function SourceList(props: {
                   {r.has_picture ? <span>{t("sources.samePicture")}</span> : !r.has_video ? <span>{t("sources.audioOnly")}</span> : null}
                   {r.audio_streams > 1 ? <span>{t("sources.nTracks", { n: r.audio_streams })}</span> : null}
                   {r.missing ? <span className={s.warn}>{t("sources.fileMissing")}</span> : null}
+                  {r.media_state === "released" ? (
+                    <span className={s.warn} data-testid="source-released">
+                      {t("indep.releasedN", { n: r.independent_samples })}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <span className={s.rowMenu} data-open={rowMenu === r.id || undefined}>

@@ -333,6 +333,8 @@ class SourceRow(TypedDict):
     has_video: bool
     # 原片文件找不到（只看在不在）
     missing: bool
+    # 已独立化的采样数（媒体已释放的原片里就是留下的采样，规格 04 §4.8）
+    independent_samples: int
     counts: SourceCounts | None
 
 
@@ -423,6 +425,9 @@ class DeletePreview(TypedDict):
     rangeTags: int
     oped: int
     activeJobs: list[str]
+    # 删除后：原片保留为“媒体已释放”（有独立化采样时）与留下的采样数
+    released: NotRequired[bool]
+    keptSamples: NotRequired[int]
 
 
 class PrepAsset(TypedDict):
@@ -865,6 +870,8 @@ class SampleRow(TypedDict):
     # 起点的原片秒（映射坏了为 null）
     source_start: float | None
     media_state: str
+    # 已独立化（规格 04 §4.8：声音与画面已物化，删原片后仍可用）
+    independent: bool
     # 人物（说话人显示层：character: 在前，participants: 在后，只显示名字）
     people: list[str]
     # 语音分析（判定区间读到的段）：ok / manual 有人工版本 / partial 有被裁掉一部分的音素（◐）/ stale 段改过待重新分析 / incomplete 有的段还没分析 / failed 只有失败 / none 没有可用分析或没读到段
@@ -2564,3 +2571,20 @@ class ReimportCommitParams(ReimportParams):
     name: NotRequired[str | None]
     nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
     parentSampleId: NotRequired[str | None]
+
+
+class IndependItem(TypedDict):
+    id: str
+    name: str
+    duration: float
+    # 切片大约多大（字节）
+    bytes: int
+    # 要不要生成画面片段（有效画面是原片自带的视频流）
+    picture: bool
+    independent: bool
+
+
+class IndependParams(TypedDict):
+    ids: list[str]
+    # 独立化完成后接着删除这个原片（原片保留为“媒体已释放”）
+    deleteSource: NotRequired[str | None]

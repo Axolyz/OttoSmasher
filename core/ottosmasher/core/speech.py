@@ -189,13 +189,14 @@ class SpeechService:
         sr = ref.sample_rate
         a, b = round(win.to_file(ws_) * sr), round(win.to_file(we_) * sr)
         w0, w1 = win.to_local(a / sr), win.to_local(b / sr)
+        who = assets_mod.measured_as(media, win)  # 独立化切片 = 原存储的同一段声音（L32）
         audio = {
             "asset": asset["id"],
             "mapping": asset["mapping"],
-            "media": media["media_file_id"],
-            "snapshot": {k: snap.get(k) for k in ("size", "mtime_ns")},
-            "ordinal": ref.ordinal,
-            "storage": [win.local_start, win.local_end, win.file_start],
+            "media": who["media"],
+            "snapshot": who["snapshot"],
+            "ordinal": who["ordinal"] if who["ordinal"] is not None else ref.ordinal,
+            "storage": who["storage"],
         }
         fp_inputs = {
             "language": ver["language"], "text": txt["version"], "dictionary": ver["dictionary"], "frontend": ver["frontend"],
@@ -542,10 +543,11 @@ class SpeechService:
         """存放 [start, end) 的那段声音的 F0 测量身份（f0store.identity）；读取与登记（拉平成品）共用。"""
         asset = assets_mod.get(self.conn, asset_id)
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
+        who = assets_mod.measured_as(media, win)  # 独立化切片 = 原存储的同一段声音：F0 测量照常可读（L32）
         audio = {
-            "asset": asset["id"], "mapping": asset["mapping"], "media": media["media_file_id"],
-            "snapshot": {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}, "ordinal": ref.ordinal,
-            "storage": [win.local_start, win.local_end, win.file_start],
+            "asset": asset["id"], "mapping": asset["mapping"], "media": who["media"],
+            "snapshot": who["snapshot"], "ordinal": who["ordinal"] if who["ordinal"] is not None else ref.ordinal,
+            "storage": who["storage"],
         }
         return asset, f0store.identity(audio, self.f0_sha())
 
@@ -665,10 +667,10 @@ class SpeechService:
 
     def _snapshot(self, asset_id: str, start: float, end: float) -> dict[str, Any] | None:
         try:
-            _, _, _, media = self._locate(asset_id, start, end, None)
+            _, _, win, media = self._locate(asset_id, start, end, None)
         except CoreError:
             return None
-        return {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}
+        return assets_mod.measured_as(media, win)["snapshot"]
 
     def _segment_view(self, seg: sqlite3.Row, asset_id: str, ordinal: int, start: float, end: float, snap: dict[str, Any] | None,
                       memo: dict[str, Any]) -> dict[str, Any]:
@@ -770,8 +772,8 @@ class SpeechService:
         """原片视口的音素层（08 §8.8）：这条资产上各段的可用分析（同一物理声音）；读取没有副作用。时间：资产局部秒。"""
         asset = assets_mod.get(self.conn, asset_id)
         try:
-            _, _, media = assets_mod.locate(self.conn, self.ws.root, asset, max(0.0, start), min(float(asset["duration"]), end))
-            snap = {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")}
+            _, win, media = assets_mod.locate(self.conn, self.ws.root, asset, max(0.0, start), min(float(asset["duration"]), end))
+            snap = assets_mod.measured_as(media, win)["snapshot"]
             m = Mapping.of(asset["mapping"])
             a, b = m.to_source(max(0.0, start)), m.to_source(min(float(asset["duration"]), end))
         except CoreError:

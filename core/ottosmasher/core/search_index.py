@@ -271,12 +271,17 @@ def asset_identities(conn: sqlite3.Connection, ranges: dict[str, list[tuple[floa
                 for s in storage.get(a["id"], []):
                     if s["range_start"] - 1e-6 <= rg[0] and rg[1] <= s["range_end"] + 1e-6:
                         snap = loads(s["file_snapshot"]) if s["file_snapshot"] else {}
-                        audio = {
-                            "asset": a["id"], "mapping": loads(a["mapping"]), "media": s["mid"],
-                            "snapshot": {k: snap.get(k) for k in ("size", "mtime_ns")},
-                            "ordinal": a["stream_ordinal"] if a["origin"] == "stream" else 0,
-                            "storage": [s["range_start"], s["range_end"], 0.0],
-                        }
+                        fr = snap.get("from") if s["kind"] == "materialized_slice" else None
+                        if fr:  # 独立化切片 = 原存储的同一段声音（L32）
+                            audio = {"asset": a["id"], "mapping": loads(a["mapping"]), "media": fr["media_file_id"], "snapshot": fr["snapshot"],
+                                     "ordinal": fr["ordinal"], "storage": fr["storage"]}
+                        else:
+                            audio = {
+                                "asset": a["id"], "mapping": loads(a["mapping"]), "media": s["mid"],
+                                "snapshot": {k: snap.get(k) for k in ("size", "mtime_ns")},
+                                "ordinal": a["stream_ordinal"] if a["origin"] == "stream" else 0,
+                                "storage": [s["range_start"], s["range_end"], 0.0],
+                            }
                         ident = f0store.identity(audio, sha)
                         break
                 idents[rg] = ident

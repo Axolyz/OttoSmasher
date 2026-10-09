@@ -38,6 +38,7 @@ import { StageSpeech } from "./StageSpeech";
 import { StageInfo } from "./StageInfo";
 import { StagePicture } from "./StagePicture";
 import { VideoDialog, type VideoRequest } from "./VideoDialog";
+import { IndependDialog } from "./IndependDialog";
 import { VisualDialog, type VisualTarget } from "../sources/VisualDialog";
 import { Composer, type ComposerMode } from "./search/Composer";
 import { HitChips, HitLine } from "./search/HitLine";
@@ -71,7 +72,7 @@ function stubRow(id: string, name: string, assetId: string): SampleRow {
   return {
     id, asset_id: assetId, start: 0, end: 0, duration: 0, name, nature: "unclassified", starred: false, rating: null, language: null, created_via: "manual",
     parent_sample_id: null, parent_label: null, created_at: "", version: 0, source_id: "", asset_origin: "", stream_ordinal: null, work: "", episode: "",
-    source_name: "", source_path: "", source_start: null, media_state: "available", people: [], analysis: "none",
+    source_name: "", source_path: "", source_start: null, media_state: "available", independent: false, people: [], analysis: "none",
   } as SampleRow;
 }
 
@@ -158,6 +159,7 @@ export function LibraryPage() {
   const [batch, setBatch] = useState<{ kind: BatchKind; ids: string[] } | null>(null);
   const [visualFor, setVisualFor] = useState<VisualTarget | null>(null);
   const [videoFor, setVideoFor] = useState<VideoRequest | null>(null);
+  const [independFor, setIndependFor] = useState<string[] | null>(null);
   const [picWide, setPicWide] = useState(false);
   const plusRef = useRef<HTMLInputElement>(null);
   const listBox = useRef<HTMLDivElement>(null);
@@ -839,6 +841,7 @@ export function LibraryPage() {
     { id: "star", label: t("library.starOn"), shortcut: "S", run: () => void edit(ids, { starred: true }, "sample-star") },
     { id: "unstar", label: t("library.starOff"), run: () => void edit(ids, { starred: false }, "sample-star") },
     { id: "edit", label: t("library.editInfo"), run: () => setBatch({ kind: "edit", ids }) },
+    { id: "independ", label: t("indep.menuN", { n: ids.length }), run: () => setIndependFor(ids) },
     "-",
     { id: "speech", label: t("speech.menuN", { n: ids.length }), run: () => requestSpeech({ entry: "samples", ids }) },
     { id: "flatten", label: t("flatten.menuN", { n: ids.length }), run: () => requestFlatten({ kind: "batch", ids }) },
@@ -882,8 +885,9 @@ export function LibraryPage() {
             { id: "star", label: r.starred ? t("library.starOff") : t("library.starOn"), shortcut: "S", run: () => void edit([r.id], { starred: !r.starred }, "sample-star") },
             { id: "edit", label: t("library.editInfo"), run: () => setBatch({ kind: "edit", ids: [r.id] }) },
             { id: "visual", label: t("visual.menu"), run: () => setVisualFor({ ownerType: "sample", id: r.id, name: r.name }) },
+            { id: "independ", label: t("indep.menu"), disabled: r.independent, run: () => setIndependFor([r.id]) },
             "-",
-            { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
+            { id: "back", label: t("library.backToSource"), disabled: r.source_start == null || r.media_state === "released", run: () => backToSource(r) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "samples", ids: [r.id] }) },
             { id: "flatten", label: t("flatten.menu"), run: () => requestFlatten({ kind: "single", assetId: r.asset_id, start: r.start, end: r.end, entry, sampleId: r.id }) },
             "-",
@@ -1124,6 +1128,7 @@ export function LibraryPage() {
                   </span>
                 ) : null}
                 <RowExtra r={r} g={glyphs[r.id]} />
+                {r.independent ? <span className={s.badge}>{t("indep.badge")}</span> : null}
                 {r.people.length ? (
                   <span className={s.who} lang="ja" data-user-data="">
                     {r.people.join(t("settings.subtitle.speakerSep"))}
@@ -1239,9 +1244,19 @@ export function LibraryPage() {
             <span data-user-data="">
               {focusRow.source_name} · {clock(focusRow.source_start)}
             </span>
-            <Button size="sm" variant="flat" icon={<ArrowUpRight />} onPress={() => backToSource(focusRow)} isDisabled={focusRow.source_start == null} data-testid="back-to-source">
+            <Button
+              size="sm"
+              variant="flat"
+              icon={<ArrowUpRight />}
+              onPress={() => backToSource(focusRow)}
+              isDisabled={focusRow.source_start == null || focusRow.media_state === "released"}
+              title={focusRow.media_state === "released" ? t("indep.noBack") : undefined}
+              data-testid="back-to-source"
+            >
               {t("library.backToSource")}
             </Button>
+            {focusRow.independent ? <span className={s.badge} data-testid="stage-independent">{t("indep.badge")}</span> : null}
+            {focusRow.media_state === "released" ? <span className={s.mutedText}>{t("indep.released")}</span> : null}
           </div>
           {/* 标签行（03 §3.6）：有效标签，只有本地的可删；「+」加本地标签；「提升为区段标签…」（R5.6） */}
           <div className={s.tagRowWrap} onPointerDownCapture={(e) => (tagAt.current = { clientX: e.clientX, clientY: e.clientY })}>
@@ -1376,6 +1391,7 @@ export function LibraryPage() {
         />
       </TopSlot>
       <VisualDialog target={visualFor} onClose={() => setVisualFor(null)} />
+      <IndependDialog ids={independFor} onClose={() => setIndependFor(null)} />
       <VideoDialog
         req={videoFor}
         onClose={() => setVideoFor(null)}

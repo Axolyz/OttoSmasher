@@ -1,11 +1,12 @@
 // 原片的两个确认框（UI_PLAN §5）：「作品与输入设置」（规格 05 §5.2，走可撤销编辑通道）与删除原片（写清删什么、不删什么）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { DeletePreview, SourceDetail, SourceRow } from "../api/types";
+import type { DeletePreview, IndependItem, SampleRow, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Select, TextField } from "../components/Fields";
 import { ConfirmDialog } from "../components/Overlay";
-import { basename } from "../format";
+import { PagedTable } from "../components/PagedTable";
+import { basename, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
@@ -137,29 +138,56 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
   const toast = useApp((st) => st.toast);
   const [previews, setPreviews] = useState<DeletePreview[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // 只删一个原片时可以先勾选要独立化的采样（规格 04 §4.8；原型 delSrcModal）
+  const one = props.ids?.length === 1 ? props.rows.find((r) => r.id === props.ids![0]) ?? null : null;
+  const canIndepend = !!one && one.media_state === "available";
+  const [samples, setSamples] = useState<SampleRow[]>([]);
+  const [keep, setKeep] = useState<Set<string>>(new Set());
+  const [q, setQ] = useState("");
+  const [plan, setPlan] = useState<IndependItem[]>([]);
 
   useEffect(() => {
     setPreviews(null);
+    setKeep(new Set());
+    setQ("");
+    setSamples([]);
     if (!props.ids?.length) return;
     void Promise.all(props.ids.map((id) => call("sources.deletePreview", { id })))
       .then(setPreviews)
       .catch((e) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" }));
+    if (props.ids.length === 1) void call("samples.list", { sourceId: props.ids[0], limit: 500, sort: "created" }).then((r) => setSamples(r.rows), () => {});
   }, [props.ids, toast]);
+  // 勾选的采样：切片大小与要不要生成画面片段
+  useEffect(() => {
+    if (!keep.size) return setPlan([]);
+    const id = setTimeout(() => void call("samples.independPlan", { ids: [...keep] }).then(setPlan, () => {}), 150);
+    return () => clearTimeout(id);
+  }, [keep]);
 
   const sum = (k: keyof DeletePreview) => (previews ?? []).reduce((n, p) => n + (p[k] as number), 0);
-  const blocked = (previews ?? []).some((p) => p.activeJobs.length > 0 || p.independentSamples > 0);
+  const blocked = (previews ?? []).some((p) => p.activeJobs.length > 0);
   const names = (props.ids ?? []).map((id) => props.rows.find((r) => r.id === id)).filter(Boolean) as SourceRow[];
+  const released = names.some((r) => r.media_state === "released");
+  const independentBefore = sum("independentSamples");
+  const shown = samples.filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const bytes = plan.reduce((n, x) => n + x.bytes, 0);
 
   const run = async () => {
     if (!props.ids) return;
     setBusy(true);
     const done: string[] = [];
     try {
-      for (const id of props.ids) {
-        await call("sources.delete", { id });
-        done.push(id);
+      if (canIndepend && keep.size) {
+        // 先独立化（任务），完成后接着删除原片（原片保留为“媒体已释放”）
+        await call("samples.independ", { ids: [...keep], deleteSource: props.ids[0] });
+        toast({ text: t("indep.queuedDelete", { n: keep.size }) });
+      } else {
+        for (const id of props.ids) {
+          await call("sources.delete", { id });
+          done.push(id);
+        }
+        toast({ text: t("sources.deleted", { n: done.length }) });
       }
-      toast({ text: t("sources.deleted", { n: done.length }) });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
     } finally {
@@ -172,7 +200,7 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
     <ConfirmDialog
       isOpen={!!props.ids?.length}
       title={names.length === 1 ? t("sources.deleteOne", { name: displayName(names[0]!) }) : t("sources.deleteN", { n: names.length })}
-      confirmLabel={t("sources.delete")}
+      confirmLabel={canIndepend && keep.size ? t("indep.andDelete", { n: keep.size }) : t("sources.delete")}
       danger
       busy={busy}
       confirmDisabled={!previews || blocked}
@@ -184,16 +212,39 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
         <>
           <div>{t("sources.deleteWill")}</div>
           <ul className={s.impact}>
-            <li>{t("sources.deleteSources", { n: previews.length })}</li>
-            <li>{t("sources.deleteSamples", { n: sum("samples") })}</li>
+            <li>{t(released ? "indep.deleteReleased" : "sources.deleteSources", { n: previews.length })}</li>
+            <li>{t("sources.deleteSamples", { n: sum("samples") - (released ? 0 : independentBefore + keep.size) })}</li>
             <li>{t("sources.deleteGenerated", { n: sum("generatedAssets") })}</li>
-            <li>{t("sources.deleteTextLayer", { n: sum("segments"), h: sum("hints"), g: sum("rangeTags"), o: sum("oped") })}</li>
+            {released ? null : <li>{t("sources.deleteTextLayer", { n: sum("segments"), h: sum("hints"), g: sum("rangeTags"), o: sum("oped") })}</li>}
           </ul>
           <div className={s.keep}>{t("sources.deleteKeeps")}</div>
-          {previews.some((p) => p.activeJobs.length) ? <div className={s.warn}>{t("error.source-has-active-jobs")}</div> : null}
-          {previews.some((p) => p.independentSamples) ? (
-            <div className={s.warn}>{t("error.source-has-independent-samples", { n: sum("independentSamples") })}</div>
+          {!released && (independentBefore || keep.size) ? (
+            <div className={s.keep} data-testid="delete-release">{t("indep.releaseNote", { n: independentBefore + keep.size })}</div>
           ) : null}
+          {canIndepend && samples.length ? (
+            <div className={s.indepBox} data-testid="delete-independ">
+              <div className={s.indepHead}>{t("indep.pickTitle")}</div>
+              <div className={s.muted}>{t("indep.pickSay")}</div>
+              <TextField value={q} onChange={setQ} label={t("indep.filter")} placeholder={t("indep.filter")} />
+              <PagedTable<SampleRow>
+                label={t("indep.pickTitle")}
+                rows={shown}
+                pageSize={6}
+                checked={keep}
+                onChecked={setKeep}
+                isSelectable={(r) => !r.independent}
+                checkLabel={(r) => r.name}
+                columns={[
+                  { id: "name", label: t("batch.col.sample"), isRowHeader: true, render: (r) => <span lang="ja" data-user-data="">{r.name}</span> },
+                  { id: "dur", label: "", width: "70px", align: "end", render: (r) => <span className="num">{seconds(r.duration)}</span> },
+                ]}
+              />
+              <div className={s.muted} data-testid="indep-size">
+                {keep.size ? t("indep.size", { n: keep.size, mb: (bytes / 1048576).toFixed(1), v: plan.filter((x) => x.picture).length }) : t("indep.none")}
+              </div>
+            </div>
+          ) : null}
+          {previews.some((p) => p.activeJobs.length) ? <div className={s.warn}>{t("error.source-has-active-jobs")}</div> : null}
         </>
       ) : (
         <div>{t("common.loading")}</div>

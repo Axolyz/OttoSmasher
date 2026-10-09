@@ -140,7 +140,7 @@ class SampleService:
 
     _COLUMNS = (
         's.id, s.asset_id, s.start, s."end", s.name, s.nature, s.starred, s.rating, s.language, s.created_via,'
-        " s.parent_sample_id, s.parent_label, s.created_at, s.version,"
+        " s.parent_sample_id, s.parent_label, s.created_at, s.version, s.independent,"
         " a.source_id, a.mapping, a.origin AS asset_origin, a.stream_ordinal,"
         " src.work, src.episode, src.path AS source_path, src.media_state,"
         # 语音分析状态（所有者 2026-10-08：分析属于文本单元，采样按规则读取）：manual / ok / partial（◐）/ failed / none
@@ -157,6 +157,7 @@ class SampleService:
             d["source_start"] = None
         d["duration"] = d["end"] - d["start"]
         d["starred"] = bool(d["starred"])
+        d["independent"] = bool(d["independent"])
         d["source_name"] = source_display_name(d["work"], d["episode"], d["source_path"])
         return d
 

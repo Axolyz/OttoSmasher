@@ -46,7 +46,7 @@ def _stat(path: str) -> tuple[int, int] | None:
 
 
 def prepare(conn: sqlite3.Connection, owner_type: str, owner_id: str, path: str, mode: str | None = None, offset: float = 0.0,
-            *, location: str = "external") -> str:
+            *, location: str = "external", root: Path | None = None) -> str:
     """登记一个画面文件为一条（还没挂上的）绑定，在调用方事务里；返回绑定 ID。"""
     if owner_type not in ("sample", "source"):
         raise CoreError("visual-invalid", reason="owner")
@@ -70,9 +70,10 @@ def prepare(conn: sqlite3.Connection, owner_type: str, owner_id: str, path: str,
         raise CoreError("visual-invalid", reason="loop-duration", path=path)
     mid, vid, ts = new_id(), new_id(), now_iso()
     snap = {"size": st[0], "mtime_ns": st[1], "videoOrdinal": ordinal, "duration": duration}
+    stored = Path(path).relative_to(root).as_posix() if location == "library" and root is not None else path  # 库内文件存相对路径
     conn.execute(
         "INSERT INTO media_file(id, path, location, file_snapshot, format, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (mid, path, location, dumps(snap), kind, ts),
+        (mid, stored, location, dumps(snap), kind, ts),
     )
     conn.execute(
         "INSERT INTO visual_binding(id, owner_type, owner_id, mode, media_file_id, clip_offset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

@@ -134,9 +134,11 @@ export interface DeletePreview {
   generatedAssets: number;
   hints: number;
   independentSamples: number;
+  keptSamples?: number;
   oped: number;
   path: string;
   rangeTags: number;
+  released?: boolean;
   samples: number;
   segments: number;
   sourceId: string;
@@ -570,6 +572,20 @@ export interface ImportResult {
   failed: PathError[];
   sampleIds: string[];
   sourceIds: string[];
+}
+
+export interface IndependItem {
+  bytes: number;
+  duration: number;
+  id: string;
+  independent: boolean;
+  name: string;
+  picture: boolean;
+}
+
+export interface IndependParams {
+  deleteSource?: string | null;
+  ids: string[];
 }
 
 export interface InferTest {
@@ -1411,6 +1427,7 @@ export interface SampleRow {
   end: number;
   episode: string;
   id: string;
+  independent: boolean;
   language: string | null;
   media_state: string;
   name: string;
@@ -1696,6 +1713,7 @@ export interface SourceRow {
   has_video: boolean;
   id: string;
   import_root: string | null;
+  independent_samples: number;
   media_state: "available" | "released";
   missing: boolean;
   path: string;
@@ -2544,6 +2562,10 @@ export interface Commands {
   "samples.glyphs": { params: IdsParams; result: Record<string, SampleGlyph>; effect: "read" };
   /** IDs of all samples matching the filter (select all across pages). */
   "samples.ids": { params: SampleFilter; result: string[]; effect: "read" };
+  /** Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released). */
+  "samples.independ": { params: IndependParams; result: JobSummary; effect: "job" };
+  /** What independence would store for each sample (slice size, picture clip). */
+  "samples.independPlan": { params: IdsParams; result: IndependItem[]; effect: "read" };
   /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
@@ -2584,7 +2606,7 @@ export interface Commands {
   "settings.list": { params: NoParams; result: Record<string, SettingEntry>; effect: "read" };
   /** Register source files (each succeeds or fails on its own). */
   "sources.add": { params: SourcesAddParams; result: AddResult[]; effect: "write" };
-  /** Delete a source with its assets, samples, text layer and tags (not undoable). */
+  /** Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'. */
   "sources.delete": { params: IdParams; result: DeletePreview; effect: "write" };
   /** What deleting a source would remove. */
   "sources.deletePreview": { params: IdParams; result: DeletePreview; effect: "read" };
@@ -2714,6 +2736,7 @@ export type ErrorCode =
   | "hit-stale"
   | "import-empty"
   | "import-expired"
+  | "independ-invalid"
   | "internal-error"
   | "job-exception"
   | "job-interrupted"
@@ -2726,6 +2749,7 @@ export type ErrorCode =
   | "language-unsupported"
   | "mapping-invalid"
   | "media-probe-failed"
+  | "media-released"
   | "model-file-missing"
   | "model-sha-mismatch"
   | "mp3-encode-failed"

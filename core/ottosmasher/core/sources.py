@@ -295,7 +295,8 @@ class SourceService:
             "SELECT s.id, s.path, s.work, s.episode, s.source_type, s.duration, s.media_state, s.subtitle_path,"
             " s.default_audio_stream, s.created_at, s.version, s.import_root, s.root_id, s.rel_path, s.visual_binding_id IS NOT NULL AS has_picture,"
             " (SELECT COUNT(*) FROM source_stream t WHERE t.source_id=s.id AND t.kind='audio') AS audio_streams,"
-            " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video"
+            " EXISTS(SELECT 1 FROM source_stream t WHERE t.source_id=s.id AND t.kind='video' AND t.is_attached_pic=0) AS has_video,"
+            " (SELECT COUNT(*) FROM sample x JOIN sound_asset y ON y.id=x.asset_id WHERE y.source_id=s.id AND x.independent=1) AS independent_samples"
             " FROM source s ORDER BY s.created_at DESC, s.rowid DESC"
         )
         # 文件找不到（只看在不在，不核对快照；媒体已释放的另算）：列表里标出来（原型 st-w “文件找不到”）
@@ -376,14 +377,24 @@ class SourceService:
             "activeJobs": self._active_jobs(source_id, owned),
         }
 
-    def delete(self, source_id: str) -> dict[str, Any]:
+    def delete(self, source_id: str, *, release: bool = False, skip_jobs: tuple[str, ...] = ()) -> dict[str, Any]:
+        """删除原片（规格 04 §4.5）。有独立化采样且 ``release``：这些采样、它们的资产（只留独立化切片）、文本层的段、音效提示、区段标签、
+        OP/ED、角色与测量都留下，原片记录变成“媒体已释放”（04 §4.8、ARCHITECTURE §4.9）；其余照常删除。
+        没有 ``release`` 而有独立化采样 → 拒绝（不静默删掉独立化的采样）；媒体已释放的原片再删除 = 全部删除（确认框写明）。"""
         preview = self.delete_preview(source_id)
-        if preview["activeJobs"]:
-            raise CoreError("source-has-active-jobs", id=source_id, jobs=",".join(preview["activeJobs"]))
-        if preview["independentSamples"]:
-            # 独立化（规格 04 §4.8）在阶段 9 实现：到时保留独立化采样、原片变为“媒体已释放”。现在不静默删掉它们。
-            raise CoreError("source-has-independent-samples", id=source_id, n=preview["independentSamples"])
+        active = [j for j in preview["activeJobs"] if j not in skip_jobs]
+        if active:
+            raise CoreError("source-has-active-jobs", id=source_id, jobs=",".join(active))
+        src_state = self.conn.execute("SELECT media_state FROM source WHERE id=?", (source_id,)).fetchone()[0]
         owned = self._owned(source_id)
+        keep_samples: list[str] = []
+        if preview["independentSamples"] and src_state == "available":
+            if not release:
+                raise CoreError("source-has-independent-samples", id=source_id, n=preview["independentSamples"])
+            keep_samples = [r[0] for r in self.conn.execute(
+                f"SELECT id FROM sample WHERE independent=1 AND id IN ({','.join('?' * len(owned['sample']))})", owned["sample"])]
+        if keep_samples:
+            return self._release(source_id, owned, keep_samples, preview)
         assets, samples = owned["asset"], owned["sample"]
         am, sm = ",".join("?" * len(assets)), ",".join("?" * len(samples))
         library_files: list[str] = []
@@ -431,6 +442,60 @@ class SourceService:
         if self.on_change:
             self.on_change(cs)
         return preview
+
+    def _release(self, source_id: str, owned: dict[str, list[str]], keep_samples: list[str], preview: dict[str, Any]) -> dict[str, Any]:
+        """“媒体已释放”：留下独立化采样与它们的资产（只留切片）、文本层、标签、OP/ED、测量；删其余采样与资产、库内整轨；原片文件不碰。"""
+        x = self.conn.execute
+        keep_assets = sorted({r[0] for r in x(f"SELECT asset_id FROM sample WHERE id IN ({','.join('?' * len(keep_samples))})", keep_samples)})
+        drop_samples = [s for s in owned["sample"] if s not in set(keep_samples)]
+        drop_assets = [a for a in owned["asset"] if a not in set(keep_assets)]
+        library_files: list[str] = []
+        with transaction(self.conn):
+            if drop_samples:
+                sm = ",".join("?" * len(drop_samples))
+                x(f"DELETE FROM visual_binding WHERE owner_type='sample' AND owner_id IN ({sm}) AND id NOT IN (SELECT visual_binding_id FROM sample WHERE visual_binding_id IS NOT NULL AND id NOT IN ({sm}))", drop_samples + drop_samples)
+                x(f"DELETE FROM sample WHERE id IN ({sm})", drop_samples)
+            media: set[str] = set()
+            km = ",".join("?" * len(keep_assets))
+            # 留下的资产：去掉原存储（原片文件 / 库内整轨），只留独立化切片
+            media |= {r[0] for r in x(f"SELECT media_file_id FROM asset_storage WHERE asset_id IN ({km}) AND kind='primary'", keep_assets)}
+            x(f"DELETE FROM asset_storage WHERE asset_id IN ({km}) AND kind='primary'", keep_assets)
+            x(f"UPDATE sound_asset SET media_file_id=NULL WHERE id IN ({km})", keep_assets)
+            if drop_assets:
+                am = ",".join("?" * len(drop_assets))
+                media |= {r[0] for r in x(f"SELECT media_file_id FROM sound_asset WHERE id IN ({am}) AND media_file_id IS NOT NULL", drop_assets)}
+                media |= {r[0] for r in x(f"SELECT media_file_id FROM asset_storage WHERE asset_id IN ({am})", drop_assets)}
+                runs = [r[0] for r in x(f"SELECT id FROM measure_run WHERE asset_id IN ({am})", drop_assets)]
+                if runs:
+                    rm = ",".join("?" * len(runs))
+                    x(f"DELETE FROM measure_head WHERE run_id IN ({rm})", runs)
+                    x(f"DELETE FROM measure_run WHERE id IN ({rm})", runs)
+                x(f"DELETE FROM range_tag WHERE scope_asset_id IN ({am})", drop_assets)
+                x(f"DELETE FROM default_track WHERE asset_id IN ({am})", drop_assets)
+                x(f"UPDATE sound_asset SET input_asset_id=NULL WHERE input_asset_id IN ({am})", drop_assets)
+                x(f"DELETE FROM sound_asset WHERE id IN ({am})", drop_assets)
+            x("UPDATE source SET media_state='released', updated_at=? WHERE id=?", (now_iso(), source_id))
+            for mid in media:
+                still = x(
+                    "SELECT (SELECT COUNT(*) FROM sound_asset WHERE media_file_id=?) + (SELECT COUNT(*) FROM asset_storage WHERE media_file_id=?)"
+                    " + (SELECT COUNT(*) FROM visual_binding WHERE media_file_id=?)",
+                    (mid, mid, mid),
+                ).fetchone()[0]
+                if still:
+                    continue
+                row = x("SELECT path, location FROM media_file WHERE id=?", (mid,)).fetchone()
+                if row is not None and row[1] == "library":
+                    library_files.append(row[0])
+                x("DELETE FROM media_file WHERE id=?", (mid,))
+        for rel in library_files:
+            self._remove_library_file(rel)
+        cs = ChangeSet()
+        cs.add("source", source_id)
+        for s in owned["sample"]:
+            cs.add("sample", s)
+        if self.on_change:
+            self.on_change(cs)
+        return {**preview, "released": True, "keptSamples": len(keep_samples)}
 
     def _remove_library_file(self, rel: str) -> None:
         """只删工作区素材库里的文件；路径越出素材库一律不碰。"""

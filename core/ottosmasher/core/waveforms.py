@@ -49,6 +49,12 @@ class WaveformService:
         asset = assets_mod.get(self.conn, asset_id)
         if not (0 <= start < end <= asset["duration"] + 1e-6):
             raise CoreError("range-invalid", reason="out-of-bounds", start=start, end=end, duration=asset["duration"])
+        # 媒体已释放的原片：只剩独立化切片 → 波形只画切片覆盖的那一段（总览条上其余部分留空，不报错）
+        cover = self._released_cover(asset, start, end)
+        if cover is not None:
+            a, b = cover
+            points = max(1, int(points * (b - a) / (end - start)))
+            start, end = a, b
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, min(end, asset["duration"]))
         assets_mod.check_media(media)
         end = min(end, asset["duration"])
@@ -62,6 +68,22 @@ class WaveformService:
         q = pk.query(win.to_file(start), win.to_file(end), points)
         q["start"] = win.to_local(q["start"])
         return {"state": "ready", **q}
+
+    def _released_cover(self, asset: dict[str, Any], start: float, end: float) -> tuple[float, float] | None:
+        """原片媒体已释放时：与请求交叠的那条切片的范围（交集）；不交叠 → 报“媒体已释放”。没释放 → None。"""
+        st = self.conn.execute("SELECT media_state FROM source WHERE id=?", (asset["source_id"],)).fetchone()
+        if st is None or st[0] != "released":
+            return None
+        best = None
+        for a, b in self.conn.execute(
+            "SELECT range_start, range_end FROM asset_storage WHERE asset_id=? AND kind='materialized_slice' ORDER BY range_start", (asset["id"],)
+        ):
+            lo, hi = max(a, start), min(b, end)
+            if hi > lo and (best is None or hi - lo > best[1] - best[0]):
+                best = (lo, hi)
+        if best is None:
+            raise CoreError("media-released", id=asset["id"], start=start, end=end)
+        return best
 
     def _detail(self, ref: Any, win: Any, start: float, end: float, points: int) -> dict[str, Any]:
         sr = ref.sample_rate

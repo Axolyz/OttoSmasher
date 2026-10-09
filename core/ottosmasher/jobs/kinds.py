@@ -18,6 +18,7 @@ KINDS: dict[str, str] = {
     "f0.measure": "model",
     "acoustic.measure": "model",
     "export.video": "light",
+    "samples.independ": "light",
 }
 
 # 开发与测试用的自检任务（只在开发模式下可提交）

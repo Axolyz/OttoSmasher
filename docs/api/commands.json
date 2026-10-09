@@ -900,6 +900,31 @@
    }
   },
   {
+   "name": "samples.independ",
+   "effect": "job",
+   "summary": "Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released).",
+   "params": {
+    "$ref": "#/$defs/IndependParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "samples.independPlan",
+   "effect": "read",
+   "summary": "What independence would store for each sample (slice size, picture clip).",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/IndependItem"
+    }
+   }
+  },
+  {
    "name": "samples.list",
    "effect": "read",
    "summary": "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
@@ -1131,7 +1156,7 @@
   {
    "name": "sources.delete",
    "effect": "write",
-   "summary": "Delete a source with its assets, samples, text layer and tags (not undoable).",
+   "summary": "Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'.",
    "params": {
     "$ref": "#/$defs/IdParams"
    },
@@ -1947,6 +1972,14 @@
    "summary": "Import preview expired; scan again."
   },
   {
+   "code": "independ-invalid",
+   "args": [
+    "id",
+    "reason"
+   ],
+   "summary": "Samples cannot be made independent as requested."
+  },
+  {
    "code": "internal-error",
    "args": [
     "method",
@@ -2032,6 +2065,15 @@
     "path"
    ],
    "summary": "Could not read media information."
+  },
+  {
+   "code": "media-released",
+   "args": [
+    "end",
+    "id",
+    "start"
+   ],
+   "summary": "The source media was released; only the independent slices can be read."
   },
   {
    "code": "model-file-missing",
@@ -3592,6 +3634,9 @@
     "independentSamples": {
      "type": "integer"
     },
+    "keptSamples": {
+     "type": "integer"
+    },
     "oped": {
      "type": "integer"
     },
@@ -3600,6 +3645,9 @@
     },
     "rangeTags": {
      "type": "integer"
+    },
+    "released": {
+     "type": "boolean"
     },
     "samples": {
      "type": "integer"
@@ -5502,6 +5550,63 @@
     "failed",
     "sampleIds",
     "sourceIds"
+   ]
+  },
+  "IndependItem": {
+   "title": "IndependItem",
+   "type": "object",
+   "properties": {
+    "bytes": {
+     "type": "integer"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "independent": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "picture": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "bytes",
+    "duration",
+    "id",
+    "independent",
+    "name",
+    "picture"
+   ]
+  },
+  "IndependParams": {
+   "title": "IndependParams",
+   "type": "object",
+   "properties": {
+    "deleteSource": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "ids"
    ]
   },
   "InferTest": {
@@ -9656,6 +9761,9 @@
     "id": {
      "type": "string"
     },
+    "independent": {
+     "type": "boolean"
+    },
     "language": {
      "anyOf": [
       {
@@ -9774,6 +9882,7 @@
     "end",
     "episode",
     "id",
+    "independent",
     "language",
     "media_state",
     "name",
@@ -10998,6 +11107,9 @@
       }
      ]
     },
+    "independent_samples": {
+     "type": "integer"
+    },
     "media_state": {
      "enum": [
       "available",
@@ -11061,6 +11173,7 @@
     "has_video",
     "id",
     "import_root",
+    "independent_samples",
     "media_state",
     "missing",
     "path",

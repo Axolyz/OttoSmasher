@@ -127,12 +127,15 @@ def rate_of(conn: sqlite3.Connection, asset: dict[str, Any]) -> int:
     raise CoreError("decode-failed", path=None, detail="unknown-sample-rate")
 
 
+_SLICE_PROBE: dict[tuple[Any, ...], tuple[Any, Any, Any]] = {}  # 切片文件（不可变）的格式，按路径 + 快照记住
+
+
 def locate(
     conn: sqlite3.Connection, workspace_root: Path, asset: dict[str, Any], start: float, end: float
 ) -> tuple[dec.StreamRef, FileWindow, dict[str, Any]]:
     """资产局部区间 [start, end) → 存放它的文件、流与文件时间窗口（主存储优先）。找不到覆盖它的存储 → 报错。"""
     rows = conn.execute(
-        "SELECT s.range_start, s.range_end, m.id, m.path, m.location, m.file_snapshot, m.format"
+        "SELECT s.range_start, s.range_end, m.id, m.path, m.location, m.file_snapshot, m.format, s.kind"
         " FROM asset_storage s JOIN media_file m ON m.id = s.media_file_id WHERE s.asset_id=?"
         " ORDER BY s.kind='primary' DESC",
         (asset["id"],),
@@ -143,6 +146,17 @@ def locate(
             continue
         path = r[3] if r[4] == "external" else str(workspace_root / r[3])
         snap = loads(r[5]) if r[5] else {}
+        if r[7] == "materialized_slice":
+            # 独立化的无损切片（ARCHITECTURE §4.9）：WAV 只有一条音频流；它的 PCM 与原存储逐样本相同，
+            # “测的是哪段声音”按原存储算（origin：原文件的媒体 ID、快照与这段在原文件里的窗口），分析与 F0 照常可读（L32）
+            check_media({"path": path, "snapshot": snap})
+            key = (path, snap.get("size"), snap.get("mtime_ns"))
+            if key not in _SLICE_PROBE:
+                pr = probe_mod.probe(path)
+                _SLICE_PROBE[key] = (pr.audio[0].sample_rate, pr.audio[0].channels, pr.audio[0].codec)
+            rate, channels, codec = _SLICE_PROBE[key]
+            ref = dec.StreamRef(path, 0, rate, channels, codec, r[6])
+            return ref, win, {"media_file_id": r[2], "path": path, "snapshot": snap, "origin": snap.get("from")}
         if asset["origin"] == "stream":
             st = conn.execute(
                 "SELECT sample_rate, channels, codec FROM source_stream WHERE source_id=? AND kind='audio' AND ordinal=?",
@@ -155,8 +169,20 @@ def locate(
             ordinal, rate, channels, codec = 0, pr.audio[0].sample_rate, pr.audio[0].channels, pr.audio[0].codec
         if not rate or not channels:
             raise CoreError("decode-failed", path=path, detail="unknown-format")
-        return dec.StreamRef(path, ordinal, rate, channels, codec, r[6]), win, {"media_file_id": r[2], "path": path, "snapshot": snap}
+        return dec.StreamRef(path, ordinal, rate, channels, codec, r[6]), win, {"media_file_id": r[2], "path": path, "snapshot": snap, "ordinal": ordinal}
+    released = conn.execute("SELECT media_state FROM source WHERE id=?", (asset["source_id"],)).fetchone()
+    if released is not None and released[0] == "released":
+        raise CoreError("media-released", id=asset["id"], start=start, end=end)  # D2：独立化切片范围外
     raise CoreError("asset-file-missing", id=asset["id"])
+
+
+def measured_as(media: dict[str, Any], win: Any) -> dict[str, Any]:
+    """“测的是哪段声音”的身份（分析的文件快照核对、F0 身份）：普通存储 = 自己；独立化切片 = 原存储（L32）。"""
+    o = media.get("origin")
+    if o:
+        return {"media": o["media_file_id"], "snapshot": o["snapshot"], "storage": o["storage"], "ordinal": o["ordinal"]}
+    return {"media": media["media_file_id"], "snapshot": {k: (media["snapshot"] or {}).get(k) for k in ("size", "mtime_ns")},
+            "storage": [win.local_start, win.local_end, win.file_start], "ordinal": media.get("ordinal")}
 
 
 def check_media(media: dict[str, Any]) -> None:

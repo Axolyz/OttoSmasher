@@ -141,3 +141,8 @@
 .visualNowText { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--fs-sm); }
 .visualPick { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }
 .bad { color: var(--bad); }
+.indepBox { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 10px; }
+.indepHead { font-weight: 600; font-size: var(--fs-sm); }
+.releasedList { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 16px; }
+.releasedLines { overflow: auto; min-height: 0; flex: 1; padding: 8px 16px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); }
+.releasedLine { display: flex; gap: 10px; color: var(--sub); }

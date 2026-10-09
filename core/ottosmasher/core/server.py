@@ -127,8 +127,14 @@ class Core:
         r("sources.relocate", "write", T.RelocateParams, T.SourceRelocated, "Point a source at a moved file (reports changed streams, does not refuse).",
           lambda p: self.sources.relocate(p["id"], p["path"]))
         r("sources.deletePreview", "read", T.IdParams, T.DeletePreview, "What deleting a source would remove.", lambda p: self.sources.delete_preview(p["id"]))
-        r("sources.delete", "write", T.IdParams, T.DeletePreview, "Delete a source with its assets, samples, text layer and tags (not undoable).",
-          lambda p: self.sources.delete(p["id"]))
+        r("sources.delete", "write", T.IdParams, T.DeletePreview,
+          "Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'.",
+          lambda p: self.sources.delete(p["id"], release=True))
+        r("samples.independPlan", "read", T.IdsParams, list[T.IndependItem], "What independence would store for each sample (slice size, picture clip).",
+          lambda p: self.independence.plan(list(p["ids"])))
+        r("samples.independ", "job", T.IndependParams, T.JobSummary,
+          "Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released).",
+          lambda p: self.independence.submit(list(p["ids"]), p.get("deleteSource")))
         r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files.", lambda p: self.roots.rescan())
         r("roots.list", "read", T.NoParams, list[T.SourceRoot], "Source folders.", lambda p: self.roots.list())
         r("roots.add", "write", T.PathParams, T.RootAdded, "Add a source folder (adopts sources already inside, then scans).", lambda p: self.roots.add(str(p["path"])))
@@ -439,6 +445,9 @@ class Core:
         self.hits = HitService(self.conn, self.search, self.rhythm, self.handoff, self.exports)
         self.handoff.hits = self.hits
         from .video_export import VideoExportService
+        from .independence import IndependenceService
+
+        self.independence = IndependenceService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
 
         self.video_export = VideoExportService(self.conn, self.ws, self.exports, self.handoff, self.jobs, emit=self.emit)
         from .search_auto import AutoPrepare

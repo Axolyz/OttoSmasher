@@ -17,6 +17,7 @@ import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
 import { MatchPicturesDialog, VisualDialog, type VisualTarget } from "./VisualDialog";
+import { ReleasedViewer } from "./ReleasedViewer";
 import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
 import { WorkSettingsDialog } from "./WorkSettingsDialog";
@@ -316,7 +317,9 @@ export function SourcesPage() {
       ) : (
         <div />
       )}
-      {currentRow ? (
+      {currentRow?.media_state === "released" ? (
+        <ReleasedViewer row={currentRow} />
+      ) : currentRow ? (
         <SourceViewer row={currentRow} onImportSubtitles={() => setImportFor(currentRow)} onSeparate={setSepInput} />
       ) : (
         <EmptyState

@@ -385,8 +385,16 @@ def _export_video(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return run_job(params, ctx)
 
 
+def _samples_independ(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """采样独立化（04 §4.8）：解码无损切片、生成画面片段；登记由 Core 做。"""
+    from ..core.independence import run_job
+
+    return run_job(params, ctx)
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "export.video": _export_video,
+    "samples.independ": _samples_independ,
     "acoustic.measure": _acoustic_measure,
     "search.index": _search_index,
     "f0.measure": _f0_measure,
