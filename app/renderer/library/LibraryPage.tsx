@@ -808,7 +808,7 @@ export function LibraryPage() {
         checkLabel={(r) => t("library.check", { name: r.name })}
         testId="sample-list"
         rowTestId="sample-row"
-        rowData={(r) => ({ "data-nature": r.nature })}
+        rowData={(r): Record<string, string> => (r._res ? { "data-nature": r.nature, "data-top": "" } : { "data-nature": r.nature })}
         onRowPointerDown={(e, r) => {
           // ⌥ 拖出原声、⌥⇧ 拖出卡拍（所有者 2026-10-08 选丙）；在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
           if ((e.target as Element).closest("button, input, label")) return;

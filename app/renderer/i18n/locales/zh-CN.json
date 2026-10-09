@@ -1636,5 +1636,7 @@
   "specimen.tabs": "可关闭的标签条",
   "specimen.tabClose": "关闭",
   "specimen.tabBrowse": "浏览",
-  "specimen.tabResult": "结果 {n}"
+  "specimen.tabResult": "结果 {n}",
+  "search.hit.more": "展开其余 {n} 处",
+  "search.hit.fewer": "收起"
 }

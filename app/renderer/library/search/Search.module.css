@@ -9,12 +9,13 @@
 .cv { display: flex; gap: var(--sp-3); min-height: 0; flex: 1; }
 .canvas { flex: 1; min-width: 0; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg); position: relative; outline: none; }
 .canvas:focus-visible { border-color: var(--accent); }
-.insp { width: 280px; flex: none; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--s2); padding: var(--sp-3);
+.insp { width: 280px; flex: none; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--s2); padding: var(--sp-3);
   display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); }
 .inspHead { display: flex; align-items: baseline; gap: var(--sp-2); }
-.field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: var(--sp-2); }
+.field { display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; }
+.field > * { min-width: 0; }
 .field > span:first-child { color: var(--sub); }
-.pair { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.pair { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
 .err { color: var(--bad); font-size: var(--fs-xs); }
 .ok { color: var(--ok); }
 .warnText { color: var(--warn); font-size: var(--fs-sm); }
@@ -44,7 +45,6 @@
 .pblabel { font-size: 10px; fill: #1b1206; pointer-events: none; }
 
 /* 结果标签与状态行 */
-  font-size: var(--fs-sm); cursor: default; white-space: nowrap; }
 .approx { color: var(--warn); font-size: var(--fs-sm); }
 
 /* 命中时间线与小卡 */
@@ -55,7 +55,7 @@
 .hit[data-on] { outline: 2px solid var(--text); }
 .hitcount { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
-.hc { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--r-md); padding: 2px 8px 2px 2px; font-size: var(--fs-xs); background: var(--s2); }
+.hc { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 1px solid var(--line); border-radius: var(--r-md); padding: 2px 8px 2px 2px; font-size: var(--fs-xs); background: var(--s2); }
 .hc[data-on] { border-color: var(--accent); }
 .ev { color: var(--ok); }
 .ev[data-approx] { color: var(--warn); }

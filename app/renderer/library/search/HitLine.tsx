@@ -1,11 +1,14 @@
 // 命中的呈现（UI_PLAN §2.4、03 §3.4.4；原型 itemHtml 的 hitline / hchips）：
 // 行下一条命中时间线（绿 = 严格、琥珀 = 近似；悬停看证据；单击 = 定位）；当前行展开命中小卡：▶ 左键原声、右键卡拍（该命中证据所选的方案）+「前后 0.3 s」。
 import { Play, Square } from "lucide-react";
+import { useState } from "react";
 import type { ResultHit } from "../../api/types";
 import { Button } from "../../components/Button";
 import { Checkbox } from "../../components/Controls";
 import { t } from "../../i18n";
 import s from "./Search.module.css";
+
+const CHIPS = 3;
 
 export function evidenceText(h: ResultHit, kind: "speech" | "pitch"): string {
   if (kind === "pitch") {
@@ -90,9 +93,12 @@ export function HitChips(props: {
   onLocate: (i: number) => void;
   onMenu: (i: number, e: React.MouseEvent) => void;
 }) {
+  // 默认列前 3 个，可展开其余（03 §3.4.4）；当前定位的那处总是列出
+  const [all, setAll] = useState(false);
+  const shown = props.hits.map((h, i) => [h, i] as const).filter(([, i]) => all || i < CHIPS || i === props.focusIndex);
   return (
     <div className={s.chips} data-testid="hit-chips">
-      {props.hits.map((h, i) => (
+      {shown.map(([h, i]) => (
         <span
           key={i}
           className={s.hc}
@@ -130,6 +136,11 @@ export function HitChips(props: {
           </span>
         </span>
       ))}
+      {props.hits.length > CHIPS ? (
+        <Button size="sm" variant="flat" onPress={() => setAll((v) => !v)} data-testid="hit-more">
+          {all ? t("search.hit.fewer") : t("search.hit.more", { n: props.hits.length - CHIPS })}
+        </Button>
+      ) : null}
       {props.kind === "speech" ? (
         <Checkbox isSelected={props.pad} onChange={props.onPad} label={t("search.hit.pad")}>
           <span className={s.hint}>{t("search.hit.pad")}</span>

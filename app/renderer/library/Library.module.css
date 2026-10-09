@@ -1,10 +1,10 @@
 .page { flex: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
 .left { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .find { display: flex; gap: 6px; padding: 10px 12px 8px 14px; border-bottom: 1px solid var(--line2); }
-.resultHead { display: flex; align-items: center; gap: 6px; padding: 6px 12px 6px 14px; color: var(--muted); font-size: var(--fs-sm); border-bottom: 1px solid var(--line2); }
+.resultHead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px 6px 14px; color: var(--muted); font-size: var(--fs-sm); border-bottom: 1px solid var(--line2); }
 .resultTab { background: var(--s3); color: var(--text); border-radius: 7px; padding: 3px 10px; display: inline-flex; gap: 6px; font-size: var(--fs-sm); }
 .resultTab .num { color: var(--muted); }
-.status { display: flex; gap: 6px; padding: 5px 14px; font-size: var(--fs-xs); color: var(--muted); border-bottom: 1px solid var(--line2); }
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 14px; font-size: var(--fs-xs); color: var(--muted); border-bottom: 1px solid var(--line2); }
 .grow { flex: 1; }
 .body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .nameLine { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
@@ -88,3 +88,5 @@
 .subHead { color: var(--sub); font-size: var(--fs-sm); font-weight: 600; }
 .tokenRow { display: flex; flex-wrap: wrap; gap: 4px; }
 .hitNav { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-sm); color: var(--sub); }
+
+.resultHead > .num { white-space: nowrap; }
