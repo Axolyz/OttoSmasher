@@ -4,8 +4,8 @@ import { useState } from "react";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
-import { Checkbox, Chips, type ChipItem, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
-import { NumberField, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
+import { Checkbox, Chips, type ChipItem, Disclosure, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
+import { NumberField, OptionalNumber, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
 import { Tip } from "../components/Overlay";
@@ -38,6 +38,7 @@ export function Specimen() {
   const toast = useApp((st) => st.toast);
   const [on, setOn] = useState(true);
   const [thumbPlaying, setThumbPlaying] = useState(false);
+  const [opt, setOpt] = useState<number | null>(null);
   const [num, setNum] = useState(0.65);
   const [sel, setSel] = useState("speech");
   const [area, setArea] = useState("");
@@ -110,6 +111,7 @@ export function Specimen() {
         <div className={s.row}>
           <Switch isSelected={on} onChange={setOn} label={t("specimen.switch")} />
           <NumberField value={num} onChange={setNum} step={0.05} minValue={0} maxValue={5} label={t("specimen.number")} />
+          <OptionalNumber value={opt} onChange={setOpt} min={0} placeholder={t("specimen.optional")} label={t("specimen.optional")} width={90} />
           <Select
             value={sel}
             onChange={setSel}
@@ -117,6 +119,12 @@ export function Specimen() {
             options={NATURES.map((n) => ({ id: n, label: t(`nature.${n}`) }))}
           />
         </div>
+      </section>
+      <section>
+        <h4>{t("specimen.disclosure")}</h4>
+        <Disclosure title={t("specimen.disclosure")}>
+          <span>{t("specimen.item1")}</span>
+        </Disclosure>
       </section>
       <section>
         <h4>

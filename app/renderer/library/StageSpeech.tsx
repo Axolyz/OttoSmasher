@@ -80,6 +80,10 @@ export function StageSpeech(props: {
   /** 「♩ 卡拍」（UI_PLAN §3：单音没有，不给）：整个采样按舞台上的方案卡拍试听 */
   onStretched?: () => void;
   stretchedPlaying?: boolean;
+  /** 定位到的检索命中（资产局部秒；UI_PLAN §2.4）：选区 = 命中，波形画命中框，滚到命中前 0.3 秒 */
+  hit?: { a: number; b: number; approx?: boolean; key: string } | null;
+  /** 每加一 = 打开「截取」（命中右键「保存命中区…」：选区已是命中） */
+  clipTick?: number;
 }) {
   const smp = props.sample;
   const toast = useApp((st) => st.toast);
@@ -116,6 +120,17 @@ export function StageSpeech(props: {
     loadSpeech();
     void call("assets.get", { id: smp.asset_id }).then(setAsset, () => setAsset(null));
   }, [smp.id, smp.asset_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hitKey = props.hit?.key ?? null;
+  useEffect(() => {
+    const h = props.hit;
+    if (!h) return;
+    setSel({ a: h.a, b: h.b });
+    const id = setTimeout(() => tl.current?.zoomTo(Math.max(smp.start, h.a - 0.3), Math.min(smp.end, Math.max(h.b + 0.3, h.a - 0.3 + (smp.end - smp.start) / 3))), 60);
+    return () => clearTimeout(id);
+  }, [hitKey, smp.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (props.clipTick) setClipOpen(true);
+  }, [props.clipTick]);
 
   // F0：采样前后各留 2 秒；只画可靠帧（10 §10.1）
   useEffect(() => {
@@ -366,6 +381,7 @@ export function StageSpeech(props: {
               playing={props.playing}
               selection={sel}
               onSelection={setSel}
+              hitBox={props.hit ?? null}
               onSeek={() => {}}
               onPlayFrom={(at) => props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : smp.end))}
               overlay={overlay}

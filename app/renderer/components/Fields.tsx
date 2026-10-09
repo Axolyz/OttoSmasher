@@ -239,3 +239,53 @@ export function TextArea(props: {
     </RacTextField>
   );
 }
+
+/** 可留空的数字（检索条件：留空 = 不限）。输入时就地校验：不是数字或越界标红，不提交；只在合法时回调。 */
+export function OptionalNumber(props: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  label: string;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  testId?: string;
+  width?: number;
+}) {
+  const [draft, setDraft] = useState(props.value == null ? "" : String(props.value));
+  const last = useRef(props.value);
+  useEffect(() => {
+    if (props.value !== last.current) {
+      last.current = props.value;
+      setDraft(props.value == null ? "" : String(props.value));
+    }
+  }, [props.value]);
+  const parse = (txt: string): number | null | undefined => {
+    const v = txt.trim();
+    if (!v) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return undefined;
+    if ((props.min != null && n < props.min) || (props.max != null && n > props.max)) return undefined;
+    return n;
+  };
+  const bad = parse(draft) === undefined;
+  return (
+    <RacTextField
+      value={draft}
+      onChange={(v) => {
+        setDraft(v);
+        const n = parse(v);
+        if (n !== undefined) {
+          last.current = n;
+          props.onChange(n);
+        }
+      }}
+      aria-label={props.label}
+      isInvalid={bad}
+      className={s.text}
+      style={props.width ? { flex: "none", width: props.width } : undefined}
+    >
+      <Input className={`${s.textInput} num`} placeholder={props.placeholder} data-testid={props.testId} />
+    </RacTextField>
+  );
+}
+

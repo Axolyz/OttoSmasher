@@ -109,6 +109,8 @@ export const Timeline = forwardRef<
     onSelection: (s: Sel | null) => void;
     /** 选区的颜色：默认主色；gold = 拉平台的“内部拉平”内区（规格 11 §11.2） */
     selectionTone?: "accent" | "gold";
+    /** 检索命中框（UI_PLAN §2.4：定位命中后画在波形上；绿 = 严格、琥珀 = 近似） */
+    hitBox?: { a: number; b: number; approx?: boolean } | null;
     onSeek: (t: number) => void;
     onPlayFrom: (t: number) => void;
     /** ⌥ 拖出选区：返回生成好的文件（按下时冻结选区） */
@@ -477,6 +479,14 @@ export const Timeline = forwardRef<
           ctx.fillStyle = cssVar(gold ? "--gold" : "--accent");
           ctx.fillRect(Math.round(xa) - 1, waveTop, 2, waveH);
           ctx.fillRect(Math.round(xb) - 1, waveTop, 2, waveH);
+        }
+        if (p.hitBox) {
+          const xa = x(p.hitBox.a);
+          const xb = x(p.hitBox.b);
+          ctx.strokeStyle = cssVar(p.hitBox.approx ? "--warn" : "--ok");
+          ctx.lineWidth = 2;
+          ctx.strokeRect(xa + 1, waveTop + 1, xb - xa - 2, waveH - 2);
+          ctx.lineWidth = 1;
         }
         const hv = hover.current;
         if (hv) {

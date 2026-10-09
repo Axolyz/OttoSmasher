@@ -186,3 +186,69 @@ test("伪语言：节奏与卡拍", async () => {
   }
   await app.close();
 });
+
+// 三大搜索（阶段 7）：检索浮层四种方式（含设置、更多条件、音高高级、就地提示）、准备索引、固定结果标签与状态行、命中小卡与命中右键
+test("伪语言：三大搜索", async () => {
+  const MODELS = resolve("dev-workspace/Models");
+  test.skip(!existsSync(join(MODELS, "pydomino", "phoneme_transition_model.onnx")), "dev models missing");
+  test.setTimeout(120_000);
+  const base = mkdtempSync(join(tmpdir(), "otto-pseudo-search-"));
+  const workspace = join(base, "ws");
+  mkdirSync(workspace);
+  symlinkSync(MODELS, join(workspace, "Models"));
+  const wav = join(base, "v.wav");
+  const gate = [1.0, 1.25, 1.5, 2.2].map((o) => `between(t\\,${o}\\,${(o + 0.2).toFixed(2)})`).join("+");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `aevalsrc=0.3*sin(2*PI*220*t)*(${gate}):s=44100:d=3`, wav]);
+  const { app, page } = await launch({ locale: "pseudo", workspace });
+  await page.evaluate(async (p) => {
+    const req = window.otto.core.request;
+    const add = (await req("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const c = (await req("samples.create", { assetId: add.r[0]!.assets[0]!.assetId, start: 0.9, end: 2.6, name: "x", nature: "speech" })) as { r: { id: string; version: number } };
+    await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { align_text_manual: "かかかか" } }] } });
+    await req("speech.submit", { entry: "samples", ids: [c.r.id], rerunFresh: false });
+  }, wav);
+  await expect
+    .poll(async () => page.evaluate(async () => ((await window.otto.core.request("jobs.list", {})) as { r: Array<{ status: string }> }).r[0]?.status), { timeout: 60000 })
+    .toBe("succeeded");
+  await page.getByTestId("nav-library").click();
+  await page.getByTestId("refresh-lists").click();
+  await page.getByTestId("hunt-open").click();
+  const composer = page.getByTestId("composer");
+  await expect(composer.getByTestId("search-coverage")).toBeVisible();
+  await composer.getByTestId("speech-block").first().click();
+  await composer.getByTestId("speech-more-conds").getByRole("button").first().click();
+  expect(await unbracketed(page)).toEqual([]);
+  await composer.getByTestId("speech-more").click();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await composer.getByTestId("strategy-strict").click();
+  expect(await unbracketed(page)).toEqual([]);
+  await composer.getByTestId("search-prepare").click();
+  await expect(composer.getByTestId("search-prepare")).toHaveCount(0, { timeout: 60000 });
+  await composer.getByTestId("strategy-free").click();
+  await composer.getByTestId("search-find").click();
+  await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 30000 });
+  await page.getByTestId("sample-row").first().click();
+  await expect(page.getByTestId("hit-chips")).toBeVisible();
+  await page.getByTestId("hit-chip").first().click();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.getByTestId("hit").last().click({ button: "right" });
+  await expect(page.getByTestId("hit-menu")).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hunt-open").click();
+  await composer.getByTestId("composer-pitch").click();
+  await composer.getByTestId("pitch-block").first().click();
+  await composer.getByTestId("pitch-seconds").fill("0.05");
+  await expect(composer.getByTestId("pitch-problem").first()).toBeVisible();
+  expect(await unbracketed(page)).toEqual([]);
+  await composer.getByTestId("pitch-more").click();
+  expect(await unbracketed(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  for (const m of ["composer-timbre", "composer-transient"]) {
+    await composer.getByTestId(m).click();
+    await expect(composer.getByTestId("metrics-table")).toBeVisible();
+    expect(await unbracketed(page)).toEqual([]);
+  }
+  await app.close();
+});

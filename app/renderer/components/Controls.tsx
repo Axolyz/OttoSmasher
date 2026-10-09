@@ -1,9 +1,12 @@
 // 小控件（UI_PLAN §5–§6，原型样式按 React Aria 的状态属性实现）：复选框（含半选）、分段选择、条件块、进度条、分段进度、空状态。
-import { Check, Minus, X } from "lucide-react";
+import { Check, ChevronRight, Minus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Button as RacButton,
   Checkbox as RacCheckbox,
+  Disclosure as RacDisclosure,
+  DisclosurePanel,
+  Heading as RacHeading,
   ProgressBar as RacProgressBar,
   Radio,
   RadioGroup,
@@ -279,3 +282,19 @@ export function Token(props: { label: string; onPress?: () => void; strong?: boo
     </RacButton>
   );
 }
+
+/** 可折叠的条件块（“更多条件”“高级参数”）：标题一行，展开显示内容；默认折叠。 */
+export function Disclosure(props: { title: string; children: ReactNode; defaultOpen?: boolean; testId?: string }) {
+  return (
+    <RacDisclosure defaultExpanded={props.defaultOpen} className={s.disclosure} data-testid={props.testId}>
+      <RacHeading className={s.disclosureHead}>
+        <RacButton slot="trigger" className={s.disclosureBtn}>
+          <ChevronRight size={13} className={s.disclosureIcon} />
+          {props.title}
+        </RacButton>
+      </RacHeading>
+      <DisclosurePanel className={s.disclosurePanel}>{props.children}</DisclosurePanel>
+    </RacDisclosure>
+  );
+}
+

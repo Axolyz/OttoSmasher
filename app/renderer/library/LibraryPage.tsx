@@ -2,18 +2,18 @@
 // 统一列表（CollectionList：UI_PLAN §6.1 的全部集合规则）、批量条、可拖动的分栏、右侧舞台。
 // 本页自己的键（集合区）：Space 试听焦点的原声 · B 试听默认卡拍（近快；单音没有）· 1/2/3/0 设性质（勾选集或焦点，可撤销；改完留在原位，刷新后归位）·
 // S 星标 · ⌘F 聚焦查找栏的文字。条件变化清空勾选并提示；翻页保留勾选。
-import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Play, Plus, Square, SquareStack, Star } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Crosshair, MoreHorizontal, Play, Plus, Square, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { EffectiveTag, Nature, RhythmPlan, RhythmSound, SamplePage, SampleRow } from "../api/types";
+import type { EffectiveTag, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SearchFinished } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
 import { type ChipItem, Chips, EmptyState, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
-import { Menu, type MenuItems, type MenuSpec } from "../components/Menu";
+import { Menu, type MenuItems, type MenuSpec, useContextMenu } from "../components/Menu";
 import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
 import { AnchoredPanel } from "../components/Panel";
 import { ConfirmDialog } from "../components/Overlay";
@@ -31,6 +31,13 @@ import { PromoteDialog } from "./PromoteDialog";
 import s from "./Library.module.css";
 import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
+import { Composer, type ComposerMode } from "./search/Composer";
+import { HitChips, HitLine } from "./search/HitLine";
+import { metricFilter, newMetricsDraft } from "./search/MetricsComposer";
+import { newPitchDraft, pitchBlocks, pitchParams } from "./search/PitchComposer";
+import ss from "./search/Search.module.css";
+import { newSpeechDraft, speechQuery } from "./search/SpeechComposer";
+import { BROWSE, useResults } from "./search/useResults";
 
 const PAGE = 100;
 
@@ -41,6 +48,29 @@ const PURPOSES: Purpose[] = ["all", "speech", "pitched", "unpitched", "unclassif
 const KEY_OF: Record<Nature, string> = { speech: "1", pitched: "2", unpitched: "3", unclassified: "0" };
 /** 单音（调谐/非调谐）没有卡拍、没有 REAPER 交接（所有者 2026-10-06） */
 const isSingle = (n: Nature) => n === "pitched" || n === "unpitched";
+
+/** 列表项：浏览时是采样；固定结果里另带成员（失效的、原片音轨行用占位资料） */
+type Item = SampleRow & { _res?: ResultRow; dead?: boolean };
+
+function stubRow(id: string, name: string, assetId: string): SampleRow {
+  return {
+    id, asset_id: assetId, start: 0, end: 0, duration: 0, name, nature: "unclassified", starred: false, rating: null, language: null, created_via: "manual",
+    parent_sample_id: null, parent_label: null, created_at: "", version: 0, source_id: "", asset_origin: "", stream_ordinal: null, work: "", episode: "",
+    source_name: "", source_path: "", source_start: null, media_state: "available", people: [], analysis: "none",
+  } as SampleRow;
+}
+
+function toItem(r: ResultRow): Item {
+  if (r.sample) return { ...r.sample, _res: r, dead: r.state === "deleted" || r.state === "changed" };
+  if (r.asset) {
+    const label = [r.asset.work, r.asset.episode].filter(Boolean).join(" ") || (r.asset.path.split(/[\\/]/).pop() ?? "");
+    return { ...stubRow(`asset:${r.asset.id}`, label, r.asset.id), _res: r };
+  }
+  return { ...stubRow(r.sampleId ?? `gone:${r.rank}`, t("search.row.deleted"), ""), _res: r, dead: true };
+}
+
+/** 检索按钮的默认方式随用途（UI_PLAN §2.1）：语音/未分类 → 节奏检索；调谐 → 音高检索；非调谐 → 瞬态筛选 */
+const HUNT: Record<string, ComposerMode> = { all: "speech", speech: "speech", unclassified: "speech", pitched: "pitch", unpitched: "transient" };
 
 /** 试听选项：舞台上的临时方案、纯 mora 与声音（所有者 2026-10-08）；列表与右键 = 近快、原节奏、原声 */
 interface AuditionOpts {
@@ -74,6 +104,18 @@ export function LibraryPage() {
   const setSourceJump = useApp((st) => st.setSourceJump);
   const undo = useUndo();
   const [purpose, setPurpose] = useState<Purpose>("all");
+  // 检索浮层与固定结果（UI_PLAN §2.1、§2.4）
+  const bpm = useApp((st) => st.bpm);
+  const [composer, setComposer] = useState<ComposerMode | null>(null);
+  const [speechDraft, setSpeechDraft] = useState(newSpeechDraft);
+  const [pitchDraft, setPitchDraft] = useState(newPitchDraft);
+  const [metricsDraft, setMetricsDraft] = useState(() => newMetricsDraft("transient"));
+  const [resPage, setResPage] = useState<ResultPage | null>(null);
+  const [focusHit, setFocusHit] = useState<{ id: string; index: number } | null>(null);
+  const [pad, setPad] = useState(false);
+  const [hitPlaying, setHitPlaying] = useState<string | null>(null);
+  const [clipTick, setClipTick] = useState(0);
+  const hitMenu = useContextMenu("hit-menu");
   const [importPaths, setImportPaths] = useState<string[] | null>(null);
   const [promoteFor, setPromoteFor] = useState<SampleRow | null>(null);
   const [tagOpen, setTagOpen] = useState(false);
@@ -108,7 +150,10 @@ export function LibraryPage() {
   const splitRestored = useRef(false);
   const auditionGen = useRef(-1);
 
-  const query = useMemo(() => ({ natures: purpose === "all" ? undefined : [purpose], starred: starredOnly, text }), [purpose, starredOnly, text]);
+  /** 检索范围 = 当前浏览范围（查找栏 + 用途）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
+  const scope = useMemo<SampleFilter>(() => ({ natures: purpose === "all" ? undefined : [purpose], starred: starredOnly, text }), [purpose, starredOnly, text]);
+  const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
+  const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
 
   const load = useCallback(
     async (off: number) => {
@@ -193,7 +238,7 @@ export function LibraryPage() {
 
   // 焦点采样的资料（舞台）
   useEffect(() => {
-    if (!focus) return setFocusRow(null);
+    if (!focus || focus.startsWith("asset:") || focus.startsWith("gone:")) return setFocusRow(null);
     const inPage = data?.rows.find((r) => r.id === focus);
     if (inPage) setFocusRow((f) => (f?.id === inPage.id ? { ...f, ...inPage } : inPage));
     // 舞台要有效标签：总是再取一次完整资料
@@ -230,7 +275,35 @@ export function LibraryPage() {
     }
   };
 
-  const rows = data?.rows ?? [];
+  // 固定结果（04 §4.2.10）：恢复不重搜；翻页只读；检索完成 → 新标签并激活、收起浮层
+  const results = useResults(ready, (r: SearchFinished) => {
+    setComposer(null);
+    setChecked(new Set());
+    setFocusHit(null);
+    if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
+  });
+  const inResult = results.active !== BROWSE;
+  const [resOffset, setResOffset] = useState(0);
+  const loadResult = useCallback(async (id: string, off: number) => {
+    try {
+      setResPage(await call("results.page", { id, offset: off, limit: PAGE }));
+    } catch {
+      setResPage(null);
+    }
+  }, []);
+  useEffect(() => {
+    if (!inResult) return setResPage(null);
+    setResOffset(0);
+    setFocusHit(null);
+    void loadResult(results.active, 0);
+    setChecked((c) => {
+      if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
+      return new Set();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results.active, inResult]);
+  const items: Item[] = inResult ? (resPage?.rows ?? []).map(toItem) : (data?.rows ?? []);
+  const rows = items;
   /** 试听一个采样（PB1：原声、卡拍都一步）：原声直接读绑定区间（R22.3）；卡拍与咔哒声先由 Core 渲染（方案按需计算）。
    *  再按一次同一个 = 停止。 */
   const audition = async (r: SampleRow, version: AuditionVersion = "original", opts: AuditionOpts = {}) => {
@@ -333,6 +406,7 @@ export function LibraryPage() {
       });
       // 就地更新，不重排（改完该行留在原位，刷新后按新条件归位）
       setData((d) => d && { ...d, rows: d.rows.map((r) => (ids.includes(r.id) ? { ...r, ...fields, version: r.version + 1 } : r)) });
+      if (inResult) void loadResult(results.active, resOffset);
       setFocusRow((f) => (f && ids.includes(f.id) ? { ...f, ...fields, version: f.version + 1 } : f));
       if (focus && ids.includes(focus)) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
       toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo().then(() => load(offset)) } });
@@ -363,16 +437,147 @@ export function LibraryPage() {
     if (focus) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
   };
 
-  const checkAllMatching = async () => setChecked(new Set(await call("samples.ids", query)));
+  const checkAllMatching = async () => {
+    if (!inResult) return setChecked(new Set(await call("samples.ids", query)));
+    // 固定结果：全部成员（跨页），失效的不勾
+    const ids: string[] = [];
+    for (let off = 0; ; off += PAGE) {
+      const p = await call("results.page", { id: results.active, offset: off, limit: PAGE });
+      ids.push(...p.rows.filter((r) => r.state !== "deleted" && r.state !== "changed" && r.sampleId).map((r) => r.sampleId!));
+      if (off + PAGE >= p.total) break;
+    }
+    setChecked(new Set(ids));
+  };
 
-  const total = data?.total ?? 0;
+  const total = inResult ? (resPage?.total ?? 0) : (data?.total ?? 0);
+  const curOffset = inResult ? resOffset : offset;
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const pageNo = Math.floor(offset / PAGE) + 1;
+  const pageNo = Math.floor(curOffset / PAGE) + 1;
   const goto = (p: number) => {
     const off = (Math.max(1, Math.min(pages, p)) - 1) * PAGE;
+    if (inResult) {
+      setResOffset(off);
+      void loadResult(results.active, off);
+      return;
+    }
     setOffset(off);
     void load(off);
   };
+
+  // ---- 检索
+  const find = async () => {
+    if (composer === "speech") await results.start(() => call("search.speech", { query: speechQuery(speechDraft), scope }), "speech");
+    else if (composer === "pitch")
+      await results.start(() => call("search.pitch", { blocks: pitchBlocks(pitchDraft), params: pitchParams(pitchDraft), mode: pitchDraft.mode, scope }), "pitch");
+  };
+  /** 「再搜一次」：用这个结果当时的条件再搜（生成新标签；范围用当时的快照） */
+  const again = async () => {
+    const h = resPage?.result;
+    if (!h) return;
+    const q = h.query as Record<string, unknown>;
+    const sc = (h.scope as { scope?: SampleFilter }).scope ?? {};
+    if (h.kind === "speech") await results.start(() => call("search.speech", { query: q as never, scope: sc }), "speech");
+    else await results.start(() => call("search.pitch", { blocks: q.blocks as never, params: q.params as never, mode: q.mode as "samples", scope: sc }), "pitch");
+  };
+  const resultTitle = (h: { kind: string; createdAt: string; stats: { samples: number } }) =>
+    t(h.kind === "speech" ? "search.tab.speech" : "search.tab.pitch", { time: new Date(h.createdAt).toTimeString().slice(0, 5), n: h.stats.samples });
+
+  // ---- 命中（09 §9.7、10 §10.2.6）
+  const hitRef = (r: ResultRow, i: number) => ({ resultId: results.active, rank: r.rank, index: i });
+  const locate = (it: Item, i: number) => {
+    const r = it._res;
+    if (!r) return;
+    if (!r.sample) {
+      const h = r.hits[i]!;
+      if (r.asset && h.sourceStart != null && h.sourceEnd != null) {
+        setSourceJump({ sourceId: r.asset.sourceId, ordinal: null, assetId: r.asset.id, a: h.sourceStart, b: h.sourceEnd });
+        setPage("sources");
+      }
+      return;
+    }
+    if (r.state !== "ok") return toast({ text: t(r.state === "stale" ? "error.hit-stale" : "search.row.invalid") });
+    setFocus(it.id);
+    setFocusHit({ id: it.id, index: i });
+  };
+  const playHit = async (it: Item, i: number, version: "original" | "stretched") => {
+    const r = it._res;
+    if (!r) return;
+    const key = `${r.rank}:${i}:${version}`;
+    if (hitPlaying === key) {
+      window.otto.player.stopAudition();
+      setHitPlaying(null);
+      setNowPlaying(null);
+      return;
+    }
+    try {
+      const info = await call("hits.resolve", hitRef(r, i));
+      setHitPlaying(key);
+      setPlaying(null);
+      if (version === "original") {
+        const p = pad && info.kind === "speech" ? 0.3 : 0;
+        const dur = p ? (await call("assets.get", { id: info.assetId })).duration : info.end;
+        const a = Math.max(0, info.start - p);
+        const b = Math.min(dur, info.end + p);
+        auditionFrom.current = a;
+        auditionGen.current = await window.otto.player.audition(info.assetId, a, b);
+        setNowPlaying({ sampleId: info.sampleId ?? "", name: it.name, version: "original", sound: "voice", plan: null, bpm: null, originalSpeed: false, duration: b - a });
+      } else {
+        if (!info.stretch) return toast({ text: t("error.hit-no-stretch") });
+        const rr = await call("hits.render", { ...hitRef(r, i), version: "stretched", sound: "voice" });
+        auditionFrom.current = Number.NaN;
+        auditionGen.current = await window.otto.player.auditionRender(rr.key);
+        setNowPlaying({ sampleId: info.sampleId ?? "", name: it.name, version: "stretched", sound: "voice", plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
+      }
+    } catch (e) {
+      setHitPlaying(null);
+      fail(e);
+    }
+  };
+  const exportHit = async (r: ResultRow, i: number, version: "original" | "stretched") => {
+    try {
+      const x = await call("hits.export", { ...hitRef(r, i), version, words: trackWords() });
+      reveal(x.path, x.reused);
+    } catch (e) {
+      fail(e);
+    }
+  };
+  const reaperHit = async (r: ResultRow, i: number, baked: boolean) => {
+    const x = await window.otto.reaper.copy({ ids: [], hits: [hitRef(r, i)], words: trackWords(), baked });
+    if (!x.ok) return toast({ text: errorText(x.e), tone: "error" });
+    toast({ text: t("reaper.copied", { n: 1 }) });
+  };
+  const openHitMenu = (it: Item, i: number, e: { clientX: number; clientY: number }) => {
+    const r = it._res;
+    if (!r) return;
+    const h = r.hits[i]!;
+    const kind = resPage?.result.kind ?? "speech";
+    const base = r.sample ? r.sample.start : 0;
+    const common: MenuItems = [
+      { id: "locate", label: t("search.hit.locate"), shortcut: "Enter", run: () => locate(it, i) },
+      { id: "loop", label: t("search.hit.listen"), run: () => void playHit(it, i, "original") },
+      ...(r.sample ? [{ id: "back", label: t("library.backToSource"), disabled: r.sample.source_start == null, run: () => backToSource(r.sample!) }] : []),
+      "-",
+      ...(r.sample
+        ? [
+            { id: "save", label: t("search.hit.save"), run: () => { locate(it, i); setClipTick((x) => x + 1); } },
+            { id: "flatten", label: t("search.hit.flatten"), run: () => requestFlatten({ kind: "single", assetId: r.sample!.asset_id, start: h.start, end: h.end, entry: "single", sampleId: r.sample!.id }) },
+          ]
+        : []),
+    ];
+    const speechOnly: MenuItems =
+      kind === "speech" && r.sample
+        ? [
+            "-",
+            { id: "wav", label: t("handoff.wav"), run: () => void exportHit(r, i, "original") },
+            { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportHit(r, i, "stretched") },
+            { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void reaperHit(r, i, true) },
+            { id: "reaper", label: t("handoff.reaper"), run: () => void reaperHit(r, i, false) },
+          ]
+        : [];
+    hitMenu.open(e, { head: t("search.hit.menuHead", { a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2), name: it.name }), items: [...common, ...speechOnly] });
+  };
+  const focusItem = items.find((x) => x.id === focus) ?? null;
+  const stageHit = focusHit && focusRow && focusHit.id === focusRow.id && focusItem?._res ? focusItem._res.hits[focusHit.index] ?? null : null;
 
   const removeConfirmed = async () => {
     if (!deleteIds) return;
@@ -518,10 +723,21 @@ export function LibraryPage() {
         />
       </div>
       <div className={s.resultHead}>
-        <span className={s.resultTab}>
-          {t("library.browse")} <span className="num">{total}</span>
-        </span>
-        <span className={s.grow} />
+        <div className={ss.tabs} role="tablist" aria-label={t("search.results")}>
+          <button type="button" role="tab" aria-selected={!inResult} className={ss.tab} data-on={!inResult || undefined} onClick={() => results.setActive(BROWSE)} data-testid="tab-browse">
+            {t("library.browse")} <span className="num">{inResult ? "" : total}</span>
+          </button>
+          {results.tabs.map((h) => (
+            <span key={h.id} className={ss.tab} data-on={results.active === h.id || undefined} data-testid="result-tab">
+              <button type="button" role="tab" aria-selected={results.active === h.id} className={ss.close} onClick={() => results.setActive(h.id)}>
+                {resultTitle(h)}
+              </button>
+              <button type="button" className={ss.close} onClick={() => void results.close(h.id)} aria-label={t("search.closeResult")} title={t("search.closeResult")} data-testid="result-close">
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
         <Button size="sm" variant="flat" icon={<Plus />} onPress={() => void pickImport()} data-testid="library-import">
           {t("import.button")}
         </Button>
@@ -530,12 +746,53 @@ export function LibraryPage() {
           {pageNo} / {pages}
         </span>
         <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={pageNo >= pages} onPress={() => goto(pageNo + 1)} aria-label={t("pager.next")} />
+        <span className={ss.hunt}>
+          <Button
+            size="sm"
+            variant={composer ? "primary" : "secondary"}
+            icon={<Crosshair />}
+            onPress={() => setComposer((c) => (c ? null : HUNT[purpose]!))}
+            data-testid="hunt-open"
+          >
+            {t(`search.hunt.${HUNT[purpose]}`)}
+          </Button>
+          <Menu
+            head={t("search.kindMenu")}
+            items={(["speech", "pitch", "timbre", "transient"] as const).map((k) => ({ id: k, label: t(`search.kind.${k}`), run: () => setComposer(k) }))}
+            placement="bottom end"
+            trigger={<Button size="sm" variant={composer ? "primary" : "secondary"} icon={<ChevronDown />} aria-label={t("search.kindMenu")} data-testid="hunt" />}
+          />
+        </span>
       </div>
       <div className={s.status}>
-        <span data-testid="library-total">{t("library.total", { n: total })}</span>
-        <span>· {t("library.sortNewest")}</span>
+        {inResult && resPage ? (
+          <>
+            <span data-testid="result-status">
+              {t("search.status", { n: resPage.result.stats.samples, m: resPage.result.stats.hits, ms: resPage.result.stats.ms, k: resPage.result.stats.noAnalysis })}
+            </span>
+            {resPage.result.stats.stale ? <span className={ss.approx}>· {t("search.statusStale", { n: resPage.result.stats.stale })}</span> : null}
+            {resPage.result.kind === "speech" && resPage.result.stats.bpm != null ? <span>· {t("search.statusBpm", { bpm: resPage.result.stats.bpm })}</span> : null}
+            <span className={s.grow} />
+            <Button size="sm" variant="flat" onPress={() => void again()} isDisabled={!!results.running} data-testid="search-again">
+              {t("search.again")}
+            </Button>
+          </>
+        ) : (
+          <>
+            <span data-testid="library-total">{t("library.total", { n: total })}</span>
+            <span>· {t("library.sortNewest")}</span>
+            {metrics ? (
+              <>
+                <span data-testid="metrics-active">· {t("search.metrics.active", { kind: t(`search.kind.${metrics.mode}`), n: metrics.conditions.length })}</span>
+                <Button size="sm" variant="flat" onPress={() => setMetricsDraft(newMetricsDraft(metricsDraft.mode))}>
+                  {t("search.metrics.clear")}
+                </Button>
+              </>
+            ) : null}
+          </>
+        )}
       </div>
-      <CollectionList<SampleRow>
+      <CollectionList<Item>
         label={t("library.listLabel")}
         items={rows}
         textValue={(r) => r.name}
@@ -546,11 +803,12 @@ export function LibraryPage() {
         onCheckAll={() => void checkAllMatching()}
         onPrimary={(id) => {
           const r = rows.find((x) => x.id === id);
+          if (r?._res && (r.dead || !r._res.sample)) return r._res.asset ? locate(r, 0) : toast({ text: t("search.row.deletedKeep") });
           if (r) void audition(r);
         }}
         onDelete={setDeleteIds}
         onKey={onKey}
-        menu={(r, target) => sampleMenu(r, target.ids, target.multi)}
+        menu={(r, target) => (r._res && (r.dead || !r._res.sample) ? null : sampleMenu(r, target.ids, target.multi))}
         checkLabel={(r) => t("library.check", { name: r.name })}
         testId="sample-list"
         rowTestId="sample-row"
@@ -572,7 +830,25 @@ export function LibraryPage() {
             />
           ) : null
         }
-        renderItem={(r) => (
+        renderItem={(r) =>
+          r._res && !r._res.sample ? (
+            <div className={ss.assetRow}>
+              <span className={s.name} data-user-data="">
+                {r._res.asset ? r.name : t("search.row.deleted")}
+              </span>
+              {r._res.asset ? (
+                <span className={s.meta}>
+                  {r._res.asset.stemName ?? t(`track.origin.${r._res.asset.origin}`)} · {t("search.row.sourceHits")}
+                </span>
+              ) : (
+                <span className={ss.dead}>{t("search.row.deletedKeep")}</span>
+              )}
+              {r._res.asset ? (
+                <HitLine hits={r._res.hits} kind="pitch" start={0} duration={Math.max(...r._res.hits.map((h) => h.end), 1)} focusIndex={null}
+                  onLocate={(i) => locate(r, i)} onMenu={(i, e) => openHitMenu(r, i, e)} />
+              ) : null}
+            </div>
+          ) : (
           <>
             <SampleThumb
               id={r.id}
@@ -605,6 +881,35 @@ export function LibraryPage() {
                 </span>
                 <span className={`${s.dur} num`}>{t("format.sec", { v: seconds(r.duration) })}</span>
               </div>
+              {r._res ? (
+                <>
+                  {r._res.state !== "ok" ? <span className={ss.dead} data-testid="row-state">{t(`search.row.${r._res.state}`)}</span> : null}
+                  <HitLine
+                    hits={r._res.hits}
+                    kind={resPage?.result.kind ?? "speech"}
+                    start={r.start}
+                    duration={r.duration}
+                    focusIndex={focusHit?.id === r.id ? focusHit.index : null}
+                    disabled={r._res.state !== "ok"}
+                    onLocate={(i) => locate(r, i)}
+                    onMenu={(i, e) => openHitMenu(r, i, e)}
+                  />
+                  {focus === r.id && r._res.state === "ok" ? (
+                    <HitChips
+                      hits={r._res.hits}
+                      kind={resPage?.result.kind ?? "speech"}
+                      start={r.start}
+                      focusIndex={focusHit?.id === r.id ? focusHit.index : null}
+                      playing={hitPlaying && hitPlaying.startsWith(`${r._res.rank}:`) ? Number(hitPlaying.split(":")[1]) : null}
+                      pad={pad}
+                      onPad={setPad}
+                      onPlay={(i, v) => void playHit(r, i, v)}
+                      onLocate={(i) => locate(r, i)}
+                      onMenu={(i, e) => openHitMenu(r, i, e)}
+                    />
+                  ) : null}
+                </>
+              ) : null}
             </div>
             <button
               type="button"
@@ -617,7 +922,8 @@ export function LibraryPage() {
               <Star size={14} />
             </button>
           </>
-        )}
+          )
+        }
         footer={
           <BatchBar
             count={checked.size}
@@ -715,6 +1021,13 @@ export function LibraryPage() {
             <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
             </Button>
+            {focusItem?._res && focusHit?.id === focusRow.id ? (
+              <span className={s.hitNav} data-testid="hit-nav">
+                <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={focusHit.index <= 0} onPress={() => locate(focusItem, focusHit.index - 1)} aria-label={t("search.hit.prev")} />
+                <span className="num">{t("search.hit.nav", { i: focusHit.index + 1, n: focusItem._res.hits.length })}</span>
+                <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={focusHit.index >= focusItem._res.hits.length - 1} onPress={() => locate(focusItem, focusHit.index + 1)} aria-label={t("search.hit.next")} />
+              </span>
+            ) : null}
           </div>
           <StageSpeech
             sample={focusRow}
@@ -723,6 +1036,8 @@ export function LibraryPage() {
             onPlayRange={(a, b) => void playRange(focusRow, a, b)}
             onStretched={isSingle(focusRow.nature) ? undefined : () => void audition(focusRow, "stretched", stageOpts(focusRow.id))}
             stretchedPlaying={playing === focusRow.id && playingVer === "stretched:voice"}
+            hit={stageHit ? { a: stageHit.start, b: stageHit.end, approx: !!stageHit.evidence && !stageHit.evidence.strict, key: `${results.active}:${focusHit?.index}` } : null}
+            clipTick={clipTick}
           />
           {isSingle(focusRow.nature) ? null : (
             <StageRhythm
@@ -796,6 +1111,25 @@ export function LibraryPage() {
         onClose={() => setImportPaths(null)}
         onImported={(r) => r.sampleIds[0] && setOpenSample(r.sampleIds[0])}
       />
+      {composer ? (
+        <Composer
+          mode={composer}
+          setMode={setComposer}
+          speech={speechDraft}
+          setSpeech={setSpeechDraft}
+          pitch={pitchDraft}
+          setPitch={setPitchDraft}
+          metrics={metricsDraft}
+          setMetrics={setMetricsDraft}
+          scope={scope}
+          bpm={bpm}
+          running={!!results.running}
+          onFind={() => void find()}
+          onCancel={results.cancel}
+          onClose={() => setComposer(null)}
+        />
+      ) : null}
+      {hitMenu.node}
       <SplitPane left={list} right={stage} ratio={split} onRatio={setSplit} label={t("library.splitter")} />
       <ConfirmDialog
         isOpen={!!deleteIds}
