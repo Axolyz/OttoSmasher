@@ -111,6 +111,10 @@ export interface ChipItem {
   /** 只读块（继承标签等）不显示 × */
   readOnly?: boolean;
   lang?: string;
+  /** 来源小标记（标签：本地 / 区段 / 原片 / 自动，07 §7.4），淡色小字 */
+  mark?: string;
+  /** 悬停说明 */
+  title?: string;
 }
 
 /**
@@ -132,9 +136,10 @@ export function Chips(props: { items: ChipItem[]; label: string; onRemove?: (id:
               {({ allowsRemoving }) => (
                 <>
                   {it.k ? <span className={s.chipK}>{it.k}</span> : null}
-                  <span lang={it.lang} data-user-data="">
+                  <span lang={it.lang} data-user-data="" title={it.title}>
                     {it.v}
                   </span>
+                  {it.mark ? <span className={s.chipMark}>{it.mark}</span> : null}
                   {allowsRemoving && !it.readOnly ? (
                     <RacButton slot="remove" className={s.chipX}>
                       <X size={11} />

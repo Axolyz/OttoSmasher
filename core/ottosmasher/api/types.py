@@ -733,6 +733,29 @@ class EffectiveTag(TypedDict):
     ref: str | None
 
 
+class SampleRef(TypedDict):
+    id: str
+    name: str
+
+
+class SampleChild(TypedDict):
+    id: str
+    name: str
+    createdVia: str
+
+
+class SampleDetail(TypedDict):
+    note: str
+    parent: SampleRef | None
+    origin: Any
+    independent: bool
+    # 判定区间（原片秒）
+    judge: list[float] | None
+    stemName: str | None
+    updatedAt: str
+    children: list[SampleChild]
+
+
 class SampleRow(TypedDict):
     id: str
     asset_id: str
@@ -766,6 +789,8 @@ class SampleRow(TypedDict):
     analysis: Literal["ok", "manual", "partial", "stale", "incomplete", "failed", "none"]
     # 有效标签（只有 samples.get 返回）
     tags: NotRequired[list[EffectiveTag]]
+    # 资料与来源（只有 samples.get 返回）
+    detail: NotRequired[SampleDetail]
 
 
 class SamplePage(TypedDict):

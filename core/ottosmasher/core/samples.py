@@ -167,7 +167,31 @@ class SampleService:
         d = self._row(r)
         d["people"] = effective_tags.people(self.conn, [sample_id]).get(sample_id, [])
         d["tags"] = effective_tags.of_sample(self.conn, sample_id)
+        d["detail"] = self.detail(sample_id)
         return d
+
+    def detail(self, sample_id: str) -> dict[str, Any]:
+        """舞台「资料与来源」（UI_PLAN §3）：备注、来源（父采样、建立方式）、派生采样、技术详情。"""
+        r = self.conn.execute(
+            "SELECT s.note, s.parent_sample_id, s.origin, s.independent, s.tag_judge_start, s.tag_judge_end, s.updated_at,"
+            " a.stem_name, a.origin AS asset_origin, (SELECT name FROM sample p WHERE p.id = s.parent_sample_id) AS parent_name"
+            " FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE s.id = ?",
+            (sample_id,),
+        ).fetchone()
+        children = [
+            {"id": c[0], "name": c[1], "createdVia": c[2]}
+            for c in self.conn.execute("SELECT id, name, created_via FROM sample WHERE parent_sample_id = ? ORDER BY created_at, rowid", (sample_id,))
+        ]
+        return {
+            "note": r["note"],
+            "parent": {"id": r["parent_sample_id"], "name": r["parent_name"]} if r["parent_sample_id"] else None,
+            "origin": loads(r["origin"]) if r["origin"] else None,
+            "independent": bool(r["independent"]),
+            "judge": [r["tag_judge_start"], r["tag_judge_end"]] if r["tag_judge_start"] is not None else None,
+            "stemName": r["stem_name"],
+            "updatedAt": r["updated_at"],
+            "children": children,
+        }
 
     def rows(self, ids: list[str]) -> dict[str, dict[str, Any]]:
         """现有采样的列表行（固定结果翻页用；已删除的不在里面）。"""

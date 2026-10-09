@@ -1216,6 +1216,12 @@ export interface RuntimeStatus {
   onnxruntime: OnnxRuntimeStatus;
 }
 
+export interface SampleChild {
+  createdVia: string;
+  id: string;
+  name: string;
+}
+
 /** 单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。 */
 export interface SampleCreateParams {
   assetId: string;
@@ -1233,6 +1239,17 @@ export interface SampleCreatePlannedParams {
   nature?: string | null;
   overrides?: Record<string, SampleOverride> | null;
   token: string;
+}
+
+export interface SampleDetail {
+  children: SampleChild[];
+  independent: boolean;
+  judge: number[] | null;
+  note: string;
+  origin: unknown;
+  parent: SampleRef | null;
+  stemName: string | null;
+  updatedAt: string;
 }
 
 export interface SampleFilter {
@@ -1315,12 +1332,18 @@ export interface SamplePlanTrack {
   roles: ("sfx" | "vocal")[];
 }
 
+export interface SampleRef {
+  id: string;
+  name: string;
+}
+
 export interface SampleRow {
   analysis: "failed" | "incomplete" | "manual" | "none" | "ok" | "partial" | "stale";
   asset_id: string;
   asset_origin: string;
   created_at: string;
   created_via: string;
+  detail?: SampleDetail;
   duration: number;
   end: number;
   episode: string;

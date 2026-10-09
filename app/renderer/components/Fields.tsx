@@ -217,6 +217,8 @@ export function TextArea(props: {
   placeholder?: string;
   tabInserts?: boolean;
   invalid?: boolean;
+  /** 失焦（备注“失焦保存”，07 §7.8） */
+  onBlur?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   // 插入制表符后的光标位置：受控值更新提交后立即放回（不能等下一帧，否则紧接着的输入会落到末尾）
@@ -246,6 +248,7 @@ export function TextArea(props: {
         spellCheck={false}
         placeholder={props.placeholder}
         onKeyDown={onKeyDown}
+        onBlur={props.onBlur}
         data-testid={props.testId}
       />
     </RacTextField>

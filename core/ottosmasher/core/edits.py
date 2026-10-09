@@ -255,7 +255,7 @@ _register(
         "sample",
         {
             "name": FieldSpec(v_text(min_len=1, max_len=500)),
-            "note": FieldSpec(v_text(max_len=10_000, strip=False)),
+            "note": FieldSpec(v_text(max_len=100_000, strip=False)),
             "rating": FieldSpec(v_opt_int(1, 5)),
             "starred": FieldSpec(v_bool),
             "nature": FieldSpec(v_enum("speech", "pitched", "unpitched", "unclassified")),

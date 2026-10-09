@@ -8455,6 +8455,26 @@
     "onnxruntime"
    ]
   },
+  "SampleChild": {
+   "title": "SampleChild",
+   "type": "object",
+   "properties": {
+    "createdVia": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "createdVia",
+    "id",
+    "name"
+   ]
+  },
   "SampleCreateParams": {
    "title": "SampleCreateParams",
    "description": "单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。",
@@ -8556,6 +8576,71 @@
     "from",
     "keys",
     "token"
+   ]
+  },
+  "SampleDetail": {
+   "title": "SampleDetail",
+   "type": "object",
+   "properties": {
+    "children": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SampleChild"
+     }
+    },
+    "independent": {
+     "type": "boolean"
+    },
+    "judge": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "note": {
+     "type": "string"
+    },
+    "origin": {},
+    "parent": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleRef"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stemName": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "updatedAt": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "children",
+    "independent",
+    "judge",
+    "note",
+    "origin",
+    "parent",
+    "stemName",
+    "updatedAt"
    ]
   },
   "SampleFilter": {
@@ -8989,6 +9074,22 @@
     "roles"
    ]
   },
+  "SampleRef": {
+   "title": "SampleRef",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "name"
+   ]
+  },
   "SampleRow": {
    "title": "SampleRow",
    "type": "object",
@@ -9015,6 +9116,9 @@
     },
     "created_via": {
      "type": "string"
+    },
+    "detail": {
+     "$ref": "#/$defs/SampleDetail"
     },
     "duration": {
      "type": "number"

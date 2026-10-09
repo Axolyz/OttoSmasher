@@ -81,5 +81,20 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   await page.getByTestId("tag-global").getByTestId("confirm-ok").click();
   const speakers = await page.evaluate(async (s) => ((await window.otto.core.request("textLayer.list", { sourceId: s })) as { r: { segments: Array<{ speakers: string[] }> } }).r.segments[0]!.speakers, sid);
   expect(speakers).toEqual(["歳納京子"]);
+
+  // 舞台：标签带来源小标记；单击标签 → 加入范围；资料与来源：备注失焦保存、评分
+  await page.keyboard.press("Escape");
+  await page.getByTestId("refresh-lists").click();
+  await page.getByTestId("sample-row").filter({ hasText: "一" }).click();
+  await expect(page.getByTestId("stage-tags")).toContainText("歳納京子区段");
+  await page.getByTestId("stage-tags").getByText("歳納京子", { exact: true }).click();
+  await page.getByTestId("menu-to-scope").click();
+  await expect(page.getByTestId("scope-chips")).toContainText("人物歳納京子");
+  await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
+  await page.getByTestId("stage-note").fill("开头那句");
+  await page.getByTestId("stage-title").click();
+  const id = await page.getByTestId("sample-row").first().getAttribute("data-id");
+  await expect.poll(() => page.evaluate(async (i) => ((await window.otto.core.request("samples.get", { id: i })) as { r: { detail: { note: string } } }).r.detail.note, id)).toBe("开头那句");
+  await page.screenshot({ path: `${SHOTS}/09-stage-info.png` });
   await app.close();
 });

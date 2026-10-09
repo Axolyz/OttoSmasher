@@ -120,3 +120,8 @@
 /* 批量编辑资料（原型 editModal 的两列表单）与预览 */
 .editGrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: var(--fs-sm); }
 .batchPreview { display: flex; flex-direction: column; gap: 6px; }
+.tagRowWrap { min-width: 0; }
+.originLine { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+.badge { font-size: var(--fs-xs); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; color: var(--sub); }
+.techList { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: var(--fs-xs); color: var(--muted); margin: 0; }
+.techList dd { margin: 0; color: var(--sub); min-width: 0; overflow-wrap: anywhere; }

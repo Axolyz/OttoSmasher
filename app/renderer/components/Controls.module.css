@@ -29,6 +29,7 @@
 .chip[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chip[data-allows-removing][data-hovered] { background: color-mix(in srgb, var(--s3) 80%, var(--line)); }
 .chipK { color: var(--muted); }
+.chipMark { color: var(--faint); font-size: 10px; letter-spacing: 0.02em; }
 .chipPreset { background: var(--accentbg); color: var(--accent2); }
 .chipX { border: none; background: transparent; color: var(--muted); padding: 1px 4px; border-radius: 5px; display: inline-flex; cursor: default; outline: none; }
 .chipX[data-hovered] { background: var(--line); color: var(--text); }

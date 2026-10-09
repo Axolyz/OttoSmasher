@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { EffectiveTag, FacetValues, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SavedFilter, SearchFinished } from "../api/types";
+import type { EffectiveTag, FacetCondition, FacetValues, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SavedFilter, SearchFinished } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
@@ -34,6 +34,7 @@ import { BatchDialog, type BatchKind } from "./BatchDialogs";
 import s from "./Library.module.css";
 import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
+import { StageInfo } from "./StageInfo";
 import { Composer, type ComposerMode } from "./search/Composer";
 import { HitChips, HitLine } from "./search/HitLine";
 import { metricFilter, newMetricsDraft } from "./search/MetricsComposer";
@@ -99,7 +100,14 @@ function tagChip(tg: EffectiveTag): ChipItem {
     v: value,
     readOnly: tg.provenance !== "local",
     lang: tg.facet === "person" ? "ja" : undefined,
+    // 统一的来源小标记（07 §7.4）：本地 / 区段 / 原片 / 自动
+    mark: t(`tag.prov.${tg.provenance}`),
+    title: tg.tag,
   };
+}
+/** 标签 → 范围行的分面值（人物取名字；其他分面取冒号后；“其他”= 完整标签） */
+function facetValue(tg: EffectiveTag): string {
+  return tg.facet === "other" ? tg.tag : tg.tag.slice(tg.tag.indexOf(":") + 1);
 }
 
 export function LibraryPage() {
@@ -527,6 +535,53 @@ export function LibraryPage() {
     if (!local.includes(v)) void edit([focusRow.id], { local_tags: [...local, v] }, "sample-tags");
     setTagOpen(false);
     setTagDraft("");
+  };
+  // 舞台标签的菜单（UI_PLAN §3、§8）：加入范围；继承的去来源（07 §7.4：继承标签点一下跳到来源）；本地的移除
+  const tagMenu = useContextMenu("tag-menu");
+  const tagAt = useRef<{ clientX: number; clientY: number } | null>(null);
+  const goSource = (ref: { sourceId: string | null; start?: number; end?: number }) => {
+    if (!ref.sourceId) return;
+    setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: ref.start ?? 0, b: ref.end ?? 0 });
+    setPage("sources");
+  };
+  const openTagMenu = (r: SampleRow, tg: EffectiveTag) => {
+    const at = tagAt.current ?? (() => {
+      const b = document.querySelector('[data-testid="stage-tags"]')?.getBoundingClientRect();
+      return { clientX: b?.left ?? 0, clientY: b?.bottom ?? 0 };
+    })();
+    tagAt.current = null;
+    tagMenu.open(at, {
+      head: t("menu.on", { name: tg.tag }),
+      items: [
+        {
+          id: "to-scope",
+          label: t("tag.toScope"),
+          run: () =>
+            setFind((f) => {
+              const v = facetValue(tg);
+              const i = f.tags.facets.findIndex((x) => x.facet === tg.facet);
+              const facets =
+                i < 0
+                  ? [...f.tags.facets, { facet: tg.facet as FacetCondition["facet"], values: [v], single: false }]
+                  : f.tags.facets.map((x, k) => (k === i && !x.values.includes(v) ? { ...x, values: [...x.values, v] } : x));
+              return { ...f, tags: { ...f.tags, facets } };
+            }),
+        },
+        ...(tg.provenance === "local"
+          ? [{ id: "remove", label: t("tag.removeLocal"), run: () => void edit([r.id], { local_tags: (r.tags ?? []).filter((x) => x.provenance === "local" && x.tag !== tg.tag).map((x) => x.tag) }, "sample-tags") }]
+          : [
+              {
+                id: "go-source",
+                label: t(`tag.goSource.${tg.provenance}`),
+                run: () =>
+                  void call("tags.ofSamples", { ids: [r.id] }).then((xs) => {
+                    const src = xs.find((x) => x.tag === tg.tag)?.sources[0];
+                    if (src) goSource(src);
+                  }, fail),
+              },
+            ]),
+      ],
+    });
   };
   const refreshAfterPromote = () => {
     void load(offset);
@@ -1112,10 +1167,15 @@ export function LibraryPage() {
             </Button>
           </div>
           {/* 标签行（03 §3.6）：有效标签，只有本地的可删；「+」加本地标签；「提升为区段标签…」（R5.6） */}
+          <div className={s.tagRowWrap} onPointerDownCapture={(e) => (tagAt.current = { clientX: e.clientX, clientY: e.clientY })}>
           <Chips
             label={t("library.tags")}
             testId="stage-tags"
             items={(focusRow.tags ?? []).map((tg) => tagChip(tg))}
+            onAction={(tag) => {
+              const tg = (focusRow.tags ?? []).find((x) => x.tag === tag);
+              if (tg) openTagMenu(focusRow, tg);
+            }}
             onRemove={(tag) => {
               const local = (focusRow.tags ?? []).filter((x) => x.provenance === "local" && x.tag !== tag).map((x) => x.tag);
               void edit([focusRow.id], { local_tags: local }, "sample-tags");
@@ -1148,6 +1208,7 @@ export function LibraryPage() {
               </>
             }
           />
+          </div>
           <div className={s.stageActions}>
             <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
@@ -1177,19 +1238,12 @@ export function LibraryPage() {
               onAudition={(version, sound) => void audition(focusRow, version, { ...stageOpts(focusRow.id), sound })}
             />
           )}
-          <section className={s.card}>
-            <h3 className={s.cardTitle}>{t("library.info")}</h3>
-            <div className={s.field}>
-              <span className={s.fieldLabel}>{t("nature.label")}</span>
-              <NaturePicker value={focusRow.nature} onChange={(n) => void edit([focusRow.id], { nature: n }, "sample-nature")} testId="stage-nature" />
-            </div>
-            {focusRow.parent_label && !focusRow.parent_sample_id ? (
-              <div className={s.field}>
-                <span className={s.fieldLabel}>{t("library.origin")}</span>
-                <span className={s.note}>{t("library.parentDeleted", { name: focusRow.parent_label })}</span>
-              </div>
-            ) : null}
-          </section>
+          <StageInfo
+            sample={focusRow}
+            onEdit={(fields, label) => void edit([focusRow.id], fields, label)}
+            onOpen={(id) => setOpenSample(id)}
+            onAuditionParent={(id) => void call("samples.get", { id }).then((p) => audition(p), fail)}
+          />
         </>
       ) : (
         <EmptyState title={t("library.pickHint")} size="inline" />
@@ -1297,6 +1351,7 @@ export function LibraryPage() {
         />
       ) : null}
       {hitMenu.node}
+      {tagMenu.node}
       <SplitPane left={list} right={stage} ratio={split} onRatio={setSplit} label={t("library.splitter")} />
       <ConfirmDialog
         isOpen={!!deleteIds}
