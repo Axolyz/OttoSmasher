@@ -80,6 +80,9 @@ interface AppState {
   sourceJump: SourceJump | null;
   setOpenSample(id: string | null): void;
   setSourceJump(j: SourceJump | null): void;
+  /** 从原片页「派生采样」跳到采样库：查找栏里的临时“原片：…”块（UI_PLAN §2.3，不存进筛选器） */
+  libraryScope: { sourceId: string; name: string } | null;
+  setLibraryScope(v: { sourceId: string; name: string } | null): void;
   tasksOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
@@ -142,6 +145,8 @@ export const useApp = create<AppState>((set) => ({
   separationRequest: null,
   requestSeparation: (separationRequest) => set({ separationRequest }),
   setSourceJump: (sourceJump) => set({ sourceJump }),
+  libraryScope: null,
+  setLibraryScope: (libraryScope) => set({ libraryScope }),
   tasksOpen: false,
   settingsOpen: false,
   shortcutsOpen: false,

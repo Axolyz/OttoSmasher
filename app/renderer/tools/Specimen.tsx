@@ -5,7 +5,7 @@ import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
 import { Checkbox, Chips, type ChipItem, ClosableTabs, Disclosure, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
-import { NumberField, OptionalNumber, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
+import { NumberField, OptionalNumber, Select, Suggest, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
 import { Tip } from "../components/Overlay";
@@ -39,6 +39,8 @@ export function Specimen() {
   const [on, setOn] = useState(true);
   const [thumbPlaying, setThumbPlaying] = useState(false);
   const [opt, setOpt] = useState<number | null>(null);
+  const [sq, setSq] = useState("");
+  const [picked, setPicked] = useState("");
   const [tab, setTab] = useState("browse");
   const [tabs, setTabs] = useState(["1", "2"]);
   const [num, setNum] = useState(0.65);
@@ -120,6 +122,18 @@ export function Specimen() {
             label={t("specimen.select")}
             options={NATURES.map((n) => ({ id: n, label: t(`nature.${n}`) }))}
           />
+        </div>
+        <div className={s.row}>
+          <Suggest
+            label={t("scope.add")}
+            placeholder="+"
+            query={sq}
+            onQuery={setSq}
+            onPick={setPicked}
+            groups={[{ id: "n", title: t("nature.label"), items: NATURES.filter((n) => t(`nature.${n}`).includes(sq)).map((n) => ({ id: n, label: t(`nature.${n}`), detail: "3" })) }]}
+            footer={t("scope.onlyTags")}
+          />
+          <span>{picked ? t(`nature.${picked}`) : ""}</span>
         </div>
       </section>
       <section>

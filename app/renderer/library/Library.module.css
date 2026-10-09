@@ -1,6 +1,27 @@
 .page { flex: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
 .left { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.find { display: flex; gap: 6px; padding: 10px 12px 8px 14px; border-bottom: 1px solid var(--line2); }
+.findWrap { display: flex; flex-direction: column; padding: 10px 12px 2px 14px; gap: 4px; }
+.find { display: flex; gap: 6px; align-items: center; }
+/* 查找栏（UI_PLAN §2.3）：一个框里左边文字、右边表达式；出错整框标红 */
+.findBox { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--s1); border-radius: var(--r-lg); padding: 0 4px 0 2px; }
+.findBox:focus-within { border-color: var(--accent); }
+.findBox[data-invalid] { border-color: var(--bad); }
+.findBox input { border-color: transparent !important; background: transparent !important; box-shadow: none !important; outline: none !important; }
+.findText { flex: 3 1 120px; min-width: 0; display: flex; }
+.findText > * { flex: 1; }
+.findSep { width: 1px; align-self: stretch; margin: 7px 0; background: var(--line); }
+.findExprLabel { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.findExpr { flex: 2 1 90px; min-width: 0; display: flex; }
+.findExpr > * { flex: 1; }
+.findSource { display: inline-flex; align-items: center; gap: 0; flex: none; max-width: 40%; overflow: hidden; }
+.findX { border: none; background: transparent; color: var(--muted); padding: 2px; border-radius: 5px; display: inline-flex; }
+.findX:hover { background: var(--line); color: var(--text); }
+.findError { font-size: var(--fs-xs); color: var(--bad); padding-left: 4px; }
+/* 范围行（副）：一行小字、淡色，多了折行 */
+.scopeRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 12px 6px 14px; font-size: var(--fs-sm); color: var(--muted); border-bottom: 1px solid var(--line2); min-height: 30px; }
+.scopeLabel { font-size: var(--fs-xs); color: var(--muted); }
+.scopePlus { display: inline-flex; min-width: 70px; flex: 1 1 70px; }
+.scopeModified { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-xs); color: var(--warn); }
 .resultHead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px 6px 14px; color: var(--muted); font-size: var(--fs-sm); border-bottom: 1px solid var(--line2); }
 .resultTab { background: var(--s3); color: var(--text); border-radius: 7px; padding: 3px 10px; display: inline-flex; gap: 6px; font-size: var(--fs-sm); }
 .resultTab .num { color: var(--muted); }
@@ -93,3 +114,6 @@
 
 /* 判定区间（所有者 2026-10-09：可见、可改，决定继承哪些区段标签、读哪几段） */
 .judgeRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }
+.rowOps { display: inline-flex; gap: 2px; justify-content: flex-end; }
+.listBox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.listBox > * { flex: 1; min-height: 0; }

@@ -29,6 +29,14 @@ def parse_expr(expr: str | None, where: str) -> tagexpr.Node | None:
         raise CoreError("tag-expr-invalid", where=where, reason=e.reason, position=e.position) from None
 
 
+def check_expr(expr: str) -> dict[str, Any]:
+    try:
+        tagexpr.parse(expr)
+    except tagexpr.TagExprError as e:
+        return {"ok": False, "position": e.position, "reason": e.reason}
+    return {"ok": True}
+
+
 def facet_tags(facet: str, value: str, single: bool = False) -> list[str]:
     """一个分面值对应的完整标签（“其他”分面的值就是完整标签）。"""
     if facet == "person":

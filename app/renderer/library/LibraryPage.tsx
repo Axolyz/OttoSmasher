@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { EffectiveTag, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SearchFinished } from "../api/types";
+import type { EffectiveTag, FacetValues, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SavedFilter, SearchFinished } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
@@ -28,6 +28,8 @@ import { useUndo } from "../shell/useUndo";
 import { exportWords } from "../exportWords";
 import { type AuditionVersion, useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
+import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeSize } from "./FindBar";
+import { ManageFiltersDialog, SaveFilterDialog, ScopeExprDialog } from "./FilterDialogs";
 import s from "./Library.module.css";
 import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
@@ -40,6 +42,13 @@ import { newSpeechDraft, speechQuery } from "./search/SpeechComposer";
 import { BROWSE, useResults } from "./search/useResults";
 
 const PAGE = 100;
+/** 分页（07 §7.1）：一屏一页（默认，按列表高度）或固定 20 / 50 / 100 */
+type PageSize = "fit" | 20 | 50 | 100;
+const PAGE_SIZES: PageSize[] = ["fit", 20, 50, 100];
+type Sort = "created" | "name" | "duration";
+const SORTS: Sort[] = ["created", "name", "duration"];
+/** 一屏一页时估的行高（缩略图 64 + 上下内边距）；渲染后按实际行高修正 */
+const ROW_GUESS = 78;
 
 /** 导出文件名“音轨”段的固定词（随界面语言，规格 12 §12.1） */
 const trackWords = exportWords;
@@ -125,8 +134,19 @@ export function LibraryPage() {
     const paths = await window.otto.files.pick("import");
     if (paths.length) setImportPaths(paths);
   };
-  const [text, setText] = useState("");
-  const [starredOnly, setStarredOnly] = useState(false);
+  // 查找栏 + 范围行（UI_PLAN §2.3）、排序、分页；重启恢复（勾选不恢复）
+  const [find, setFind] = useState<FindState>(EMPTY_FIND);
+  const [sort, setSort] = useState<Sort>("created");
+  const [pageSize, setPageSize] = useState<PageSize>("fit");
+  const [fitRows, setFitRows] = useState(20);
+  const [filters, setFilters] = useState<SavedFilter[]>([]);
+  const [facets, setFacets] = useState<FacetValues | null>(null);
+  const [filterDialog, setFilterDialog] = useState<"save" | "manage" | "expr" | null>(null);
+  const plusRef = useRef<HTMLInputElement>(null);
+  const listBox = useRef<HTMLDivElement>(null);
+  const libraryScope = useApp((st) => st.libraryScope);
+  const setLibraryScope = useApp((st) => st.setLibraryScope);
+  const limit = pageSize === "fit" ? fitRows : pageSize;
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<SamplePage | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
@@ -150,25 +170,80 @@ export function LibraryPage() {
   const splitRestored = useRef(false);
   const auditionGen = useRef(-1);
 
-  /** 检索范围 = 当前浏览范围（查找栏 + 用途）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
-  const scope = useMemo<SampleFilter>(() => ({ natures: purpose === "all" ? undefined : [purpose], starred: starredOnly, text }), [purpose, starredOnly, text]);
+  /** 检索范围 = 当前浏览范围（用途 + 查找栏 + 范围行 + 临时原片块）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
+  const scope = useMemo<SampleFilter>(
+    () => ({
+      natures: purpose === "all" ? undefined : [purpose],
+      starred: find.starred,
+      text: find.text,
+      expr: find.expr,
+      tags: scopeSize(find.tags) ? find.tags : undefined,
+      sourceId: find.source?.sourceId,
+    }),
+    [purpose, find.starred, find.text, find.expr, find.tags, find.source],
+  );
   const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
   const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
 
   const load = useCallback(
     async (off: number) => {
-      const r = await call("samples.list", { ...query, offset: off, limit: PAGE });
-      setData(r);
-      return r;
+      try {
+        const r = await call("samples.list", { ...query, sort, offset: off, limit });
+        setData(r);
+        return r;
+      } catch (e) {
+        toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+        return null;
+      }
     },
-    [query],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [query, sort, limit],
   );
+
+  // 保存筛选器与分面的值（范围行「＋」聚焦时刷新计数）
+  const loadFilters = useCallback(() => void call("filters.list", {}).then(setFilters, () => {}), []);
+  const loadFacets = useCallback(() => void call("tags.facets", {}).then(setFacets, () => {}), []);
+  useEffect(() => {
+    if (ready) loadFilters();
+  }, [ready, loadFilters]);
+  useCoreEvent("data.changed", (d) => {
+    if ((d as Record<string, string[]>).saved_filter) loadFilters();
+  });
+
+  // 一屏一页：按列表可见高度与实际行高算一页几行
+  useEffect(() => {
+    const el = listBox.current;
+    if (!el) return;
+    const measure = () => {
+      const row = el.querySelector<HTMLElement>('[data-testid="sample-row"]');
+      const h = row && !row.querySelector("[data-top]") ? row.offsetHeight : ROW_GUESS;
+      setFitRows(Math.max(5, Math.floor(el.clientHeight / Math.max(40, h || ROW_GUESS))));
+    };
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 从原片页「派生采样」跳过来：查找栏出现临时“原片：…”块（不存）
+  useEffect(() => {
+    if (!libraryScope) return;
+    setFind((f) => ({ ...f, source: libraryScope }));
+    setLibraryScope(null);
+  }, [libraryScope, setLibraryScope]);
 
   // 分栏比例：重启恢复（UI_PLAN §2）
   useEffect(() => {
     if (!ready) return;
     void call("ui.get", { page: "library" }).then((v) => {
       if (typeof v.split === "number") setSplit(v.split);
+      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize } | undefined;
+      if (f && typeof f === "object") {
+        setFind({ ...EMPTY_FIND, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null });
+        if (f.purpose && PURPOSES.includes(f.purpose)) setPurpose(f.purpose);
+        if (f.sort && SORTS.includes(f.sort)) setSort(f.sort);
+        if (f.pageSize && PAGE_SIZES.includes(f.pageSize)) setPageSize(f.pageSize);
+      }
       splitRestored.current = true;
     });
   }, [ready]);
@@ -177,6 +252,12 @@ export function LibraryPage() {
     const id = setTimeout(() => void call("ui.set", { page: "library", key: "split", value: split }), 300);
     return () => clearTimeout(id);
   }, [split]);
+  useEffect(() => {
+    if (!splitRestored.current) return;
+    const { source: _s, ...keep } = find;
+    const id = setTimeout(() => void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize } }), 300);
+    return () => clearTimeout(id);
+  }, [find, purpose, sort, pageSize]);
 
   // 条件变化：回到第一页，清空勾选并提示（UI_PLAN §6.1）
   const firstQuery = useRef(true);
@@ -194,6 +275,18 @@ export function LibraryPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, query]);
+  // 排序、每页行数变了：回到第一页重读（勾选保留）
+  const firstPaging = useRef(true);
+  useEffect(() => {
+    if (!ready) return;
+    if (firstPaging.current) {
+      firstPaging.current = false;
+      return;
+    }
+    setOffset(0);
+    void load(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, limit]);
 
   // 切回本页时刷新（资料可能在别处变了：新截取、删除原片）
   useEffect(() => {
@@ -212,9 +305,11 @@ export function LibraryPage() {
   useEffect(() => {
     if (page !== "library") return;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
+        // ⌘F 聚焦查找栏的文字；⌘⇧F 聚焦范围行的「＋」（UI_PLAN §7）
+        if (e.shiftKey) plusRef.current?.focus();
+        else document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -225,10 +320,9 @@ export function LibraryPage() {
   useEffect(() => {
     if (!openSample || !ready) return;
     void (async () => {
-      const r = await call("samples.list", { offset: 0, limit: PAGE });
+      const r = await call("samples.list", { offset: 0, limit, sort });
       setPurpose("all");
-      setText("");
-      setStarredOnly(false);
+      setFind(EMPTY_FIND);
       setOffset(0);
       setData(r);
       setFocus(openSample);
@@ -286,11 +380,11 @@ export function LibraryPage() {
   const [resOffset, setResOffset] = useState(0);
   const loadResult = useCallback(async (id: string, off: number) => {
     try {
-      setResPage(await call("results.page", { id, offset: off, limit: PAGE }));
+      setResPage(await call("results.page", { id, offset: off, limit }));
     } catch {
       setResPage(null);
     }
-  }, []);
+  }, [limit]);
   useEffect(() => {
     if (!inResult) return setResPage(null);
     setResOffset(0);
@@ -450,11 +544,26 @@ export function LibraryPage() {
   };
 
   const total = inResult ? (resPage?.total ?? 0) : (data?.total ?? 0);
+  const filtered = !!(find.text || find.expr || find.starred || find.source || scopeSize(find.tags) || purpose !== "all" || metrics);
+  /** 「更新」：把范围行写回当前选用的筛选器（可撤销） */
+  const updatePreset = async () => {
+    const f = filters.find((x) => x.id === find.preset);
+    if (!f) return;
+    try {
+      await call("edits.apply", {
+        batch: { label: { code: "filter-update", args: { name: f.name } }, ops: [{ entity: "saved_filter", id: f.id, version: f.version, fields: { conditions: find.tags } }] } as never,
+      });
+      toast({ text: t("scope.updated", { name: f.name }), action: { label: t("common.undo"), run: () => void undo() } });
+    } catch (e) {
+      fail(e);
+    }
+    loadFilters();
+  };
   const curOffset = inResult ? resOffset : offset;
-  const pages = Math.max(1, Math.ceil(total / PAGE));
-  const pageNo = Math.floor(curOffset / PAGE) + 1;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const pageNo = Math.floor(curOffset / limit) + 1;
   const goto = (p: number) => {
-    const off = (Math.max(1, Math.min(pages, p)) - 1) * PAGE;
+    const off = (Math.max(1, Math.min(pages, p)) - 1) * limit;
     if (inResult) {
       setResOffset(off);
       void loadResult(results.active, off);
@@ -465,7 +574,7 @@ export function LibraryPage() {
   };
 
   // ---- 检索
-  const find = async () => {
+  const runSearch = async () => {
     if (composer === "speech") await results.start(() => call("search.speech", { query: speechQuery(speechDraft), scope }), "speech");
     else if (composer === "pitch")
       await results.start(() => call("search.pitch", { blocks: pitchBlocks(pitchDraft), params: pitchParams(pitchDraft), mode: pitchDraft.mode, scope }), "pitch");
@@ -711,17 +820,19 @@ export function LibraryPage() {
 
   const list = (
     <section className={s.left}>
-      <div className={s.find}>
-        <TextField value={text} onChange={setText} label={t("library.search")} placeholder={t("library.searchPlaceholder")} testId="library-search" />
-        <Button
-          variant={starredOnly ? "primary" : "flat"}
-          icon={<Star />}
-          onPress={() => setStarredOnly((v) => !v)}
-          aria-label={t("library.starredOnly")}
-          title={t("library.starredOnly")}
-          aria-pressed={starredOnly}
-        />
-      </div>
+      <FindBar find={find} setFind={setFind} />
+      <ScopeRow
+        find={find}
+        setFind={setFind}
+        filters={filters}
+        facets={facets}
+        loadFacets={loadFacets}
+        onSaveAs={() => setFilterDialog("save")}
+        onUpdate={() => void updatePreset()}
+        onManage={() => setFilterDialog("manage")}
+        onEditExpr={() => setFilterDialog("expr")}
+        plusRef={plusRef}
+      />
       <div className={s.resultHead}>
         <ClosableTabs
           label={t("search.results")}
@@ -776,7 +887,21 @@ export function LibraryPage() {
         ) : (
           <>
             <span data-testid="library-total">{t("library.total", { n: total })}</span>
-            <span>· {t("library.sortNewest")}</span>
+            <span>·</span>
+            <Menu
+              head={t("library.sortHead")}
+              items={[
+                ...SORTS.map((k) => ({ id: `sort-${k}`, label: `${sort === k ? "✓ " : ""}${t(`library.sort.${k}`)}`, run: () => setSort(k) })),
+                "-",
+                ...PAGE_SIZES.map((k) => ({ id: `size-${k}`, label: `${pageSize === k ? "✓ " : ""}${k === "fit" ? t("library.pageFit") : t("library.pageN", { n: k })}`, run: () => setPageSize(k) })),
+              ]}
+              trigger={
+                <Button size="sm" variant="flat" data-testid="library-sort">
+                  {t(`library.sort.${sort}`)}
+                  <ChevronDown size={12} />
+                </Button>
+              }
+            />
             {metrics ? (
               <>
                 <span data-testid="metrics-active">· {t("search.metrics.active", { kind: t(`search.kind.${metrics.mode}`), n: metrics.conditions.length })}</span>
@@ -788,6 +913,7 @@ export function LibraryPage() {
           </>
         )}
       </div>
+      <div className={s.listBox} ref={listBox}>
       <CollectionList<Item>
         label={t("library.listLabel")}
         items={rows}
@@ -821,8 +947,8 @@ export function LibraryPage() {
           data ? (
             <EmptyState
               icon={<SquareStack />}
-              title={t(total || text || starredOnly || purpose !== "all" ? "library.noMatch" : "library.empty.title")}
-              body={total || text || starredOnly || purpose !== "all" ? undefined : t("library.empty.body")}
+              title={t(total || filtered ? "library.noMatch" : "library.empty.title")}
+              body={total || filtered ? undefined : t("library.empty.body")}
             />
           ) : null
         }
@@ -931,6 +1057,7 @@ export function LibraryPage() {
           />
         }
       />
+      </div>
     </section>
   );
 
@@ -1099,6 +1226,23 @@ export function LibraryPage() {
           }))}
         />
       </TopSlot>
+      <SaveFilterDialog
+        isOpen={filterDialog === "save"}
+        scope={find.tags}
+        filters={filters}
+        onClose={() => setFilterDialog(null)}
+        onSaved={(id) => {
+          loadFilters();
+          setFind((f) => ({ ...f, preset: id }));
+        }}
+      />
+      <ManageFiltersDialog isOpen={filterDialog === "manage"} filters={filters} onClose={() => setFilterDialog(null)} onChanged={loadFilters} />
+      <ScopeExprDialog
+        isOpen={filterDialog === "expr"}
+        value={find.tags.expr}
+        onClose={() => setFilterDialog(null)}
+        onApply={(expr) => setFind((f) => ({ ...f, tags: { ...f.tags, expr } }))}
+      />
       <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={refreshAfterPromote} />
       <ImportDialog
         paths={importPaths}
@@ -1120,7 +1264,7 @@ export function LibraryPage() {
           scope={scope}
           bpm={bpm}
           running={!!results.running}
-          onFind={() => void find()}
+          onFind={() => void runSearch()}
           onCancel={results.cancel}
           onClose={() => setComposer(null)}
         />

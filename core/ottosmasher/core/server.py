@@ -181,6 +181,8 @@ class Core:
           lambda p: self.samples.ids(**p))
         r("tags.facets", "read", T.NoParams, T.FacetValues, "Existing values of each tag facet with sample counts (scope row).",
           lambda p: sample_filter.facet_values(self.conn))
+        r("tags.checkExpr", "read", T.ExprParams, T.ExprCheck, "Parse a tag expression; on error give the reason and the 1-based character position.",
+          lambda p: sample_filter.check_expr(str(p["expr"])))
         r("filters.list", "read", T.NoParams, list[T.SavedFilter],
           "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
           lambda p: saved_filters.list_filters(self.conn))

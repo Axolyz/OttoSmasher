@@ -260,6 +260,16 @@ export interface ExportedWav {
   reused: boolean;
 }
 
+export interface ExprCheck {
+  ok: boolean;
+  position?: number;
+  reason?: string;
+}
+
+export interface ExprParams {
+  expr: string;
+}
+
 /** F0 帧（10 §10.1）：float32 小端序列；没测的帧为 NaN。第 i 帧中心 = t0 + i × step（资产局部秒）。 */
 export interface F0Frames {
   confidence: Uint8Array;
@@ -2377,6 +2387,8 @@ export interface Commands {
   "subtitles.previewMany": { params: SourceIdsParams; result: SubtitleBatchRow[]; effect: "read" };
   /** Try the subtitle rules (draft or current) on one subtitle text. */
   "subtitles.ruleTest": { params: RuleTestParams; result: Classified; effect: "read" };
+  /** Parse a tag expression; on error give the reason and the 1-based character position. */
+  "tags.checkExpr": { params: ExprParams; result: ExprCheck; effect: "read" };
   /** Existing values of each tag facet with sample counts (scope row). */
   "tags.facets": { params: NoParams; result: FacetValues; effect: "read" };
   /** Edit batch that promotes local tags to a segment tag (apply with edits.apply). */

@@ -2,7 +2,10 @@
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import {
   Button as RacButton,
+  ComboBox,
   Group,
+  Header,
+  ListBoxSection,
   Input,
   ListBox,
   ListBoxItem,
@@ -14,7 +17,7 @@ import {
   TextArea as RacTextArea,
   TextField as RacTextField,
 } from "react-aria-components";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clock, parseClock } from "../format";
 import s from "./Fields.module.css";
 
@@ -298,3 +301,74 @@ export function OptionalNumber(props: {
   );
 }
 
+
+export interface SuggestGroup {
+  id: string;
+  title: string;
+  items: { id: string; label: string; detail?: string; lang?: string }[];
+}
+
+/**
+ * 带分组建议的输入（范围行的「＋」，UI_PLAN §2.3）：聚焦即展开，按输入过滤（调用方过滤，``groups`` 是过滤后的）；
+ * 选中一项 → ``onPick``，输入清空、继续可选下一项。空输入时按退格 → ``onBackspace``（移除最后一个条件块）。
+ */
+export function Suggest(props: {
+  groups: SuggestGroup[];
+  query: string;
+  onQuery: (q: string) => void;
+  onPick: (id: string) => void;
+  onBackspace?: () => void;
+  label: string;
+  placeholder?: string;
+  footer?: string;
+  testId?: string;
+  inputRef?: Ref<HTMLInputElement>;
+}) {
+  return (
+    <ComboBox
+      aria-label={props.label}
+      inputValue={props.query}
+      onInputChange={props.onQuery}
+      selectedKey={null}
+      onSelectionChange={(k) => {
+        if (k == null) return;
+        props.onPick(String(k));
+        props.onQuery("");
+      }}
+      menuTrigger="focus"
+      allowsEmptyCollection
+      defaultFilter={() => true}
+      className={s.suggest}
+    >
+      <Input
+        ref={props.inputRef}
+        className={s.suggestInput}
+        placeholder={props.placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        data-testid={props.testId}
+        onKeyDown={(e) => {
+          if (e.key === "Backspace" && !props.query && props.onBackspace) props.onBackspace();
+        }}
+      />
+      <Popover className={`${s.popover} ${s.suggestPop}`} offset={4} placement="bottom start">
+        <ListBox className={s.listbox} data-testid={props.testId ? `${props.testId}-list` : undefined}>
+          {props.groups.map((g) => (
+            <ListBoxSection key={g.id} id={g.id} className={s.suggestSection}>
+              <Header className={s.suggestHead}>{g.title}</Header>
+              {g.items.map((it) => (
+                <ListBoxItem key={it.id} id={it.id} className={s.option} textValue={it.label}>
+                  <span lang={it.lang} data-user-data="">
+                    {it.label}
+                  </span>
+                  {it.detail ? <span className={`${s.suggestDetail} num`}>{it.detail}</span> : null}
+                </ListBoxItem>
+              ))}
+            </ListBoxSection>
+          ))}
+        </ListBox>
+        {props.footer ? <div className={s.suggestFoot}>{props.footer}</div> : null}
+      </Popover>
+    </ComboBox>
+  );
+}

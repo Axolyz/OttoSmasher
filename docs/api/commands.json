@@ -1313,6 +1313,17 @@
    }
   },
   {
+   "name": "tags.checkExpr",
+   "effect": "read",
+   "summary": "Parse a tag expression; on error give the reason and the 1-based character position.",
+   "params": {
+    "$ref": "#/$defs/ExprParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ExprCheck"
+   }
+  },
+  {
    "name": "tags.facets",
    "effect": "read",
    "summary": "Existing values of each tag facet with sample counts (scope row).",
@@ -3819,6 +3830,36 @@
     "key",
     "path",
     "reused"
+   ]
+  },
+  "ExprCheck": {
+   "title": "ExprCheck",
+   "type": "object",
+   "properties": {
+    "ok": {
+     "type": "boolean"
+    },
+    "position": {
+     "type": "integer"
+    },
+    "reason": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "ok"
+   ]
+  },
+  "ExprParams": {
+   "title": "ExprParams",
+   "type": "object",
+   "properties": {
+    "expr": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "expr"
    ]
   },
   "F0Frames": {

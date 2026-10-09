@@ -817,6 +817,16 @@ class SampleFilter(TypedDict):
     languages: NotRequired[list[str] | None]
 
 
+class ExprParams(TypedDict):
+    expr: str
+
+
+class ExprCheck(TypedDict):
+    ok: bool
+    position: NotRequired[int]
+    reason: NotRequired[str]
+
+
 class SavedFilter(TypedDict):
     id: str
     name: str

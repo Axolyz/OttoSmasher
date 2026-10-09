@@ -36,3 +36,14 @@
 .selectPrefix { color: var(--muted); }
 .selectValue { flex: 1; text-align: left; }
 .textArea { resize: vertical; min-height: 44px; line-height: 1.5; font-family: inherit; }
+
+/* 带分组建议的输入（范围行「＋」） */
+.suggest { display: inline-flex; min-width: 60px; flex: 1 1 80px; }
+.suggestInput { width: 100%; min-width: 0; border: 1px dashed transparent; background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); padding: 2px 6px; border-radius: 7px; outline: none; }
+.suggestInput:hover { border-color: var(--line); }
+.suggestInput[data-focused] { border: 1px solid var(--accent); background: var(--s1); }
+.suggestPop { min-width: 320px; max-width: min(520px, 90vw); max-height: min(60vh, 520px); overflow: auto; }
+.suggestSection + .suggestSection { margin-top: 4px; }
+.suggestHead { font-size: var(--fs-xs); color: var(--muted); padding: 6px 8px 2px; }
+.suggestDetail { color: var(--muted); font-size: var(--fs-xs); }
+.suggestFoot { font-size: var(--fs-xs); color: var(--faint); padding: 6px 12px 8px; border-top: 1px solid var(--line2); }

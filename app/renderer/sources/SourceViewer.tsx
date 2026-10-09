@@ -307,8 +307,13 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     setPage("library");
   };
   const pick = useContextMenu("derived-pick");
-  const derivedItems = (list: Derived[]) =>
-    list.map((d) => ({ id: d.id, label: t("sources.derivedItem", { name: d.name, at: clock(d.start) }), run: () => openSample(d.id) }));
+  const setLibraryScope = useApp((st) => st.setLibraryScope);
+  const derivedItems = (list: Derived[]): MenuItems => [
+    // 在采样库里列出这个原片的全部派生采样：查找栏出现临时“原片：…”块（UI_PLAN §2.3、L16）
+    { id: "in-library", label: t("sources.derivedInLibrary", { n: derived.length }), run: () => { setLibraryScope({ sourceId: row.id, name: displayName(row) }); setPage("library"); } },
+    "-",
+    ...list.map((d) => ({ id: d.id, label: t("sources.derivedItem", { name: d.name, at: clock(d.start) }), run: () => openSample(d.id) })),
+  ];
 
   // 播放器：打开原片（换音源时只换音轨 / 外挂声部，选区保留）
   useEffect(() => {
