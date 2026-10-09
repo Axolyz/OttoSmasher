@@ -71,3 +71,13 @@ def test_hit_validity_and_pitch_has_no_stretch(core, tmp_path):
     with pytest.raises(CoreError) as e:
         core.hits.render(st["resultId"], prow["rank"], 0, "stretched", "voice")
     assert e.value.code == "hit-no-stretch"
+
+
+def test_slice_knots_strictly_increasing():
+    from ottosmasher.core.hits import _slice_knots
+
+    knots = [(0, 0), (100, 150), (101, 300), (400, 500)]
+    for a, b in [(150, 300), (149, 301), (0, 500), (151, 299), (10, 20)]:
+        pts = _slice_knots(knots, a, b)
+        assert pts[0][1] == a and pts[-1][1] == b or len(pts) >= 2
+        assert all(q[0] > p[0] and q[1] > p[1] for p, q in zip(pts, pts[1:]))

@@ -214,7 +214,7 @@ class HitService:
                 path = self.handoff._reaper_file(row, pcm, sr, media, label)
                 a, b = self._slice(an, plan, s, r["start"], r["end"])
                 off = int(round((r["start"] - plan.window[0]) * sr))
-                tp = {t - a: src - off for src, t in _slice_knots(s.map.knots, a, b)}
+                tp = {int(round(t)) - a: int(round(src)) - off for src, t in _slice_knots(s.map.knots, a, b)}
                 for c, f in zip(s.map.cps, s.map.onsets):
                     if c.kind == "onset" and a <= f < b:
                         tp[f - a] = int(round((c.src - plan.window[0]) * sr)) - off
@@ -229,8 +229,8 @@ class HitService:
         return [reaper.Item(p, it.snap, it.length, it.beat, it.name, it.markers, it.path) for p, it in zip(pos, items)], meta
 
 
-def _slice_knots(knots: list[tuple[int, int]], a: int, b: int) -> list[tuple[int, int]]:
-    """映射（源帧, 目标帧）在目标 [a, b] 里的部分，两端插值补点。"""
+def _slice_knots(knots: list[tuple[int, int]], a: int, b: int) -> list[tuple[float, float]]:
+    """映射（源帧, 目标帧）在目标 [a, b] 里的部分，两端插值补点；只保留两边都严格递增的点（映射要求单调）。"""
     def src_at(t: float) -> float:
         if t <= knots[0][1]:
             return float(knots[0][0])
@@ -239,7 +239,9 @@ def _slice_knots(knots: list[tuple[int, int]], a: int, b: int) -> list[tuple[int
                 return s0 + (t - t0) * (s1 - s0) / (t1 - t0)
         return float(knots[-1][0])
 
-    out = [(int(round(src_at(a))), a)]
-    out += [(s_, t) for s_, t in knots if a < t < b]
-    out.append((int(round(src_at(b))), b))
+    pts = [(src_at(a), float(a))] + [(float(s_), float(t)) for s_, t in knots if a < t < b] + [(src_at(b), float(b))]
+    out = [pts[0]]
+    for p in pts[1:]:
+        if p[0] > out[-1][0] + 1e-9 and p[1] > out[-1][1] + 1e-9:
+            out.append(p)
     return out
