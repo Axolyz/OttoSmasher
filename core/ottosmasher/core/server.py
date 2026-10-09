@@ -78,6 +78,7 @@ class Core:
         self.samples: SampleService
         self.interrupted_on_start = 0
         self._stop = False
+        self._req: Any = None  # 正在处理的请求 ID（资料变化事件带上它）
         self.api = CommandSet()
         self._register(self.api)
 
@@ -157,6 +158,9 @@ class Core:
           lambda p: playback_mod.resolve_asset(self.conn, self.ws.root, p["assetId"], float(p["start"]), float(p["end"])))
         r("peaks.get", "read", T.PeaksParams, T.Peaks, "Waveform peaks for an asset range (pending while the cache is built).",
           lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))))
+        r("spectrum.get", "read", T.SpectrumParams, T.Spectrum,
+          "Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows).",
+          lambda p: self.waveforms.spectrum(p["assetId"], float(p["start"]), float(p["end"]), int(p["cols"]), int(p["rows"]), p["scale"]))
         r("thumbs.get", "read", T.ThumbsParams, list[T.ThumbResult], "List thumbnails (pending while generated).", lambda p: self.thumbs.get(list(p["items"])))
         r("dev.registerStem", "dev", T.RegisterStemParams, T.StemRegistered, "Dev hook: register an existing stem file as a full-track asset (S1.2).",
           self._dev_register_stem)
@@ -447,7 +451,9 @@ class Core:
 
     def emit(self, name: str, data: Any) -> None:
         if self.writer is not None:
-            self.writer.event(name, data)
+            # 资料变化记下引起它的请求（只在主循环里处理请求时才有；任务、后台补齐、别的线程发的没有）
+            req = self._req if name == "data.changed" and threading.current_thread() is threading.main_thread() else None
+            self.writer.event(name, data, req)
 
     def post(self, fn: Callable[[], None]) -> None:
         self._q.put(("call", fn))
@@ -515,8 +521,12 @@ class Core:
                 raise CoreError("unknown-method", method=method)
             params = cmd.parse(msg.get("p"))
             kind, session = actor_mod.parse(msg.get("actor"))
-            with actor_mod.acting(self.conn, kind, session):
-                result = cmd.handler(params)
+            self._req = rid
+            try:
+                with actor_mod.acting(self.conn, kind, session):
+                    result = cmd.handler(params)
+            finally:
+                self._req = None
             if self.strict_api:
                 cmd.check_result(result)
             return {"t": "res", "id": rid, "ok": True, "r": result}

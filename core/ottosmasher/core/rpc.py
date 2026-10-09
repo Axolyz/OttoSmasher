@@ -72,5 +72,8 @@ class FrameWriter:
             self._stream.write(data)
             self._stream.flush()
 
-    def event(self, name: str, data: Any) -> None:
-        self.send({"t": "evt", "e": name, "d": data})
+    def event(self, name: str, data: Any, req: Any = None) -> None:
+        msg = {"t": "evt", "e": name, "d": data}
+        if req is not None:
+            msg["req"] = req  # 由哪个请求引起（界面据此区分“自己的操作”与别处 / 任务的改动，P8）
+        self.send(msg)

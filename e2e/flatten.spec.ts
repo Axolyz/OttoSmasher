@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 拉平（规格 11、16 R17）：舞台动作条 → 拉平台（默认值随入口、改范围不改定音、手动目标即时解析、内区）→ 任务 → 「打开结果」跳到成品
 // （调谐单音、pitch: 标签、名称不带音名）；列表右键是“其他单个入口”的默认值；批量拉平没有对齐的项逐条失败、可只重跑失败项。
@@ -28,7 +28,7 @@ test("拉平：拉平台、任务、成品、批量", async () => {
     await req("samples.create", { assetId: aid, start: 1.0, end: 1.6, name: "みー", nature: "speech" });
   }, wav);
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(2);
   await rows.filter({ hasText: "ふぁー" }).click();
@@ -81,7 +81,7 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await page.screenshot({ path: ".cache/playwright-results/flatten-product.png" });
 
   // ---- 列表右键「拉平…」= 其他单个入口：整段 + 段内自动
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await rows.filter({ hasText: "みー" }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "拉平…" }).click();
   await expect(sheet.getByTestId("flatten-range-whole")).toHaveAttribute("data-selected", "true");

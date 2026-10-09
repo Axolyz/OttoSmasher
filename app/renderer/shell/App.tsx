@@ -67,13 +67,21 @@ export function App() {
     if (restored.current) void call("ui.set", { page: "shell", key: "theme", value: st.theme });
   }, [st.theme]);
 
+  // 「刷新浏览列表」的程序入口（自动化测试用：自己窗口的请求引起的变化不提示“资料已更新”）
+  useEffect(() => {
+    const on = () => st.refreshLists();
+    window.addEventListener("otto:refresh-lists", on);
+    return () => window.removeEventListener("otto:refresh-lists", on);
+  }, [st]);
+
   // 资料变化只提示，不自动刷新（P8）
   useEffect(
     () =>
       window.otto.core.onEvent((ev) => {
         if (ev.e === "data.changed") {
           const d = ev.d as Record<string, string[]>;
-          if (Object.keys(d).some((k) => k !== "setting")) st.setStale(true);
+          // 自己的操作（本窗口的请求引起的）不提示；任务、后台、别的窗口改的才提示（L13）
+          if (!ev.own && Object.keys(d).some((k) => k !== "setting")) st.setStale(true);
         }
       }),
     [st.setStale],

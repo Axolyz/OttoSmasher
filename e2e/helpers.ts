@@ -26,3 +26,10 @@ export async function launch(opts: { locale?: string; workspace?: string } = {})
   await expect.poll(() => page.evaluate(async () => (await window.otto.core.status()).state), { timeout: 20000 }).toBe("ready");
   return { app, page, workspace };
 }
+
+/** 刷新浏览列表：有“资料已更新”就点它；自己窗口的请求引起的变化不提示（P8 / L13），测试里用页面的刷新钩子 */
+export async function refreshLists(page: Page): Promise<void> {
+  const b = page.getByTestId("refresh-lists");
+  if (await b.isVisible().catch(() => false)) return b.click();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("otto:refresh-lists")));
+}

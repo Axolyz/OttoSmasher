@@ -10,6 +10,10 @@ export type CoreResult<T> = { ok: true; r: T } | { ok: false; e: CoreErrorWire }
 export interface CoreEvent {
   e: string;
   d: unknown;
+  /** （主进程内部）引起这次资料变化的请求来自哪个窗口 */
+  origin?: number;
+  /** 资料变化是这个窗口自己的请求引起的（P8：不提示“资料已更新”） */
+  own?: boolean;
 }
 
 export type CoreState = "starting" | "ready" | "exited" | "fatal";

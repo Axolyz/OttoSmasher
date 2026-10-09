@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 查找栏与范围行（规格 07 §7.1–§7.3、16 R8.1–R8.2、R8.5；UI_PLAN §2.3）：「＋」分面块（带计数）、人物“只要单人”、主表达式报位置、
 // 存为筛选器 → 选用 → 已修改 · 更新、排序菜单、重启恢复条件。
@@ -32,7 +32,7 @@ test("范围行：分面、表达式、保存筛选器、排序", async () => {
     await mk("え無", 3, ["好用"]);
   }, wav);
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await expect(page.getByTestId("library-total")).toHaveText("4 个采样");
 
   // 「＋」：聚焦即展开分面建议（带计数），输入过滤，选中 → 人物块

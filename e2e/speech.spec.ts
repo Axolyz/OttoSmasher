@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 语音分析（规格 08 §8.4、16 S1.7）：采样库批量入口 → 确认框 M/N/K → 排队 → 任务里看逐条结果 → 勾失败项再分析；再发起时已是最新的跳过
 const MODELS = resolve("dev-workspace/Models");
@@ -30,7 +30,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
     }
   }, wav);
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(3);
   await rows.first().click();
@@ -69,7 +69,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("speech-results")).toBeHidden();
   // 列表里的分析状态（刷新后）
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   // 分析属于“段 + 轨”：对齐出来的音素可能伸出采样范围一点 → 已分析 ◐（只读到这段的一部分）
   await expect(rows.filter({ hasText: "ああ" }).getByTestId("row-analysis")).toHaveText(/^(手动截取 · 已分析( ◐)?|\d+ 块( · .*)?)$/); // 索引建好后显示节奏字形 + 音块数
   await expect(rows.filter({ hasText: "おと" }).getByTestId("row-analysis")).toHaveText("手动截取 · 分析失败");

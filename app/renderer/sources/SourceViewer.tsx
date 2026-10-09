@@ -17,6 +17,7 @@ import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
+import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
 import type { SeparationRequest as SeparationInput } from "../state/store";
@@ -68,6 +69,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const [muted, setMuted] = useState(false);
   const stamp = useRef({ time: null as number | null, at: 0, playing: false, gen: -1 });
   const tl = useRef<TimelineHandle>(null);
+  const [spectrum, setSpectrum] = useState<SpectrumScale>(null);
   const root = useRef<HTMLDivElement>(null);
 
   // 换原片：选区清空，音源回到该原片的分析音轨（查看器不重建，画布保持不变）
@@ -420,6 +422,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
         content,
         track: exportTrack,
       });
+      useApp.getState().setLastExport([r.path]);
       toast({
         text: t(r.reused ? "sources.exportReused" : "sources.exported", { name: basename(r.path) }),
         action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path) },
@@ -692,6 +695,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")}>
             {t("sources.zoomSel")}
           </Button>
+          <SpectrumMenu value={spectrum} onChange={setSpectrum} testId="timeline-spectrum" />
           <Menu
             head={t("sources.derivedHead", { n: derived.length })}
             items={
@@ -767,6 +771,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
         </div>
         )}
         <Timeline
+          spectrum={spectrum}
           ref={tl}
           overlay={overlay}
           lanes={lanes}

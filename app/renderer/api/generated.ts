@@ -1679,6 +1679,25 @@ export interface SpeakersRegenerated {
   editId: string | null;
 }
 
+export interface Spectrum {
+  cols: number;
+  data: Uint8Array;
+  end: number;
+  nyquist: number;
+  rows: number;
+  scale: string;
+  start: number;
+}
+
+export interface SpectrumParams {
+  assetId: string;
+  cols: number;
+  end: number;
+  rows: number;
+  scale: "linear" | "log" | "mel";
+  start: number;
+}
+
 /** 语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。 */
 export interface SpeechBlockCond {
   beats?: (number | null)[] | null;
@@ -2465,6 +2484,8 @@ export interface Commands {
   "sources.relocate": { params: RelocateParams; result: SourceRelocated; effect: "write" };
   /** Scan all source folders for new, moved or missing files. */
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
+  /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */
+  "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
   /** Usable alignments of all segments on an asset range (same physical audio only). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
   /** What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons. */
@@ -2648,6 +2669,7 @@ export type ErrorCode =
   | "source-no-audio"
   | "source-not-found"
   | "source-path-taken"
+  | "spectrum-invalid"
   | "speech-blocked"
   | "speech-edit-conflict"
   | "speech-edit-invalid"

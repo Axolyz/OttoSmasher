@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 标签与资料的批量操作（规格 07 §7.4–§7.6、16 R8.5、R9）：添加 / 移除标签（预览 → 应用 → 撤销）、编辑资料（逐字段对比）、管理标签（全局改名覆盖段的说话人）。
 const SHOTS = ".cache/compare/shots/stage8";
@@ -27,7 +27,7 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   }, wav);
   void sid;
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await expect(page.getByTestId("library-total")).toHaveText("3 个采样");
 
   // ⌘A → 批量操作 ▾ → 添加标签…：预览（不写库）→ 应用 → 撤销
@@ -83,8 +83,10 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   expect(speakers).toEqual(["歳納京子"]);
 
   // 舞台：标签带来源小标记；单击标签 → 加入范围；资料与来源：备注失焦保存、评分
-  await page.keyboard.press("Escape");
-  await page.getByTestId("refresh-lists").click();
+  await expect(page.getByTestId("tag-global")).toHaveCount(0);
+  await page.getByTestId("manage-tags").getByRole("button", { name: "关闭" }).click();
+  await expect(page.getByTestId("manage-tags")).toHaveCount(0);
+  await refreshLists(page);
   await page.getByTestId("sample-row").filter({ hasText: "一" }).click();
   await expect(page.getByTestId("stage-tags")).toContainText("歳納京子区段");
   await page.getByTestId("stage-tags").getByText("歳納京子", { exact: true }).click();
@@ -106,7 +108,16 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   await page.keyboard.press("0");
   await expect(page.getByTestId("sample-row").filter({ hasText: "一" }).getByTestId("row-reclassified")).toHaveText("已归类为未分类");
   await expect(page.getByTestId("sample-row")).toHaveCount(3);
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
+
+  // 频谱细看（L19）：舞台波形卡「频谱 ▾」→ 对数；视口 ≤ 30 秒，不出错
+  await page.getByTestId("sample-row").first().click();
+  await page.getByTestId("stage-spectrum").click();
+  await page.getByTestId("menu-spec-log").click();
+  await expect(page.getByTestId("stage-spectrum")).toContainText("频谱 · 对数");
+  await page.waitForTimeout(600);
+  await expect(page.getByTestId("spectrum-status")).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/10-spectrum.png` });
   await app.close();
 });

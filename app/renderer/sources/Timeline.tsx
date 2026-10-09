@@ -54,6 +54,15 @@ export interface TimelineHandle {
 }
 
 const MIN_SPAN = 0.05;
+const SPECTRUM_MAX = 30;
+
+/** "#rrggbb" / "rgb(r, g, b)" → [r, g, b] */
+function cssRgb(v: string): [number, number, number] {
+  const m = v.trim().match(/^#([0-9a-f]{6})$/i);
+  if (m) return [parseInt(m[1]!.slice(0, 2), 16), parseInt(m[1]!.slice(2, 4), 16), parseInt(m[1]!.slice(4, 6), 16)];
+  const n = v.match(/\d+(\.\d+)?/g)?.map(Number) ?? [200, 200, 200];
+  return [n[0] ?? 200, n[1] ?? 200, n[2] ?? 200];
+}
 const RULER_H = 20;
 const OVERVIEW_H = 18;
 const LANE_H = 16;
@@ -130,6 +139,8 @@ export const Timeline = forwardRef<
     editFocus?: string | null;
     onEditBands?: (bands: LayerBand[]) => void;
     onEditFocus?: (id: string | null) => void;
+    /** 频谱细看（规格 05 §5.3.2、L19）：视口 ≤ 30 秒时把波形换成所选音频的频谱（固定 −90–0 dB）；null = 波形 */
+    spectrum?: "log" | "linear" | "mel" | null;
     /** 右键：光标处的时间、覆盖层上的区间、车道（若在车道上）与其区间 */
     onContextMenu?: (t: number, hits: { overlay: LayerBand[]; lane: { id: string; bands: LayerBand[] } | null }, at: { clientX: number; clientY: number }) => void;
   }
@@ -263,6 +274,62 @@ export const Timeline = forwardRef<
     return () => clearTimeout(timer);
   }, [assetId, view, size.w, whole, duration, offset, assetDur]);
 
+  // 频谱：视口（≤30 秒、在资产覆盖范围里的部分）实算；视口变了合并 120 ms 再取
+  const [spec, setSpec] = useState<{ a: number; b: number; img: HTMLCanvasElement } | null>(null);
+  const [specMsg, setSpecMsg] = useState<string | null>(null);
+  useEffect(() => {
+    const scale = props.spectrum;
+    if (!scale || !assetId || !size.w) {
+      setSpec(null);
+      setSpecMsg(null);
+      return;
+    }
+    const a = Math.max(view[0], covered[0]);
+    const b = Math.min(view[1], duration, covered[1]);
+    if (!(b > a)) return setSpec(null);
+    if (b - a > SPECTRUM_MAX) {
+      setSpec(null);
+      setSpecMsg(t("timeline.spectrumZoom", { max: SPECTRUM_MAX }));
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      const cols = Math.max(8, Math.min(2400, Math.round(((b - a) / (view[1] - view[0])) * size.w)));
+      const rows = Math.max(16, Math.min(512, Math.round(size.h - RULER_H - OVERVIEW_H)));
+      call("spectrum.get", { assetId, start: a - offset, end: b - offset, cols, rows, scale })
+        .then((r) => {
+          if (!live) return;
+          const data = r.data;
+          const c = document.createElement("canvas");
+          c.width = r.cols;
+          c.height = r.rows;
+          const g = c.getContext("2d")!;
+          const img = g.createImageData(r.cols, r.rows);
+          // 单色：强度 = 不透明度，颜色取波形色（设计令牌）；第 0 行是最低频，画在最下面
+          const rgb = cssRgb(cssVar("--wave"));
+          for (let y = 0; y < r.rows; y++) {
+            const src = (r.rows - 1 - y) * r.cols;
+            for (let x = 0; x < r.cols; x++) {
+              const v = data[src + x]!;
+              const o = (y * r.cols + x) * 4;
+              img.data[o] = rgb[0];
+              img.data[o + 1] = rgb[1];
+              img.data[o + 2] = rgb[2];
+              img.data[o + 3] = v;
+            }
+          }
+          g.putImageData(img, 0, 0);
+          setSpec({ a, b, img: c });
+          setSpecMsg(null);
+        })
+        .catch((e) => live && (setSpec(null), setSpecMsg(e instanceof CoreFailure ? errorText(e.wire) : String(e))));
+    }, 120);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [props.spectrum, assetId, view, size.w, size.h, duration, offset, assetDur]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const lanes = props.lanes ?? [];
   const lanesH = lanes.length * LANE_H;
   const waveTop = RULER_H;
@@ -314,6 +381,15 @@ export const Timeline = forwardRef<
       }
     }
     if (useDetail) drawPeaks(ctx, detail, v0, v1, size.w, waveTop, waveH, d0, d1);
+    if (props.spectrum && spec) {
+      // 频谱盖住这段的波形
+      const xa = ((spec.a - v0) / span) * size.w;
+      const xb = ((spec.b - v0) / span) * size.w;
+      ctx.fillStyle = cssVar("--s1");
+      ctx.fillRect(xa, waveTop, xb - xa, waveH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(spec.img, xa, waveTop, xb - xa, waveH);
+    }
     // 覆盖层：半透明色带盖住整个波形高度，边界线，标签贴底
     const toneColor = (tone: LayerBand["tone"]) =>
       cssVar(
@@ -449,7 +525,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {
@@ -735,6 +811,10 @@ export const Timeline = forwardRef<
       {status !== "ok" ? (
         <div className={s.tlStatus} data-testid="timeline-status">
           {status === "pending" ? t("sources.timeline.pending") : status}
+        </div>
+      ) : props.spectrum && specMsg ? (
+        <div className={s.tlStatus} data-testid="spectrum-status">
+          {specMsg}
         </div>
       ) : null}
     </div>

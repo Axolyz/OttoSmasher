@@ -458,17 +458,23 @@ export function LibraryPage() {
   };
 
   // 导出与交接（12 §12.1、§12.3）：舞台上的卡拍导出/交接用舞台的临时方案与纯 mora；列表、批量用默认（近快、原节奏）
-  const reveal = (path: string, reused = false) =>
+  const setLastExport = useApp((st) => st.setLastExport);
+  const reveal = (path: string, reused = false) => {
+    setLastExport([path]);
     toast({
       text: t(reused ? "sources.exportReused" : "sources.exported", { name: path.split(/[\\/]/).pop() ?? path }),
       action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(path) },
     });
+  };
   const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
   const exportOriginal = async (ids: string[]) => {
     try {
       const paths = await call("exports.samples", { ids, words: trackWords() });
       if (paths.length === 1) reveal(paths[0]!);
-      else if (paths.length) toast({ text: t("library.exportedN", { n: paths.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(paths[0]!) } });
+      else if (paths.length) {
+        setLastExport(paths);
+        toast({ text: t("library.exportedN", { n: paths.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(paths[0]!) } });
+      }
     } catch (e) {
       fail(e);
     }
@@ -484,7 +490,10 @@ export function LibraryPage() {
         fail(e);
       }
     }
-    if (ids.length > 1 && done.length) toast({ text: t("library.exportedN", { n: done.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(done[0]!) } });
+    if (ids.length > 1 && done.length) {
+      setLastExport(done);
+      toast({ text: t("library.exportedN", { n: done.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(done[0]!) } });
+    }
   };
   /** ``baked``：卡好拍的声音 + 起音拉伸标记；false = 未烘焙原声 + 卡拍拉伸标记（12 §12.3）；不给 = 按设置（⌘C） */
   const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked?: boolean) => {

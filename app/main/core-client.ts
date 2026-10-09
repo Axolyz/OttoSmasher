@@ -6,6 +6,8 @@ import type { CoreErrorWire, CoreEvent, CoreResult, CoreStatus } from "../shared
 
 interface Pending {
   resolve: (r: CoreResult<unknown>) => void;
+  /** 发请求的窗口（webContents.id） */
+  origin?: number;
 }
 
 export interface CoreOptions {
@@ -83,13 +85,15 @@ export class CoreClient extends EventEmitter {
     }
     if (msg.t === "evt") {
       const ev: CoreEvent = { e: msg.e as string, d: msg.d };
+      // 由某个请求引起的资料变化：记下发请求的窗口（只有那个窗口算“自己的操作”，P8）
+      if (typeof msg.req === "number") ev.origin = this.pending.get(msg.req)?.origin;
       if (ev.e === "core.ready") this.setStatus({ state: "ready" });
       if (ev.e === "core.fatal") this.setStatus({ state: "fatal", error: ev.d as CoreErrorWire });
       this.emit("event", ev);
     }
   }
 
-  request<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<CoreResult<T>> {
+  request<T = unknown>(method: string, params: Record<string, unknown> = {}, origin?: number): Promise<CoreResult<T>> {
     const proc = this.proc;
     if (!proc || this.status.state !== "ready") {
       return Promise.resolve({ ok: false, e: { code: "core-not-ready", args: { state: this.status.state } } });
@@ -99,7 +103,7 @@ export class CoreClient extends EventEmitter {
     const head = Buffer.alloc(4);
     head.writeUInt32BE(body.length, 0);
     return new Promise((resolve) => {
-      this.pending.set(id, { resolve: resolve as Pending["resolve"] });
+      this.pending.set(id, { resolve: resolve as Pending["resolve"], origin });
       proc.stdin!.write(Buffer.concat([head, body]));
     });
   }

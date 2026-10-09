@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 节奏与卡拍（规格 09 §9.3–§9.5、12 §12.1、§12.3、UI_PLAN §1、§3）：顶栏 BPM → 舞台「节奏与卡拍」面板（方案、映射图、试听：不卡拍/卡拍 ×
 // 原声/原声＋咔哒/纯咔哒）→ 全局播放条显示版本 → 分组与停顿（切分/合并，可撤销）→ 人工占格 → 临时纯 mora 与「写进人工占格」→ 交接 ▾
@@ -56,7 +56,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   );
 
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(2);
   await rows.filter({ hasText: "かかかかかか" }).click();

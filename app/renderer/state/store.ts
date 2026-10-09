@@ -86,6 +86,9 @@ interface AppState {
   tasksOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
+  /** 全局播放条的导出交接条（UI_PLAN §1、L27）：最近一次导出的文件，可普通拖进 DAW、定位 */
+  lastExport: string[] | null;
+  setLastExport(paths: string[] | null): void;
   /** 「管理标签」（UI_PLAN §8：⋯ 菜单） */
   manageTagsOpen: boolean;
   setManageTagsOpen(v: boolean): void;
@@ -153,6 +156,8 @@ export const useApp = create<AppState>((set) => ({
   tasksOpen: false,
   settingsOpen: false,
   shortcutsOpen: false,
+  lastExport: null,
+  setLastExport: (lastExport) => set({ lastExport: lastExport && lastExport.length ? lastExport : null }),
   manageTagsOpen: false,
   setManageTagsOpen: (manageTagsOpen) => set({ manageTagsOpen }),
   theme: "dark",

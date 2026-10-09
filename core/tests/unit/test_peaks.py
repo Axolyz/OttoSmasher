@@ -107,3 +107,28 @@ def test_detail_window_uses_exact_samples(db, ws, steps_wav):
     q2 = svc.get(aid, 0.0, 3.0, 300)  # 大于缓存分辨率需求的才走细节窗；这里仍用缓存
     assert q2["count"] <= 300
     svc.shutdown()
+
+
+def test_spectrum_peak_at_2000hz(db, ws, tmp_path):
+    """R22.10：频谱取所选音频窗口（2000 Hz 正弦 → 峰值 2000±30 Hz）；固定 −90–0 dB；超过 30 秒、越界报错。"""
+    from ottosmasher.core.waveforms import row_freqs
+
+    f = tmp_path / "sine.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=2000:sample_rate=44100:duration=40", "-af", "volume=0.5", str(f)], check=True)
+    [r] = SourceService(db, workspace_root=ws.root).add([str(f)])
+    aid = assets_mod.list_for_source(db, r["sourceId"])[0]["id"]
+    svc = WaveformService(db, ws, post=lambda fn: fn(), emit=lambda *a: None)
+    for scale in ("linear", "log", "mel"):
+        sp = svc.spectrum(aid, 1.0, 2.0, 50, 400, scale)
+        q = np.frombuffer(sp["data"], dtype=np.uint8).reshape(sp["rows"], sp["cols"])
+        peak = int(np.argmax(q[:, 25]))
+        freq = row_freqs(scale, sp["rows"], sp["nyquist"])[peak]
+        assert abs(freq - 2000) <= 30 + (sp["nyquist"] / sp["rows"] if scale == "linear" else 0), (scale, freq)
+        db_peak = q[peak, 25] / 255 * 90 - 90
+        assert -27 < db_peak < -21  # ffmpeg 的 sine 幅度 1/8，再 ×0.5 → ≈ −24 dB（相对满幅正弦）
+    with pytest.raises(CoreError) as ei:
+        svc.spectrum(aid, 0.0, 31.0, 50, 100, "log")
+    assert ei.value.args_["reason"] == "spectrum-too-long"
+    with pytest.raises(CoreError):
+        svc.spectrum(aid, 39.5, 41.0, 50, 100, "log")
+    svc.shutdown()

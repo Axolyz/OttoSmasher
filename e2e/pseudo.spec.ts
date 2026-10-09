@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 async function unbracketed(page: import("@playwright/test").Page): Promise<string[]> {
   return page.evaluate(() => {
@@ -178,7 +178,7 @@ test("伪语言：节奏与卡拍", async () => {
     .poll(async () => page.evaluate(async () => ((await window.otto.core.request("jobs.list", {})) as { r: Array<{ status: string }> }).r[0]?.status), { timeout: 60000 })
     .toBe("succeeded");
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await page.getByTestId("sample-row").first().click();
   await expect(page.getByTestId("rhythm-map")).toBeVisible();
   await page.getByTestId("bpm").fill("150");
@@ -222,7 +222,7 @@ test("伪语言：三大搜索", async () => {
     .poll(async () => page.evaluate(async () => ((await window.otto.core.request("jobs.list", {})) as { r: Array<{ status: string }> }).r[0]?.status), { timeout: 60000 })
     .toBe("succeeded");
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await page.getByTestId("hunt-open").click();
   const composer = page.getByTestId("composer");
   await expect(composer.getByTestId("search-coverage")).toBeVisible();

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { BrowserWindow, ClipboardItem, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
-import type { CoreStatus } from "../shared/protocol";
+import type { CoreEvent, CoreStatus } from "../shared/protocol";
 import { CoreClient } from "./core-client";
 import { resolvePaths } from "./paths";
 
@@ -169,13 +169,18 @@ ipcMain.handle("reaper:copy", async (_e, params: Record<string, unknown>) => {
   return { ok: true, r: { files: r.r.files, manifest: r.r.manifest, count: r.r.count } };
 });
 
-ipcMain.handle("core:request", (_e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}));
+ipcMain.handle("core:request", (e, method: string, params: Record<string, unknown>) => core.request(method, params ?? {}, e.sender.id));
 ipcMain.handle("core:status", () => core.status);
 ipcMain.handle("core:restart", async () => {
   if (core.status.state === "ready") return;
   core.start();
 });
-core.on("event", (ev) => broadcast("core:event", ev));
+// 资料变化：发请求的那个窗口收到 own = true（自己的操作不提示“资料已更新”，P8 / L13）
+core.on("event", (ev: CoreEvent) => {
+  if (ev.origin === undefined) return broadcast("core:event", ev);
+  const { origin, ...rest } = ev;
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send("core:event", { ...rest, own: w.webContents.id === origin });
+});
 core.on("status", (st: CoreStatus) => broadcast("core:status", st));
 core.on("unexpected-exit", (code) => logDesktopEvent("core-exited", { code }));
 

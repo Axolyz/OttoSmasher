@@ -22,6 +22,7 @@ import { AnchoredPanel } from "../components/Panel";
 import { clock, seconds } from "../format";
 import { errorText, t, type TArgs } from "../i18n";
 import { useApp } from "../state/store";
+import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
 import s from "./Library.module.css";
@@ -117,6 +118,7 @@ export function StageSpeech(props: {
   const [sel, setSel] = useState<Sel | null>(null);
   const [draft, setDraft] = useState("");
   const tl = useRef<TimelineHandle>(null);
+  const [spectrum, setSpectrum] = useState<SpectrumScale>(null);
 
   const loadSpeech = () => void call("speech.sample", { id: smp.id }).then(setView, () => setView(null));
   useEffect(() => {
@@ -317,6 +319,7 @@ export function StageSpeech(props: {
     try {
       const r = await call("exports.range", { assetId: smp.asset_id, start: range.a, end: range.b, words: exportWords() });
       const name = r.path.split(/[\\/]/).pop() ?? r.path;
+      useApp.getState().setLastExport([r.path]);
       toast({
         text: t(r.reused ? "sources.exportReused" : "sources.exported", { name }),
         action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path) },
@@ -383,6 +386,7 @@ export function StageSpeech(props: {
           <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")} data-testid="stage-zoom-sel">
             {t("sources.zoomSel")}
           </Button>
+          <SpectrumMenu value={spectrum} onChange={setSpectrum} testId="stage-spectrum" />
         </div>
         {editing ? (
           <div className={s.editBar} data-testid="phone-edit-bar">
@@ -400,6 +404,7 @@ export function StageSpeech(props: {
         <div className={s.waveBox}>
           {asset ? (
             <Timeline
+              spectrum={spectrum}
               ref={tl}
               assetId={smp.asset_id}
               duration={asset.duration}

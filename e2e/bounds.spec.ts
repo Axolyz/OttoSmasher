@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 编辑段的边界（UI_PLAN §3.1、03 §3.5.4、R4.11）、新增区段标签、编辑段文本（✎）、添加台词与已有段重叠时「切开」、本地标签提升为区段标签（R5.6）
 type R<T> = { r: T };
@@ -109,7 +109,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
     await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 6, end: 7, name: "ドア" });
   }, sid);
   await page.keyboard.press("Meta+1");
-  await page.getByTestId("refresh-lists").click().catch(() => {});
+  await refreshLists(page).catch(() => {});
   await page.getByTestId("sample-row").first().click();
   await page.getByTestId("add-tag").click();
   await page.getByTestId("add-tag-input").fill("好用");

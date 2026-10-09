@@ -944,6 +944,9 @@
   "reason.asset-scope-fixed": "资产作用域的标注不能改作用域（时间坐标不同）",
   "error.promote-invalid": "不能提升为区段标签：{reason}",
   "error.tag-expr-invalid": "标签表达式第 {position} 个字符：{reason}",
+  "error.spectrum-invalid": "频谱：{reason}",
+  "reason.scale": "刻度不对（对数 / 线性 / Mel）",
+  "reason.spectrum-too-long": "视口超过 {max} 秒，放大到 {max} 秒以内再看频谱",
   "reason.expect-operator": "需要 AND 或 OR",
   "reason.expect-term": "这里需要一个标签",
   "reason.unclosed-quote": "引号没有闭合",
@@ -1947,5 +1950,15 @@
   "library.pitchCurve": "音高曲线",
   "library.envelope": "包络",
   "library.attack": "起音 {ms} ms",
-  "library.reclassified": "已归类为{nature}"
+  "library.reclassified": "已归类为{nature}",
+  "dock.exportDrag": "拖动文件名 = 把这个文件拖进 DAW 或 Finder",
+  "dock.exportedN": "已导出 {n} 个文件",
+  "spectrum.head": "频谱细看（视口 30 秒以内；所选音频实算，固定 −90–0 dB）",
+  "spectrum.button": "频谱",
+  "spectrum.on": "频谱 · {scale}",
+  "spectrum.off": "波形",
+  "spectrum.log": "对数",
+  "spectrum.linear": "线性",
+  "spectrum.mel": "Mel",
+  "timeline.spectrumZoom": "频谱只看 {max} 秒以内：放大选区或用滚轮放大"
 }

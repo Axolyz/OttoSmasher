@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // S1.7（规格 16）：YY1-01 + 人声整轨（开发期钩子，S1.2）→ 默认人声轨 → 导入到文本层（含 OP/ED）→
 // 原片页「语音分析…」：分析默认人声轨上的台词段，不需要先建采样（所有者 2026-10-09：分析属于“段 + 那条轨”）；不触发分离、确认框 M/N/K；
@@ -98,7 +98,7 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   expect(cv.head.result.phones.map((p) => p.label).join(" ")).toBe("k a");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+1");
-  await page.getByTestId("refresh-lists").click().catch(() => {});
+  await refreshLists(page).catch(() => {});
   await page.getByTestId("library-search").fill("アッカリ");
   await page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" }).first().click();
   await expect(page.getByTestId("speech-phone")).toHaveCount(view.head.result.phones.length);

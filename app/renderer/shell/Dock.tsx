@@ -1,4 +1,4 @@
-import { Play, Square } from "lucide-react";
+import { FileAudio, Play, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { Button } from "../components/Button";
@@ -19,11 +19,14 @@ export function versionLabel(np: Pick<NowPlaying, "version" | "sound" | "plan" |
   return np.sound === "voice" ? base : `${base} · ${t(`rhythm.sound.${np.sound}`)}`;
 }
 
-/** 全局播放条（UI_PLAN §1）：当前声音（名称、原声/卡拍及方案、进度、停止）；“资料已更新 · 刷新浏览列表”。 */
+/** 全局播放条（UI_PLAN §1）：当前声音（名称、原声/卡拍及方案、进度、停止）；导出交接（最近导出的文件：普通拖动即可拖进 DAW / Finder、定位）；
+ *  “资料已更新 · 刷新浏览列表”。 */
 export function Dock() {
   const stale = useApp((st) => st.stale);
   const refreshLists = useApp((st) => st.refreshLists);
   const np = useApp((st) => st.nowPlaying);
+  const lastExport = useApp((st) => st.lastExport);
+  const setLastExport = useApp((st) => st.setLastExport);
   const setNowPlaying = useApp((st) => st.setNowPlaying);
   const [pos, setPos] = useState(0);
   useEffect(
@@ -78,6 +81,29 @@ export function Dock() {
         )}
       </div>
       <div className={s.grow} />
+      {lastExport ? (
+        <div className={s.note} data-testid="dock-export">
+          <span
+            className={s.exportFile}
+            draggable
+            onDragStart={(e) => {
+              // 已经是导出好的真实文件：普通拖动交给系统拖拽（不需要 ⌥，也不重新生成）
+              e.preventDefault();
+              window.otto.files.startDrag(lastExport);
+            }}
+            title={t("dock.exportDrag")}
+          >
+            <FileAudio size={13} />
+            <span data-user-data="">{lastExport.length > 1 ? t("dock.exportedN", { n: lastExport.length }) : (lastExport[0]!.split(/[\\/]/).pop() ?? "")}</span>
+          </span>
+          <button type="button" className={s.noteBtn} onClick={() => void window.otto.files.reveal(lastExport[0]!)} data-testid="dock-reveal">
+            {t("sources.reveal")}
+          </button>
+          <button type="button" className={s.noteX} onClick={() => setLastExport(null)} aria-label={t("common.close")}>
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
       {stale ? (
         <div className={s.note}>
           {t("dock.stale")}

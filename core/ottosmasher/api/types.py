@@ -733,6 +733,27 @@ class EffectiveTag(TypedDict):
     ref: str | None
 
 
+class SpectrumParams(TypedDict):
+    assetId: str
+    # 资产局部秒，最多 30 秒
+    start: float
+    end: float
+    cols: int
+    rows: int
+    scale: Literal["log", "linear", "mel"]
+
+
+class Spectrum(TypedDict):
+    start: float
+    end: float
+    cols: int
+    rows: int
+    scale: str
+    nyquist: float
+    # rows × cols 的 uint8（行优先，第 0 行 = 最低频）：0 = −90 dB，255 = 0 dB（相对满幅正弦）
+    data: bytes
+
+
 class SampleGlyph(TypedDict):
     """列表行的副信息（用途视图）：语音 = 音块在整句窗口里的位置（0–1）；调谐 = 音名 + 音高曲线（MIDI，32 点）；非调谐 = 起音时间 + 包络（32 点）。"""
 

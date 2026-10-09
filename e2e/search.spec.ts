@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 三大搜索（规格 09 §9.6–§9.7、10 §10.2–§10.3、UI_PLAN §2.1、§2.4、§6.3）：检索浮层（覆盖预检 →「准备当前范围索引」）→ 语音检索 → 固定结果标签与状态行 →
 // 行下命中时间线 → 当前行命中小卡（▶ 左键原声 / 右键卡拍）→ 定位（舞台命中导航）→ 按相似度排序（证据）→ 音高检索（采样模式）→ 单音指标 → 关闭结果。
@@ -55,7 +55,7 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
     { id: sid, onsets: ONSETS },
   );
   await page.getByTestId("nav-library").click();
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   await expect(page.getByTestId("sample-row")).toHaveCount(2);
 
   // ---- 浮层：覆盖预检。语音分析完成后自动在后台建语音检索索引（所有者 2026-10-08）；还没建好时可以手动「准备」

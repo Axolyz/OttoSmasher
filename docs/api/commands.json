@@ -1172,6 +1172,17 @@
    }
   },
   {
+   "name": "spectrum.get",
+   "effect": "read",
+   "summary": "Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows).",
+   "params": {
+    "$ref": "#/$defs/SpectrumParams"
+   },
+   "result": {
+    "$ref": "#/$defs/Spectrum"
+   }
+  },
+  {
    "name": "speech.forAsset",
    "effect": "read",
    "summary": "Usable alignments of all segments on an asset range (same physical audio only).",
@@ -2440,6 +2451,14 @@
     "path"
    ],
    "summary": "Another source is registered at this path."
+  },
+  {
+   "code": "spectrum-invalid",
+   "args": [
+    "max",
+    "reason"
+   ],
+   "summary": "Spectrum request is invalid (scale, or longer than 30 s)."
   },
   {
    "code": "speech-blocked",
@@ -10776,6 +10795,79 @@
    "required": [
     "changed",
     "editId"
+   ]
+  },
+  "Spectrum": {
+   "title": "Spectrum",
+   "type": "object",
+   "properties": {
+    "cols": {
+     "type": "integer"
+    },
+    "data": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "end": {
+     "type": "number"
+    },
+    "nyquist": {
+     "type": "number"
+    },
+    "rows": {
+     "type": "integer"
+    },
+    "scale": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "cols",
+    "data",
+    "end",
+    "nyquist",
+    "rows",
+    "scale",
+    "start"
+   ]
+  },
+  "SpectrumParams": {
+   "title": "SpectrumParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "cols": {
+     "type": "integer"
+    },
+    "end": {
+     "type": "number"
+    },
+    "rows": {
+     "type": "integer"
+    },
+    "scale": {
+     "enum": [
+      "linear",
+      "log",
+      "mel"
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "cols",
+    "end",
+    "rows",
+    "scale",
+    "start"
    ]
   },
   "SpeechBlockCond": {

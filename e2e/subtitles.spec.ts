@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
 
 // 导入到文本层（所有者 2026-10-09「原片上的四类对象」B 节）：同名字幕自动关联 → 四类预览（台词段 / 音效提示 / 说话人 / OP/ED）→
 // 取消勾选一行 → 导入 → 再导入只剩“新增 1 / 无变化 2” → 改过的段受保护：再导入跳过，逐行强制替换要二次确认 → 撤销
@@ -120,7 +120,7 @@ test("有效标签：说话人只给人声资产、列表显示人物、舞台�
   const s1 = await req<{ id: string }>("samples.create", { assetId: aid, start: 1.5, end: 2.0, name: "前" });
   // 给原混音人声角色 → 已有采样实时继承
   await req("edits.apply", { batch: { ops: [{ entity: "asset", id: aid, version: 1, fields: { roles: ["vocal"] } }] } });
-  await page.getByTestId("refresh-lists").click(); // 资料变化只提示，由用户刷新（P8）
+  await refreshLists(page); // 资料变化只提示，由用户刷新（P8）
   const row = page.getByTestId("sample-row").filter({ hasText: "前" });
   await expect(row).toContainText("京子");
   await row.click();
@@ -170,7 +170,7 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
   await expect(page.getByText(/已建立 3 个采样/)).toBeVisible();
 
   await page.keyboard.press("Meta+1");
-  await page.getByTestId("refresh-lists").click();
+  await refreshLists(page);
   const row = page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" });
   await expect(row).toHaveAttribute("data-nature", "speech");
   await expect(row).toContainText("京子(きょうこ)たち"); // 判定区间 = 段：扩展部分碰到的結衣不继承
