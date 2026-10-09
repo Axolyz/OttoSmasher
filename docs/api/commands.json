@@ -1623,6 +1623,30 @@
    "summary": "OP/ED range overlaps an existing one."
   },
   {
+   "code": "pitch-param-invalid",
+   "args": [
+    "field",
+    "min",
+    "max"
+   ],
+   "summary": "Pitch search parameter is out of range."
+  },
+  {
+   "code": "pitch-param-unknown",
+   "args": [
+    "field"
+   ],
+   "summary": "Unknown pitch search parameter (the reliability threshold cannot be changed)."
+  },
+  {
+   "code": "pitch-query-invalid",
+   "args": [
+    "block",
+    "reason"
+   ],
+   "summary": "The pitch query cannot be searched (empty, block too short, longer than 10 s, inverted range or bad note)."
+  },
+  {
    "code": "promote-invalid",
    "args": [
     "reason",

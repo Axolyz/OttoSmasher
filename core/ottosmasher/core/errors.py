@@ -164,6 +164,10 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "rhythm-render-missing": (("key",), "The rendered audition is no longer in the cache."),
     "bpm-invalid": (("min", "max"), "BPM must be 20-400 (empty = original speed)."),
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
+    # ---- 三大搜索（规格 09 §9.6、10 §10.2）
+    "pitch-query-invalid": (("block", "reason"), "The pitch query cannot be searched (empty, block too short, longer than 10 s, inverted range or bad note)."),
+    "pitch-param-invalid": (("field", "min", "max"), "Pitch search parameter is out of range."),
+    "pitch-param-unknown": (("field",), "Unknown pitch search parameter (the reliability threshold cannot be changed)."),
     # ---- REAPER 交接（规格 12 §12.3）
     "reaper-empty": ((), "Nothing to hand off."),
     "reaper-path-invalid": (("field",), "Path or name contains NUL/CR/LF or every quote character."),
