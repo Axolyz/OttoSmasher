@@ -27,7 +27,7 @@ from ..models import f0store
 from ..store.db import transaction
 from ..store.workspace import Workspace
 from . import assets as assets_mod
-from . import units
+from . import effective_tags, sample_filter, units
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
@@ -38,6 +38,8 @@ from .search_worker import SearchPool, pitch_shard, shards_of, speech_shard
 MODES = ("speech", "pitch", "pitchSources")
 PITCH_MODES = ("samples", "sources")
 PAGE_MAX = 100
+# 检索范围 = 浏览的条件（不含单音指标：那是浏览里的即时筛选）
+SCOPE_KEYS = ("natures", "starred", "text", "sourceId", "languages", "tags", "expr")
 
 
 class SearchService:
@@ -66,8 +68,8 @@ class SearchService:
 
     def scope_ids(self, scope: dict[str, Any] | None) -> list[str]:
         """当前浏览范围（查找栏与范围行的条件）→ 采样 ID（与列表同一套条件）。"""
-        sc = scope or {}
-        return self.samples.ids(natures=sc.get("natures"), starred=bool(sc.get("starred")), text=str(sc.get("text") or ""), source_id=sc.get("sourceId"))
+        sc = {k: v for k, v in (scope or {}).items() if k in SCOPE_KEYS}
+        return self.samples.ids(**sc)
 
     def _sample_ranges(self, ids: list[str]) -> list[tuple[str, str, float, float]]:
         out = []
@@ -405,6 +407,12 @@ class SearchService:
 
     def _write_pitch(self, res: list[dict[str, Any]], ctx: dict[str, Any], ms: int) -> tuple[str, dict[str, Any]]:
         hits = [h for r in res for h in r["hits"]]
+        if ctx["mode"] != "samples":
+            # 原片音轨模式：范围行的标签条件与主表达式按“查询窗与标注交叠”求值（D1；L28）
+            pred = sample_filter.tag_predicate(ctx["scope"])
+            if pred is not None:
+                hits = [h for h in hits if pred({t for t, _p, _r in effective_tags.compute_window(
+                    self.conn, h["asset"], h["start"] * ps.FRAME, (h["start"] + h["frames"]) * ps.FRAME)})]
         hits.sort(key=lambda h: (round(h["score"] / ps.SCORE_QUANTUM), h["asset"], h["start"], h["frames"]))
         windows = sum(r["windows"] for r in res)
         unknown = sum(r["unknownBounds"] for r in res)

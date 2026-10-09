@@ -101,6 +101,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "sample-invalid": (("field", "max", "reason"), "Sample value rejected."),
     "sample-has-active-jobs": (("jobs",), "Sample cannot be deleted while jobs use it."),
     "promote-invalid": (("reason", "role", "roles"), "Local tags cannot be promoted as requested."),
+    "tag-expr-invalid": (("position", "reason", "where"), "Tag expression cannot be parsed (1-based character position)."),
     # ---- 字幕、OP/ED
     "subtitle-missing": (("path",), "Subtitle file not found."),
     "subtitle-unreadable": (("detail", "path"), "Subtitle file cannot be read."),

@@ -787,12 +787,49 @@ class MetricFilter(TypedDict):
     conditions: list[MetricCond]
 
 
+Facet = Literal["work", "type", "person", "pitch", "other"]
+
+
+class FacetCondition(TypedDict):
+    facet: Facet
+    # 同一分面多个值取并集；“其他”分面的值是完整标签，其余是冒号后的值
+    values: list[str]
+    # 人物分面：只要单人（只匹配 character:）
+    single: NotRequired[bool]
+
+
+class TagScope(TypedDict):
+    """范围行的标签条件（也是保存筛选器的内容，Q16）：分面条件 + 可选的标签表达式。"""
+
+    facets: NotRequired[list[FacetCondition]]
+    expr: NotRequired[str]
+
+
 class SampleFilter(TypedDict):
     natures: NotRequired[list[str] | None]
     starred: NotRequired[bool | None]
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
     metrics: NotRequired[MetricFilter | None]
+    # 范围行（标签条件）与查找栏的主标签表达式（07 §7.2–§7.3；UI_PLAN §2.3）
+    tags: NotRequired[TagScope | None]
+    expr: NotRequired[str]
+    languages: NotRequired[list[str] | None]
+
+
+class FacetValue(TypedDict):
+    value: str
+    count: int
+    # 人物分面：其中单人（character:）的采样数
+    single: NotRequired[int]
+
+
+class FacetValues(TypedDict):
+    work: list[FacetValue]
+    type: list[FacetValue]
+    person: list[FacetValue]
+    pitch: list[FacetValue]
+    other: list[FacetValue]
 
 
 class SamplesListParams(SampleFilter):

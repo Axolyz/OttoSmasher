@@ -19,12 +19,12 @@ from ottosmasher.domain.mapping import EPS, Mapping, check_range
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
-from . import effective_tags, units
+from . import effective_tags, sample_filter, units
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
 
-NATURES = ("speech", "pitched", "unpitched", "unclassified")
+NATURES = sample_filter.NATURES
 CREATED_VIA = ("manual", "segment", "hint", "hit", "processed", "import", "reimport")
 SORTS = {
     "created": "s.created_at DESC, s.rowid DESC",
@@ -42,9 +42,10 @@ def source_display_name(work: str, episode: str, path: str) -> str:
 
 
 class SampleService:
-    def __init__(self, conn: sqlite3.Connection, *, on_change: Any = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, on_change: Any = None, reader: Any = None) -> None:
         self.conn = conn
         self.on_change = on_change
+        self.reader = reader  # 文字搜索的读音（text_search.Reader）；没有 = 只按名称、备注与段原文
 
     # ------------------------------------------------------------ 建议
 
@@ -181,49 +182,12 @@ class SampleService:
             d["people"] = ppl.get(k, [])
         return out
 
-    @staticmethod
-    def _where(natures: list[str] | None, starred: bool, text: str, source_id: str | None, metrics: dict[str, Any] | None = None) -> tuple[str, list[Any]]:
-        where, args = ["1=1"], []
-        if metrics:
-            # 单音 · 音色 / 瞬态的即时筛选（10 §10.3）：缺少所选指标的不命中
-            from ..algo import acoustic as ac
-            from .acoustic import filter_sql
+    def _where(self, f: dict[str, Any]) -> tuple[str, list[Any]]:
+        return sample_filter.where(self.conn, f, self.reader)
 
-            conds = ac.check_conditions(metrics.get("conditions") or [], str(metrics.get("mode")))
-            if conds:
-                clause, extra = filter_sql(conds)
-                where.append(clause)
-                args += extra
-        if natures:
-            if any(n not in NATURES for n in natures):
-                raise CoreError("sample-invalid", reason="not-an-option", field="nature")
-            where.append(f"s.nature IN ({','.join('?' * len(natures))})")
-            args += natures
-        if starred:
-            where.append("s.starred=1")
-        if text.strip():
-            where.append("(s.name LIKE ? ESCAPE '\\' OR s.note LIKE ? ESCAPE '\\')")
-            needle = "%" + text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-            args += [needle, needle]
-        if source_id:
-            where.append("a.source_id=?")
-            args.append(source_id)
-        return " WHERE " + " AND ".join(where), args
-
-    def list(
-        self,
-        *,
-        offset: int = 0,
-        limit: int = 100,
-        natures: list[str] | None = None,
-        starred: bool = False,
-        text: str = "",
-        source_id: str | None = None,
-        sort: str = "created",
-        metrics: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """一页摘要（不含分析资料，R8.9）+ 总数。性质多选取并集；星标、文字、原片、单音指标取交集。"""
-        cond, args = self._where(natures, starred, text, source_id, metrics)
+    def list(self, *, offset: int = 0, limit: int = 100, sort: str = "created", **f: Any) -> dict[str, Any]:
+        """一页摘要（不含分析资料，R8.9）+ 总数。条件见 ``sample_filter``：性质多选取并集，其余取交集。"""
+        cond, args = self._where(f)
         order = SORTS.get(sort)
         if order is None:
             raise CoreError("sample-invalid", reason="not-an-option", field="sort")
@@ -238,10 +202,9 @@ class SampleService:
             r["people"] = ppl.get(r["id"], [])
         return {"total": total, "offset": offset, "rows": out}
 
-    def ids(self, *, natures: list[str] | None = None, starred: bool = False, text: str = "", source_id: str | None = None,
-            metrics: dict[str, Any] | None = None) -> list[str]:
-        """“全选全部匹配”（跨页）：返回全部 ID（R8.9）。"""
-        cond, args = self._where(natures, starred, text, source_id, metrics)
+    def ids(self, **f: Any) -> list[str]:
+        """“全选全部匹配”（跨页）与检索范围：返回全部 ID（R8.9），与页偏移无关。"""
+        cond, args = self._where(f)
         return [r[0] for r in self.conn.execute(f"SELECT s.id{self._FROM}{cond} ORDER BY s.created_at DESC, s.rowid DESC", args)]
 
     # ------------------------------------------------------------ 删除

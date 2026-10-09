@@ -271,6 +271,26 @@ export interface F0Frames {
   t0: number;
 }
 
+export interface FacetCondition {
+  facet: "other" | "person" | "pitch" | "type" | "work";
+  single?: boolean;
+  values: string[];
+}
+
+export interface FacetValue {
+  count: number;
+  single?: number;
+  value: string;
+}
+
+export interface FacetValues {
+  other: FacetValue[];
+  person: FacetValue[];
+  pitch: FacetValue[];
+  type: FacetValue[];
+  work: FacetValue[];
+}
+
 export interface FlattenAlignment {
   manual: boolean;
   phones: FlattenPhone[];
@@ -1162,10 +1182,13 @@ export interface SampleCreatePlannedParams {
 }
 
 export interface SampleFilter {
+  expr?: string;
+  languages?: string[] | null;
   metrics?: MetricFilter | null;
   natures?: string[] | null;
   sourceId?: string | null;
   starred?: boolean | null;
+  tags?: TagScope | null;
   text?: string;
 }
 
@@ -1282,6 +1305,8 @@ export interface SamplesCreated {
 }
 
 export interface SamplesListParams {
+  expr?: string;
+  languages?: string[] | null;
   limit?: number;
   metrics?: MetricFilter | null;
   natures?: string[] | null;
@@ -1289,6 +1314,7 @@ export interface SamplesListParams {
   sort?: "created" | "duration" | "name" | "source";
   sourceId?: string | null;
   starred?: boolean | null;
+  tags?: TagScope | null;
   text?: string;
 }
 
@@ -1995,6 +2021,12 @@ export interface SuggestParams {
   start: number;
 }
 
+/** 范围行的标签条件（也是保存筛选器的内容，Q16）：分面条件 + 可选的标签表达式。 */
+export interface TagScope {
+  expr?: string;
+  facets?: FacetCondition[];
+}
+
 export interface TextLayerList {
   derived: DerivedSample[];
   hints: SfxHint[];
@@ -2251,7 +2283,7 @@ export interface Commands {
   "samples.get": { params: IdParams; result: SampleRow; effect: "read" };
   /** IDs of all samples matching the filter (select all across pages). */
   "samples.ids": { params: SampleFilter; result: string[]; effect: "read" };
-  /** One page of samples matching the filter, with the total. */
+  /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
   "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };
@@ -2335,6 +2367,8 @@ export interface Commands {
   "subtitles.previewMany": { params: SourceIdsParams; result: SubtitleBatchRow[]; effect: "read" };
   /** Try the subtitle rules (draft or current) on one subtitle text. */
   "subtitles.ruleTest": { params: RuleTestParams; result: Classified; effect: "read" };
+  /** Existing values of each tag facet with sample counts (scope row). */
+  "tags.facets": { params: NoParams; result: FacetValues; effect: "read" };
   /** Edit batch that promotes local tags to a segment tag (apply with edits.apply). */
   "tags.promoteBatch": { params: PromoteParams; result: PromoteInfo; effect: "read" };
   /** Text segments, sfx hints, range tags, OP/ED and derived samples of a source. */
@@ -2501,6 +2535,7 @@ export type ErrorCode =
   | "subtitle-rule-invalid"
   | "subtitle-rule-timeout"
   | "subtitle-unreadable"
+  | "tag-expr-invalid"
   | "time-out-of-range"
   | "tool-missing"
   | "undo-nothing-safe"

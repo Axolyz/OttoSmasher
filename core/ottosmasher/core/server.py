@@ -34,6 +34,7 @@ from . import actor as actor_mod
 from . import text_layer as text_layer_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
+from . import sample_filter, text_search
 from .exports import ExportService, export_range
 from .samples import SampleService
 from .oped import OpedService
@@ -170,15 +171,16 @@ class Core:
           lambda p: self.sample_plan.plan(dict(p["from"])))
         r("samples.createPlanned", "write", T.SampleCreatePlannedParams, T.SamplesCreated, "Create the chosen planned samples atomically (always new samples).",
           lambda p: self.sample_plan.create(dict(p["from"]), p["token"], list(p["keys"]), p.get("overrides"), p.get("nature")))
-        r("samples.list", "read", T.SamplesListParams, T.SamplePage, "One page of samples matching the filter, with the total.",
+        r("samples.list", "read", T.SamplesListParams, T.SamplePage,
+          "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
           lambda p: self.samples.list(
-              offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
-              starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"), sort=p.get("sort", "created"),
-              metrics=p.get("metrics"),
+              offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), sort=p.get("sort", "created"),
+              **{k: v for k, v in p.items() if k not in ("offset", "limit", "sort")},
           ))
         r("samples.ids", "read", T.SampleFilter, list[str], "IDs of all samples matching the filter (select all across pages).",
-          lambda p: self.samples.ids(natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"),
-                                     metrics=p.get("metrics")))
+          lambda p: self.samples.ids(**p))
+        r("tags.facets", "read", T.NoParams, T.FacetValues, "Existing values of each tag facet with sample counts (scope row).",
+          lambda p: sample_filter.facet_values(self.conn))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
@@ -348,7 +350,8 @@ class Core:
         self.edits = EditService(self.conn, on_change=self._on_change)
         self.sources = SourceService(self.conn, on_change=self._on_change, workspace_root=self.ws.root)
         self.exports = ExportService(self.conn, self.ws)
-        self.samples = SampleService(self.conn, on_change=self._on_change)
+        self.reader = text_search.Reader(self.ws.dictionary)
+        self.samples = SampleService(self.conn, on_change=self._on_change, reader=self.reader)
         self.subtitles = SubtitleImporter(self.conn, self.edits, on_change=self._on_change)
         self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
         self.text = TextLayer(self.conn, self.edits, on_change=self._on_change)
@@ -389,6 +392,7 @@ class Core:
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
         self.auto.kick_all()  # 启动时把检索的准备补齐一次（后台，所有者 2026-10-08）
+        self._readings_soon(1.0)
 
     def _upgrade_steps(self) -> None:
         """迁移后在 Python 里补做的步骤（``upgrade_pending``；做完就删，失败下次打开再做）。"""
@@ -430,6 +434,25 @@ class Core:
         self.emit("data.changed", cs.to_wire())
         if getattr(self, "auto", None) is not None:
             self.auto.on_change(cs.entities)
+        if "segment" in cs.entities or "setting" in cs.entities:
+            self._readings_soon()
+
+    # ---------- 文字搜索的读音（07 §7.1）：资料变化后合并 2 秒在主循环里补；检索前也会补齐，这里只是让检索不用等
+
+    def _readings_soon(self, delay: float = 2.0) -> None:
+        t = getattr(self, "_readings_timer", None)
+        if t is not None:
+            t.cancel()
+        self._readings_timer = threading.Timer(delay, lambda: self.post(self._fill_readings))
+        self._readings_timer.daemon = True
+        self._readings_timer.start()
+
+    def _fill_readings(self) -> None:
+        try:
+            if text_search.ensure(self.conn, self.reader, limit=500) == 500:
+                self.post(self._fill_readings)
+        except Exception:  # noqa: BLE001 — 补不上就等检索时再补（那时出错会报给用户）
+            log.exception("filling segment readings failed")
 
     # ---------- 主循环
 

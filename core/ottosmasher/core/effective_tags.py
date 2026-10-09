@@ -35,13 +35,27 @@ _PRIORITY = {"local": 0, "source": 1, "segment": 2, "auto": 3}
 
 def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, str | None]]:
     """一个采样的有效标签：[(tag, provenance, provenance_ref)]，按标签排序。"""
+    s = conn.execute(
+        'SELECT s.id, s.start, s."end", s.tag_judge_start, s.tag_judge_end, s.asset_id FROM sample s WHERE s.id=?', (sample_id,)
+    ).fetchone()
+    if s is None:
+        return []
+    judge = (s["tag_judge_start"], s["tag_judge_end"]) if s["tag_judge_start"] is not None and s["tag_judge_end"] is not None else None
+    local = [r[0] for r in conn.execute("SELECT tag FROM sample_tag WHERE sample_id=?", (sample_id,))]
+    return compute_window(conn, s["asset_id"], s["start"], s["end"], judge=judge, local=local)
+
+
+def compute_window(
+    conn: sqlite3.Connection, asset_id: str, start: float, end: float, *, judge: tuple[float, float] | None = None, local: list[str] | None = None
+) -> list[tuple[str, str, str | None]]:
+    """资产上一个区间（资产局部秒）的有效标签。``judge`` = 判定区间（原片秒；没有 = 区间经映射换算）。
+    采样用它（带本地标签）；原片音轨模式的音高检索按“查询窗与标注交叠”求值也用它（D1，没有本地标签）。"""
     from .text_layer import speaker_tags  # 避免循环导入
 
     s = conn.execute(
-        'SELECT s.id, s.start, s."end", s.tag_judge_start, s.tag_judge_end, s.asset_id, a.mapping, a.source_id, a.origin, a.production,'
-        " src.work, src.source_type"
-        " FROM sample s JOIN sound_asset a ON a.id=s.asset_id JOIN source src ON src.id=a.source_id WHERE s.id=?",
-        (sample_id,),
+        "SELECT a.mapping, a.source_id, a.origin, a.production, src.work, src.source_type"
+        " FROM sound_asset a JOIN source src ON src.id=a.source_id WHERE a.id=?",
+        (asset_id,),
     ).fetchone()
     if s is None:
         return []
@@ -52,7 +66,7 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
         if cur is None or _PRIORITY[prov] < _PRIORITY[cur[0]]:
             found[tag] = (prov, ref)
 
-    for (tag,) in conn.execute("SELECT tag FROM sample_tag WHERE sample_id=?", (sample_id,)):
+    for tag in local or []:
         add(tag, "local")
     if s["work"]:
         add(f"work:{s['work']}", "source", s["source_id"])
@@ -61,21 +75,19 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
     if s["origin"] == "flatten" and s["production"]:
         name = (loads(s["production"]).get("target") or {}).get("name")
         if name:
-            add(f"pitch:{name}", "auto", s["asset_id"])
+            add(f"pitch:{name}", "auto", asset_id)
 
-    roles = {r[0] for r in conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (s["asset_id"],))}
+    roles = {r[0] for r in conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (asset_id,))}
     # 判定区间（原片秒）；没有记录的 = 选区经映射换算；资产作用域用它在资产局部秒里的对应
     mapping: Mapping | None = None
     try:
         mapping = Mapping.of(loads(s["mapping"])) if s["mapping"] else None
     except CoreError:
         mapping = None
-    src_win: tuple[float, float] | None = None
-    if s["tag_judge_start"] is not None and s["tag_judge_end"] is not None:
-        src_win = (s["tag_judge_start"], s["tag_judge_end"])
-    elif mapping is not None:
-        src_win = (mapping.to_source(s["start"]), mapping.to_source(s["end"]))
-    local_win = (s["start"], s["end"])
+    src_win: tuple[float, float] | None = judge
+    if src_win is None and mapping is not None:
+        src_win = (mapping.to_source(start), mapping.to_source(end))
+    local_win = (start, end)
     if src_win is not None and mapping is not None:
         try:
             local_win = (mapping.to_local(max(src_win[0], mapping.source_start)), mapping.to_local(min(src_win[1], mapping.source_end)))
@@ -86,7 +98,7 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
         (s["source_id"],),
     ):
         if r["scope"] == "asset":
-            if r["scope_asset_id"] != s["asset_id"] or not overlaps(local_win[0], local_win[1], r["start"], r["end"]):
+            if r["scope_asset_id"] != asset_id or not overlaps(local_win[0], local_win[1], r["start"], r["end"]):
                 continue
         else:
             if src_win is None or not overlaps(src_win[0], src_win[1], r["start"], r["end"]):

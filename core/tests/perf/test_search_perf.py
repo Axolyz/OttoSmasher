@@ -105,7 +105,18 @@ def test_list_state_perf(core):
     """列表一页 100 条带分析状态（`units.state_sql`：判定区间读到的段 + 段长 120 秒的下界）与各原片的已分析计数：
     3 万条时要在 0.1 秒级（QUESTIONS「原片上的四类对象」段长度一条）。报告写到 ``.cache/perf/list.json``。"""
     out: dict = {}
+    fv = core.samples and __import__("ottosmasher.core.sample_filter", fromlist=["x"]).facet_values(core.conn)
+    who = [x["value"] for x in fv["person"][:2]] or ["nobody"]
+    work = [x["value"] for x in fv["work"][:1]] or ["nowork"]
+    seg = core.conn.execute("SELECT text FROM text_segment WHERE deleted = 0 LIMIT 1").fetchone()
+    word = (seg[0][:2] if seg else "あ")
+    core.samples.list(text=word)  # 第一次：补齐读音（之后资料变化时在后台补）
     for label, fn in {
+        "R8.9 按名称排序取第 101–200 条": lambda: core.samples.list(offset=100, limit=100, sort="name"),
+        "人物分面 + 作品分面": lambda: core.samples.list(offset=0, limit=100, tags={"facets": [{"facet": "person", "values": who}, {"facet": "work", "values": work}]}),
+        "范围行 + 主表达式（NOT、前缀通配）": lambda: core.samples.list(offset=0, limit=100, tags={"expr": "work:*"}, expr="NOT participants:*"),
+        "文字搜索（名称、段原文与读音）": lambda: core.samples.list(offset=0, limit=100, text=word),
+        "全选全部匹配（人物分面）": lambda: core.samples.ids(tags={"facets": [{"facet": "person", "values": who}]}),
         "列表第一页": lambda: core.samples.list(offset=0, limit=100),
         "列表中间一页": lambda: core.samples.list(offset=15000, limit=100),
         "只看语音性质": lambda: core.samples.list(offset=0, limit=100, natures=["speech"]),
@@ -121,4 +132,5 @@ def test_list_state_perf(core):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(out, ensure_ascii=False))
-    assert all(min(t) < 1.0 for t in out.values()), out
+    assert all(min(t) < 3.0 for k, t in out.items() if k.startswith("R8.9")), out
+    assert all(min(t) < 1.0 for k, t in out.items() if not k.startswith("R8.9")), out

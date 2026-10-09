@@ -808,7 +808,7 @@
   {
    "name": "samples.list",
    "effect": "read",
-   "summary": "One page of samples matching the filter, with the total.",
+   "summary": "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
    "params": {
     "$ref": "#/$defs/SamplesListParams"
    },
@@ -1296,6 +1296,17 @@
    },
    "result": {
     "$ref": "#/$defs/Classified"
+   }
+  },
+  {
+   "name": "tags.facets",
+   "effect": "read",
+   "summary": "Existing values of each tag facet with sample counts (scope row).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/FacetValues"
    }
   },
   {
@@ -2507,6 +2518,15 @@
     "path"
    ],
    "summary": "Subtitle file cannot be read."
+  },
+  {
+   "code": "tag-expr-invalid",
+   "args": [
+    "position",
+    "reason",
+    "where"
+   ],
+   "summary": "Tag expression cannot be parsed (1-based character position)."
   },
   {
    "code": "time-out-of-range",
@@ -3825,6 +3845,96 @@
     "measured",
     "step",
     "t0"
+   ]
+  },
+  "FacetCondition": {
+   "title": "FacetCondition",
+   "type": "object",
+   "properties": {
+    "facet": {
+     "enum": [
+      "other",
+      "person",
+      "pitch",
+      "type",
+      "work"
+     ]
+    },
+    "single": {
+     "type": "boolean"
+    },
+    "values": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "facet",
+    "values"
+   ]
+  },
+  "FacetValue": {
+   "title": "FacetValue",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "single": {
+     "type": "integer"
+    },
+    "value": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "count",
+    "value"
+   ]
+  },
+  "FacetValues": {
+   "title": "FacetValues",
+   "type": "object",
+   "properties": {
+    "other": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetValue"
+     }
+    },
+    "person": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetValue"
+     }
+    },
+    "pitch": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetValue"
+     }
+    },
+    "type": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetValue"
+     }
+    },
+    "work": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetValue"
+     }
+    }
+   },
+   "required": [
+    "other",
+    "person",
+    "pitch",
+    "type",
+    "work"
    ]
   },
   "FlattenAlignment": {
@@ -8172,6 +8282,22 @@
    "title": "SampleFilter",
    "type": "object",
    "properties": {
+    "expr": {
+     "type": "string"
+    },
+    "languages": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "metrics": {
      "anyOf": [
       {
@@ -8209,6 +8335,16 @@
      "anyOf": [
       {
        "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tags": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/TagScope"
       },
       {
        "type": "null"
@@ -8811,6 +8947,22 @@
    "title": "SamplesListParams",
    "type": "object",
    "properties": {
+    "expr": {
+     "type": "string"
+    },
+    "languages": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "limit": {
      "type": "integer"
     },
@@ -8862,6 +9014,16 @@
      "anyOf": [
       {
        "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tags": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/TagScope"
       },
       {
        "type": "null"
@@ -12381,6 +12543,23 @@
     "end",
     "start"
    ]
+  },
+  "TagScope": {
+   "title": "TagScope",
+   "description": "范围行的标签条件（也是保存筛选器的内容，Q16）：分面条件 + 可选的标签表达式。",
+   "type": "object",
+   "properties": {
+    "expr": {
+     "type": "string"
+    },
+    "facets": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FacetCondition"
+     }
+    }
+   },
+   "required": []
   },
   "TextLayerList": {
    "title": "TextLayerList",
