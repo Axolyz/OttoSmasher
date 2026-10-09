@@ -1723,3 +1723,235 @@ class SearchCoverage(TypedDict):
     stale: int
     noAnalysis: int
 
+
+class SpeechBlockCond(TypedDict):
+    """语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。"""
+
+    note: NotRequired[list[float] | None]  # [起拍, 止拍)
+    pitch: NotRequired[int | None]  # 音级 0–11（C = 0）
+    octave: NotRequired[int | None]
+    pitchTolerance: NotRequired[float | None]  # 音分，默认 50
+    spreadMax: NotRequired[float | None]  # 音分
+    coverageMin: NotRequired[float | None]  # 默认 0.5
+    vowel: NotRequired[Literal["a", "i", "u", "e", "o"] | None]
+    consonants: NotRequired[list[str] | None]  # [] = 无前导辅音
+    duration: NotRequired[list[float | None] | None]  # 原声时值 [下, 上]（秒）
+    durationMode: NotRequired[Literal["effective", "span"] | None]
+    character: NotRequired[str | None]
+    trend: NotRequired[Literal["up", "down"] | None]
+    trendThreshold: NotRequired[float | None]
+    relPitch: NotRequired[Literal["high", "low"] | None]
+    relPitchThreshold: NotRequired[float | None]
+    loudnessMin: NotRequired[float | None]
+    strengthMin: NotRequired[float | None]
+    beats: NotRequired[list[float | None] | None]  # 时值（拍）[下, 上]
+    sustain: NotRequired[bool | None]
+
+
+class SpeechQueryInput(TypedDict):
+    blocks: list[SpeechBlockCond]
+    strategy: NotRequired[Literal["free", "strict", "rank"] | None]
+    edge: NotRequired[Literal["any", "head", "tail", "both"] | None]
+    edgeBasis: NotRequired[Literal["pause", "sample"] | None]
+    cross: NotRequired[bool | None]
+    maxGap: NotRequired[float | None]
+    scope: NotRequired[Literal["both", "sentence", "segment"] | None]
+    tolerance: NotRequired[float | None]  # 拍
+    speedPreference: NotRequired[float | None]
+    speedRange: NotRequired[list[float] | None]
+    restAdjust: NotRequired[bool | None]
+    length: NotRequired[float | None]  # 查询长度（拍）
+
+
+class SearchSpeechParams(TypedDict):
+    query: SpeechQueryInput
+    scope: NotRequired[SampleFilter | None]
+
+
+class PitchBand(TypedDict):
+    low: str  # 音名，如 A4、C♯5
+    high: NotRequired[str | None]  # 范围上端（闭区间）；留空 = 单个音
+
+
+class PitchBlockInput(TypedDict):
+    seconds: float
+    low: str
+    high: NotRequired[str | None]
+    glide: NotRequired[PitchBand | None]  # 滑音块的终点音带（所有者 2026-10-08）
+
+
+class PitchParamsInput(TypedDict):
+    tolerance: NotRequired[float | None]  # 音分，默认 50
+    coverage: NotRequired[float | None]  # 默认 0.8
+    maxGap: NotRequired[float | None]  # 秒，默认 0.12
+    stability: NotRequired[float | None]
+    energyMin: NotRequired[float | None]
+    energyMax: NotRequired[float | None]
+    ignoreOctave: NotRequired[bool | None]
+    elastic: NotRequired[list[float] | None]  # [下限, 上限] 倍
+    headTolerance: NotRequired[float | None]  # 原片模式：句首容差（秒）
+    tailTolerance: NotRequired[float | None]
+
+
+class PitchSourceScope(TypedDict):
+    natures: NotRequired[list[str] | None]  # 原片模式下给了就拒绝（采样专用）
+    starred: NotRequired[bool | None]
+    text: NotRequired[str]
+    sourceId: NotRequired[str | None]
+    roles: NotRequired[list[Literal["vocal", "sfx", "mix"]] | None]
+
+
+class SearchPitchParams(TypedDict):
+    blocks: list[PitchBlockInput]
+    params: NotRequired[PitchParamsInput | None]
+    mode: Literal["samples", "sources"]
+    scope: NotRequired[PitchSourceScope | None]
+
+
+class PitchCheckParams(TypedDict):
+    blocks: NotRequired[list[PitchBlockInput] | None]
+    text: NotRequired[str | None]
+
+
+class PitchProblem(TypedDict):
+    block: NotRequired[int | None]  # 块号从 1 起；null = 整条查询
+    line: NotRequired[int | None]  # 文本格式的行号
+    reason: str
+    min: NotRequired[float | None]
+    max: NotRequired[float | None]
+
+
+class PitchChecked(TypedDict):
+    """就地提示：problems 为空才能查找。text = 规范的文本格式（复制用）；blocks = 文本解析出的块（粘贴用）。"""
+
+    ok: bool
+    problems: list[PitchProblem]
+    frames: list[int]
+    text: str | None
+    blocks: list[PitchBlockInput]
+
+
+class SearchStarted(TypedDict):
+    searchId: str
+
+
+class SearchIdParams(TypedDict):
+    searchId: str
+
+
+class SearchCancelled(TypedDict):
+    searchId: str
+    cancelling: bool
+
+
+class SearchStats(TypedDict):
+    total: int  # 范围内的采样（原片模式：音轨）
+    searched: int  # 实际检索的（索引就绪）
+    noAnalysis: int  # 缺少有效分析
+    stale: int  # 索引未就绪（要准备）
+    samples: int  # 结果行数
+    hits: int
+    ms: int  # 后端耗时
+    windows: int
+    noEvidence: int  # 算不出节奏证据的窗口
+    unknownBounds: int  # 句首/句尾条件下没有标注的音轨
+    bpm: float | None
+    truncated: bool
+
+
+class SearchFinished(TypedDict):
+    """事件 ``search.finished`` 与 ``search.status`` 的内容。status = running / done / cancelled / failed。"""
+
+    searchId: str
+    kind: Literal["speech", "pitch"]
+    status: Literal["running", "done", "cancelled", "failed"]
+    resultId: str | None
+    stats: SearchStats | None
+    error: ErrorWire | None
+
+
+class SpeechEvidence(TypedDict):
+    strict: bool
+    cost: float
+    error: float  # 平均起音误差（拍）
+    conflicts: int
+    deficit: float
+    speed: float | None
+    density: float | None
+    bpm: float | None
+    plan: Literal["near_fast", "near_slow"] | None
+    scope: int  # -1 整句 / 语段号
+    shift: float
+    deform: float
+    rests: list[int]
+    changed: int
+
+
+class ResultHit(TypedDict):
+    """一处命中。语音：start/end 资产局部秒，first/count 是音块；音高：start/end 资产局部秒，frames、octave、ratio、blocks〔每块：帧数, 带内可靠帧, 平均距离（音分）〕，原片模式另有原片秒。"""
+
+    start: float
+    end: float
+    score: float
+    first: NotRequired[int]
+    count: NotRequired[int]
+    blockScore: NotRequired[float]
+    evidence: NotRequired[SpeechEvidence | None]
+    frames: NotRequired[int]
+    octave: NotRequired[int]
+    ratio: NotRequired[float]
+    blocks: NotRequired[list[list[float]]]
+    sourceStart: NotRequired[float]
+    sourceEnd: NotRequired[float]
+
+
+class ResultHeader(TypedDict):
+    id: str
+    kind: Literal["speech", "pitch"]
+    createdAt: str
+    query: Any
+    scope: Any
+    params: Any
+    stats: SearchStats
+    uiState: Any
+
+
+class ResultAsset(TypedDict):
+    id: str
+    sourceId: str
+    stemName: str | None
+    origin: str
+    work: str
+    episode: str
+    path: str
+
+
+class ResultRow(TypedDict):
+    """固定结果的一行。state：ok / deleted（采样已删除）/ changed（音源已变化）/ stale（分析或测量变了：命中已失效，请重新查询）。"""
+
+    rank: int
+    sampleId: str | None
+    assetId: str | None
+    sample: SampleRow | None
+    asset: ResultAsset | None
+    state: Literal["ok", "deleted", "changed", "stale"]
+    hits: list[ResultHit]
+
+
+class ResultPageParams(TypedDict):
+    id: str
+    offset: NotRequired[int]
+    limit: NotRequired[int]
+
+
+class ResultPage(TypedDict):
+    result: ResultHeader
+    total: int
+    offset: int
+    rows: list[ResultRow]
+
+
+class ResultUiParams(TypedDict):
+    id: str
+    uiState: Any
+

@@ -166,6 +166,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
     # ---- 三大搜索（规格 09 §9.6、10 §10.2）
     "search-invalid": (("field",), "Search request is invalid."),
+    "search-not-found": (("id",), "No such search in this session."),
+    "result-not-found": (("id",), "The fixed result no longer exists."),
     "search-nothing-to-prepare": ((), "Everything in the current scope is already prepared for this search."),
     "speech-query-invalid": (("field", "block", "reason"), "The speech search query is invalid (unknown field, out of range, overlapping or too-close notes)."),
     "pitch-query-invalid": (("block", "reason"), "The pitch query cannot be searched (empty, block too short, longer than 10 s, inverted range or bad note)."),

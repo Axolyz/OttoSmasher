@@ -544,6 +544,53 @@
    }
   },
   {
+   "name": "results.close",
+   "effect": "write",
+   "summary": "Close a fixed result (deletes the result set only, never samples).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/IdParams"
+   }
+  },
+  {
+   "name": "results.list",
+   "effect": "read",
+   "summary": "Open fixed results (restored without searching again).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/ResultHeader"
+    }
+   }
+  },
+  {
+   "name": "results.page",
+   "effect": "read",
+   "summary": "One page (at most 100) of a fixed result; only checks members for invalidation, never recomputes or reorders.",
+   "params": {
+    "$ref": "#/$defs/ResultPageParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ResultPage"
+   }
+  },
+  {
+   "name": "results.setUi",
+   "effect": "ui",
+   "summary": "Remember a fixed result's UI state (active, page, selection, scroll).",
+   "params": {
+    "$ref": "#/$defs/ResultUiParams"
+   },
+   "result": {
+    "type": "null"
+   }
+  },
+  {
    "name": "rhythm.bpm",
    "effect": "read",
    "summary": "Global target BPM (null = original-speed stretch).",
@@ -715,6 +762,17 @@
    }
   },
   {
+   "name": "search.cancel",
+   "effect": "ui",
+   "summary": "Cancel a running search (a cancelled search writes no fixed result).",
+   "params": {
+    "$ref": "#/$defs/SearchIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SearchCancelled"
+   }
+  },
+  {
    "name": "search.coverage",
    "effect": "read",
    "summary": "How much of the current browse scope is ready to search (speech index built / F0 measured).",
@@ -726,6 +784,28 @@
    }
   },
   {
+   "name": "search.pitch",
+   "effect": "write",
+   "summary": "Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result.",
+   "params": {
+    "$ref": "#/$defs/SearchPitchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SearchStarted"
+   }
+  },
+  {
+   "name": "search.pitchCheck",
+   "effect": "read",
+   "summary": "Validate a pitch query (blocks or the text helper format) and return on-the-spot problems; no search.",
+   "params": {
+    "$ref": "#/$defs/PitchCheckParams"
+   },
+   "result": {
+    "$ref": "#/$defs/PitchChecked"
+   }
+  },
+  {
    "name": "search.prepare",
    "effect": "job",
    "summary": "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
@@ -734,6 +814,28 @@
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "search.speech",
+   "effect": "write",
+   "summary": "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
+   "params": {
+    "$ref": "#/$defs/SearchSpeechParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SearchStarted"
+   }
+  },
+  {
+   "name": "search.status",
+   "effect": "read",
+   "summary": "State of a search started in this session.",
+   "params": {
+    "$ref": "#/$defs/SearchIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SearchFinished"
    }
   },
   {
@@ -1737,6 +1839,13 @@
    "summary": "Strict mode: a command returned data that does not match its declared result type."
   },
   {
+   "code": "result-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "The fixed result no longer exists."
+  },
+  {
    "code": "rhythm-cells-invalid",
    "args": [
     "block",
@@ -1912,6 +2021,13 @@
     "field"
    ],
    "summary": "Search request is invalid."
+  },
+  {
+   "code": "search-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such search in this session."
   },
   {
    "code": "search-nothing-to-prepare",
@@ -5358,6 +5474,361 @@
     "start"
    ]
   },
+  "PitchBand": {
+   "title": "PitchBand",
+   "type": "object",
+   "properties": {
+    "high": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "low": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "low"
+   ]
+  },
+  "PitchBlockInput": {
+   "title": "PitchBlockInput",
+   "type": "object",
+   "properties": {
+    "glide": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PitchBand"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "high": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "low": {
+     "type": "string"
+    },
+    "seconds": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "low",
+    "seconds"
+   ]
+  },
+  "PitchCheckParams": {
+   "title": "PitchCheckParams",
+   "type": "object",
+   "properties": {
+    "blocks": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/PitchBlockInput"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
+  "PitchChecked": {
+   "title": "PitchChecked",
+   "description": "就地提示：problems 为空才能查找。text = 规范的文本格式（复制用）；blocks = 文本解析出的块（粘贴用）。",
+   "type": "object",
+   "properties": {
+    "blocks": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/PitchBlockInput"
+     }
+    },
+    "frames": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "ok": {
+     "type": "boolean"
+    },
+    "problems": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/PitchProblem"
+     }
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "blocks",
+    "frames",
+    "ok",
+    "problems",
+    "text"
+   ]
+  },
+  "PitchParamsInput": {
+   "title": "PitchParamsInput",
+   "type": "object",
+   "properties": {
+    "coverage": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "elastic": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "energyMax": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "energyMin": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "headTolerance": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ignoreOctave": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "maxGap": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stability": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tailTolerance": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tolerance": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
+  "PitchProblem": {
+   "title": "PitchProblem",
+   "type": "object",
+   "properties": {
+    "block": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "line": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "max": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "min": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "reason": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "reason"
+   ]
+  },
+  "PitchSourceScope": {
+   "title": "PitchSourceScope",
+   "type": "object",
+   "properties": {
+    "natures": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "roles": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "enum": [
+         "mix",
+         "sfx",
+         "vocal"
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "starred": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": []
+  },
   "Prep": {
    "title": "Prep",
    "description": "准备清单的现状（UI_PLAN §4；没有顺序、不强制）。",
@@ -5856,6 +6327,280 @@
    },
    "required": [
     "sourceId"
+   ]
+  },
+  "ResultAsset": {
+   "title": "ResultAsset",
+   "type": "object",
+   "properties": {
+    "episode": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "origin": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "stemName": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "work": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "episode",
+    "id",
+    "origin",
+    "path",
+    "sourceId",
+    "stemName",
+    "work"
+   ]
+  },
+  "ResultHeader": {
+   "title": "ResultHeader",
+   "type": "object",
+   "properties": {
+    "createdAt": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "params": {},
+    "query": {},
+    "scope": {},
+    "stats": {
+     "$ref": "#/$defs/SearchStats"
+    },
+    "uiState": {}
+   },
+   "required": [
+    "createdAt",
+    "id",
+    "kind",
+    "params",
+    "query",
+    "scope",
+    "stats",
+    "uiState"
+   ]
+  },
+  "ResultHit": {
+   "title": "ResultHit",
+   "description": "一处命中。语音：start/end 资产局部秒，first/count 是音块；音高：start/end 资产局部秒，frames、octave、ratio、blocks〔每块：帧数, 带内可靠帧, 平均距离（音分）〕，原片模式另有原片秒。",
+   "type": "object",
+   "properties": {
+    "blockScore": {
+     "type": "number"
+    },
+    "blocks": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "count": {
+     "type": "integer"
+    },
+    "end": {
+     "type": "number"
+    },
+    "evidence": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechEvidence"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "first": {
+     "type": "integer"
+    },
+    "frames": {
+     "type": "integer"
+    },
+    "octave": {
+     "type": "integer"
+    },
+    "ratio": {
+     "type": "number"
+    },
+    "score": {
+     "type": "number"
+    },
+    "sourceEnd": {
+     "type": "number"
+    },
+    "sourceStart": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "score",
+    "start"
+   ]
+  },
+  "ResultPage": {
+   "title": "ResultPage",
+   "type": "object",
+   "properties": {
+    "offset": {
+     "type": "integer"
+    },
+    "result": {
+     "$ref": "#/$defs/ResultHeader"
+    },
+    "rows": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ResultRow"
+     }
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "offset",
+    "result",
+    "rows",
+    "total"
+   ]
+  },
+  "ResultPageParams": {
+   "title": "ResultPageParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "ResultRow": {
+   "title": "ResultRow",
+   "description": "固定结果的一行。state：ok / deleted（采样已删除）/ changed（音源已变化）/ stale（分析或测量变了：命中已失效，请重新查询）。",
+   "type": "object",
+   "properties": {
+    "asset": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ResultAsset"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hits": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ResultHit"
+     }
+    },
+    "rank": {
+     "type": "integer"
+    },
+    "sample": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleRow"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "state": {
+     "enum": [
+      "changed",
+      "deleted",
+      "ok",
+      "stale"
+     ]
+    }
+   },
+   "required": [
+    "asset",
+    "assetId",
+    "hits",
+    "rank",
+    "sample",
+    "sampleId",
+    "state"
+   ]
+  },
+  "ResultUiParams": {
+   "title": "ResultUiParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "uiState": {}
+   },
+   "required": [
+    "id",
+    "uiState"
    ]
   },
   "RhythmBlock": {
@@ -7237,6 +7982,22 @@
    },
    "required": []
   },
+  "SearchCancelled": {
+   "title": "SearchCancelled",
+   "type": "object",
+   "properties": {
+    "cancelling": {
+     "type": "boolean"
+    },
+    "searchId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "cancelling",
+    "searchId"
+   ]
+  },
   "SearchCoverage": {
    "title": "SearchCoverage",
    "description": "范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。",
@@ -7292,6 +8053,219 @@
    },
    "required": [
     "mode"
+   ]
+  },
+  "SearchFinished": {
+   "title": "SearchFinished",
+   "description": "事件 ``search.finished`` 与 ``search.status`` 的内容。status = running / done / cancelled / failed。",
+   "type": "object",
+   "properties": {
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "resultId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "searchId": {
+     "type": "string"
+    },
+    "stats": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SearchStats"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "status": {
+     "enum": [
+      "cancelled",
+      "done",
+      "failed",
+      "running"
+     ]
+    }
+   },
+   "required": [
+    "error",
+    "kind",
+    "resultId",
+    "searchId",
+    "stats",
+    "status"
+   ]
+  },
+  "SearchIdParams": {
+   "title": "SearchIdParams",
+   "type": "object",
+   "properties": {
+    "searchId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "searchId"
+   ]
+  },
+  "SearchPitchParams": {
+   "title": "SearchPitchParams",
+   "type": "object",
+   "properties": {
+    "blocks": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/PitchBlockInput"
+     }
+    },
+    "mode": {
+     "enum": [
+      "samples",
+      "sources"
+     ]
+    },
+    "params": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PitchParamsInput"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PitchSourceScope"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "blocks",
+    "mode"
+   ]
+  },
+  "SearchSpeechParams": {
+   "title": "SearchSpeechParams",
+   "type": "object",
+   "properties": {
+    "query": {
+     "$ref": "#/$defs/SpeechQueryInput"
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "query"
+   ]
+  },
+  "SearchStarted": {
+   "title": "SearchStarted",
+   "type": "object",
+   "properties": {
+    "searchId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "searchId"
+   ]
+  },
+  "SearchStats": {
+   "title": "SearchStats",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hits": {
+     "type": "integer"
+    },
+    "ms": {
+     "type": "integer"
+    },
+    "noAnalysis": {
+     "type": "integer"
+    },
+    "noEvidence": {
+     "type": "integer"
+    },
+    "samples": {
+     "type": "integer"
+    },
+    "searched": {
+     "type": "integer"
+    },
+    "stale": {
+     "type": "integer"
+    },
+    "total": {
+     "type": "integer"
+    },
+    "truncated": {
+     "type": "boolean"
+    },
+    "unknownBounds": {
+     "type": "integer"
+    },
+    "windows": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "bpm",
+    "hits",
+    "ms",
+    "noAnalysis",
+    "noEvidence",
+    "samples",
+    "searched",
+    "stale",
+    "total",
+    "truncated",
+    "unknownBounds",
+    "windows"
    ]
   },
   "SeparationSubmitParams": {
@@ -7964,6 +8938,245 @@
     "paths"
    ]
   },
+  "SpeechBlockCond": {
+   "title": "SpeechBlockCond",
+   "description": "语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。",
+   "type": "object",
+   "properties": {
+    "beats": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "character": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "consonants": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "coverageMin": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "durationMode": {
+     "anyOf": [
+      {
+       "enum": [
+        "effective",
+        "span"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "loudnessMin": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "note": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "octave": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pitch": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pitchTolerance": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "relPitch": {
+     "anyOf": [
+      {
+       "enum": [
+        "high",
+        "low"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "relPitchThreshold": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "spreadMax": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "strengthMin": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sustain": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "trend": {
+     "anyOf": [
+      {
+       "enum": [
+        "down",
+        "up"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "trendThreshold": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "vowel": {
+     "anyOf": [
+      {
+       "enum": [
+        "a",
+        "e",
+        "i",
+        "o",
+        "u"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
   "SpeechBlocked": {
    "title": "SpeechBlocked",
    "type": "object",
@@ -7982,6 +9195,104 @@
     "id",
     "name",
     "reason"
+   ]
+  },
+  "SpeechEvidence": {
+   "title": "SpeechEvidence",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "changed": {
+     "type": "integer"
+    },
+    "conflicts": {
+     "type": "integer"
+    },
+    "cost": {
+     "type": "number"
+    },
+    "deficit": {
+     "type": "number"
+    },
+    "deform": {
+     "type": "number"
+    },
+    "density": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "error": {
+     "type": "number"
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "rests": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "scope": {
+     "type": "integer"
+    },
+    "shift": {
+     "type": "number"
+    },
+    "speed": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "strict": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "bpm",
+    "changed",
+    "conflicts",
+    "cost",
+    "deficit",
+    "deform",
+    "density",
+    "error",
+    "plan",
+    "rests",
+    "scope",
+    "shift",
+    "speed",
+    "strict"
    ]
   },
   "SpeechHead": {
@@ -8239,6 +9550,150 @@
     "freshAll",
     "mixBound",
     "run"
+   ]
+  },
+  "SpeechQueryInput": {
+   "title": "SpeechQueryInput",
+   "type": "object",
+   "properties": {
+    "blocks": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechBlockCond"
+     }
+    },
+    "cross": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "edge": {
+     "anyOf": [
+      {
+       "enum": [
+        "any",
+        "both",
+        "head",
+        "tail"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "edgeBasis": {
+     "anyOf": [
+      {
+       "enum": [
+        "pause",
+        "sample"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "length": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "maxGap": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "restAdjust": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "enum": [
+        "both",
+        "segment",
+        "sentence"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "speedPreference": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "speedRange": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "strategy": {
+     "anyOf": [
+      {
+       "enum": [
+        "free",
+        "rank",
+        "strict"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tolerance": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "blocks"
    ]
   },
   "SpeechRangeParams": {

@@ -214,14 +214,16 @@ class SpeechIndex:
 
 
 def read_wires(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> list[dict[str, Any]]:
-    """检索进程：按给定顺序读出可检索的行（解码 msgpack）。"""
+    """检索进程：按给定顺序读出可检索的行（解码 msgpack；``key`` = 失效键，方案缓存用）。"""
     dec = msgspec.msgpack.Decoder()
     by: dict[str, dict[str, Any]] = {}
     for part in _chunks(list(sample_ids)):
-        for sid, data in conn.execute(
-            f"SELECT sample_id, data FROM speech_index WHERE status = 'ok' AND sample_id IN ({','.join('?' * len(part))})", part
+        for sid, key, data in conn.execute(
+            f"SELECT sample_id, input_key, data FROM speech_index WHERE status = 'ok' AND sample_id IN ({','.join('?' * len(part))})", part
         ):
-            by[sid] = dec.decode(data)
+            w = dec.decode(data)
+            w["key"] = f"{sid}:{key}"
+            by[sid] = w
     return [by[s] for s in sample_ids if s in by]
 
 

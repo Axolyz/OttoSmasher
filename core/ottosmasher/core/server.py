@@ -263,6 +263,28 @@ class Core:
         r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
           "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
           lambda p: self.search.prepare(p["mode"], p.get("scope")))
+        r("search.speech", "write", T.SearchSpeechParams, T.SearchStarted,
+          "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
+          lambda p: self.search.run_speech(p["query"], p.get("scope")))
+        r("search.pitch", "write", T.SearchPitchParams, T.SearchStarted,
+          "Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result.",
+          lambda p: self.search.run_pitch(p["blocks"], p.get("params"), p["mode"], p.get("scope")))
+        r("search.pitchCheck", "read", T.PitchCheckParams, T.PitchChecked,
+          "Validate a pitch query (blocks or the text helper format) and return on-the-spot problems; no search.",
+          lambda p: self.search.pitch_check(p.get("blocks"), p.get("text")))
+        r("search.cancel", "ui", T.SearchIdParams, T.SearchCancelled, "Cancel a running search (a cancelled search writes no fixed result).",
+          lambda p: self.search.cancel(p["searchId"]))
+        r("search.status", "read", T.SearchIdParams, T.SearchFinished, "State of a search started in this session.",
+          lambda p: self.search.status(p["searchId"]))
+        r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
+          lambda p: self.search.results())
+        r("results.page", "read", T.ResultPageParams, T.ResultPage,
+          "One page (at most 100) of a fixed result; only checks members for invalidation, never recomputes or reorders.",
+          lambda p: self.search.page(p["id"], int(p.get("offset", 0)), int(p.get("limit", 100))))
+        r("results.close", "write", T.IdParams, T.IdParams, "Close a fixed result (deletes the result set only, never samples).",
+          lambda p: self.search.close(p["id"]))
+        r("results.setUi", "ui", T.ResultUiParams, None, "Remember a fixed result's UI state (active, page, selection, scroll).",
+          lambda p: self.search.set_ui(p["id"], p.get("uiState")))
         r("rhythm.bpm", "read", T.NoParams, T.Bpm, "Global target BPM (null = original-speed stretch).", lambda p: {"bpm": self.rhythm.bpm()})
         r("rhythm.setBpm", "ui", T.BpmParams, T.Bpm, "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
           lambda p: self.rhythm.set_bpm(p.get("bpm")))
@@ -317,7 +339,7 @@ class Core:
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)
-        self.search = SearchService(self.conn, self.ws, self.jobs, self.samples, self.speech, self.support_dir, emit=self.emit)
+        self.search = SearchService(self.conn, self.ws, self.jobs, self.samples, self.speech, self.support_dir, emit=self.emit, rhythm=self.rhythm, post=self.post)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
@@ -327,6 +349,8 @@ class Core:
             self.waveforms.shutdown()
             self.thumbs.shutdown()
             self.jobs.kill_all()
+            if getattr(self, "search", None) is not None:
+                self.search.shutdown()
         finally:
             self.conn.close()
             self._lock.release()

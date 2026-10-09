@@ -163,6 +163,19 @@ class SampleService:
         d["tags"] = effective_tags.of_sample(self.conn, sample_id)
         return d
 
+    def rows(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+        """现有采样的列表行（固定结果翻页用；已删除的不在里面）。"""
+        out: dict[str, dict[str, Any]] = {}
+        for i in range(0, len(ids), 900):
+            part = ids[i : i + 900]
+            for r in self.conn.execute(f"SELECT {self._COLUMNS}{self._FROM} WHERE s.id IN ({','.join('?' * len(part))})", part):
+                d = self._row(r)
+                out[d["id"]] = d
+        ppl = effective_tags.people(self.conn, list(out))
+        for k, d in out.items():
+            d["people"] = ppl.get(k, [])
+        return out
+
     @staticmethod
     def _where(natures: list[str] | None, starred: bool, text: str, source_id: str | None) -> tuple[str, list[Any]]:
         where, args = ["1=1"], []

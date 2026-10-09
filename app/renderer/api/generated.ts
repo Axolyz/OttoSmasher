@@ -654,6 +654,61 @@ export interface PeaksParams {
   start: number;
 }
 
+export interface PitchBand {
+  high?: string | null;
+  low: string;
+}
+
+export interface PitchBlockInput {
+  glide?: PitchBand | null;
+  high?: string | null;
+  low: string;
+  seconds: number;
+}
+
+export interface PitchCheckParams {
+  blocks?: PitchBlockInput[] | null;
+  text?: string | null;
+}
+
+/** 就地提示：problems 为空才能查找。text = 规范的文本格式（复制用）；blocks = 文本解析出的块（粘贴用）。 */
+export interface PitchChecked {
+  blocks: PitchBlockInput[];
+  frames: number[];
+  ok: boolean;
+  problems: PitchProblem[];
+  text: string | null;
+}
+
+export interface PitchParamsInput {
+  coverage?: number | null;
+  elastic?: number[] | null;
+  energyMax?: number | null;
+  energyMin?: number | null;
+  headTolerance?: number | null;
+  ignoreOctave?: boolean | null;
+  maxGap?: number | null;
+  stability?: number | null;
+  tailTolerance?: number | null;
+  tolerance?: number | null;
+}
+
+export interface PitchProblem {
+  block?: number | null;
+  line?: number | null;
+  max?: number | null;
+  min?: number | null;
+  reason: string;
+}
+
+export interface PitchSourceScope {
+  natures?: string[] | null;
+  roles?: ("mix" | "sfx" | "vocal")[] | null;
+  sourceId?: string | null;
+  starred?: boolean | null;
+  text?: string;
+}
+
 /** 准备清单的现状（UI_PLAN §4；没有顺序、不强制）。 */
 export interface Prep {
   defaultSfx: PrepTrack;
@@ -771,6 +826,73 @@ export interface ResolveSourceParams {
   assetId?: string | null;
   ordinal?: number | null;
   sourceId: string;
+}
+
+export interface ResultAsset {
+  episode: string;
+  id: string;
+  origin: string;
+  path: string;
+  sourceId: string;
+  stemName: string | null;
+  work: string;
+}
+
+export interface ResultHeader {
+  createdAt: string;
+  id: string;
+  kind: "pitch" | "speech";
+  params: unknown;
+  query: unknown;
+  scope: unknown;
+  stats: SearchStats;
+  uiState: unknown;
+}
+
+/** 一处命中。语音：start/end 资产局部秒，first/count 是音块；音高：start/end 资产局部秒，frames、octave、ratio、blocks〔每块：帧数, 带内可靠帧, 平均距离（音分）〕，原片模式另有原片秒。 */
+export interface ResultHit {
+  blockScore?: number;
+  blocks?: number[][];
+  count?: number;
+  end: number;
+  evidence?: SpeechEvidence | null;
+  first?: number;
+  frames?: number;
+  octave?: number;
+  ratio?: number;
+  score: number;
+  sourceEnd?: number;
+  sourceStart?: number;
+  start: number;
+}
+
+export interface ResultPage {
+  offset: number;
+  result: ResultHeader;
+  rows: ResultRow[];
+  total: number;
+}
+
+export interface ResultPageParams {
+  id: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** 固定结果的一行。state：ok / deleted（采样已删除）/ changed（音源已变化）/ stale（分析或测量变了：命中已失效，请重新查询）。 */
+export interface ResultRow {
+  asset: ResultAsset | null;
+  assetId: string | null;
+  hits: ResultHit[];
+  rank: number;
+  sample: SampleRow | null;
+  sampleId: string | null;
+  state: "changed" | "deleted" | "ok" | "stale";
+}
+
+export interface ResultUiParams {
+  id: string;
+  uiState: unknown;
 }
 
 /** 一个音块（资产局部秒）与逐音属性（未知为 null）。 */
@@ -1026,6 +1148,11 @@ export interface SamplesListParams {
   text?: string;
 }
 
+export interface SearchCancelled {
+  cancelling: boolean;
+  searchId: string;
+}
+
 /** 范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。 */
 export interface SearchCoverage {
   mode: "pitch" | "speech";
@@ -1038,6 +1165,51 @@ export interface SearchCoverage {
 export interface SearchCoverageParams {
   mode: "pitch" | "speech";
   scope?: SampleFilter | null;
+}
+
+/** 事件 ``search.finished`` 与 ``search.status`` 的内容。status = running / done / cancelled / failed。 */
+export interface SearchFinished {
+  error: ErrorWire | null;
+  kind: "pitch" | "speech";
+  resultId: string | null;
+  searchId: string;
+  stats: SearchStats | null;
+  status: "cancelled" | "done" | "failed" | "running";
+}
+
+export interface SearchIdParams {
+  searchId: string;
+}
+
+export interface SearchPitchParams {
+  blocks: PitchBlockInput[];
+  mode: "samples" | "sources";
+  params?: PitchParamsInput | null;
+  scope?: PitchSourceScope | null;
+}
+
+export interface SearchSpeechParams {
+  query: SpeechQueryInput;
+  scope?: SampleFilter | null;
+}
+
+export interface SearchStarted {
+  searchId: string;
+}
+
+export interface SearchStats {
+  bpm: number | null;
+  hits: number;
+  ms: number;
+  noAnalysis: number;
+  noEvidence: number;
+  samples: number;
+  searched: number;
+  stale: number;
+  total: number;
+  truncated: boolean;
+  unknownBounds: number;
+  windows: number;
 }
 
 export interface SeparationSubmitParams {
@@ -1170,10 +1342,50 @@ export interface SourcesAddParams {
   paths: string[];
 }
 
+/** 语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。 */
+export interface SpeechBlockCond {
+  beats?: (number | null)[] | null;
+  character?: string | null;
+  consonants?: string[] | null;
+  coverageMin?: number | null;
+  duration?: (number | null)[] | null;
+  durationMode?: "effective" | "span" | null;
+  loudnessMin?: number | null;
+  note?: number[] | null;
+  octave?: number | null;
+  pitch?: number | null;
+  pitchTolerance?: number | null;
+  relPitch?: "high" | "low" | null;
+  relPitchThreshold?: number | null;
+  spreadMax?: number | null;
+  strengthMin?: number | null;
+  sustain?: boolean | null;
+  trend?: "down" | "up" | null;
+  trendThreshold?: number | null;
+  vowel?: "a" | "e" | "i" | "o" | "u" | null;
+}
+
 export interface SpeechBlocked {
   id: string;
   name: string;
   reason: string;
+}
+
+export interface SpeechEvidence {
+  bpm: number | null;
+  changed: number;
+  conflicts: number;
+  cost: number;
+  deficit: number;
+  deform: number;
+  density: number | null;
+  error: number;
+  plan: "near_fast" | "near_slow" | null;
+  rests: number[];
+  scope: number;
+  shift: number;
+  speed: number | null;
+  strict: boolean;
 }
 
 export interface SpeechHead {
@@ -1227,6 +1439,21 @@ export interface SpeechPreview {
   freshAll: number;
   mixBound: number;
   run: number;
+}
+
+export interface SpeechQueryInput {
+  blocks: SpeechBlockCond[];
+  cross?: boolean | null;
+  edge?: "any" | "both" | "head" | "tail" | null;
+  edgeBasis?: "pause" | "sample" | null;
+  length?: number | null;
+  maxGap?: number | null;
+  restAdjust?: boolean | null;
+  scope?: "both" | "segment" | "sentence" | null;
+  speedPreference?: number | null;
+  speedRange?: number[] | null;
+  strategy?: "free" | "rank" | "strict" | null;
+  tolerance?: number | null;
 }
 
 export interface SpeechRangeParams {
@@ -1691,6 +1918,14 @@ export interface Commands {
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
   /** Write the same items as an .RTrackTemplate file (experimental). */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };
+  /** Close a fixed result (deletes the result set only, never samples). */
+  "results.close": { params: IdParams; result: IdParams; effect: "write" };
+  /** Open fixed results (restored without searching again). */
+  "results.list": { params: NoParams; result: ResultHeader[]; effect: "read" };
+  /** One page (at most 100) of a fixed result; only checks members for invalidation, never recomputes or reorders. */
+  "results.page": { params: ResultPageParams; result: ResultPage; effect: "read" };
+  /** Remember a fixed result's UI state (active, page, selection, scroll). */
+  "results.setUi": { params: ResultUiParams; result: null; effect: "ui" };
   /** Global target BPM (null = original-speed stretch). */
   "rhythm.bpm": { params: NoParams; result: Bpm; effect: "read" };
   /** Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache. */
@@ -1721,10 +1956,20 @@ export interface Commands {
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Suggested name and nature for a new sample on an asset range. */
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
+  /** Cancel a running search (a cancelled search writes no fixed result). */
+  "search.cancel": { params: SearchIdParams; result: SearchCancelled; effect: "ui" };
   /** How much of the current browse scope is ready to search (speech index built / F0 measured). */
   "search.coverage": { params: SearchCoverageParams; result: SearchCoverage; effect: "read" };
+  /** Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result. */
+  "search.pitch": { params: SearchPitchParams; result: SearchStarted; effect: "write" };
+  /** Validate a pitch query (blocks or the text helper format) and return on-the-spot problems; no search. */
+  "search.pitchCheck": { params: PitchCheckParams; result: PitchChecked; effect: "read" };
   /** Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search. */
   "search.prepare": { params: SearchCoverageParams; result: JobSummary; effect: "job" };
+  /** Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept). */
+  "search.speech": { params: SearchSpeechParams; result: SearchStarted; effect: "write" };
+  /** State of a search started in this session. */
+  "search.status": { params: SearchIdParams; result: SearchFinished; effect: "read" };
   /** Assets registered by a separation job. */
   "separation.results": { params: JobIdParams; result: AssetRecord[]; effect: "read" };
   /** Separate an asset (range) with a Studio model; reuses identical results. */
@@ -1876,6 +2121,7 @@ export type ErrorCode =
   | "reaper-path-invalid"
   | "reaper-too-large"
   | "result-mismatch"
+  | "result-not-found"
   | "rhythm-cells-invalid"
   | "rhythm-cut-invalid"
   | "rhythm-manual-stale"
@@ -1899,6 +2145,7 @@ export type ErrorCode =
   | "schema-migration-failed"
   | "schema-too-new"
   | "search-invalid"
+  | "search-not-found"
   | "search-nothing-to-prepare"
   | "selftest-failed"
   | "sep-model-changed"

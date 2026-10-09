@@ -310,6 +310,8 @@
   "error.rhythm-output-too-long": "卡拍结果太长（{seconds} 秒，上限 {max} 秒）",
   "error.rhythm-original-speed-impossible": "当前节奏在起音保护约束下无法保持原速",
   "error.search-invalid": "检索请求不对（{field}）",
+  "error.search-not-found": "没有这次检索（可能是上次启动时的）",
+  "error.result-not-found": "这个固定结果已经关闭",
   "error.search-nothing-to-prepare": "当前范围都已准备好，不需要再准备",
   "error.speech-query-invalid": "语音检索条件不对（{field}）：音块必须在查询范围内、长度为正、不能重叠，相邻起拍间距要大于两倍容差",
   "error.pitch-query-invalid": "音高查询不能查找：没有块、块短于 0.1 秒、总长超过 10 秒、范围倒置或音名不对",

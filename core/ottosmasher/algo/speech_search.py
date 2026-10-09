@@ -94,6 +94,7 @@ class SampleIndex:
     blocks: list[BlockAttr]
     plans: list[PlanData]  # 整句在前，然后各语段
     gaps: list[float] = field(default_factory=list)  # 语段之间的源间隙（秒），段间休止调整用
+    cache_id: str | None = None  # 方案缓存的键（检索进程里 = 采样 + 索引失效键，索引重建后不会用到旧方案）
 
 
 def sustain_end(block: rh.Block, pauses: Sequence[rh.Pause], times: np.ndarray, energy: np.ndarray, measured: np.ndarray,
@@ -226,7 +227,7 @@ def from_wire(w: dict[str, Any]) -> SampleIndex:
         plans.append(PlanData(scope, first, stop, st.Plan(sb, rh.durations(sb, sp, sw), list(cells), sp, [], sw, sr)))
         if scope > 0:
             gaps.append(blocks[first].onset - blocks[first - 1].end)
-    return SampleIndex(w["id"], attrs, plans, gaps)
+    return SampleIndex(w["id"], attrs, plans, gaps, w.get("key"))
 
 
 class Batch:
@@ -684,7 +685,7 @@ SchemeCache = dict[tuple[str, int, float | None], dict[str, _SchemeView] | None]
 
 
 def schemes_for(row: SampleIndex, plan: PlanData, bpm: float, cache: SchemeCache | None) -> dict[str, _SchemeView] | None:
-    key = (row.sample_id, plan.scope, bpm)
+    key = (row.cache_id or row.sample_id, plan.scope, bpm)
     if cache is not None and key in cache:
         return cache[key]
     try:
