@@ -134,3 +134,13 @@
 .extraGlyph[data-nature="unpitched"] { color: var(--nat-unpitched); }
 .note2 { font-weight: 650; color: var(--nat-pitched); }
 .reclass { color: var(--accent2); }
+/* 舞台画面（UI_PLAN §3：400×225，⤢ 放大到全宽 16:9） */
+.stageTop { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.stageTop[data-wide] { flex-direction: column; }
+.stageTopInfo { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.stagePic { position: relative; width: min(400px, 100%); aspect-ratio: 16 / 9; background: var(--bg); border: 1px solid var(--line2); border-radius: var(--r-lg); overflow: hidden; flex: none; }
+.stagePic[data-wide] { width: 100%; }
+.stagePicMedia { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; cursor: default; }
+.stagePicEmpty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: var(--fs-sm); }
+.stagePicTag { position: absolute; right: 8px; bottom: 6px; font-size: var(--fs-xs); color: var(--sub); background: color-mix(in srgb, var(--s1) 70%, transparent); border-radius: 5px; padding: 0 5px; }
+.stagePicWide { position: absolute; right: 4px; top: 4px; }

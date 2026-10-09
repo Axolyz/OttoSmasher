@@ -101,6 +101,11 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "sample-invalid": (("field", "max", "reason"), "Sample value rejected."),
     "sample-has-active-jobs": (("jobs",), "Sample cannot be deleted while jobs use it."),
     "promote-invalid": (("reason", "role", "roles"), "Local tags cannot be promoted as requested."),
+    "visual-invalid": (("kind", "mode", "path", "reason"), "Picture file or binding mode rejected."),
+    "visual-changed": (("path",), "The bound picture file has changed since it was bound."),
+    "video-probe-failed": (("detail", "path"), "Cannot read the video stream."),
+    "video-export-failed": (("detail",), "Video clip export failed."),
+    "visual-none": (("id",), "This sample has no picture (bind one first)."),
     "spectrum-invalid": (("max", "reason"), "Spectrum request is invalid (scale, or longer than 30 s)."),
     "tag-expr-invalid": (("position", "reason", "where"), "Tag expression cannot be parsed (1-based character position)."),
     # ---- 字幕、OP/ED

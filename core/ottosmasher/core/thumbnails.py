@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import logging
 import os
 import threading
@@ -23,7 +24,7 @@ from ottosmasher.domain.mapping import Mapping
 from ottosmasher.media import thumbs as thumbs_mod
 from ottosmasher.store.workspace import Workspace
 
-from . import imports as imports_mod
+from . import visuals as visuals_mod
 from .edits import loads
 from .errors import CoreError
 
@@ -49,37 +50,27 @@ class ThumbnailService:
     def dir(self) -> Path:
         return self.ws.data / "Cache" / "Thumbs"
 
+    def _picture_target(self, b: dict[str, Any] | None, source_t: float, local_t: float, length_hint: float | None) -> tuple[str, int, float, str] | None:
+        """有效画面（12 §12.4 的优先级）在这一刻的那一帧：同步 = 原片秒 + 偏移，图片 = 第一帧，循环 = 本地秒 mod 时长。"""
+        if b is None or b["state"] != "ok":
+            return None  # 没有画面、文件找不到或改过：不生成占位图
+        st = os.stat(b["path"])
+        snap = f"{st.st_size}:{st.st_mtime_ns}"
+        tt = visuals_mod.picture_time(b, source_t, local_t)
+        if not math.isfinite(tt):
+            return None
+        length = b["duration"] or length_hint
+        if length:
+            tt = min(tt, max(0.0, float(length) - 0.1))  # 末尾一帧之外取不到画面：贴到最后 0.1 秒之内
+        return b["path"], int(b["ordinal"]), max(0.0, tt), snap
+
     def _source_target(self, source_id: str, t: float | None) -> tuple[str, int, float, str] | None:
-        src = self.conn.execute("SELECT path, file_snapshot, duration, media_state FROM source WHERE id=?", (source_id,)).fetchone()
+        src = self.conn.execute("SELECT duration FROM source WHERE id=?", (source_id,)).fetchone()
         if src is None:
             return None
-        b = imports_mod.binding_of(self.conn, source_id)
-        if b is not None:
-            # 画面绑定（规格 12）：图片 / 动图取第一帧；同步视频按原片时间取（贴到视频长度之内）
-            if not os.path.isfile(b["path"]):
-                return None
-            st = os.stat(b["path"])
-            snap = f"{st.st_size}:{st.st_mtime_ns}"
-            if b["mode"] != "sync":
-                return b["path"], 0, 0.0, snap
-            tt = (src["duration"] or 0.0) / 2 if t is None else t
-            if b["duration"]:
-                tt = min(tt, max(0.0, b["duration"] - 0.1))
-            return b["path"], int(b["ordinal"]), max(0.0, tt), snap
-        if src["media_state"] != "available":
-            return None
-        v = self.conn.execute(
-            "SELECT ordinal, duration, start_time FROM source_stream WHERE source_id=? AND kind='video' AND is_attached_pic=0 ORDER BY ordinal LIMIT 1",
-            (source_id,),
-        ).fetchone()
-        if v is None or not os.path.isfile(src["path"]):
-            return None
-        length = v["duration"] or src["duration"] or 0.0
-        if t is None:
-            t = (src["duration"] or length) / 2
-        # 末尾一帧之外取不到画面：贴到最后 0.1 秒之内
-        t = min(max(0.0, t), max(0.0, length - 0.1))
-        return src["path"], int(v["ordinal"]), t, src["file_snapshot"] or ""
+        b = visuals_mod.resolve(self.conn, source_id=source_id, root=self.ws.root)
+        tt = (src["duration"] or 0.0) / 2 if t is None else t
+        return self._picture_target(b, tt, tt, src["duration"])
 
     def _target(self, kind: str, item_id: str) -> tuple[str, int, float, str] | None:
         if kind == "source":
@@ -94,7 +85,10 @@ class ThumbnailService:
                 t = Mapping.of(loads(r["mapping"])).to_source((r["start"] + r["end"]) / 2)
             except CoreError:
                 return None
-            return self._source_target(r["source_id"], t)
+            # 采样自己的画面绑定优先（12 §12.4）；缩略图取本地中点
+            b = visuals_mod.resolve(self.conn, sample_id=item_id, root=self.ws.root)
+            dur = self.conn.execute("SELECT duration FROM source WHERE id=?", (r["source_id"],)).fetchone()
+            return self._picture_target(b, t, (r["end"] - r["start"]) / 2, dur[0] if dur else None)
         raise ValueError(f"thumbnail kind {kind!r}")
 
     def _path(self, target: tuple[str, int, float, str], size: str) -> Path:

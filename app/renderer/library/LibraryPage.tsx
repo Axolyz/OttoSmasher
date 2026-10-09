@@ -36,6 +36,8 @@ import s from "./Library.module.css";
 import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
 import { StageInfo } from "./StageInfo";
+import { StagePicture } from "./StagePicture";
+import { VisualDialog, type VisualTarget } from "../sources/VisualDialog";
 import { Composer, type ComposerMode } from "./search/Composer";
 import { HitChips, HitLine } from "./search/HitLine";
 import { metricFilter, newMetricsDraft } from "./search/MetricsComposer";
@@ -153,6 +155,8 @@ export function LibraryPage() {
   const [facets, setFacets] = useState<FacetValues | null>(null);
   const [filterDialog, setFilterDialog] = useState<"save" | "manage" | "expr" | null>(null);
   const [batch, setBatch] = useState<{ kind: BatchKind; ids: string[] } | null>(null);
+  const [visualFor, setVisualFor] = useState<VisualTarget | null>(null);
+  const [picWide, setPicWide] = useState(false);
   const plusRef = useRef<HTMLInputElement>(null);
   const listBox = useRef<HTMLDivElement>(null);
   const libraryScope = useApp((st) => st.libraryScope);
@@ -378,7 +382,7 @@ export function LibraryPage() {
       setPlaying(r.id);
       setPlayingVer("original:voice");
       auditionFrom.current = a;
-      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b);
+      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b, false, r.id);
       setNowPlaying({ sampleId: r.id, name: r.name, version: "original", sound: "voice", plan: null, bpm: null, originalSpeed: false, duration: b - a });
     } catch (e) {
       setPlaying(null);
@@ -447,7 +451,7 @@ export function LibraryPage() {
       setPlayingVer(key);
       if (version === "original" && sound === "voice") {
         auditionFrom.current = r.start;
-        auditionGen.current = await window.otto.player.audition(r.asset_id, r.start, r.end);
+        auditionGen.current = await window.otto.player.audition(r.asset_id, r.start, r.end, false, r.id);
         setNowPlaying({ sampleId: r.id, name: r.name, version, sound, plan: null, bpm: null, originalSpeed: false, duration: r.end - r.start });
       } else {
         const rr = await call("rhythm.render", { id: r.id, version, sound, plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false });
@@ -846,6 +850,7 @@ export function LibraryPage() {
             { id: "nature", label: t("library.setNature"), items: natureItems([r.id]) },
             { id: "star", label: r.starred ? t("library.starOff") : t("library.starOn"), shortcut: "S", run: () => void edit([r.id], { starred: !r.starred }, "sample-star") },
             { id: "edit", label: t("library.editInfo"), run: () => setBatch({ kind: "edit", ids: [r.id] }) },
+            { id: "visual", label: t("visual.menu"), run: () => setVisualFor({ ownerType: "sample", id: r.id, name: r.name }) },
             "-",
             { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "samples", ids: [r.id] }) },
@@ -1185,6 +1190,15 @@ export function LibraryPage() {
             />
             <Menu {...sampleMenu(focusRow, [focusRow.id], false, "detail")} placement="bottom end" trigger={<Button variant="flat" size="sm" icon={<MoreHorizontal />} aria-label={t("menu.more")} />} />
           </div>
+          <div className={s.stageTop} data-wide={picWide || undefined}>
+          <StagePicture
+            sampleId={focusRow.id}
+            wide={picWide}
+            onWide={setPicWide}
+            onToggle={() => void audition(focusRow)}
+            onBind={() => setVisualFor({ ownerType: "sample", id: focusRow.id, name: focusRow.name })}
+          />
+          <div className={s.stageTopInfo}>
           <div className={s.stageMeta}>
             <span className={s.natBadge} data-nature={focusRow.nature}>
               <NatureDot nature={focusRow.nature} />
@@ -1241,6 +1255,8 @@ export function LibraryPage() {
             }
           />
           </div>
+          </div>
+          </div>
           <div className={s.stageActions}>
             <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
               {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
@@ -1275,6 +1291,14 @@ export function LibraryPage() {
             onEdit={(fields, label) => void edit([focusRow.id], fields, label)}
             onOpen={(id) => setOpenSample(id)}
             onAuditionParent={(id) => void call("samples.get", { id }).then((p) => audition(p), fail)}
+            extra={
+              <div className={s.field}>
+                <span className={s.fieldLabel}>{t("info.picture")}</span>
+                <Button size="sm" variant="flat" onPress={() => setVisualFor({ ownerType: "sample", id: focusRow.id, name: focusRow.name })} data-testid="stage-visual">
+                  {t("visual.menu")}
+                </Button>
+              </div>
+            }
           />
         </>
       ) : (
@@ -1320,6 +1344,7 @@ export function LibraryPage() {
           }))}
         />
       </TopSlot>
+      <VisualDialog target={visualFor} onClose={() => setVisualFor(null)} />
       <BatchDialog
         kind={batch?.kind ?? null}
         ids={batch?.ids ?? []}

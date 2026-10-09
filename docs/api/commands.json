@@ -1468,6 +1468,71 @@
    }
   },
   {
+   "name": "visuals.forSample",
+   "effect": "read",
+   "summary": "Effective picture of a sample (sample > source binding > source video stream) with its range and mapping.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SamplePicture"
+   }
+  },
+  {
+   "name": "visuals.forSource",
+   "effect": "read",
+   "summary": "Effective picture of a source (binding > its first video stream).",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "anyOf": [
+     {
+      "$ref": "#/$defs/VisualBinding"
+     },
+     {
+      "type": "null"
+     }
+    ]
+   }
+  },
+  {
+   "name": "visuals.matchApply",
+   "effect": "write",
+   "summary": "Bind the matched same-name pictures to the sources in one undoable edit.",
+   "params": {
+    "$ref": "#/$defs/MatchApplyParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditApplied"
+   }
+  },
+  {
+   "name": "visuals.matchPlan",
+   "effect": "read",
+   "summary": "Same-name picture (video > animation > image) in each source's folder.",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/MatchItem"
+    }
+   }
+  },
+  {
+   "name": "visuals.prepare",
+   "effect": "write",
+   "summary": "Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable).",
+   "params": {
+    "$ref": "#/$defs/VisualPrepareParams"
+   },
+   "result": {
+    "$ref": "#/$defs/VisualPrepared"
+   }
+  },
+  {
    "name": "works.list",
    "effect": "read",
    "summary": "Work folders (first-level subfolders of source folders).",
@@ -2665,6 +2730,45 @@
     "method"
    ],
    "summary": "No such command."
+  },
+  {
+   "code": "video-export-failed",
+   "args": [
+    "detail"
+   ],
+   "summary": "Video clip export failed."
+  },
+  {
+   "code": "video-probe-failed",
+   "args": [
+    "detail",
+    "path"
+   ],
+   "summary": "Cannot read the video stream."
+  },
+  {
+   "code": "visual-changed",
+   "args": [
+    "path"
+   ],
+   "summary": "The bound picture file has changed since it was bound."
+  },
+  {
+   "code": "visual-invalid",
+   "args": [
+    "kind",
+    "mode",
+    "path",
+    "reason"
+   ],
+   "summary": "Picture file or binding mode rejected."
+  },
+  {
+   "code": "visual-none",
+   "args": [
+    "id"
+   ],
+   "summary": "This sample has no picture (bind one first)."
   },
   {
    "code": "work-folder-exists",
@@ -5696,6 +5800,66 @@
     "end",
     "label",
     "start"
+   ]
+  },
+  "MatchApplyParams": {
+   "title": "MatchApplyParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/MatchItem"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
+  "MatchItem": {
+   "title": "MatchItem",
+   "type": "object",
+   "properties": {
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "hasBinding": {
+     "type": "boolean"
+    },
+    "kind": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "picture": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "conflicts",
+    "hasBinding",
+    "kind",
+    "picture",
+    "sourceId"
    ]
   },
   "MetricCond": {
@@ -8838,6 +9002,50 @@
     "offset",
     "rows",
     "total"
+   ]
+  },
+  "SamplePicture": {
+   "title": "SamplePicture",
+   "type": "object",
+   "properties": {
+    "binding": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/VisualBinding"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "end": {
+     "type": "number"
+    },
+    "mapping": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "binding",
+    "end",
+    "mapping",
+    "start"
    ]
   },
   "SamplePlan": {
@@ -13648,6 +13856,130 @@
    "required": [
     "edit_id",
     "label"
+   ]
+  },
+  "VisualBinding": {
+   "title": "VisualBinding",
+   "description": "有效画面（规格 12 §12.4）。origin：sample = 采样自己的绑定，source = 原片的默认画面，stream = 原片自带的视频流。",
+   "type": "object",
+   "properties": {
+    "bindingId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "image",
+      "loop",
+      "materialized_clip",
+      "sync"
+     ]
+    },
+    "offset": {
+     "type": "number"
+    },
+    "ordinal": {
+     "type": "integer"
+    },
+    "origin": {
+     "enum": [
+      "sample",
+      "source",
+      "stream"
+     ]
+    },
+    "path": {
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "changed",
+      "missing",
+      "ok"
+     ]
+    }
+   },
+   "required": [
+    "bindingId",
+    "duration",
+    "kind",
+    "mode",
+    "offset",
+    "ordinal",
+    "origin",
+    "path",
+    "state"
+   ]
+  },
+  "VisualPrepareParams": {
+   "title": "VisualPrepareParams",
+   "type": "object",
+   "properties": {
+    "mode": {
+     "anyOf": [
+      {
+       "enum": [
+        "image",
+        "loop",
+        "sync"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "offset": {
+     "type": "number"
+    },
+    "ownerId": {
+     "type": "string"
+    },
+    "ownerType": {
+     "enum": [
+      "sample",
+      "source"
+     ]
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "ownerId",
+    "ownerType",
+    "path"
+   ]
+  },
+  "VisualPrepared": {
+   "title": "VisualPrepared",
+   "type": "object",
+   "properties": {
+    "bindingId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "bindingId"
    ]
   },
   "WorkFolder": {

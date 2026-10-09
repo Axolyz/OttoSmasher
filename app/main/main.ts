@@ -105,10 +105,16 @@ if (isDev) {
 
 // 文件对话框与“在 Finder 中显示”（页面拿不到 Node；路径只来自系统对话框或 Core 的记录）
 const MEDIA_EXT = ["mkv", "mp4", "mov", "webm", "m4v", "avi", "ts", "m2ts", "wav", "flac", "mp3", "m4a", "aac", "ogg", "opus", "aif", "aiff", "wma"];
-ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle" | "import" | "folder") => {
+const PICTURE_EXT = ["mp4", "mov", "mkv", "webm", "m4v", "avi", "gif", "png", "jpg", "jpeg", "webp", "bmp"];
+ipcMain.handle("files:pick", async (e, kind: "media" | "media-one" | "subtitle" | "import" | "folder" | "picture" | "reimport") => {
   const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+  // picture：画面绑定（视频 / 动图 / 图片，规格 12 §12.4）；reimport：回导的成品（任何音频，规格 06 §6.7）
   const filters =
-    kind === "subtitle" ? [{ name: "Subtitles", extensions: ["srt", "ass"] }] : [{ name: "Media", extensions: MEDIA_EXT }, { name: "*", extensions: ["*"] }];
+    kind === "subtitle"
+      ? [{ name: "Subtitles", extensions: ["srt", "ass"] }]
+      : kind === "picture"
+        ? [{ name: "Pictures", extensions: PICTURE_EXT }, { name: "*", extensions: ["*"] }]
+        : [{ name: "Media", extensions: MEDIA_EXT }, { name: "*", extensions: ["*"] }];
   // 采样库导入：文件或整个文件夹（规格 06 §6.6；macOS 的对话框可以同时选文件和文件夹）
   // folder：原片文件夹（阶段 3.13），只选一个文件夹
   const properties: Array<"openFile" | "openDirectory" | "multiSelections" | "createDirectory"> =

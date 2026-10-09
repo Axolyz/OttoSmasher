@@ -264,6 +264,8 @@ _register(
             "judge": FieldSpec(v_judge, custom="judge"),
             # 节奏参数（规格 09 §9.3–§9.4「分组与停顿」「人工占格」；阶段 6）：灵敏度、语段阈值、绑定分析版本的人工项
             "rhythm": FieldSpec(v_rhythm, json=True),
+            # 画面绑定（规格 12 §12.4）：visuals.prepare 登记的一条绑定；None = 不覆盖（用原片的）
+            "visual_binding_id": FieldSpec(v_opt_id),
         },
     )
 )
@@ -281,6 +283,8 @@ _register(
             # 默认轨（规格 04 §4.2.3）：每个角色一条，从带该角色、完整覆盖且未变速的资产里选；None = 未指定
             "default_vocal": FieldSpec(v_opt_id, custom="default_track"),
             "default_sfx": FieldSpec(v_opt_id, custom="default_track"),
+            # 原片的默认画面绑定（规格 12 §12.4）；None = 用原片自带的第一条视频流
+            "visual_binding_id": FieldSpec(v_opt_id),
         },
     )
 )
@@ -567,6 +571,10 @@ class EditService:
                 self._check_scope(i, entity_id, new)
             if spec.name == "sample" and "judge" in new:
                 self._check_judge(i, entity_id, new["judge"])
+            if spec.name in ("sample", "source") and new.get("visual_binding_id"):
+                own = self.conn.execute("SELECT owner_type, owner_id FROM visual_binding WHERE id = ?", (new["visual_binding_id"],)).fetchone()
+                if own is None or tuple(own) != (spec.name, entity_id):
+                    raise CoreError("edit-invalid", index=i, entity=spec.name, field="visual_binding_id", reason="not-an-option")
             if spec.name == "source":
                 self._check_source(i, entity_id, new)
             plan.append(

@@ -136,3 +136,8 @@
 .lineStatus[data-status="unchanged"], .lineStatus[data-status="excluded"] { color: var(--muted); }
 .lineStatus[data-status="replace"] { color: var(--warn); }
 .lineStatus[data-status="skip"] { color: var(--bad); }
+/* 画面绑定（规格 12 §12.4） */
+.visualNow { display: flex; gap: 12px; align-items: center; }
+.visualNowText { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--fs-sm); }
+.visualPick { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }
+.bad { color: var(--bad); }

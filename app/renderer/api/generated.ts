@@ -639,6 +639,18 @@ export interface ManualPhone {
   start: number;
 }
 
+export interface MatchApplyParams {
+  items: MatchItem[];
+}
+
+export interface MatchItem {
+  conflicts: string[];
+  hasBinding: boolean;
+  kind: string | null;
+  picture: string | null;
+  sourceId: string;
+}
+
 export interface MetricCond {
   max?: number | null;
   metric: string;
@@ -1281,6 +1293,13 @@ export interface SamplePage {
   offset: number;
   rows: SampleRow[];
   total: number;
+}
+
+export interface SamplePicture {
+  binding: VisualBinding | null;
+  end: number;
+  mapping: number[][] | null;
+  start: number;
 }
 
 export interface SamplePlan {
@@ -2253,6 +2272,31 @@ export interface UndoPeek {
   label: EditLabel;
 }
 
+/** 有效画面（规格 12 §12.4）。origin：sample = 采样自己的绑定，source = 原片的默认画面，stream = 原片自带的视频流。 */
+export interface VisualBinding {
+  bindingId: string | null;
+  duration: number | null;
+  kind: string;
+  mode: "image" | "loop" | "materialized_clip" | "sync";
+  offset: number;
+  ordinal: number;
+  origin: "sample" | "source" | "stream";
+  path: string;
+  state: "changed" | "missing" | "ok";
+}
+
+export interface VisualPrepareParams {
+  mode?: "image" | "loop" | "sync" | null;
+  offset?: number;
+  ownerId: string;
+  ownerType: "sample" | "source";
+  path: string;
+}
+
+export interface VisualPrepared {
+  bindingId: string;
+}
+
 /** 作品文件夹：原片文件夹的第一层子文件夹。 */
 export interface WorkFolder {
   bindPictures: boolean;
@@ -2534,6 +2578,16 @@ export interface Commands {
   "ui.get": { params: UiGetParams; result: Record<string, unknown>; effect: "ui" };
   /** Save one UI state value (not user data, no undo). */
   "ui.set": { params: UiSetParams; result: null; effect: "ui" };
+  /** Effective picture of a sample (sample > source binding > source video stream) with its range and mapping. */
+  "visuals.forSample": { params: IdParams; result: SamplePicture; effect: "read" };
+  /** Effective picture of a source (binding > its first video stream). */
+  "visuals.forSource": { params: SourceIdParams; result: VisualBinding | null; effect: "read" };
+  /** Bind the matched same-name pictures to the sources in one undoable edit. */
+  "visuals.matchApply": { params: MatchApplyParams; result: EditApplied; effect: "write" };
+  /** Same-name picture (video > animation > image) in each source's folder. */
+  "visuals.matchPlan": { params: IdsParams; result: MatchItem[]; effect: "read" };
+  /** Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable). */
+  "visuals.prepare": { params: VisualPrepareParams; result: VisualPrepared; effect: "write" };
   /** Work folders (first-level subfolders of source folders). */
   "works.list": { params: NoParams; result: WorkFolder[]; effect: "read" };
   /** Rename a work: renames the folder on disk (not undoable). */
@@ -2696,6 +2750,11 @@ export type ErrorCode =
   | "tool-missing"
   | "undo-nothing-safe"
   | "unknown-method"
+  | "video-export-failed"
+  | "video-probe-failed"
+  | "visual-changed"
+  | "visual-invalid"
+  | "visual-none"
   | "work-folder-exists"
   | "work-folder-missing"
   | "work-name-invalid"

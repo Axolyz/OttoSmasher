@@ -76,6 +76,14 @@ function subscribe(): void {
       }
     } else if (ev.e === "data.changed") {
       const d = ev.d as Record<string, string[]>;
+      // 原片改了（例如原片的画面绑定）：它的采样也可能跟着变（采样继承原片的画面）→ 采样的缩略图都重新要
+      if (d.source?.length) {
+        for (const k of [...cache.keys()]) {
+          if (!k.startsWith("sample:")) continue;
+          if (listeners.get(k)?.size) request(k);
+          else cache.delete(k);
+        }
+      }
       for (const kind of ["source", "sample"] as const) {
         for (const id of d[kind] ?? []) {
           for (const size of ["list", "poster"] as const) {

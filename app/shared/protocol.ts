@@ -50,7 +50,10 @@ export interface PlayerApi {
   /** 原片播放器静音（不影响试听播放器） */
   setMuted(muted: boolean): void;
   playRange(a: number, b: number, loop?: boolean): number;
-  audition(assetId: string, start: number, end: number, loop?: boolean): Promise<number>;
+  /** ``sampleId``：舞台正在看的采样的原声试听，舞台画面跟着走 */
+  audition(assetId: string, start: number, end: number, loop?: boolean, sampleId?: string): Promise<number>;
+  /** 舞台画面换成这个采样的有效画面（null = 没有舞台） */
+  showPicture(sampleId: string | null): Promise<void>;
   /** 试听渲染结果（Core rhythm.render 的键）：卡拍、咔哒声 */
   auditionRender(key: string, loop?: boolean): Promise<number>;
   stopAudition(): void;
@@ -74,7 +77,7 @@ export interface OttoApi {
   player: PlayerApi;
   files: {
     /** 系统对话框选文件：media 可多选；取消返回空数组 */
-    pick(kind: "media" | "media-one" | "subtitle" | "import" | "folder"): Promise<string[]>;
+    pick(kind: "media" | "media-one" | "subtitle" | "import" | "folder" | "picture" | "reimport"): Promise<string[]>;
     /** 在 Finder / 资源管理器中显示（文件不存在时什么也不做） */
     reveal(path: string): Promise<void>;
     /** 拖进窗口的文件的真实路径（只用于“拖文件进原片页”） */

@@ -733,6 +733,57 @@ class EffectiveTag(TypedDict):
     ref: str | None
 
 
+class VisualBinding(TypedDict):
+    """有效画面（规格 12 §12.4）。origin：sample = 采样自己的绑定，source = 原片的默认画面，stream = 原片自带的视频流。"""
+
+    origin: Literal["sample", "source", "stream"]
+    bindingId: str | None
+    mode: Literal["sync", "image", "loop", "materialized_clip"]
+    # 同步：画面时间 = 原片秒 + offset
+    offset: float
+    path: str
+    kind: str
+    ordinal: int
+    duration: float | None
+    state: Literal["ok", "missing", "changed"]
+
+
+class SamplePicture(TypedDict):
+    binding: VisualBinding | None
+    start: float
+    end: float
+    # 资产映射控制点（本地秒 → 原片秒）
+    mapping: list[list[float]] | None
+
+
+class VisualPrepareParams(TypedDict):
+    ownerType: Literal["sample", "source"]
+    ownerId: str
+    path: str
+    mode: NotRequired[Literal["sync", "image", "loop"] | None]
+    offset: NotRequired[float]
+
+
+class VisualPrepared(TypedDict):
+    bindingId: str
+
+
+class SourceIdParams(TypedDict):
+    sourceId: str
+
+
+class MatchItem(TypedDict):
+    sourceId: str
+    picture: str | None
+    kind: str | None
+    conflicts: list[str]
+    hasBinding: bool
+
+
+class MatchApplyParams(TypedDict):
+    items: list[MatchItem]
+
+
 class SpectrumParams(TypedDict):
     assetId: str
     # 资产局部秒，最多 30 秒

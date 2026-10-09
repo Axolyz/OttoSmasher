@@ -16,6 +16,7 @@ import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
+import { MatchPicturesDialog, VisualDialog, type VisualTarget } from "./VisualDialog";
 import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
 import { WorkSettingsDialog } from "./WorkSettingsDialog";
@@ -212,6 +213,8 @@ export function SourcesPage() {
     if (workspace) await window.otto.files.reveal(`${workspace}/Library`);
   };
 
+  const [visualFor, setVisualFor] = useState<VisualTarget | null>(null);
+  const [matchFor, setMatchFor] = useState<string[] | null>(null);
   const relocate = async (id: string) => {
     const [path] = await window.otto.files.pick("media-one");
     if (!path) return;
@@ -244,6 +247,7 @@ export function SourcesPage() {
             { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: ids }) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
             { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
+            { id: "match-pictures", label: t("visual.matchMenu", { n: ids.length }), run: () => setMatchFor(ids) },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
           ],
@@ -264,6 +268,7 @@ export function SourcesPage() {
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids: [r.id], currentAsset: curFor(r.id) }) },
             "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
+            { id: "visual", label: t("visual.menu"), run: () => setVisualFor({ ownerType: "source", id: r.id, name: displayName(r) }) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
             "-",
             { id: "reveal", label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path) },
@@ -359,6 +364,8 @@ export function SourcesPage() {
         ) : null}
       </TopSlot>
       <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
+      <VisualDialog target={visualFor} onClose={() => setVisualFor(null)} onDone={() => void reload()} />
+      <MatchPicturesDialog ids={matchFor} onClose={() => setMatchFor(null)} onDone={() => void reload()} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />

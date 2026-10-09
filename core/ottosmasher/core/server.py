@@ -35,6 +35,7 @@ from . import text_layer as text_layer_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
 from . import sample_filter, saved_filters, text_search
+from . import visuals as visuals_mod
 from .exports import ExportService, export_range
 from .samples import SampleService
 from .tag_ops import TagOps
@@ -192,6 +193,17 @@ class Core:
         r("samples.batchEdit", "read", T.BatchEditParams, T.BatchEditPlan,
           "Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply.",
           lambda p: self.tag_ops.batch_edit(list(p["ids"]), dict(p["fields"])))
+        r("visuals.forSample", "read", T.IdParams, T.SamplePicture, "Effective picture of a sample (sample > source binding > source video stream) with its range and mapping.",
+          lambda p: visuals_mod.for_sample(self.conn, p["id"], self.ws.root))
+        r("visuals.forSource", "read", T.SourceIdParams, T.VisualBinding | None, "Effective picture of a source (binding > its first video stream).",
+          lambda p: visuals_mod.resolve(self.conn, source_id=p["sourceId"], root=self.ws.root))
+        r("visuals.prepare", "write", T.VisualPrepareParams, T.VisualPrepared,
+          "Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable).",
+          self._visual_prepare)
+        r("visuals.matchPlan", "read", T.IdsParams, list[T.MatchItem], "Same-name picture (video > animation > image) in each source's folder.",
+          lambda p: visuals_mod.match_plan(self.conn, list(p["ids"])))
+        r("visuals.matchApply", "write", T.MatchApplyParams, T.EditApplied, "Bind the matched same-name pictures to the sources in one undoable edit.",
+          self._visual_match_apply)
         r("samples.glyphs", "read", T.IdsParams, dict[str, T.SampleGlyph],
           "List-row extras by nature (rhythm glyph, note + pitch curve, attack + envelope) from existing index and measurements only.",
           lambda p: self.glyphs.get(list(p["ids"])))
@@ -578,6 +590,29 @@ class Core:
         return self.jobs.submit("models.verify", {"paths": paths})
 
     # ---------- 用户辞典（08 §8.2.4）
+
+    def _visual_prepare(self, p: dict[str, Any]) -> dict[str, Any]:
+        with transaction(self.conn):
+            vid = visuals_mod.prepare(self.conn, p["ownerType"], p["ownerId"], p["path"], p.get("mode"), float(p.get("offset") or 0.0))
+        return {"bindingId": vid}
+
+    def _visual_match_apply(self, p: dict[str, Any]) -> dict[str, Any]:
+        """匹配同名画面：登记画面文件并在一次编辑里挂到原片上（可撤销；撤销只摘下绑定，登记的记录留着无害）。"""
+        ops = []
+        with transaction(self.conn):
+            for it in p["items"]:
+                if not it.get("picture"):
+                    continue
+                ver = self.conn.execute("SELECT version FROM source WHERE id = ?", (it["sourceId"],)).fetchone()
+                if ver is None:
+                    raise CoreError("source-not-found", id=it["sourceId"])
+                vid = visuals_mod.prepare(self.conn, "source", it["sourceId"], it["picture"])
+                ops.append({"entity": "source", "id": it["sourceId"], "version": ver[0], "fields": {"visual_binding_id": vid}})
+            if not ops:
+                return {"edit_id": None, "changes": []}
+            edit_id, cs = self.edits.apply_within({"label": {"code": "visuals-match", "args": {"n": len(ops)}}, "ops": ops})
+        self._on_change(cs)
+        return {"edit_id": edit_id, "changes": [{"index": i, "entity": "source", "id": o["id"], "op": "update", "diffs": []} for i, o in enumerate(ops)]}
 
     def _dictionary_check(self, p: dict[str, Any]) -> dict[str, Any]:
         from ..lang.ja import dictionary

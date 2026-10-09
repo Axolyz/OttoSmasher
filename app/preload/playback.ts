@@ -12,6 +12,7 @@
 //   这两条借鉴旧版 mpv 桥（所有者 2026-10-07 允许只看旧版 mpv 部分代码）。
 import { ipcRenderer } from "electron";
 import type { CoreErrorWire, CoreResult, PlayerName, PlayerState } from "../shared/protocol";
+import { StagePicture } from "./picture";
 import { AudioPlayer, CanvasPlayer, type MpvEvent, type MpvLike } from "./player";
 
 const PUSH_MS = 50;
@@ -289,8 +290,10 @@ export class Playback {
   private auditionEng: Engine | null = null;
   private muted = false;
   private listeners = new Set<(s: PlayerState) => void>();
+  readonly picture = new StagePicture();
 
   private emit = (s: PlayerState) => {
+    if (s.player === "audition") this.picture.onAudition(s);
     for (const l of this.listeners) l(s);
   };
 
@@ -377,9 +380,11 @@ export class Playback {
   }
 
   /** 试听：资产区间（局部秒），引擎在终点截停；时钟报区间本地秒。 */
-  async audition(assetId: string, start: number, end: number, loop = false): Promise<number> {
+  /** ``sampleId``：舞台正在看的采样的原声试听 → 舞台画面跟着走（规格 12 §12.4） */
+  async audition(assetId: string, start: number, end: number, loop = false, sampleId?: string): Promise<number> {
     const e = this.auditionEngine();
     const gen = e.begin();
+    this.picture.follow(sampleId, start);
     try {
       const h = await core<{ path: string; aid: number; fileStart: number; fileEnd: number }>("playback.resolveAsset", {
         assetId,
@@ -401,6 +406,7 @@ export class Playback {
   async auditionRender(key: string, loop = false): Promise<number> {
     const e = this.auditionEngine();
     const gen = e.begin();
+    this.picture.stopFollowing(); // 卡拍后的时间不在资产时间轴上：画面不跟
     try {
       const h = await core<{ path: string; aid: number; fileStart: number; fileEnd: number }>("playback.resolveRender", { key });
       if (gen !== e.gen) return gen;
@@ -421,10 +427,12 @@ export class Playback {
 
   stopAudition(): void {
     this.auditionEng?.stop();
+    this.picture.stopFollowing();
   }
 
   destroy(): void {
     this.sourceEng?.destroy();
     this.auditionEng?.destroy();
+    this.picture.destroy();
   }
 }
