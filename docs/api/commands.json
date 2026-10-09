@@ -2023,6 +2023,15 @@
    "summary": "Nothing to analyze: everything is up to date or blocked."
   },
   {
+   "code": "speech-query-invalid",
+   "args": [
+    "field",
+    "block",
+    "reason"
+   ],
+   "summary": "The speech search query is invalid (unknown field, out of range, overlapping or too-close notes)."
+  },
+  {
    "code": "stream-not-found",
    "args": [
     "ordinal",

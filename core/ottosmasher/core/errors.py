@@ -165,6 +165,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "bpm-invalid": (("min", "max"), "BPM must be 20-400 (empty = original speed)."),
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
     # ---- 三大搜索（规格 09 §9.6、10 §10.2）
+    "speech-query-invalid": (("field", "block", "reason"), "The speech search query is invalid (unknown field, out of range, overlapping or too-close notes)."),
     "pitch-query-invalid": (("block", "reason"), "The pitch query cannot be searched (empty, block too short, longer than 10 s, inverted range or bad note)."),
     "pitch-param-invalid": (("field", "min", "max"), "Pitch search parameter is out of range."),
     "pitch-param-unknown": (("field",), "Unknown pitch search parameter (the reliability threshold cannot be changed)."),

@@ -1897,6 +1897,7 @@ export type ErrorCode =
   | "speech-edit-invalid"
   | "speech-invalid"
   | "speech-nothing-to-do"
+  | "speech-query-invalid"
   | "stream-not-found"
   | "stretch-render-failed"
   | "studio-failed"
