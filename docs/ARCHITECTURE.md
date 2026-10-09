@@ -290,6 +290,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 |---|---|---|
 | `result_set` | id, kind(`speech`/`pitch`), created_at, title, query, scope_snapshot（范围栏标签条件 + 查找栏文字/表达式/临时条件 + 当时的筛选器内容）, params（含 BPM）, stats（后端耗时、缺少有效分析计数、是否截断）, ui_state（激活、页码、选中、滚动）, closed | 固定结果；重启后恢复不重搜（规格 04 §4.2.10） |
 | `result_member` | result_id, rank, sample_id 或 (asset_id, 原片模式), binding_snapshot（asset_id/start/end/分析版本/索引版本）, hits（每处命中：区间、证据、方案、分数） | 读取时只核对失效（已删除/绑定变化/索引变化），不重算不重排 |
+| `segment_search`（迁移 0014，阶段 8） | segment_id, text, dict_version, norm, reading | 文字搜索：段的规范化原文与平假名读音（pyopenjtalk-plus + 用户辞典，不经 tsqyomi）；可重建，检索前补齐过期行、资料变化后在后台补 |
 | `saved_filter` | id, name, conditions（**只有标签条件**：分面〔作品、类型、人物、音高、其他标签〕+ 可选的标签表达式；所有者 2026-10-06：文字不能进筛选器，筛选器只放标签）, sort_order, version | 范围栏上的命名预设【基线变更：规格 07 §7.3 原含文字、性质、原片、星标、属性条件】 |
 
 ### 4.8 编辑记录、任务、导出、其他
@@ -321,6 +322,10 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 5. 界面区分“已独立化”（采样徽标）与“媒体已释放”（原片徽标）；独立化采样不能再“返回原片”看前后文，界面说明原因。
 
 > 物化切片用无损 WAV（所有者 2026-10-05：不用 FLAC，很多软件不支持），而不是 MP3 V0，是为了让“测量随资产保留”严格成立。
+
+**实现（阶段 9，`core/independence.py`）**：切片的媒体快照里记着 `from`（原存储的媒体 ID、快照、音频流、窗口）；`assets.measured_as` 让分析的文件快照核对与 F0 身份按原存储认，
+所以独立化之前的语音分析、F0 在切片上照常可读（L32）。`assets.locate` 找不到覆盖区间的存储、而原片已释放 → `media-released`；波形只画切片覆盖的那段。
+独立化是轻量任务「采样独立化」；删除原片时可以接着删除（`SourceService.delete(release=True)`：留下独立化采样、它们的资产〔只留切片〕、文本层、标签、OP/ED、测量，其余删除）。
 
 ---
 
@@ -386,6 +391,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
     └── Staging/                     原子发布用的临时文件（与 Library 同卷）
 ```
 
+- 原片目录名按 `<作品 集数> [<原片 ID 前 8 位>]` 在第一次生成文件时取（`core/libdirs.py`），之后按末尾的 `[id8]` 找回、不随改名移动（L23，阶段 9 统一了分离 / 拉平 / 回导 / 独立化）。
 - **长期固定的目录名一律英文**（`Library/`、`Tracks/`、`Separation/`、`Flatten/`、`Reimport/`、`Independent/`、`Exports/`、`REAPER/`、`Models/`、`Data/` 及其下各目录）；按原片、按日期生成的子目录不受限制，可以用中日文（所有者 2026-10-06）。子目录与文件名都经过可移植处理（规格 12 §12.1）。界面里每个原片/采样都有“打开所在目录”。
 - **原子发布**：先写 `Data/Staging/`，校验后 `os.replace` 到目标；导出到其他卷（自定义导出目录）时先复制为同目录下的隐藏临时名再改名，
   未完成的发布记录在数据库里，启动时清理残留——用户可见目录里不会长期留下 `.part`/`.lock`（规格 12 §12.6）。
@@ -480,6 +486,8 @@ class LanguageProfile(Protocol):
 - **画面**：用 libmpv render API 渲染到离屏缓冲（先用软件渲染 `MPV_RENDER_API_TYPE_SW`，按画布实际像素尺寸输出 RGBA，例如 1280×720），
   写入与渲染进程共享的帧缓冲，页面用 WebGL 把它贴到 `<canvas>`。画面因此是普通 DOM 元素：弹窗、菜单、抽屉、缩放、切页都不需要任何特殊处理。
   解码仍用硬件（`hwdec=videotoolbox-copy` / `d3d11va-copy`）。性能不够时改为 GL 渲染到共享纹理（同一接口）。
+- **舞台画面**（阶段 9，`app/preload/picture.ts`）：第三个 libmpv 实例（只有画面、静音），画到舞台的 `canvas[data-otto-stage-video]`；页面只给采样 ID，preload 向 Core 要有效画面（`visuals.forSample`）。
+  只在舞台这个采样的原声试听时跟着走：试听时钟 → 资产秒 → 原片秒（映射）→ 画面时间（同步 = 原片秒 + 偏移；循环 = 本地秒 mod 时长）；偏差 > 0.08 秒才重定位，暂停时暂停（规格 12 §12.4）。
 - 范围播放：mpv 的 `ab-loop-a/b`（循环）与 `end`（单次）让**引擎**截停；任何普通跳转或播放/暂停先清除范围（规格 05 §5.3.1）。
 - 外挂声部：`audio-files` + `aid` + `audio-delay`（= 原片范围起点 − 资产选区起点），加载期间原音轨静音；不转码不代理（R22.1）。
 - 字幕：mpv 自带字幕关闭（`sid=no`）；文本层的段（段文本，与台本、字幕层一致）用 HTML 叠加在画面 `<canvas>` 上（纯文本、白字黑边、按画面高度缩放；右键 = 这段的菜单）。
@@ -503,6 +511,8 @@ class LanguageProfile(Protocol):
 - MP3 V0 编码：ffmpeg + libmp3lame，写 Xing/LAME 头；编码后解码校验长度（只允许尾部 0–1152 帧填充），否则失败并保留原 PCM（规格 13 §13.3.2）。
 - 导出 WAV：PCM 24-bit，采样率/声道跟随源；文件名按模板（§7、规格 12 §12.1）；稳定键复用；被外部改动报错不覆盖。
 - 视频片段：ffmpeg 生成 H.264 MP4 + AAC；卡拍版“同映射变速”逐帧按逆映射取最近源帧（不插帧）；超出视频流的部分补黑帧并提示（规格 12 §12.5）。
+  实现（阶段 9，`media/video.py`、`core/video_export.py`）：Core 算好每个输出帧要的画面时间，任务进程按区间解码源视频（`-copyts` + `-to`，`showinfo` 报每帧真实时间）流式选最近帧、写进编码器；
+  帧数 ⌈时长 × 帧率⌉、按音频时长截断、帧率写成分数；可选 ProRes 422 HQ。
 
 ### 10.4 拖出与 REAPER
 
