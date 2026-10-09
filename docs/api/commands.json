@@ -293,6 +293,39 @@
    }
   },
   {
+   "name": "hits.export",
+   "effect": "write",
+   "summary": "Export a hit as WAV (original, or stretched with its evidence scheme).",
+   "params": {
+    "$ref": "#/$defs/HitExportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ExportedWav"
+   }
+  },
+  {
+   "name": "hits.render",
+   "effect": "write",
+   "summary": "Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks.",
+   "params": {
+    "$ref": "#/$defs/HitRenderParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RhythmRendered"
+   }
+  },
+  {
+   "name": "hits.resolve",
+   "effect": "read",
+   "summary": "Check that a hit is still valid and return its range and evidence scheme (09 §9.7).",
+   "params": {
+    "$ref": "#/$defs/HitRefParams"
+   },
+   "result": {
+    "$ref": "#/$defs/HitInfo"
+   }
+  },
+  {
    "name": "imports.commit",
    "effect": "write",
    "summary": "Register the scanned files (optionally with full-length samples).",
@@ -1582,6 +1615,27 @@
     "reason"
    ],
    "summary": "Text frontend failed."
+  },
+  {
+   "code": "hit-no-stretch",
+   "args": [],
+   "summary": "Pitch hits have no stretched version."
+  },
+  {
+   "code": "hit-not-found",
+   "args": [
+    "result",
+    "rank",
+    "index"
+   ],
+   "summary": "No such hit in the fixed result."
+  },
+  {
+   "code": "hit-stale",
+   "args": [
+    "state"
+   ],
+   "summary": "The hit is no longer valid (sample deleted, rebound, or analysis changed); search again."
   },
   {
    "code": "import-empty",
@@ -4346,6 +4400,186 @@
     "workspace"
    ]
   },
+  "HitExportParams": {
+   "title": "HitExportParams",
+   "type": "object",
+   "properties": {
+    "index": {
+     "type": "integer"
+    },
+    "rank": {
+     "type": "integer"
+    },
+    "resultId": {
+     "type": "string"
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "index",
+    "rank",
+    "resultId",
+    "version"
+   ]
+  },
+  "HitInfo": {
+   "title": "HitInfo",
+   "description": "核对过仍有效的命中（资产局部秒）；plan/bpm = 证据所选的方案（不限节奏 = 近快、当前 BPM；音高命中没有卡拍）。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "end": {
+     "type": "number"
+    },
+    "kind": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceEnd": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceStart": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    },
+    "stretch": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "assetId",
+    "bpm",
+    "end",
+    "kind",
+    "plan",
+    "sampleId",
+    "sourceEnd",
+    "sourceStart",
+    "start",
+    "stretch"
+   ]
+  },
+  "HitRefParams": {
+   "title": "HitRefParams",
+   "description": "固定结果里的一处命中：结果、行（rank）、行内第几处。",
+   "type": "object",
+   "properties": {
+    "index": {
+     "type": "integer"
+    },
+    "rank": {
+     "type": "integer"
+    },
+    "resultId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "index",
+    "rank",
+    "resultId"
+   ]
+  },
+  "HitRenderParams": {
+   "title": "HitRenderParams",
+   "type": "object",
+   "properties": {
+    "index": {
+     "type": "integer"
+    },
+    "rank": {
+     "type": "integer"
+    },
+    "resultId": {
+     "type": "string"
+    },
+    "sound": {
+     "enum": [
+      "click",
+      "voice",
+      "voice+click"
+     ]
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
+    }
+   },
+   "required": [
+    "index",
+    "rank",
+    "resultId",
+    "sound",
+    "version"
+   ]
+  },
   "IdParams": {
    "title": "IdParams",
    "type": "object",
@@ -6320,6 +6554,19 @@
      "anyOf": [
       {
        "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hits": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/HitRefParams"
+       }
       },
       {
        "type": "null"

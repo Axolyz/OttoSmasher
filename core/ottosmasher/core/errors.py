@@ -166,6 +166,9 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "stretch-render-failed": (("tool", "detail"), "Time-stretch rendering failed."),
     # ---- 三大搜索（规格 09 §9.6、10 §10.2）
     "search-invalid": (("field",), "Search request is invalid."),
+    "hit-not-found": (("result", "rank", "index"), "No such hit in the fixed result."),
+    "hit-stale": (("state",), "The hit is no longer valid (sample deleted, rebound, or analysis changed); search again."),
+    "hit-no-stretch": ((), "Pitch hits have no stretched version."),
     "search-not-found": (("id",), "No such search in this session."),
     "result-not-found": (("id",), "The fixed result no longer exists."),
     "search-nothing-to-prepare": ((), "Everything in the current scope is already prepared for this search."),

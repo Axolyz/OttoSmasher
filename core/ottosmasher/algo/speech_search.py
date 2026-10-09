@@ -124,6 +124,23 @@ def active_threshold(energy: np.ndarray, measured: np.ndarray) -> float | None:
     return max(ACTIVE_FLOOR, float(np.percentile(e, ACTIVE_PERCENTILE)) * ACTIVE_RATIO)
 
 
+def segment_plan(
+    blocks: Sequence[rh.Block], pauses: Sequence[rh.Pause], pseg: Sequence[int], sg: rh.Segment, manual_cells: dict[int, int], penalty: float, sr: int
+) -> st.Plan | None:
+    """语段的卡拍方案输入：语段窗口里的块单独算时值、单独量化（人工占格按语段内序号套用）；量化不了返回 None。"""
+    sb = list(blocks[sg.first : sg.stop])
+    sw = (sg.start, sg.end)
+    sp = [p for p in pauses if p.end > sw[0] and p.start < sw[1]]
+    sd = rh.durations(sb, sp, sw)
+    local_seg = [pseg[k] - pseg[sg.first] for k in range(sg.first, sg.stop)]
+    man = {k - sg.first: v for k, v in manual_cells.items() if sg.first <= k < sg.stop}
+    try:
+        sc = rh.quantize_raw(sd, local_seg, man, penalty).cells
+    except CoreError:
+        return None
+    return None if sc is None else st.Plan(sb, sd, list(sc), sp, [], sw, sr)
+
+
 def build_index(
     sample_id: str,
     phones: Sequence[rh.Phone],
@@ -159,18 +176,9 @@ def build_index(
     plans = [PlanData(-1, 0, len(blocks), st.Plan(list(blocks), dur, list(cells), list(pauses), live, window, sr))]
     gaps = []
     for sg in segments:
-        sb = list(blocks[sg.first : sg.stop])
-        sw = (sg.start, sg.end)
-        sp = [p for p in pauses if p.end > sw[0] and p.start < sw[1]]
-        sd = rh.durations(sb, sp, sw)
-        local_seg = [pseg[k] - pseg[sg.first] for k in range(sg.first, sg.stop)]
-        man = {k - sg.first: v for k, v in manual_cells.items() if sg.first <= k < sg.stop}
-        try:
-            sc = rh.quantize_raw(sd, local_seg, man, penalty).cells
-        except CoreError:
-            sc = None
-        if sc is not None:
-            plans.append(PlanData(sg.index, sg.first, sg.stop, st.Plan(sb, sd, list(sc), sp, [], sw, sr)))
+        sp = segment_plan(blocks, pauses, pseg, sg, manual_cells, penalty, sr)
+        if sp is not None:
+            plans.append(PlanData(sg.index, sg.first, sg.stop, sp))
         if sg.index > 0:
             gaps.append(blocks[sg.first].onset - blocks[sg.first - 1].end)
     return SampleIndex(sample_id, out_blocks, plans, gaps)

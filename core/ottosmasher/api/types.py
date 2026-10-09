@@ -1702,6 +1702,8 @@ class ReaperParams(TypedDict):
     mora: NotRequired[bool | None]
     longVowel: NotRequired[bool | None]
     baked: NotRequired[bool | None]
+    # 检索命中（09 §9.7）：用各自证据所选的方案；给了就只交接这些命中（ids 留空）
+    hits: NotRequired[list["HitRefParams"] | None]
 
 
 class ReaperHandoff(TypedDict):
@@ -1984,4 +1986,37 @@ class MetricsStatus(TypedDict):
 
 class MetricsPrepareParams(TypedDict):
     scope: NotRequired[SampleFilter | None]
+
+
+class HitRefParams(TypedDict):
+    """固定结果里的一处命中：结果、行（rank）、行内第几处。"""
+
+    resultId: str
+    rank: int
+    index: int
+
+
+class HitInfo(TypedDict):
+    """核对过仍有效的命中（资产局部秒）；plan/bpm = 证据所选的方案（不限节奏 = 近快、当前 BPM；音高命中没有卡拍）。"""
+
+    kind: Literal["speech", "pitch"]
+    sampleId: str | None
+    assetId: str
+    start: float
+    end: float
+    stretch: bool
+    plan: RhythmPlan | None
+    bpm: float | None
+    sourceStart: float | None
+    sourceEnd: float | None
+
+
+class HitRenderParams(HitRefParams):
+    version: Literal["original", "stretched"]
+    sound: RhythmSound
+
+
+class HitExportParams(HitRefParams):
+    version: Literal["original", "stretched"]
+    words: NotRequired[dict[str, str]]
 

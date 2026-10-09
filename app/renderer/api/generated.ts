@@ -400,6 +400,43 @@ export interface Hello {
   workspace: string;
 }
 
+export interface HitExportParams {
+  index: number;
+  rank: number;
+  resultId: string;
+  version: "original" | "stretched";
+  words?: Record<string, string>;
+}
+
+/** 核对过仍有效的命中（资产局部秒）；plan/bpm = 证据所选的方案（不限节奏 = 近快、当前 BPM；音高命中没有卡拍）。 */
+export interface HitInfo {
+  assetId: string;
+  bpm: number | null;
+  end: number;
+  kind: "pitch" | "speech";
+  plan: "double" | "near_fast" | "near_slow" | null;
+  sampleId: string | null;
+  sourceEnd: number | null;
+  sourceStart: number | null;
+  start: number;
+  stretch: boolean;
+}
+
+/** 固定结果里的一处命中：结果、行（rank）、行内第几处。 */
+export interface HitRefParams {
+  index: number;
+  rank: number;
+  resultId: string;
+}
+
+export interface HitRenderParams {
+  index: number;
+  rank: number;
+  resultId: string;
+  sound: "click" | "voice" | "voice+click";
+  version: "original" | "stretched";
+}
+
 export interface IdParams {
   id: string;
 }
@@ -822,6 +859,7 @@ export interface ReaperHandoff {
  */
 export interface ReaperParams {
   baked?: boolean | null;
+  hits?: HitRefParams[] | null;
   ids: string[];
   longVowel?: boolean | null;
   mora?: boolean | null;
@@ -1904,6 +1942,12 @@ export interface Commands {
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
   /** Queue a batch flatten: one job, each sample targets independently (auto only). */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
+  /** Export a hit as WAV (original, or stretched with its evidence scheme). */
+  "hits.export": { params: HitExportParams; result: ExportedWav; effect: "write" };
+  /** Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks. */
+  "hits.render": { params: HitRenderParams; result: RhythmRendered; effect: "write" };
+  /** Check that a hit is still valid and return its range and evidence scheme (09 §9.7). */
+  "hits.resolve": { params: HitRefParams; result: HitInfo; effect: "read" };
   /** Register the scanned files (optionally with full-length samples). */
   "imports.commit": { params: ImportCommitParams; result: ImportResult; effect: "write" };
   /** Preview of a finished import scan. */
@@ -2119,6 +2163,9 @@ export type ErrorCode =
   | "flatten-output-invalid"
   | "flatten-target-invalid"
   | "frontend-failed"
+  | "hit-no-stretch"
+  | "hit-not-found"
+  | "hit-stale"
   | "import-empty"
   | "import-expired"
   | "internal-error"

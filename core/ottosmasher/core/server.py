@@ -184,10 +184,10 @@ class Core:
         r("reaper.handoff", "write", T.ReaperParams, T.ReaperHandoff,
           "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
           lambda p: self.handoff.reaper_handoff(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
-                                                p.get("baked")))
+                                                p.get("baked"), hits=p.get("hits")))
         r("reaper.template", "write", T.ReaperParams, T.ReaperTemplate, "Write the same items as an .RTrackTemplate file (experimental).",
           lambda p: self.handoff.reaper_template(list(p["ids"]), dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel")),
-                                                 bool(p.get("baked"))))
+                                                 bool(p.get("baked")), hits=p.get("hits")))
         r("exports.wav", "write", T.ExportWavParams, T.ExportedWav, "Export an asset range as a WAV file (reuses an identical export).",
           lambda p: self.exports.export_wav(
               p["assetId"], float(p["start"]), float(p["end"]), content=p["content"], track=p["track"],
@@ -284,6 +284,13 @@ class Core:
           lambda p: self.search.cancel(p["searchId"]))
         r("search.status", "read", T.SearchIdParams, T.SearchFinished, "State of a search started in this session.",
           lambda p: self.search.status(p["searchId"]))
+        r("hits.resolve", "read", T.HitRefParams, T.HitInfo, "Check that a hit is still valid and return its range and evidence scheme (09 §9.7).",
+          lambda p: self.hits.wire(p["resultId"], int(p["rank"]), int(p["index"])))
+        r("hits.render", "write", T.HitRenderParams, T.RhythmRendered,
+          "Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks.",
+          lambda p: self.hits.render(p["resultId"], int(p["rank"]), int(p["index"]), p["version"], p["sound"]))
+        r("hits.export", "write", T.HitExportParams, T.ExportedWav, "Export a hit as WAV (original, or stretched with its evidence scheme).",
+          lambda p: self.hits.export(p["resultId"], int(p["rank"]), int(p["index"]), p["version"], dict(p.get("words", {}))))
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
           lambda p: self.search.results())
         r("results.page", "read", T.ResultPageParams, T.ResultPage,
@@ -350,6 +357,10 @@ class Core:
         from .acoustic import AcousticService
 
         self.search = SearchService(self.conn, self.ws, self.jobs, self.samples, self.speech, self.support_dir, emit=self.emit, rhythm=self.rhythm, post=self.post)
+        from .hits import HitService
+
+        self.hits = HitService(self.conn, self.search, self.rhythm, self.handoff, self.exports)
+        self.handoff.hits = self.hits
         self.acoustic = AcousticService(self.conn, self.ws, self.jobs, self.search, self.speech, self.support_dir, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()

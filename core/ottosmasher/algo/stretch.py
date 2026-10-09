@@ -254,9 +254,10 @@ class Plan:
     sr: int
 
 
-def scheme(plan: Plan, density: float, bpm: float) -> Scheme:
+def scheme(plan: Plan, density: float, bpm: float, rests: dict[int, int] | None = None) -> Scheme:
+    """``rests``：段间休止调整后的休止格数（块序号 → 格数；检索命中用，09 §9.6.6）。"""
     beat_s = 60.0 / bpm
-    beats = rh.target_beats(plan.cells, plan.dur, density)
+    beats = rh.target_beats(plan.cells, plan.dur, density, rests)
     ratio = rh.overall_ratio(beats, plan.dur, beat_s)
     cps = control_points(plan.blocks, plan.dur, beats, plan.cells, plan.pauses, plan.cuts)
     m = build_map(cps, plan.window, plan.pauses, ratio, beat_s, plan.sr)

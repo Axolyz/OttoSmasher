@@ -45,6 +45,7 @@ class HandoffService:
         self.ws = ws
         self.exports = exports
         self.rhythm = rhythm
+        self.hits: Any = None  # HitService（检索命中的交接，09 §9.7）
 
     def _sample(self, sample_id: str) -> sqlite3.Row:
         r = self.conn.execute('SELECT id, asset_id, start, "end", name FROM sample WHERE id=?', (sample_id,)).fetchone()
@@ -172,22 +173,24 @@ class HandoffService:
         p.write_text(dumps({"kind": kind, "snap": settings_mod.values(self.conn)["export.reaper_snap"], "items": meta, "createdAt": now_iso()}), encoding="utf-8")
         return p
 
-    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None) -> dict[str, Any]:
-        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。"""
-        if not ids:
+    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None,
+                       hits: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。``hits``：检索命中（各用证据方案）。"""
+        if not ids and not hits:
             raise CoreError("reaper-empty")
         if baked is None:
             baked = settings_mod.values(self.conn)["export.reaper_kind"] == "baked"
-        items, meta = self._items(ids, words, plan, mora, long_vowel, baked)
+        items, meta = self.hits.reaper_items(hits, words, baked) if hits else self._items(ids, words, plan, mora, long_vowel, baked)
         text = reaper.clipboard(items)
         manifest = self._write_manifest(meta, "clipboard")
         return {"clipboard": text, "files": [m["file"] for m in meta], "manifest": str(manifest), "count": len(items)}
 
-    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False) -> dict[str, Any]:
+    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False,
+                        hits: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """``.RTrackTemplate``（试验入口）：同内容的 ITEM，换行分隔。"""
-        if not ids:
+        if not ids and not hits:
             raise CoreError("reaper-empty")
-        items, meta = self._items(ids, words, plan, mora, long_vowel, baked)
+        items, meta = self.hits.reaper_items(hits, words, baked) if hits else self._items(ids, words, plan, mora, long_vowel, baked)
         d = self._reaper_dir()
         base = fname.truncate_utf8(fname.portable(items[0].name), 100).strip(" .") or "item"
         p = d / f"{base}__{new_id()[:8]}.RTrackTemplate"

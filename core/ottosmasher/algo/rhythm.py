@@ -556,10 +556,13 @@ class Beats:
     total_cells: int
 
 
-def target_beats(cells: Sequence[int], dur: Durations, density: float) -> Beats:
+def target_beats(cells: Sequence[int], dur: Durations, density: float, rest_override: Mapping[int, int] | None = None) -> Beats:
+    """``rest_override``：段间休止调整（09 §9.6.6）给定的休止格数（块序号 → 格数），只改这些块之后的休止。"""
     total = int(sum(cells))
     tick = dur.total / total
     rest = [max(0, _round(r / tick)) for r in dur.rest]
+    for k, v in (rest_override or {}).items():
+        rest[k] = int(v)
     beats = [0.0]
     for i in range(len(cells) - 1):
         beats.append(beats[-1] + (cells[i] + rest[i]) / density)
