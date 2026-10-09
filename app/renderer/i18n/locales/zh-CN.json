@@ -1166,6 +1166,8 @@
   "settings.flatten.batch_target.label": "批量：目标音高",
   "settings.flatten.batch_target.hint": "批量只有自动定音：每项按自己的音高定音",
   "tasks.kind.flatten": "拉平",
+  "tasks.kind.search.index": "准备语音检索索引",
+  "tasks.kind.f0.measure": "测音高（准备音高检索）",
   "flatten.title": "拉平台",
   "flatten.sub": "音源：{track} · 外选区 [{a}, {b}) 秒（打开时已固定）",
   "flatten.defaultsNote": "默认值随入口不同：详情 = 首元音起 + 交界左；其他单个入口 = 整段 + 段内自动；批量 = 仅元音 + 段内自动（设置可改）。改处理范围不会改目标音高",
