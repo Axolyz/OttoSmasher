@@ -130,7 +130,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   const before = await app.evaluate(async ({ clipboard }) => clipboard.readText());
   await page.getByTestId("stage-handoff").click();
   await page.getByRole("menuitem", { name: "导出卡拍 WAV" }).click();
-  await expect(page.getByText(/卡拍-180BPM/)).toBeVisible();
+  await expect(page.getByText(/卡拍-180BPM/).first()).toBeVisible();
   await page.getByTestId("stage-handoff").click();
   await page.getByRole("menuitem", { name: "复制 REAPER 交接（原声＋拉伸标记，可再调）" }).click();
   await expect(page.getByText("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")).toBeVisible();

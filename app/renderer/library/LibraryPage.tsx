@@ -333,10 +333,15 @@ export function LibraryPage() {
   useEffect(() => {
     if (!openSample || !ready) return;
     void (async () => {
-      const r = await call("samples.list", { offset: 0, limit, sort });
+      // 清空条件（新采样一定看得见），翻到它所在的那一页（按新建在前）
+      const all = await call("samples.ids", {});
+      const at = Math.max(0, all.indexOf(openSample));
+      const off = Math.floor(at / limit) * limit;
+      const r = await call("samples.list", { offset: off, limit, sort: "created" });
       setPurpose("all");
       setFind(EMPTY_FIND);
-      setOffset(0);
+      setSort("created");
+      setOffset(off);
       setData(r);
       setFocus(openSample);
       setOpenSample(null);

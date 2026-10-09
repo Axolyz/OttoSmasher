@@ -64,7 +64,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   // 它的采样：时间线头「派生采样 n」点开
   await page.getByTestId("source-row").filter({ hasText: "hit_01.wav" }).click();
   await page.getByTestId("derived-button").click();
-  await page.getByTestId("derived-menu").getByRole("menuitem").first().click();
+  await page.getByTestId("derived-menu").getByRole("menuitem", { name: /hit_01/ }).click();
   await expect(page.getByTestId("page-library")).toBeVisible();
   await expect(page.getByTestId("stage-title")).toHaveText("hit_01");
 
