@@ -1725,7 +1725,8 @@ class ReaperTemplate(TypedDict):
 
 
 class SearchCoverageParams(TypedDict):
-    mode: Literal["speech", "pitch"]
+    # pitch = 已保存采样；pitchSources = 已分析原片音轨（整轨测 F0）
+    mode: Literal["speech", "pitch", "pitchSources"]
     # 当前浏览范围（与 samples.list 同一套条件）
     scope: NotRequired[SampleFilter | None]
 
@@ -1733,7 +1734,7 @@ class SearchCoverageParams(TypedDict):
 class SearchCoverage(TypedDict):
     """范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。"""
 
-    mode: Literal["speech", "pitch"]
+    mode: Literal["speech", "pitch", "pitchSources"]
     total: int
     ready: int
     stale: int

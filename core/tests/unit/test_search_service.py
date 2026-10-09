@@ -138,7 +138,15 @@ def test_pitch_search_samples_and_sources(core):
     b = sample(core, start=2.0, end=3.0, name="b")  # 与 a 相邻：不拼接（R15.3）
     cov = core.search.coverage("pitch", {})
     assert (cov["ready"], cov["stale"]) == (0, 2)
+    tc = core.search.coverage("pitchSources", {})
+    assert (tc["total"], tc["ready"], tc["stale"]) == (1, 0, 1)
+    job = core.search.prepare("pitchSources", {})
+    assert job["kind"] == "f0.measure"
+    plan = __import__("json").loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (job["id"],)).fetchone()[0])["plan"]
+    assert [(p["asset"], p["chunks"]) for p in plan] == [(core.aid, [0])]  # 整轨（10 秒 = 1 段）
     _put_f0(core)
+    tc = core.search.coverage("pitchSources", {})
+    assert (tc["ready"], tc["stale"]) == (1, 0)
     st, page = run(core, core.search.run_pitch, [{"seconds": 0.6, "low": "A4"}], {}, "samples", {})
     assert sorted(r["sample"]["name"] for r in page["rows"]) == ["a", "b"]
     for r in page["rows"]:

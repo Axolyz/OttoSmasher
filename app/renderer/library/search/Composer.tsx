@@ -36,7 +36,7 @@ export function Composer(props: {
   const [pSel, setPSel] = useState<number | null>(null);
   const check = usePitchCheck(props.pitch);
   const [cov, setCov] = useState<SearchCoverage | null>(null);
-  const covMode = mode === "speech" ? "speech" : mode === "pitch" && props.pitch.mode === "samples" ? "pitch" : null;
+  const covMode = mode === "speech" ? "speech" : mode === "pitch" ? (props.pitch.mode === "samples" ? "pitch" : "pitchSources") : null;
   const loadCov = () => {
     if (!covMode) return setCov(null);
     void call("search.coverage", { mode: covMode, scope: props.scope }).then(setCov, () => setCov(null));
@@ -88,7 +88,7 @@ export function Composer(props: {
         <span className={s.grow} />
         {cov ? (
           <span className={s.muted} data-testid="search-coverage">
-            {t(covMode === "speech" ? "search.coverage.speech" : "search.coverage.pitch", { ready: cov.ready, total: cov.total })}
+            {t(covMode === "speech" ? "search.coverage.speech" : covMode === "pitch" ? "search.coverage.pitch" : "search.coverage.tracks", { ready: cov.ready, total: cov.total })}
             {cov.noAnalysis ? ` · ${t("search.coverage.noAnalysis", { n: cov.noAnalysis })}` : ""}
           </span>
         ) : null}

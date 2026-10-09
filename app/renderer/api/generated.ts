@@ -1223,7 +1223,7 @@ export interface SearchCancelled {
 
 /** 范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。 */
 export interface SearchCoverage {
-  mode: "pitch" | "speech";
+  mode: "pitch" | "pitchSources" | "speech";
   noAnalysis: number;
   ready: number;
   stale: number;
@@ -1231,7 +1231,7 @@ export interface SearchCoverage {
 }
 
 export interface SearchCoverageParams {
-  mode: "pitch" | "speech";
+  mode: "pitch" | "pitchSources" | "speech";
   scope?: SampleFilter | null;
 }
 

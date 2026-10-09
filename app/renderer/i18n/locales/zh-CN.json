@@ -1631,5 +1631,6 @@
   "metric.tailFlatness": "尾部段噪声倾向",
   "metric.tailFlatness.def": "尾部段的谱平坦度",
   "metric.tailFlatness.unit": "",
-  "search.hit.range": "{a}–{b} 秒"
+  "search.hit.range": "{a}–{b} 秒",
+  "search.coverage.tracks": "已测音轨 {ready}/{total}"
 }

@@ -34,7 +34,7 @@ from .probes import record_probes
 from .search_index import SpeechIndex, asset_identities, pitch_coverage
 from .search_worker import SearchPool, pitch_shard, shards_of, speech_shard
 
-MODES = ("speech", "pitch")
+MODES = ("speech", "pitch", "pitchSources")
 PITCH_MODES = ("samples", "sources")
 PAGE_MAX = 100
 
@@ -85,6 +85,9 @@ class SearchService:
     def coverage(self, mode: str, scope: dict[str, Any] | None) -> dict[str, Any]:
         if mode not in MODES:
             raise CoreError("search-invalid", field="mode")
+        if mode == "pitchSources":
+            tracks, plan = self._track_plan(scope)
+            return {"mode": mode, "total": len(tracks), "ready": len(tracks) - len(plan), "stale": len(plan), "noAnalysis": 0}
         ids = self.scope_ids(scope)
         if mode == "speech":
             s = self.index.status(ids)
@@ -97,6 +100,13 @@ class SearchService:
     def prepare(self, mode: str, scope: dict[str, Any] | None) -> dict[str, Any]:
         if mode not in MODES:
             raise CoreError("search-invalid", field="mode")
+        if mode == "pitchSources":
+            _tracks, tplan = self._track_plan(scope)
+            plan = self._f0_plan({"plan": tplan})
+            if not plan:
+                raise CoreError("search-nothing-to-prepare")
+            params = {"plan": plan, "models_dir": str(self.ws.models), "support_dir": str(self.support_dir)}
+            return self.jobs.submit("f0.measure", params, {"asset": sorted({p["asset"] for p in plan})})
         ids = self.scope_ids(scope)
         if mode == "speech":
             stale = self.index.status(ids)["stale"]
@@ -316,8 +326,23 @@ class SearchService:
                "frames": q.frames}
         return self._launch("pitch", pitch_shard, shards, ctx)
 
-    def _source_tracks(self, scope: dict[str, Any] | None, prm: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-        """原片音轨模式（10 §10.2.3）：按资产检索；范围只保留原片、文字（原片名/作品/集数）、音轨角色；采样专用条件拒绝并说明。"""
+    def _track_plan(self, scope: dict[str, Any] | None) -> tuple[list[Any], dict[str, dict[str, Any]]]:
+        """原片音轨模式的覆盖：范围里的整轨，以及没测完的（资产 → 身份、时长、缺的段）。"""
+        tracks = self._list_tracks(scope)
+        idents = asset_identities(self.conn, {r["id"]: [(0.0, float(r["duration"]))] for r, _ in tracks})
+        plan: dict[str, dict[str, Any]] = {}
+        for r, _m in tracks:
+            dur = float(r["duration"])
+            ident = idents[r["id"]]["identities"].get((0.0, dur))
+            if ident is None:
+                continue
+            need = set(f0store.chunks_for(0.0, dur, dur)) - f0store.present(self.ws.f0, r["id"], ident)
+            if need:
+                plan[r["id"]] = {"asset": r["id"], "identity": ident, "duration": dur, "chunks": need}
+        return tracks, plan
+
+    def _list_tracks(self, scope: dict[str, Any] | None) -> list[Any]:
+        """原片音轨模式（10 §10.2.3）：范围只保留原片、文字（原片名/作品/集数）、音轨角色；采样专用条件拒绝并说明。"""
         sc = dict(scope or {})
         for k in ("natures", "starred"):
             if sc.get(k):
@@ -350,6 +375,11 @@ class SearchService:
                 if not have & set(roles) and not ("mix" in roles and not have):
                     continue
             tracks.append((r, m))
+        return tracks
+
+    def _source_tracks(self, scope: dict[str, Any] | None, prm: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+        """原片音轨模式的检索输入：整轨都测完的才检索（没测完的计入“未就绪”）；句首/句尾条件要台词标注（按映射换成资产秒）。"""
+        tracks = self._list_tracks(scope)
         idents = asset_identities(self.conn, {r["id"]: [(0.0, float(r["duration"]))] for r, _ in tracks})
         entries: dict[str, dict[str, Any]] = {}
         stale = 0

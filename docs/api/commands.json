@@ -8424,6 +8424,7 @@
     "mode": {
      "enum": [
       "pitch",
+      "pitchSources",
       "speech"
      ]
     },
@@ -8455,6 +8456,7 @@
     "mode": {
      "enum": [
       "pitch",
+      "pitchSources",
       "speech"
      ]
     },
