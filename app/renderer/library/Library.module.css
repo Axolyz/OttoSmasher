@@ -90,3 +90,6 @@
 .hitNav { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-sm); color: var(--sub); }
 
 .resultHead > .num { white-space: nowrap; }
+
+/* 判定区间（所有者 2026-10-09：可见、可改，决定继承哪些区段标签、读哪几段） */
+.judgeRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }

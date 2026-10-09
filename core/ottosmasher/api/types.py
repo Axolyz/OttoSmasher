@@ -366,7 +366,6 @@ class SourceDetail(TypedDict):
     default_audio_stream: int
     media_state: Literal["available", "released"]
     visual_binding_id: str | None
-    current_subtitle_version_id: str | None
     root_id: str | None
     rel_path: str | None
     created_at: str
@@ -1575,8 +1574,9 @@ class SpeechReadBlock(TypedDict):
 
 class SpeechSampleView(TypedDict):
     sampleId: str
-    # 判定区间（原片秒）
+    # 判定区间（原片秒）；judgeLocal = 同一区间换到采样所在资产的局部秒（舞台上显示、编辑用）
     judge: list[float] | None
+    judgeLocal: list[float] | None
     # 读到的段的文本连起来；没读到段时给 reason：no-text
     text: str | None
     textSource: str | None

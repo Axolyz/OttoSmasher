@@ -99,3 +99,26 @@ def test_search_perf(core):
         print(f"{q['query']:<36} cold {q['cold']:6.2f}s  warm {q['warm'] or 0:6.2f}s  hits {q['hits']:>7}  rows {q['samples']:>6}")
     slow = [q for q in report["queries"] if q["cold"] > LIMIT and "附加" not in q["query"]]
     assert not slow, slow
+
+
+def test_list_state_perf(core):
+    """列表一页 100 条带分析状态（`units.state_sql`：判定区间读到的段 + 段长 120 秒的下界）与各原片的已分析计数：
+    3 万条时要在 0.1 秒级（QUESTIONS「原片上的四类对象」段长度一条）。报告写到 ``.cache/perf/list.json``。"""
+    out: dict = {}
+    for label, fn in {
+        "列表第一页": lambda: core.samples.list(offset=0, limit=100),
+        "列表中间一页": lambda: core.samples.list(offset=15000, limit=100),
+        "只看语音性质": lambda: core.samples.list(offset=0, limit=100, natures=["speech"]),
+        "各原片已分析计数": lambda: core.speech.analyzed_counts(),
+    }.items():
+        times = []
+        for _ in range(RUNS):
+            t0 = time.perf_counter()
+            fn()
+            times.append(round(time.perf_counter() - t0, 3))
+        out[label] = times
+    p = Path(__file__).resolve().parents[3] / ".cache" / "perf" / "list.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(out, ensure_ascii=False))
+    assert all(min(t) < 1.0 for t in out.values()), out

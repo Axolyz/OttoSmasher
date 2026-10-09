@@ -109,13 +109,15 @@ def _usable(s: str) -> str:
 
 
 def state_sql(s: str = "s", src: str = "a.source_id") -> str:
-    """语音分析状态（列表）：stale（段改过待重新分析）> incomplete（读到的段有的还没分析）> failed > none > partial（◐）/ manual / ok。"""
+    """语音分析状态（列表）：stale（段改过待重新分析）> incomplete（读到的段有的还没分析）> failed > none > partial（◐）/ manual / ok。
+    partial（◐）= 只读到某段的一部分：采样范围没有盖住读到的某一段的目标区间（可用版本的 range = 段映射到资产、裁到覆盖）。
+    对齐器把段前后的空白吸进首尾音素、伸出采样范围的不算（那些音素在合成结果里单独标 clipped）。"""
     flags = (
         f"SELECT EXISTS (SELECT 1 {_usable(s)}) AS u,"
         f" EXISTS (SELECT 1 {_runs(s, ' AND r.status = ' + chr(39) + 'ok' + chr(39))}) AS ok,"
         f" EXISTS (SELECT 1 {_runs(s, ' AND r.status = ' + chr(39) + 'failed' + chr(39))}) AS fl,"
         f" EXISTS (SELECT 1 {_usable(s)} AND r.manual = 1) AS man,"
-        f" EXISTS (SELECT 1 {_usable(s)} AND (r.span_start < {s}.start - 1e-6 OR r.span_end > {s}.\"end\" + 1e-6)) AS part"
+        f" EXISTS (SELECT 1 {_usable(s)} AND (r.range_start < {s}.start - 1e-6 OR r.range_end > {s}.\"end\" + 1e-6)) AS part"
         f" FROM text_segment t WHERE {_segs(s, src)}"
     )
     return (

@@ -24,10 +24,17 @@ export interface SourceJump {
 
 /** 语音分析确认框的请求（规格 08 §8.4：不同入口只是默认范围不同） */
 export interface SpeechRequest {
-  /** units = 指定的句（文本单元；结果表里再发起失败项） */
-  entry: "source" | "samples" | "units";
+  /** 分析属于“段 + 资产”（所有者 2026-10-09）：source = 所选原片的段；segments = 这几段；samples = 采样判定区间读到的段；units = 指定的“段 + 资产” */
+  entry: "source" | "segments" | "samples" | "units";
   ids: string[];
+  /** source / segments：原片页当前查看的轨（确认框里可选“默认人声轨”或它） */
+  currentAsset?: { id: string; label: string };
 }
+
+/** 批量建采样的请求（所有者 2026-10-09：建采样一个动作，批量 = 整页表格）：从文本段 / 音效提示 / 整段原片 */
+export type NewSamplesRequest =
+  | { kind: "segments" | "hints"; sourceId: string; currentAsset?: { id: string; label: string } }
+  | { kind: "whole"; sourceIds: string[] };
 
 /** 拉平台的请求（规格 11 §11.1：同一个工作台，默认值随入口）。时间：资产局部秒 */
 export type FlattenRequest =
@@ -86,6 +93,11 @@ interface AppState {
   toasts: Toast[];
   speechRequest: SpeechRequest | null;
   requestSpeech(r: SpeechRequest | null): void;
+  newSamplesRequest: NewSamplesRequest | null;
+  requestNewSamples(r: NewSamplesRequest | null): void;
+  /** 原片页当前查看的轨（建采样、语音分析的“当前轨”选项用） */
+  viewerAsset: { sourceId: string; id: string; label: string } | null;
+  setViewerAsset(v: { sourceId: string; id: string; label: string } | null): void;
   flattenRequest: FlattenRequest | null;
   requestFlatten(r: FlattenRequest | null): void;
   separationRequest: SeparationRequest | null;
@@ -118,6 +130,13 @@ export const useApp = create<AppState>((set) => ({
   setOpenSample: (openSample) => set({ openSample }),
   speechRequest: null,
   requestSpeech: (speechRequest) => set({ speechRequest }),
+  newSamplesRequest: null,
+  requestNewSamples: (newSamplesRequest) => set({ newSamplesRequest }),
+  viewerAsset: null,
+  setViewerAsset: (viewerAsset) =>
+    set((st) =>
+      st.viewerAsset?.sourceId === viewerAsset?.sourceId && st.viewerAsset?.id === viewerAsset?.id && st.viewerAsset?.label === viewerAsset?.label ? {} : { viewerAsset },
+    ),
   flattenRequest: null,
   requestFlatten: (flattenRequest) => set({ flattenRequest }),
   separationRequest: null,

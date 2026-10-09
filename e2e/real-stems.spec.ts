@@ -28,24 +28,25 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   const tr = await req<Tr>("assets.tracks", { sourceId: sid });
   expect(tr.tracks.map((x) => [x.origin, x.stemName, x.roles])).toEqual([["stream", null, []], ["separation", "vocals", ["vocal"]], ["separation", "effect", ["sfx"]]]);
   await req("edits.apply", { batch: { ops: [{ entity: "source", id: sid, version: tr.sourceVersion, fields: { default_vocal: vocals.assetId, default_sfx: effect.assetId } }] } });
-  // S1.4：导入标记后采样数仍为 0
-  const pv = await req<{ token: string }>("subtitles.preview", { sourceId: sid });
-  await req("subtitles.import", { sourceId: sid, token: pv.token });
+  // S1.4：导入到文本层后采样数仍为 0
+  await req("subtitles.importDefault", { sourceId: sid });
   expect((await req<{ total: number }>("samples.list", { offset: 0, limit: 1 })).total).toBe(0);
-  // S1.6：台词采样——L3「（京子(きょうこ)たち）アッカリ～ン」→ 名称「アッカリ～ン」，±0.1 秒，语音，绑定 vocals
-  type Pv = { token: string; lines: Array<{ annotationId: string; name: string; status: string; start: number; end: number; sampleStart: number; sampleEnd: number; speakers: string[] }> };
-  const lp = await req<Pv>("subtitleSamples.preview", { sourceId: sid, kind: "line" });
-  const akkarin = lp.lines.find((l) => l.name === "アッカリ～ン")!;
+  // S1.6：从台词段建采样（逐句与批量同一个动作）——「（京子(きょうこ)たち）アッカリ～ン」→ 名称「アッカリ～ン」，段 ±0.1 秒，语音，建在默认人声轨 vocals
+  type Plan = { token: string; items: Array<{ key: string; name: string; status: string; start: number; end: number; sourceStart?: number; speakers?: string[] }> };
+  const segFrom = { kind: "segments", sourceId: sid, track: "default" };
+  const lp = await req<Plan>("samples.plan", { from: segFrom });
+  const akkarin = lp.items.find((l) => l.name === "アッカリ～ン")!;
   expect([akkarin.status, akkarin.speakers]).toEqual(["pending", ["京子(きょうこ)たち"]]);
-  expect(akkarin.sampleStart).toBeCloseTo(akkarin.start - 0.1, 6);
-  const made = await req<{ ids: string[] }>("subtitleSamples.create", { sourceId: sid, kind: "line", token: lp.token, annotationIds: [akkarin.annotationId] });
+  expect(akkarin.start).toBeCloseTo(akkarin.sourceStart! - 0.1, 6); // 整轨声部：局部秒 = 原片秒
+  const made = await req<{ ids: string[] }>("samples.createPlanned", { from: segFrom, token: lp.token, keys: [akkarin.key] });
   const smp = await req<{ name: string; nature: string; asset_id: string; people: string[] }>("samples.get", { id: made.ids[0] });
   expect([smp.name, smp.nature, smp.asset_id, smp.people]).toEqual(["アッカリ～ン", "speech", vocals.assetId, ["京子(きょうこ)たち"]]);
-  // S6.2：音效采样——「（殴る音）」→ 殴る音、非调谐单音；「（悲鳴）」×3
-  const sp = await req<Pv>("subtitleSamples.preview", { sourceId: sid, kind: "sfx" });
-  expect(sp.lines.filter((l) => l.name === "悲鳴").length).toBe(3);
-  const hit = sp.lines.find((l) => l.name === "殴る音")!;
-  const made2 = await req<{ ids: string[] }>("subtitleSamples.create", { sourceId: sid, kind: "sfx", token: sp.token, annotationIds: [hit.annotationId] });
+  // S6.2：从音效提示建（批量默认建在默认音效轨）——「（殴る音）」→ 殴る音、非调谐单音；「（悲鳴）」×3
+  const hintFrom = { kind: "hints", sourceId: sid, track: "default" };
+  const sp = await req<Plan>("samples.plan", { from: hintFrom });
+  expect(sp.items.filter((l) => l.name === "悲鳴").length).toBe(3);
+  const hit = sp.items.find((l) => l.name === "殴る音")!;
+  const made2 = await req<{ ids: string[] }>("samples.createPlanned", { from: hintFrom, token: sp.token, keys: [hit.key] });
   const s2 = await req<{ name: string; nature: string; asset_id: string }>("samples.get", { id: made2.ids[0] });
   expect([s2.name, s2.nature, s2.asset_id]).toEqual(["殴る音", "unpitched", effect.assetId]);
 

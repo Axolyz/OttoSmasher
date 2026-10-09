@@ -96,7 +96,8 @@
 .sfxLine { font-style: italic; color: var(--sub); }
 .opedBlock { grid-column: 1 / -1; display: flex; gap: 10px; align-items: baseline; border: 1px dashed var(--line); border-radius: var(--r-md); padding: 4px 8px; font-size: var(--fs-sm); }
 .opedNote { color: var(--warn); }
-.videoSub { position: absolute; left: 8%; right: 8%; bottom: 44px; text-align: center; white-space: pre-line; color: #fff; font-size: clamp(14px, 2.2vw, 26px); text-shadow: 0 0 3px #000, 0 0 6px #000, 0 1px 2px #000; pointer-events: none; }
+/* 画内字幕接收右键（场景 F：从这段建采样）；单击、双击照常冒泡到画面 */
+.videoSub { position: absolute; left: 8%; right: 8%; bottom: 44px; text-align: center; white-space: pre-line; color: #fff; font-size: clamp(14px, 2.2vw, 26px); text-shadow: 0 0 3px #000, 0 0 6px #000, 0 1px 2px #000; z-index: 1; }
 .layerBar { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; flex-wrap: wrap; }
 
 /* 准备清单 */
@@ -123,3 +124,15 @@
   .layerHint { display: none; }
 }
 .editHint { flex-basis: 100%; order: 10; }
+
+/* 文本层的段（台本行）：文本 + 受保护标记（✎ 改过 / ◆ 有人工音素版本） */
+.segText { min-width: 0; }
+.segFlags { margin-left: 6px; color: var(--accent2); font-size: var(--fs-xs); white-space: nowrap; }
+.overlapList { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); }
+/* 导入预览：状态（+ 强制替换）与碰到的已有对象 */
+.statusCell { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; min-width: 0; }
+.conflictList { flex-basis: 100%; margin: 0; padding-left: 14px; font-size: var(--fs-xs); color: var(--muted); }
+.lineStatus[data-status="new"] { color: var(--ok); }
+.lineStatus[data-status="unchanged"], .lineStatus[data-status="excluded"] { color: var(--muted); }
+.lineStatus[data-status="replace"] { color: var(--warn); }
+.lineStatus[data-status="skip"] { color: var(--bad); }

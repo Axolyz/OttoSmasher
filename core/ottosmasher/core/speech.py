@@ -689,7 +689,8 @@ class SpeechService:
         except CoreError:
             target = None
         cur = next((r for r in runs if head is not None and r["id"] == head["run_id"]), None)
-        span = (float(use["span_start"]), float(use["span_end"])) if use is not None and use["span_start"] is not None else None
+        # ◐ = 只读到这段的一部分：采样范围没有盖住这段的目标区间（与列表状态同一口径，units.state_sql）
+        span = (float(use["range_start"]), float(use["range_end"])) if use is not None else None
         return {
             "unitId": uid, "segmentId": seg["id"], "ordinal": ordinal, "name": (seg["text"] or "").replace("\n", " "), "text": seg["text"],
             "speakers": loads(seg["speakers"]), "target": target, "state": state, "partial": units.partial(span, start, end),
@@ -715,7 +716,14 @@ class SpeechService:
         asset = self._asset(s["asset_id"], memo)
         judge = self.judge_of(s, memo)
         segs = self.read_segments(asset["source_id"], *judge) if judge else []
-        base = {"judge": list(judge) if judge else None, "head": None, "conflict": None, "blocked": None}
+        local = None
+        if judge:
+            try:
+                m = Mapping.of(asset["mapping"])
+                local = [round(m.to_local(min(max(judge[0], m.source_start), m.source_end)), 6), round(m.to_local(min(max(judge[1], m.source_start), m.source_end)), 6)]
+            except CoreError:
+                local = None
+        base = {"judge": list(judge) if judge else None, "judgeLocal": local, "head": None, "conflict": None, "blocked": None}
         if not segs:
             return base | {"text": None, "textSource": None, "reason": "no-text", "units": []}
         ords = self.ordinals(asset["source_id"], [t["id"] for t in segs])
@@ -746,7 +754,8 @@ class SpeechService:
             "runId": "+".join(h["runId"] for h in hs), "version": sum(int(v["headVersion"]) for v in views), "status": "ok",
             "manual": any(h["manual"] for h in hs), "createdAt": max(h["createdAt"] for h in hs),
             "text": text, "textSource": "segments", "window": [start, end], "result": merged,
-            "units": [v["unitId"] for v in views], "partial": any(p.get("clipped") for p in merged["phones"]),
+            # ◐ 与列表状态一致：只读到某段的一部分（被采样范围裁掉一部分的非停顿音素另外逐个标 clipped）
+            "units": [v["unitId"] for v in views], "partial": any(v["partial"] for v in views),
         }
         return out
 

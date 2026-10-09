@@ -1,22 +1,26 @@
 // 舞台的“声音与语音”（UI_PLAN §3、§3.1；原型 renderStage 的波形卡与 speechPanel）：
 // - 波形卡：“声音：绑定资产名”（只显示，不能切换，Q7）；图层栏选一个覆盖层（音素 / mora / 无），其他图层用车道；金色 F0 线；
-// - 语音面板：音素按 mora 分组（假名在上、音素在下）、分析状态、「语音分析…」；没有台词时「提供台词并分析」。
-// - 分析属于“这句”（文本单元，所有者 2026-10-08）：有自己文本的采样只读自己那一句；没有的读范围内的句（只读到一部分标 ◐）。
-//   修音素时间、切换版本作用于所选的那一句，所有读这句的采样和原片页音素层同时生效（P13：面板上写明）。
+// - 语音面板：音素按 mora 分组（假名在上、音素在下）、分析状态、「语音分析…」；没读到段时「提供台词并分析」（= 在判定区间上加一段）。
+// - 采样不拥有分析，只读取（所有者 2026-10-09）：读与判定区间正长度交叠的所有文本段在这条轨上的分析；只读到一部分的音素标 ◐；
+//   某段没有可用分析（没分析过 / 改过待重新分析）→ 不可用并写明哪段；两段音素重叠 → 不可用 + 原因（第 X 段与第 Y 段在 a–b 秒重叠），用户自己缩判定区间。
+//   判定区间可见可改（这里的时间框 + 波形上的带子；必须在采样范围内）。修音素时间、切换版本、编辑文本都作用于所选的那一段，
+//   所有读这段的采样和原片页音素层同时生效（P13：面板上写明）。「添加台词…」= 在文本层加一段（与已有段重叠时选替换 / 切开 / 取消）。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
 import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
+import type { AssetRecord, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Segmented, Token } from "../components/Controls";
 import { Select, TextArea, TextField, TimeField } from "../components/Fields";
+import { AnnotationDialog, type AnnTarget } from "../sources/AnnotationDialog";
+import { hangOffset } from "../sources/hang";
 import { Menu } from "../components/Menu";
 import { exportWords } from "../exportWords";
 import { ClipPanel } from "../sources/ClipPanel";
 import { AnchoredPanel } from "../components/Panel";
-import { seconds } from "../format";
-import { errorText, hasKey, t } from "../i18n";
+import { clock, seconds } from "../format";
+import { errorText, t, type TArgs } from "../i18n";
 import { useApp } from "../state/store";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
@@ -92,7 +96,11 @@ export function StageSpeech(props: {
   const requestSpeech = useApp((st) => st.requestSpeech);
   const requestFlatten = useApp((st) => st.requestFlatten);
   const requestSeparation = useApp((st) => st.requestSeparation);
+  const setOpenSample = useApp((st) => st.setOpenSample);
+  const setPage = useApp((st) => st.setPage);
   const [clipOpen, setClipOpen] = useState(false);
+  // 命中右键「保存命中区…」打开的截取记为 hit（建采样的来源之一），保存后留在当前采样
+  const [clipVia, setClipVia] = useState<"manual" | "hit">("manual");
   const [exporting, setExporting] = useState(false);
   const undo = useUndo();
   // 编辑音素时间（UI_PLAN §3.1：覆盖层加把手、编辑条、不能切覆盖层、Esc 放弃）
@@ -100,12 +108,7 @@ export function StageSpeech(props: {
   const [editFocus, setEditFocus] = useState<string | null>(null);
   const [timesOpen, setTimesOpen] = useState(false);
   const [timesDraft, setTimesDraft] = useState("");
-  const [textOpen, setTextOpen] = useState(false);
-  const [textDraft, setTextDraft] = useState("");
-  const [g2pJob, setG2pJob] = useState<string | null>(null);
-  const [g2p, setG2p] = useState<string | null>(null);
-  const [rangeOpen, setRangeOpen] = useState(false);
-  const [rangeText, setRangeText] = useState("");
+  const [annTarget, setAnnTarget] = useState<AnnTarget | null>(null);
   const [asset, setAsset] = useState<AssetRecord | null>(null);
   const [view, setView] = useState<SpeechSampleView | null>(null);
   const [unitSel, setUnitSel] = useState<string | null>(null);
@@ -133,7 +136,9 @@ export function StageSpeech(props: {
     return () => clearTimeout(id);
   }, [hitKey, smp.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (props.clipTick) setClipOpen(true);
+    if (!props.clipTick) return;
+    setClipVia("hit");
+    setClipOpen(true);
   }, [props.clipTick]);
 
   // F0：采样前后各留 2 秒；只画可靠帧（10 §10.1）
@@ -159,27 +164,34 @@ export function StageSpeech(props: {
     };
   }, [asset, smp.id, view?.head?.runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 读到的段、它们的分析、判定区间变了都要重读（段在别处改了也会让这里停用）
   useCoreEvent("data.changed", (d) => {
-    if (((d as Record<string, string[]>).measure ?? []).includes(smp.id)) loadSpeech();
+    const c = d as Record<string, string[]>;
+    if (c.segment || (c.measure ?? []).includes(smp.id) || (c.sample ?? []).includes(smp.id)) loadSpeech();
   });
 
   useEffect(() => {
     if (asset) requestAnimationFrame(() => tl.current?.zoomTo(smp.start, smp.end));
   }, [asset, smp.start, smp.end]);
 
-  // 所选的那一句（编辑、版本、精确时间都作用于它）：默认第一句已分析的
+  // 所选的那一段（编辑、版本、精确时间都作用于它）：默认第一段有可用分析的
   const unitList = view?.units ?? [];
   const unit: SpeechUnit | null = unitList.find((u) => u.unitId === unitSel) ?? unitList.find((u) => u.head?.status === "ok") ?? unitList[0] ?? null;
-  const ownHead = unit?.head && unit.head.status === "ok" && unit.head.result ? unit.head : null;
-  // 显示：读到的句合成的头；冲突时显示所选那一句（去修它的音素时间）
-  const res = view?.head?.result ?? (view?.conflict ? (ownHead?.result ?? null) : null);
+  const usable = unit?.head && unit.head.status === "ok" && unit.head.result ? unit.head : null;
+  // 能直接修的：可用版本就是当前头（段改过、撤销之后可能不是：先在版本里切到它）
+  const ownHead = usable && unit?.current?.runId === usable.runId ? usable : null;
+  // 显示：读到的段合成的头；冲突时显示所选那一段（去修它的音素时间）
+  const res = view?.head?.result ?? (view?.conflict ? (usable?.result ?? null) : null);
   const editing = editBands !== null;
   const layers = useMemo(() => {
     if (!res) return { ph: null, mora: null };
     return { ph: phoneBands(res.phones), mora: moraBands(res.phones, res.morae) };
   }, [res]);
   const overlay = editing ? { ...phoneBands(res?.phones ?? []), bands: editBands } : layer === "none" ? null : layers[layer];
-  const lanes = (["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!);
+  // 判定区间（资产局部秒）：一条车道上的带子
+  const judge = view?.judgeLocal && view.judgeLocal.length === 2 ? { a: view.judgeLocal[0]!, b: view.judgeLocal[1]! } : null;
+  const judgeLane: Layer | null = judge ? { id: "judge", label: t("judge.lane"), bands: [{ a: judge.a, b: judge.b, label: t("judge.lane"), tone: "seg" }] } : null;
+  const lanes = [...(["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!), ...(judgeLane ? [judgeLane] : [])];
 
   const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
   const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
@@ -223,66 +235,65 @@ export function StageSpeech(props: {
     const byIdx = [...editBands].sort((x, y) => Number(x.id!.slice(2)) - Number(y.id!.slice(2)));
     if (await saveManual({ phones: byIdx.map((b) => ({ label: b.label, start: b.a, end: b.b })) })) stopEdit();
   };
+  // 切换版本：在这段这条轨上、内容与段现在一致的成功版本之间换当前头
   const switchTo = async (runId: string) => {
-    if (!ownHead || runId === ownHead.runId) return;
+    if (!unit || runId === unit.current?.runId) return;
     try {
-      await call("speech.switchHead", { unitId: unit!.unitId, runId, version: ownHead.version });
+      await call("speech.switchHead", { unitId: unit.unitId, runId, version: unit.headVersion });
       loadSpeech();
     } catch (e) {
       fail(e);
       loadSpeech();
     }
   };
-  const saveText = async () => {
+  // 编辑这段（文本 = 对齐文本、说话人、边界）：同原片页的段编辑框，写明“这段被 N 个采样使用”（P13）
+  const editSegment = async () => {
+    if (!unit) return;
+    try {
+      setAnnTarget({ mode: "edit-segment", seg: await call("segments.get", { id: unit.segmentId }) });
+    } catch (e) {
+      fail(e);
+    }
+  };
+  // 判定区间（资产局部秒，必须在采样范围内）：一次可撤销的编辑
+  const setJudge = async (a: number, b: number) => {
     try {
       const cur = await call("samples.get", { id: smp.id });
-      await call("edits.apply", { batch: { label: { code: "align-text", args: {} }, ops: [{ entity: "sample", id: smp.id, version: cur.version, fields: { align_text_manual: textDraft.trim() || null } }] } });
-      toast({ text: t("speech.textSaved"), action: { label: t("common.undo"), run: () => void undo().then(loadSpeech) } });
-      setTextOpen(false);
+      await call("edits.apply", { batch: { label: { code: "sample-judge", args: { name: smp.name } }, ops: [{ entity: "sample", id: smp.id, version: cur.version, fields: { judge: [a, b] } }] } });
+      toast({ text: t("judge.saved"), action: { label: t("common.undo"), run: () => void undo().then(loadSpeech) } });
       loadSpeech();
     } catch (e) {
       fail(e);
     }
   };
-  const previewText = async () => {
-    setG2p(null);
-    try {
-      setG2pJob((await call("dictionary.preview", { sentence: textDraft })).id);
-    } catch (e) {
-      fail(e);
-    }
+  const commitJudge = (side: "a" | "b") => (v: number) => {
+    if (!judge) return false;
+    const a = side === "a" ? v : judge.a;
+    const b = side === "b" ? v : judge.b;
+    if (!(a >= smp.start - 1e-6 && b <= smp.end + 1e-6 && b - a > 1e-3)) return false;
+    void setJudge(a, b);
+    return true;
   };
-  useCoreEvent("job.updated", (d) => {
-    const j = d as JobSummary;
-    if (j.id !== g2pJob || j.status === "queued" || j.status === "running") return;
-    setG2pJob(null);
-    if (j.status === "succeeded") {
-      const r = j.result as { words: Array<{ reading: string }>; phonemes: string[] };
-      setG2p(`${r.words.map((w) => w.reading).join(" ")} · ${r.phonemes.join(" ")}`);
-    } else if (j.error) setG2p(errorText(j.error));
-  });
-  const alignRange = async () => {
-    if (!sel) return;
-    try {
-      await call("speech.submitRange", { assetId: smp.asset_id, start: sel.a, end: sel.b, text: rangeText });
-      toast({ text: t("speech.rangeQueued") });
-      setRangeOpen(false);
-    } catch (e) {
-      fail(e);
-    }
+  const selInside = sel != null && sel.a >= smp.start - 1e-6 && sel.b <= smp.end + 1e-6 && sel.b - sel.a > 1e-3;
+  // 原片秒 = 局部秒 + 偏移（变速了的资产不能从这里加台词）
+  const offset = asset ? hangOffset(asset.mapping) : null;
+  const addLine = () => {
+    if (!sel || offset == null || !asset) return;
+    setAnnTarget({ mode: "create-segment", sourceId: asset.source_id, start: sel.a + offset, end: sel.b + offset, text: "" });
   };
 
+  // 提供台词并分析：在判定区间上加一段（没读到段时，判定区间不会碰到已有段），然后分析这个采样读到的段
   const provide = async () => {
     const text = draft.trim();
-    if (!text) return;
+    const j = view?.judge;
+    if (!text || !asset || !j || j.length !== 2) return;
     try {
-      const cur = await call("samples.get", { id: smp.id });
-      await call("edits.apply", { batch: { label: { code: "align-text", args: {} }, ops: [{ entity: "sample", id: smp.id, version: cur.version, fields: { align_text_manual: text } }] } });
+      await call("segments.add", { sourceId: asset.source_id, start: j[0]!, end: j[1]!, text, resolve: null });
       setDraft("");
       loadSpeech();
       requestSpeech({ entry: "samples", ids: [smp.id] });
     } catch (e) {
-      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+      fail(e);
     }
   };
 
@@ -317,8 +328,9 @@ export function StageSpeech(props: {
     }
   };
 
-  const lastFail = view?.own ? unit?.runs.find((r) => r.status === "failed") : undefined;
+  const lastFail = unitList.length === 1 && unit?.state === "failed" ? unit.runs.find((r) => r.status === "failed") : undefined;
   const headOk = view?.head?.status === "ok";
+  const blocked = view?.blocked && !view.conflict ? view.blocked : null;
   const status = !view
     ? ""
     : view.conflict
@@ -329,8 +341,11 @@ export function StageSpeech(props: {
           : t("speech.status.ok")
         : lastFail
           ? t("speech.status.failed", { reason: lastFail.error ? errorText(lastFail.error) : "" })
-          : t("speech.status.none");
-  const unitLabel = (u: SpeechUnit) => `${t(`speech.unit.kind.${u.kind}`)} · ${u.name ?? ""}${u.partial ? ` ${t("speech.unit.partialMark")}` : ""}`;
+          : blocked
+            ? t(`speech.status.${blocked.code}`, blocked.args as TArgs)
+            : t("speech.status.none");
+  const unitLabel = (u: SpeechUnit) =>
+    `${t("speech.unit.label", { n: u.ordinal, name: u.name })}${u.partial ? ` ${t("speech.unit.partialMark")}` : ""}${u.state !== "ok" ? ` · ${t(`speech.unit.state.${u.state}`)}` : ""}`;
 
   // 音素按 mora 分组（假名在上、音素在下）；没有 mora 的（停顿、对不上的）单独成组
   const groups = useMemo(() => {
@@ -435,9 +450,18 @@ export function StageSpeech(props: {
               track={trackLabel}
               sel={sel}
               isOpen={clipOpen}
-              onOpenChange={setClipOpen}
+              onOpenChange={(o) => {
+                setClipOpen(o);
+                if (!o) setClipVia("manual");
+              }}
               parentSampleId={smp.id}
+              via={clipVia}
               formatRange={(a, b) => `${seconds(a)}–${seconds(b)}`}
+              afterSave={
+                clipVia === "hit"
+                  ? (id, name) => toast({ text: t("clip.savedHit", { name }), action: { label: t("clip.open"), run: () => (setOpenSample(id), setPage("library")) } })
+                  : undefined
+              }
             />
             <Button variant="flat" icon={<AudioWaveform />} onPress={flatten} isDisabled={editing} data-testid="stage-flatten">
               {t("flatten.action")}
@@ -505,10 +529,10 @@ export function StageSpeech(props: {
                   {g.items.map(({ p, i }) => (
                     <Token
                       key={i}
-                      label={p.label}
+                      label={p.clipped ? `${p.label}◐` : p.label}
                       strong={VOWELS.has(p.label)}
                       selected={sel !== null && Math.abs(sel.a - p.start) < 1e-6 && Math.abs(sel.b - p.end) < 1e-6}
-                      title={`${seconds(p.start)}–${seconds(p.end)}`}
+                      title={`${seconds(p.start)}–${seconds(p.end)}${p.clipped ? ` · ${t("speech.clipped")}` : ""}`}
                       onPress={() => setSel({ a: p.start, b: p.end })}
                       testId="speech-phone"
                     />
@@ -531,94 +555,66 @@ export function StageSpeech(props: {
         ) : null}
         {view?.text ? (
           <div className={s.textLine}>
-            <span className={s.mutedText}>{t(hasKey(`speech.textSource.${view.textSource}`) ? `speech.textSource.${view.textSource}` : "speech.textSource.units")}</span>
+            <span className={s.mutedText}>{t("speech.textSource.segments", { n: unitList.length })}</span>
             <span lang="ja" data-user-data="" data-testid="speech-text">
               {view.text}
             </span>
           </div>
         ) : null}
-        {view?.own && view.text && view.head && headOk && view.head.text !== view.text ? <Callout tone="warn">{t("speech.textChanged")}</Callout> : null}
         {view?.conflict ? (
           <Callout tone="bad" testId="speech-conflict">
-            {t("speech.conflict", { a: view.conflict.a, b: view.conflict.b, at: seconds(view.conflict.at) })}
+            {t("speech.conflict", { a: view.conflict.a, b: view.conflict.b, start: clock(view.conflict.start), end: clock(view.conflict.end) })}
+          </Callout>
+        ) : blocked ? (
+          <Callout tone="warn" testId="speech-blocked">
+            {t(`speech.blocked.${blocked.code}`, blocked.args as TArgs)}
           </Callout>
         ) : null}
+        {usable && !ownHead ? <div className={s.mutedText}>{t("speech.notCurrentHead")}</div> : null}
         {unit ? (
           <div className={s.mutedText} data-testid="speech-unit-note">
-            {view?.own ? t(`speech.unit.own.${unit.kind}`, { name: unit.name ?? "" }) : t("speech.unit.reads", { n: unitList.length })}
-            {ownHead ? ` ${t("speech.unit.shared")}` : ""}
+            {t("speech.unit.reads", { n: unitList.length })}
+            {usable ? ` ${t("speech.unit.shared")}` : ""}
           </div>
         ) : null}
+        <div className={s.judgeRow} data-testid="judge-row">
+          <span className={s.mutedText}>{t("judge.label")}</span>
+          {judge ? (
+            <>
+              <TimeField value={judge.a} onCommit={commitJudge("a")} label={t("judge.start")} isDisabled={editing} testId="judge-start" />
+              <span className={s.mutedText}>→</span>
+              <TimeField value={judge.b} onCommit={commitJudge("b")} label={t("judge.end")} isDisabled={editing} testId="judge-end" />
+              <Button size="sm" variant="flat" isDisabled={!selInside || editing} onPress={() => sel && void setJudge(sel.a, sel.b)} title={selInside ? undefined : t("judge.needSel")} data-testid="judge-from-sel">
+                {t("judge.fromSel")}
+              </Button>
+            </>
+          ) : (
+            <span className={s.mutedText}>{t("judge.none")}</span>
+          )}
+          <span className={s.mutedText}>{t("judge.note")}</span>
+        </div>
         <div className={s.speechActions}>
-          <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!view?.text || editing} data-testid="speech-analyze">
+          <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!unitList.length || editing} data-testid="speech-analyze">
             {t("speech.menu")}
           </Button>
           <Button size="sm" variant="flat" onPress={startEdit} isDisabled={!ownHead || editing} data-testid="speech-edit">
             {t("speech.edit")}
           </Button>
-          <AnchoredPanel
-            title={t("speech.rangeTitle")}
-            aux={sel ? t("speech.selection", { a: seconds(sel.a), b: seconds(sel.b) }) : null}
-            isOpen={rangeOpen}
-            onOpenChange={(o) => {
-              setRangeOpen(o);
-              if (o) setRangeText(view?.text ?? "");
-            }}
-            width={360}
-            testId="speech-range-panel"
-            trigger={
-              <Button size="sm" variant="flat" isDisabled={editing || !sel} title={sel ? undefined : t("speech.rangeNeedsSel")} data-testid="speech-range">
-                {t("speech.range")}
-              </Button>
-            }
-            footer={
-              <Button size="sm" variant="primary" isDisabled={!rangeText.trim()} onPress={() => void alignRange()} data-testid="speech-range-go">
-                {t("speech.rangeGo")}
-              </Button>
-            }
+          <Button
+            size="sm"
+            variant="flat"
+            isDisabled={editing || !sel || offset == null}
+            title={sel ? undefined : t("speech.addLineNeedsSel")}
+            onPress={addLine}
+            data-testid="speech-add-line"
           >
-            <div className={s.hintText}>{t("speech.rangeHint")}</div>
-            <TextField value={rangeText} onChange={setRangeText} label={t("speech.rangeText")} testId="speech-range-text" />
-          </AnchoredPanel>
+            {t("speech.addLine")}
+          </Button>
           <div className={s.grow} />
           {smp.nature === "pitched" || smp.nature === "unpitched" ? null : <GroupingPanel sample={smp} isDisabled={editing} />}
-          <AnchoredPanel
-            title={t("speech.textPanel")}
-            isOpen={textOpen}
-            onOpenChange={(o) => {
-              setTextOpen(o);
-              if (o) {
-                setTextDraft(view?.text ?? "");
-                setG2p(null);
-              }
-            }}
-            width={380}
-            placement="bottom end"
-            testId="speech-text-panel"
-            trigger={
-              <Button size="sm" variant="flat" isDisabled={editing} data-testid="speech-text-edit">
-                {t("speech.textPanel")}
-              </Button>
-            }
-            footer={
-              <>
-                <Button size="sm" variant="flat" onPress={() => void previewText()} isDisabled={!textDraft.trim() || g2pJob !== null}>
-                  {g2pJob ? t("dict.previewing") : t("dict.preview")}
-                </Button>
-                <Button size="sm" variant="primary" onPress={() => void saveText()} data-testid="speech-text-save">
-                  {t("common.save")}
-                </Button>
-              </>
-            }
-          >
-            <TextField value={textDraft} onChange={setTextDraft} label={t("speech.textPanel")} testId="speech-text-input" />
-            <div className={s.mutedText}>{t("speech.textNote")}</div>
-            {g2p ? (
-              <div className={s.hintText} lang="ja" data-user-data="">
-                {g2p}
-              </div>
-            ) : null}
-          </AnchoredPanel>
+          <Button size="sm" variant="flat" isDisabled={editing || !unit} onPress={() => void editSegment()} data-testid="speech-text-edit">
+            {t("speech.editSegment")}
+          </Button>
           <AnchoredPanel
             title={t("speech.times")}
             isOpen={timesOpen}
@@ -645,6 +641,13 @@ export function StageSpeech(props: {
           </AnchoredPanel>
         </div>
       </section>
+      <AnnotationDialog
+        target={annTarget}
+        duration={Number.POSITIVE_INFINITY}
+        onClose={() => setAnnTarget(null)}
+        // 「添加台词…」加完就打开分析确认框（这段在这条轨上）
+        onSegmentAdded={(id) => requestSpeech({ entry: "units", ids: [`seg:${id}@${smp.asset_id}`] })}
+      />
     </>
   );
 }

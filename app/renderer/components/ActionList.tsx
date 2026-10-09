@@ -1,5 +1,5 @@
 // 动作列表（台本这类“点一行 = 做一件事”的列表；UI_PLAN §4 台本）：
-// 单击 = onPress（带 Shift 状态）；双击 = onDouble；Enter = onPress；当前行（例如正在播放的那句）高亮并自动滚到可视区，
+// 单击 = onPress（带 Shift 状态）；双击 = onDouble；右键 = onContext（行的菜单）；Enter = onPress；当前行（例如正在播放的那句）高亮并自动滚到可视区，
 // 用户手动滚动后暂停跟随一段时间（默认 3.5 秒，规格 03 §3.4）。没有勾选——要勾选用 CollectionList。
 // React Aria GridList：↑↓ 移动焦点、读屏语义。
 import { type ReactNode, useEffect, useRef } from "react";
@@ -16,6 +16,7 @@ export function ActionList<T extends { id: string }>(props: {
   selected?: ReadonlySet<string>;
   onPress: (id: string, mods: { shift: boolean }) => void;
   onDouble?: (id: string) => void;
+  onContext?: (id: string, at: { x: number; y: number }) => void;
   pauseFollowMs?: number;
   empty?: ReactNode;
   testId?: string;
@@ -48,6 +49,12 @@ export function ActionList<T extends { id: string }>(props: {
       onDoubleClick={(e) => {
         const row = (e.target as HTMLElement).closest<HTMLElement>("[data-key]");
         if (row && wrap.current?.contains(row)) props.onDouble?.(row.dataset.key!);
+      }}
+      onContextMenu={(e) => {
+        const row = (e.target as HTMLElement).closest<HTMLElement>("[data-key]");
+        if (!row || !wrap.current?.contains(row) || !props.onContext) return;
+        e.preventDefault();
+        props.onContext(row.dataset.key!, { x: e.clientX, y: e.clientY });
       }}
     >
       <GridList

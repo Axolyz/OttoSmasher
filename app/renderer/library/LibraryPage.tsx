@@ -416,10 +416,10 @@ export function LibraryPage() {
     }
   };
 
-  // 舞台跟着资料变化（撤销、提升、原片属性）重读焦点采样；列表不自动重排（P8：底部提示“刷新浏览列表”）
+  // 舞台跟着资料变化（撤销、提升、原片属性、文本层的段与区段标签、读到的分析）重读焦点采样；列表不自动重排（P8：底部提示“刷新浏览列表”）
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
-    if (focus && (c.sample?.includes(focus) || c.annotation || c.source || c.asset)) {
+    if (focus && (c.sample?.includes(focus) || c.measure?.includes(focus) || c.segment || c.range_tag || c.source || c.asset)) {
       void call("samples.get", { id: focus }).then(setFocusRow, () => {});
     }
   });

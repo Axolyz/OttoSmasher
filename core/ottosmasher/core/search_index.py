@@ -56,7 +56,7 @@ SELECT s.id, s.asset_id, s.start, s."end", s.rhythm,
   src.file_snapshot AS src_snap,
   fr.result AS f0res, a.duration AS adur,
   a.source_id,
-  (SELECT COUNT(*) || ':' || COALESCE(MAX(rt.updated_at), '') FROM range_tag rt WHERE rt.source_id = a.source_id AND rt.tags LIKE '%character:%') AS rtags,
+  (SELECT COUNT(*) || ':' || COALESCE(MAX(rt.updated_at), '') FROM range_tag rt WHERE rt.source_id = a.source_id AND rt.deleted = 0 AND rt.tags LIKE '%character:%') AS rtags,
   (SELECT group_concat(role || state, ',') FROM asset_role WHERE asset_id = s.asset_id) AS roles,
   (SELECT group_concat(tag, ',') FROM sample_tag WHERE sample_id = s.id AND tag LIKE 'character:%') AS chars,
   s.tag_judge_start, s.tag_judge_end

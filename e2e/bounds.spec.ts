@@ -5,13 +5,15 @@ import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { launch } from "./helpers";
 
-// 编辑字幕/区段边界（UI_PLAN §3.1、03 §3.5.4、R4.11）、新增区段标签、改成歌词、本地标签提升为区段标签（R5.6）
+// 编辑段的边界（UI_PLAN §3.1、03 §3.5.4、R4.11）、新增区段标签、编辑段文本（✎）、添加台词与已有段重叠时「切开」、本地标签提升为区段标签（R5.6）
 type R<T> = { r: T };
-type A = { id: string; kind: string; start: number; end: number; tags: string[]; scope: string };
-const anns = async (page: Page, sid: string) =>
-  ((await page.evaluate(async (s) => window.otto.core.request("annotations.list", { sourceId: s }), sid)) as R<{ annotations: A[] }>).r.annotations;
+type Seg = { id: string; start: number; end: number; text: string; edited: boolean };
+type Tag = { id: string; start: number; end: number; tags: string[]; scope: string };
+const layer = async (page: Page, sid: string) =>
+  ((await page.evaluate(async (s) => window.otto.core.request("textLayer.list", { sourceId: s }), sid)) as R<{ segments: Seg[]; tags: Tag[] }>).r;
+const anns = async (page: Page, sid: string) => (await layer(page, sid)).segments;
 
-test("边界编辑、区段标签、歌词、提升本地标签", async () => {
+test("边界编辑、区段标签、编辑段文本、添加台词切开、提升本地标签", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-bounds-"));
   const mkv = join(dir, "Bounds Show 01.mkv");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=8",
@@ -22,8 +24,7 @@ test("边界编辑、区段标签、歌词、提升本地标签", async () => {
   const sid = await page.evaluate(async (p) => {
     const r = (await window.otto.core.request<Array<{ sourceId: string }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string }> };
     const s = r.r[0]!.sourceId;
-    const pv = (await window.otto.core.request<{ token: string }>("subtitles.preview", { sourceId: s })) as { r: { token: string } };
-    await window.otto.core.request("subtitles.import", { sourceId: s, token: pv.r.token });
+    await window.otto.core.request("subtitles.importDefault", { sourceId: s });
     return s;
   }, mkv);
   await page.keyboard.press("Escape");
@@ -38,7 +39,7 @@ test("边界编辑、区段标签、歌词、提升本地标签", async () => {
   };
   const y = box.y + 50;
 
-  // 1) 拖共用边界 2.0 → 2.5，保存（一次编辑，两条标注一起动），撤销
+  // 1) 拖共用边界 2.0 → 2.5，保存（一次编辑，两段一起动），撤销
   await page.getByTestId("edit-bounds").click();
   await expect(page.getByTestId("edit-bar")).toBeVisible();
   await page.mouse.move(await xOf(2), y);
@@ -74,14 +75,33 @@ test("边界编辑、区段标签、歌词、提升本地标签", async () => {
   await dlg.getByTestId("ann-tag-input").fill("effect:door");
   await dlg.getByTestId("ann-tag-input").press("Enter");
   await dlg.getByTestId("ann-save").click();
-  await expect.poll(async () => (await anns(page, sid)).filter((a) => a.kind === "tag").map((a) => [a.tags.join(), a.scope])).toEqual([["effect:door", "source"]]);
+  await expect.poll(async () => (await layer(page, sid)).tags.map((a) => [a.tags.join(), a.scope])).toEqual([["effect:door", "source"]]);
 
-  // 4) 右键覆盖层上的「あ」→ 编辑标注 → 改成歌词
+  // 4) 右键覆盖层上的「あ」→ 这段的菜单直接列出（菜单头写明是哪一段）→ 编辑这段：写明被几个采样使用；改文本 → 改过（✎）
   await page.mouse.click(await xOf(1.5), y, { button: "right" });
-  await page.getByTestId("timeline-menu").getByRole("menuitem", { name: /編集|编辑标注「あ」/ }).click();
-  await dlg.getByTestId("ann-kind").getByRole("radio", { name: "歌词" }).click();
+  const menu = page.getByTestId("timeline-menu");
+  await expect(menu).toContainText("台词段「あ」");
+  await menu.getByTestId(/^menu-seg-edit:/).click();
+  await expect(dlg.getByTestId("seg-usage")).toContainText("这段被 0 个采样使用");
+  await dlg.getByTestId("seg-text").fill("あー");
   await dlg.getByTestId("ann-save").click();
-  await expect.poll(async () => (await anns(page, sid))[0]!.kind).toBe("song");
+  await expect.poll(async () => (await anns(page, sid)).map((a) => [a.text, a.edited])).toEqual([["あー", true], ["い", false]]);
+  await expect(page.getByTestId("transcript-row").first().getByTestId("seg-flags")).toContainText("✎");
+
+  // 4b) 选区 2.8–3.5 →「添加台词…」：与「い」（2–3 秒）重叠、只从一侧伸进来 → 可以切开（い 缩到 2–2.8，文字不动）
+  await page.getByTestId("sel-start").fill("0:02.800");
+  await page.getByTestId("sel-start").press("Enter");
+  await page.getByTestId("sel-end").fill("0:03.500");
+  await page.getByTestId("sel-end").press("Enter");
+  await page.mouse.click(await xOf(6.5), y, { button: "right" });
+  await menu.getByTestId("menu-add-seg").click();
+  await dlg.getByTestId("seg-text").fill("う");
+  await dlg.getByTestId("ann-save").click();
+  await expect(dlg.getByTestId("seg-overlap")).toContainText("和 1 个已有段重叠");
+  await dlg.getByTestId("seg-cut").click();
+  await expect
+    .poll(async () => (await anns(page, sid)).map((a) => `${a.text}:${a.start.toFixed(1)}-${a.end.toFixed(1)}`))
+    .toEqual(["あー:1.0-2.0", "い:2.0-2.8", "う:2.8-3.5"]);
 
   // 5) 采样上加本地标签 → 提升为区段标签：本地标签消失、有效标签仍在（来自区段）；撤销后恢复
   await page.evaluate(async (s) => {

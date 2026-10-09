@@ -404,7 +404,6 @@ class SourceService:
                     x(f"DELETE FROM measure_head WHERE run_id IN ({rm})", runs)
                     x(f"DELETE FROM measure_run WHERE id IN ({rm})", runs)
                 x(f"DELETE FROM range_tag WHERE scope_asset_id IN ({am})", assets)
-                x(f"DELETE FROM annotation WHERE scope_asset_id IN ({am})", assets)  # 旧表（0013 删除前仍有外键）
                 x(f"DELETE FROM default_track WHERE asset_id IN ({am})", assets)
                 # 生成资产之间有“输入”引用（如分离声部上的拉平），先断开再整体删除
                 x(f"UPDATE sound_asset SET input_asset_id=NULL WHERE id IN ({am})", assets)

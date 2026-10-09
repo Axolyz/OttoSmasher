@@ -938,6 +938,17 @@
    }
   },
   {
+   "name": "segments.get",
+   "effect": "read",
+   "summary": "One text segment (with usage count and protection flags).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/TextSegment"
+   }
+  },
+  {
    "name": "segments.merge",
    "effect": "write",
    "summary": "Merge segments into one new protected segment.",
@@ -2450,14 +2461,6 @@
    "summary": "Unsupported subtitle format."
   },
   {
-   "code": "subtitle-line-not-importable",
-   "args": [
-    "line",
-    "status"
-   ],
-   "summary": "Subtitle line cannot be imported."
-  },
-  {
    "code": "subtitle-missing",
    "args": [
     "path"
@@ -2496,29 +2499,6 @@
     "setting"
    ],
    "summary": "A subtitle rule took too long."
-  },
-  {
-   "code": "subtitle-sample-invalid",
-   "args": [
-    "field",
-    "reason"
-   ],
-   "summary": "Subtitle sample request rejected."
-  },
-  {
-   "code": "subtitle-sample-not-pending",
-   "args": [
-    "annotation",
-    "status"
-   ],
-   "summary": "Subtitle line is not ready to become a sample."
-  },
-  {
-   "code": "subtitle-sample-stale",
-   "args": [
-    "id"
-   ],
-   "summary": "Subtitle sample preview is out of date; preview again."
   },
   {
    "code": "subtitle-unreadable",
@@ -9586,16 +9566,6 @@
     "created_at": {
      "type": "string"
     },
-    "current_subtitle_version_id": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "default_audio_stream": {
      "type": "integer"
     },
@@ -9710,7 +9680,6 @@
     "actor_kind",
     "actor_session",
     "created_at",
-    "current_subtitle_version_id",
     "default_audio_stream",
     "duration",
     "episode",
@@ -11178,6 +11147,19 @@
       }
      ]
     },
+    "judgeLocal": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "reason": {
      "anyOf": [
       {
@@ -11223,6 +11205,7 @@
     "conflict",
     "head",
     "judge",
+    "judgeLocal",
     "reason",
     "sampleId",
     "text",

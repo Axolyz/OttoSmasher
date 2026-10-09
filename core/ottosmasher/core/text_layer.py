@@ -26,7 +26,7 @@ from .edits import SEGMENT_MAX, ChangeSet, EditService, loads
 from .units import content_matches
 from .errors import CoreError
 
-SPEAKER_STATUS_MULTI = "speaker-status:多人未分段"
+SPEAKER_STATUS_MULTI = "speaker-status:\u591a\u4eba\u672a\u5206\u6bb5"
 """多人未分段（规格 06 §6.2.1，所有者 2026-10-05）"""
 
 
@@ -99,22 +99,9 @@ def list_for_source(conn: sqlite3.Connection, source_id: str, asset_id: str | No
         hit = next((o for o in opeds if overlaps(a, b, o["start"], o["end"])), None)
         return hit["kind"] if hit else None
 
-    segs = conn.execute(
-        f'SELECT t.id, t.version, t.source_id, t.start, t."end", t.text, t.speakers, t.origin, t.provenance, t.edited, t.speaker_edited,'
-        f" {MANUAL_SQL.format(t='t')} AS manual, {USED_BY_SQL.format(t='t')} AS used_by"
-        " FROM text_segment t WHERE t.source_id=? AND t.deleted=0 ORDER BY t.start, t.\"end\", t.id",
-        (source_id,),
-    ).fetchall()
+    segs = conn.execute(f"{_SEG_SQL} WHERE t.source_id=? AND t.deleted=0 ORDER BY t.start, t.\"end\", t.id", (source_id,)).fetchall()
     states = _analysis_states(conn, asset_id, segs) if asset_id else {}
-    segments = []
-    for i, t in enumerate(segs, start=1):
-        prov = loads(t["provenance"]) if t["provenance"] else None
-        segments.append({
-            "id": t["id"], "version": t["version"], "ordinal": i, "start": t["start"], "end": t["end"], "text": t["text"],
-            "speakers": loads(t["speakers"]), "origin": t["origin"], "edited": bool(t["edited"]), "speakerEdited": bool(t["speaker_edited"]),
-            "manual": bool(t["manual"]), "protected": bool(t["edited"] or t["manual"]), "usedBy": int(t["used_by"]),
-            "raw": (prov or {}).get("raw"), "oped": oped_of(t["start"], t["end"]), "analysis": states.get(t["id"]),
-        })
+    segments = [_segment_wire(t, i, oped_of(t["start"], t["end"]), states.get(t["id"])) for i, t in enumerate(segs, start=1)]
     hints = [
         {
             "id": h["id"], "version": h["version"], "start": h["start"], "end": h["end"], "text": h["text"], "origin": h["origin"],
@@ -133,6 +120,35 @@ def list_for_source(conn: sqlite3.Connection, source_id: str, asset_id: str | No
         )
     ]
     return {"segments": segments, "hints": hints, "tags": tags, "opeds": opeds, "derived": derived(conn, source_id)}
+
+
+_SEG_SQL = (
+    'SELECT t.id, t.version, t.source_id, t.start, t."end", t.text, t.speakers, t.origin, t.provenance, t.edited, t.speaker_edited,'
+    f" {MANUAL_SQL.format(t='t')} AS manual, {USED_BY_SQL.format(t='t')} AS used_by FROM text_segment t"
+)
+
+
+def _segment_wire(t: sqlite3.Row, ordinal: int, oped: str | None, analysis: str | None) -> dict[str, Any]:
+    prov = loads(t["provenance"]) if t["provenance"] else None
+    return {
+        "id": t["id"], "version": t["version"], "ordinal": ordinal, "start": t["start"], "end": t["end"], "text": t["text"],
+        "speakers": loads(t["speakers"]), "origin": t["origin"], "edited": bool(t["edited"]), "speakerEdited": bool(t["speaker_edited"]),
+        "manual": bool(t["manual"]), "protected": bool(t["edited"] or t["manual"]), "usedBy": int(t["used_by"]),
+        "raw": (prov or {}).get("raw"), "oped": oped, "analysis": analysis,
+    }
+
+
+def get_segment(conn: sqlite3.Connection, segment_id: str) -> dict[str, Any]:
+    """一段（舞台语音面板里「编辑这段…」用）：同 list 里的一行；序号按存活段的 (start, end, id) 排出来。"""
+    t = conn.execute(f"{_SEG_SQL} WHERE t.id=? AND t.deleted=0", (segment_id,)).fetchone()
+    if t is None:
+        raise CoreError("segment-not-found", id=segment_id)
+    ordinal = conn.execute(
+        'SELECT COUNT(*) FROM text_segment WHERE source_id=? AND deleted=0 AND (start < ? OR (start = ? AND ("end" < ? OR ("end" = ? AND id <= ?))))',
+        (t["source_id"], t["start"], t["start"], t["end"], t["end"], t["id"]),
+    ).fetchone()[0]
+    hit = next((o for o in _opeds(conn, t["source_id"]) if overlaps(t["start"], t["end"], o["start"], o["end"])), None)
+    return _segment_wire(t, int(ordinal), hit["kind"] if hit else None, None)
 
 
 def derived(conn: sqlite3.Connection, source_id: str) -> list[dict[str, Any]]:

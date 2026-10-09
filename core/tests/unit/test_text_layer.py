@@ -116,6 +116,19 @@ def test_add_segment_replace_cut_cancel(db, tmp_path):
     assert len(db.execute("SELECT 1 FROM text_segment WHERE source_id=? AND deleted=0", (sid,)).fetchall()) == 4
 
 
+def test_get_segment_matches_list_row(db, tmp_path):
+    # 舞台「编辑这段…」按 id 取一段：与 list 里的那一行相同（序号、受保护标记、使用数）
+    sid, edits, layer = setup(db, tmp_path, [(1, 3, "あいうえお"), (4, 6, "かきくけこ"), (4, 5, "かき")])
+    rows = tl.list_for_source(db, sid)["segments"]
+    assert [tl.get_segment(db, r["id"]) == r for r in rows] == [True, True, True]
+    assert [r["ordinal"] for r in rows] == [1, 2, 3] and [r["text"] for r in rows] == ["あいうえお", "かき", "かきくけこ"]
+    edits.apply({"ops": [{"entity": "segment", "id": rows[0]["id"], "version": rows[0]["version"], "fields": {"deleted": True}}]})
+    with pytest.raises(CoreError) as e:
+        tl.get_segment(db, rows[0]["id"])
+    assert e.value.code == "segment-not-found"
+    assert tl.get_segment(db, rows[1]["id"])["ordinal"] == 1
+
+
 def test_split_merge_and_hint(db, tmp_path):
     sid, edits, layer = setup(db, tmp_path, [(1, 3, "あいう\nえお"), (3, 4, "か")])
     a, b = tl.list_for_source(db, sid)["segments"]

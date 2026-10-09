@@ -1,10 +1,11 @@
 // 语音分析确认框（规格 08 §8.4、16 S1.7；原型 analysisModal）：M / N / K 三个大数字、无法处理的原因、
 // 绑在原混音或无角色资产上的提示、默认不勾的「也重新分析已是最新的 N 条」。确认后排队一个任务（提交时冻结输入）。
+// 分析属于“段 + 资产”（所有者 2026-10-09）：原片入口与段右键可选「默认人声轨（没有就是原混音）」或「当前查看的轨」。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
 import type { ModelsStatus, SpeechPreview } from "../api/types";
 import { Button } from "../components/Button";
-import { Callout, Checkbox, Stats } from "../components/Controls";
+import { Callout, Checkbox, Segmented, Stats } from "../components/Controls";
 import { DialogBox } from "../components/Overlay";
 import { PagedTable } from "../components/PagedTable";
 import { errorText, hasKey, t } from "../i18n";
@@ -22,6 +23,7 @@ export function SpeechDialog() {
   const toast = useApp((st) => st.toast);
   const setTasksOpen = useApp((st) => st.setTasksOpen);
   const [rerun, setRerun] = useState(false);
+  const [track, setTrack] = useState<"default" | "current">("default");
   const [pv, setPv] = useState<SpeechPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,24 +39,29 @@ export function SpeechDialog() {
     if (!req) {
       setPv(null);
       setRerun(false);
+      setTrack("default");
       setError(null);
       return;
     }
     let live = true;
-    void call("speech.preview", { entry: req.entry, ids: req.ids, rerunFresh: rerun }).then(
+    void call("speech.preview", { entry: req.entry, ids: req.ids, rerunFresh: rerun, assetId: assetId() }).then(
       (r) => live && (setPv(r), setError(null)),
       (e) => live && setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)),
     );
     return () => {
       live = false;
     };
-  }, [req, rerun]);
+  }, [req, rerun, track]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 分析在哪条轨上：默认 = Core 按入口决定（默认人声轨，没有就是原混音；采样入口 = 采样所在的轨）
+  function assetId(): string | null {
+    return track === "current" && req?.currentAsset && (req.entry === "source" || req.entry === "segments") ? req.currentAsset.id : null;
+  }
   const submit = async () => {
     if (!req || !pv || busy) return;
     setBusy(true);
     try {
-      await call("speech.submit", { entry: req.entry, ids: req.ids, rerunFresh: rerun });
+      await call("speech.submit", { entry: req.entry, ids: req.ids, rerunFresh: rerun, assetId: assetId() });
       toast({ text: t("speech.queued", { n: pv.run }), action: { label: t("speech.openTasks"), run: () => setTasksOpen(true) } });
       close(null);
     } catch (e) {
@@ -64,7 +71,8 @@ export function SpeechDialog() {
     }
   };
 
-  const src = req?.entry === "source";
+  const src = req?.entry === "source" || req?.entry === "segments";
+  const current = src ? req?.currentAsset : undefined;
   return (
     <DialogBox
       isOpen={req !== null}
@@ -84,6 +92,22 @@ export function SpeechDialog() {
         </>
       }
     >
+      {current ? (
+        <div className={s.trackRow}>
+          <span className={s.faint}>{t("speech.track")}</span>
+          <Segmented<"default" | "current">
+            size="sm"
+            label={t("speech.track")}
+            value={track}
+            onChange={setTrack}
+            options={[
+              { id: "default", label: t("speech.trackDefault") },
+              { id: "current", label: t("speech.trackCurrent", { track: current.label }) },
+            ]}
+            testId="speech-track"
+          />
+        </div>
+      ) : null}
       {error ? <Callout tone="bad">{error}</Callout> : null}
       {pv ? (
         <div className={s.body}>

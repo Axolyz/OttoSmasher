@@ -44,7 +44,7 @@ test("原片文件夹：扫描、作品设置改名、Finder 改名后重新扫�
   expect([ep.work, ep.episode, !!ep.root_id]).toEqual(["Kemono Friends", "01", true]);
   expect(ep.subtitle_path).toMatch(/\[01\]\.ja\.srt$/);
   await page.getByRole("button", { name: "为新原片建立全长采样…" }).click();
-  await page.getByTestId("whole-ok").click();
+  await page.getByTestId("new-samples").getByTestId("newsamples-run").click();
   await expect.poll(async () => (await req<{ total: number }>("samples.list", { offset: 0, limit: 1 })).total).toBe(2);
 
   // 作品设置（组头右键）：改名 = 改磁盘上的文件夹名；来源类型整组一起设

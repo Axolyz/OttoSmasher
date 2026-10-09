@@ -18,10 +18,8 @@ import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { TracksDialog } from "./TracksDialog";
 import { ImportDialog, type ImportResult } from "../shell/ImportDialog";
 import { PrepPanel } from "./PrepPanel";
-import { WholeSampleDialog } from "./WholeSampleDialog";
 import { WorkSettingsDialog } from "./WorkSettingsDialog";
 import { WorkTypeDialog } from "./WorkTypeDialog";
-import { SubtitleSampleSheet } from "./SubtitleSampleSheet";
 import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
 
@@ -30,6 +28,10 @@ export function SourcesPage() {
   const page = useApp((st) => st.page);
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
+  const requestNewSamples = useApp((st) => st.requestNewSamples);
+  // 原片页当前查看的轨：建采样、语音分析可以选“当前轨”
+  const viewerAsset = useApp((st) => st.viewerAsset);
+  const curFor = (id: string) => (viewerAsset && viewerAsset.sourceId === id ? { id: viewerAsset.id, label: viewerAsset.label } : undefined);
   const [rows, setRows] = useState<SourceRow[] | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -41,7 +43,6 @@ export function SourcesPage() {
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
   const [tracksFor, setTracksFor] = useState<SourceRow | null>(null);
   const setSepInput = useApp((st) => st.requestSeparation);
-  const [subSamples, setSubSamples] = useState<{ row: SourceRow; kind: "line" | "sfx" } | null>(null);
   const [opedFor, setOpedFor] = useState<{ row: SourceRow; initial: IdentifyResult | null } | null>(null);
   const [drop, setDrop] = useState(false);
   const restored = useRef(false);
@@ -118,7 +119,7 @@ export function SourcesPage() {
     if (r.missing) parts.push(t("roots.scanMissing", { n: r.missing }));
     toast({
       text: t("roots.scanDone", { list: parts.join(t("settings.subtitle.speakerSep")) }),
-      action: r.newIds.length ? { label: t("roots.wholeForNew"), run: () => setWholeFor(r.newIds) } : undefined,
+      action: r.newIds.length ? { label: t("roots.wholeForNew"), run: () => requestNewSamples({ kind: "whole", sourceIds: r.newIds }) } : undefined,
     });
   });
   const rescan = async () => {
@@ -140,7 +141,7 @@ export function SourcesPage() {
       items: [
         ...(folder ? [{ id: "work-settings", label: t("workSettings.menu"), run: () => setWorkSettingsFor(folder) }] : []),
         { id: "subimport", label: t("roots.groupSubimport", { n: members.length }), run: () => setBatchImport(members) },
-        { id: "whole", label: t("roots.groupWhole", { n: members.length }), run: () => setWholeFor(members.map((m) => m.id)) },
+        { id: "whole", label: t("roots.groupWhole", { n: members.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: members.map((m) => m.id) }) },
         ...(loose.length ? [{ id: "work-type", label: t("workType.menuN", { n: loose.length }), run: () => setWorkTypeFor(loose) }] : []),
         { id: "check", label: t("roots.groupCheck"), run: () => setChecked(new Set(members.map((m) => m.id))) },
         ...(folder ? (["-", { id: "reveal", label: t("roots.reveal"), run: () => void window.otto.files.reveal(folder.path) }] as const) : []),
@@ -156,7 +157,6 @@ export function SourcesPage() {
 
   // 添加原片 = 导入框（与采样库共用，所有者 2026-10-07）：这里进来「直接建立全长采样」默认不勾
   const [importPaths, setImportPaths] = useState<string[] | null>(null);
-  const [wholeFor, setWholeFor] = useState<string[] | null>(null);
   const [workTypeFor, setWorkTypeFor] = useState<SourceRow[] | null>(null);
   const onImported = async (r: ImportResult) => {
     const list = await reload();
@@ -186,6 +186,15 @@ export function SourcesPage() {
       const res = await call("oped.identify", { sourceId: r.id });
       if (res.errors.length) setOpedFor({ row: r, initial: res });
       toast({ text: identifyText(res), tone: res.errors.length ? "error" : "info", action: res.applied ? { label: t("common.undo"), run: () => void undo() } : undefined });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+  // 按当前规则重新生成说话人（所有者 2026-10-09 保留的事后重做入口）：只动字幕来源、未受保护、说话人没被手改过的段
+  const regenerateSpeakers = async (r: SourceRow) => {
+    try {
+      const res = await call("segments.regenerateSpeakers", { sourceId: r.id });
+      toast({ text: t("seg.regenerated", { n: res.changed }), action: res.changed ? { label: t("common.undo"), run: () => void undo() } : undefined });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
     }
@@ -232,7 +241,7 @@ export function SourcesPage() {
           items: [
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
-            { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => setWholeFor(ids) },
+            { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: ids }) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
             { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
             "-",
@@ -245,12 +254,14 @@ export function SourcesPage() {
             { id: "separate", label: t("sep.menuFull"), run: () => void separateFull(r) },
             { id: "tracks", label: t("tracks.menu"), run: () => setTracksFor(r) },
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
-            { id: "subsample-line", label: t("subsample.menuLine"), run: () => setSubSamples({ row: r, kind: "line" }) },
-            { id: "subsample-sfx", label: t("subsample.menuSfx"), run: () => setSubSamples({ row: r, kind: "sfx" }) },
+            { id: "newsamples-segments", label: t("newsamples.menu.segments"), run: () => requestNewSamples({ kind: "segments", sourceId: r.id, currentAsset: curFor(r.id) }) },
+            { id: "newsamples-hints", label: t("newsamples.menu.hints"), run: () => requestNewSamples({ kind: "hints", sourceId: r.id, currentAsset: curFor(r.id) }) },
+            { id: "whole", label: t("whole.menu"), run: () => requestNewSamples({ kind: "whole", sourceIds: [r.id] }) },
+            "-",
             { id: "oped-identify", label: t("oped.menuIdentify"), disabled: !r.subtitle_path, run: () => void identifyOne(r) },
             { id: "oped", label: t("oped.menu"), run: () => setOpedFor({ row: r, initial: null }) },
-            { id: "whole", label: t("whole.menu"), run: () => setWholeFor([r.id]) },
-            { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids: [r.id] }) },
+            { id: "speakers", label: t("seg.regenerateMenu"), run: () => void regenerateSpeakers(r) },
+            { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids: [r.id], currentAsset: curFor(r.id) }) },
             "-",
             { id: "settings", label: t("sources.settings"), run: () => setSettingsFor(r.id) },
             { id: "relocate", label: t("sources.relocate"), run: () => void relocate(r.id) },
@@ -336,8 +347,8 @@ export function SourcesPage() {
                 else if (a === "separate") void separateFull(currentRow);
                 else if (a === "tracks") setTracksFor(currentRow);
                 else if (a === "oped") setOpedFor({ row: currentRow, initial: null });
-                else if (a === "speech") requestSpeech({ entry: "source", ids: [currentRow.id] });
-                else setSubSamples({ row: currentRow, kind: "line" });
+                else if (a === "speech") requestSpeech({ entry: "source", ids: [currentRow.id], currentAsset: curFor(currentRow.id) });
+                else requestNewSamples({ kind: "segments", sourceId: currentRow.id, currentAsset: curFor(currentRow.id) });
               }}
             />
             <Menu
@@ -347,13 +358,11 @@ export function SourcesPage() {
           </>
         ) : null}
       </TopSlot>
-      <SubtitleSampleSheet source={subSamples?.row ?? null} kind={subSamples?.kind ?? "line"} onClose={() => setSubSamples(null)} />
       <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
       <ImportDialog paths={importPaths} defaultWhole={false} defaultNature="unclassified" onClose={() => setImportPaths(null)} onImported={(r) => void onImported(r)} />
-      <WholeSampleDialog ids={wholeFor} onClose={() => setWholeFor(null)} />
       <WorkTypeDialog rows={workTypeFor} onClose={() => setWorkTypeFor(null)} onDone={() => void reload()} />
       <InputSettingsDialog
         sourceId={settingsFor}

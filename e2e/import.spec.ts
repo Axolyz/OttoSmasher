@@ -97,8 +97,9 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
     ((await page.evaluate(async () => window.otto.core.request("samples.list", { offset: 0, limit: 1 }))) as { r: { total: number } }).r.total;
   expect(await total()).toBe(6);
   await page.getByTestId("viewer-menu").click();
-  await page.getByRole("menuitem", { name: "建立全长采样…" }).click();
-  await page.getByTestId("whole-ok").click();
+  await page.getByTestId("menu-whole").click();
+  // 建采样是一个动作（所有者 2026-10-09）：整段原片走批量整页，默认全勾
+  await page.getByTestId("new-samples").getByTestId("newsamples-run").click();
   await expect.poll(total).toBe(7);
 
   // 批量「作品与类型…」：勾选两个原片 → 统一改作品（重新归组）→ 撤销

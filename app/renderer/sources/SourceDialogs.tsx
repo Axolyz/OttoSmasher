@@ -187,7 +187,7 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
             <li>{t("sources.deleteSources", { n: previews.length })}</li>
             <li>{t("sources.deleteSamples", { n: sum("samples") })}</li>
             <li>{t("sources.deleteGenerated", { n: sum("generatedAssets") })}</li>
-            <li>{t("sources.deleteAnnotations", { n: sum("annotations"), v: sum("subtitleVersions"), o: sum("oped") })}</li>
+            <li>{t("sources.deleteTextLayer", { n: sum("segments"), h: sum("hints"), g: sum("rangeTags"), o: sum("oped") })}</li>
           </ul>
           <div className={s.keep}>{t("sources.deleteKeeps")}</div>
           {previews.some((p) => p.activeJobs.length) ? <div className={s.warn}>{t("error.source-has-active-jobs")}</div> : null}

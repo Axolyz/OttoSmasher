@@ -1451,7 +1451,6 @@ export interface SourceDetail {
   actor_kind: string;
   actor_session: string | null;
   created_at: string;
-  current_subtitle_version_id: string | null;
   default_audio_stream: number;
   duration: number;
   episode: string;
@@ -1719,6 +1718,7 @@ export interface SpeechSampleView {
   conflict: SpeechConflict | null;
   head: SpeechHead | null;
   judge: number[] | null;
+  judgeLocal: number[] | null;
   reason: string | null;
   sampleId: string;
   text: string | null;
@@ -2275,6 +2275,8 @@ export interface Commands {
   "segments.add": { params: SegmentAddParams; result: SegmentAdded; effect: "write" };
   /** Which segments a new typed segment would overlap, and whether cut is possible. */
   "segments.checkAdd": { params: SegmentRangeParams; result: SegmentAddCheck; effect: "read" };
+  /** One text segment (with usage count and protection flags). */
+  "segments.get": { params: IdParams; result: TextSegment; effect: "read" };
   /** Merge segments into one new protected segment. */
   "segments.merge": { params: SegmentMergeParams; result: SegmentAdded; effect: "write" };
   /** Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only). */
@@ -2493,15 +2495,11 @@ export type ErrorCode =
   | "studio-not-found"
   | "subtitle-encoding"
   | "subtitle-format"
-  | "subtitle-line-not-importable"
   | "subtitle-missing"
   | "subtitle-not-associated"
   | "subtitle-preview-stale"
   | "subtitle-rule-invalid"
   | "subtitle-rule-timeout"
-  | "subtitle-sample-invalid"
-  | "subtitle-sample-not-pending"
-  | "subtitle-sample-stale"
   | "subtitle-unreadable"
   | "time-out-of-range"
   | "tool-missing"

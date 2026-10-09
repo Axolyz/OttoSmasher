@@ -19,11 +19,14 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   const { app, page } = await launch({ workspace });
   await page.evaluate(async (p) => {
     const req = window.otto.core.request;
-    const add = (await req<Array<{ assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const add = (await req<Array<{ sourceId: string; assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as {
+      r: Array<{ sourceId: string; assets: Array<{ assetId: string }> }>;
+    };
     const aid = add.r[0]!.assets[0]!.assetId;
+    // 台词 = 文本层的段（所有者 2026-10-09）：采样读判定区间里的段；「なし」那里没有段
     for (const [s, e, n, text] of [[1, 2, "ああ", "あー"], [3, 4, "おと", "♪"], [4.5, 5.5, "なし", ""]] as const) {
-      const c = (await req<{ id: string; version: number }>("samples.create", { assetId: aid, start: s, end: e, name: n, nature: "speech" })) as { r: { id: string; version: number } };
-      if (text) await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { align_text_manual: text } }] } });
+      await req("samples.create", { assetId: aid, start: s, end: e, name: n, nature: "speech" });
+      if (text) await req("segments.add", { sourceId: add.r[0]!.sourceId, start: s, end: e, text });
     }
   }, wav);
   await page.getByTestId("nav-library").click();
@@ -39,23 +42,23 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await expect(dlg.getByTestId("speech-run")).toContainText("2");
   await expect(dlg.getByTestId("speech-fresh")).toContainText("0");
   await expect(dlg.getByTestId("speech-blocked")).toContainText("1");
-  await expect(dlg.getByTestId("speech-blocked-list")).toContainText("缺对齐文本");
+  await expect(dlg.getByTestId("speech-blocked-list")).toContainText("判定区间里没有台词段");
   await page.waitForTimeout(300);
   await page.screenshot({ path: ".cache/playwright-results/speech-dialog.png" });
   await dlg.getByTestId("speech-submit").click();
-  await expect(page.getByText("已排队分析 2 句")).toBeVisible();
+  await expect(page.getByText("已排队分析 2 段")).toBeVisible();
 
   await page.getByTestId("nav-tasks").click();
   const job = page.getByTestId("job").filter({ hasText: "语音分析" }).first(); // 抽屉里还有自动准备检索的后台任务
   await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
-  await expect(job.getByTestId("speech-summary")).toHaveText("1 句成功 · 1 句失败");
+  await expect(job.getByTestId("speech-summary")).toHaveText("1 段成功 · 1 段失败");
   await job.getByTestId("job-results").click();
   const res = job.getByTestId("speech-results");
   await expect(res).toContainText("成功");
   await expect(res).toContainText("文本前端失败");
   await page.waitForTimeout(300);
   await page.screenshot({ path: ".cache/playwright-results/speech-results.png" });
-  // 勾失败项再分析（按句）→ 确认框只有这一句
+  // 勾失败项再分析（按段）→ 确认框只有这一段
   await res.getByTestId("table-check-all").click(); // 只有失败项可勾
   await res.getByTestId("speech-rerun-failed").click();
   await expect(dlg.getByTestId("speech-run")).toContainText("1");
@@ -67,13 +70,14 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await expect(page.getByTestId("speech-results")).toBeHidden();
   // 列表里的分析状态（刷新后）
   await page.getByTestId("refresh-lists").click();
-  await expect(rows.filter({ hasText: "ああ" }).getByTestId("row-analysis")).toHaveText("手动截取 · 已分析");
+  // 分析属于“段 + 轨”：对齐出来的音素可能伸出采样范围一点 → 已分析 ◐（只读到这段的一部分）
+  await expect(rows.filter({ hasText: "ああ" }).getByTestId("row-analysis")).toHaveText(/^手动截取 · 已分析( ◐)?$/);
   await expect(rows.filter({ hasText: "おと" }).getByTestId("row-analysis")).toHaveText("手动截取 · 分析失败");
 
   await page.getByTestId("batch-actions").click();
   await page.getByRole("menuitem", { name: "语音分析所选 3 项…" }).click();
   await expect(dlg.getByTestId("speech-fresh")).toContainText("1");
-  await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 句");
+  await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 段");
   await dlg.getByTestId("speech-rerun").click();
   await expect(dlg.getByTestId("speech-run")).toContainText("2");
   await page.keyboard.press("Escape");

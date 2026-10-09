@@ -12,6 +12,7 @@ import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
 import { FlattenSheet } from "./FlattenSheet";
 import { SeparationDialog } from "../sources/SeparationDialog";
+import { NewSamplesSheet } from "../sources/NewSamplesSheet";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
@@ -128,6 +129,7 @@ export function App() {
       <SpeechDialog />
       <SeparationDialog />
       <FlattenSheet />
+      <NewSamplesSheet />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>
           <tbody>

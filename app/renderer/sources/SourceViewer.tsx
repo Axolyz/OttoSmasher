@@ -7,11 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { AssetAlignment, AssetInfo, DerivedSample, EditOp, SourceDetail, SourceRow } from "../api/types";
+import type { AssetAlignment, AssetInfo, DerivedSample, EditOp, RangeTagRow, SamplePlanSource, SfxHint, SourceDetail, SourceRow, TextSegment } from "../api/types";
 import { Button } from "../components/Button";
 import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
-import { Menu, useContextMenu } from "../components/Menu";
+import { Menu, type MenuEntry, type MenuItems, useContextMenu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
@@ -26,13 +26,15 @@ import s from "./Sources.module.css";
 import { AnnotationDialog, type AnnTarget } from "./AnnotationDialog";
 import { boundaries, limits, moveBoundary } from "./bounds";
 import { type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "./Timeline";
-import { type Ann, type Oped as OpedRange, Transcript } from "./Transcript";
+import { type Oped as OpedRange, Transcript } from "./Transcript";
 
-type LayerId = "sub" | "seg" | "ph" | "none";
-type LaneId = "sub" | "seg" | "ph" | "derived";
+// 图层（所有者 2026-10-09）：sub = 文本层的段；hint = 音效提示（可开关，所有轨可见）；seg = 区段标签与 OP/ED；ph = 音素；derived = 派生采样
+type LayerId = "sub" | "hint" | "seg" | "ph" | "none";
+type LaneId = "sub" | "hint" | "seg" | "ph" | "derived";
 type Derived = DerivedSample;
 const DERIVED_MENU_MAX = 40;
-const LAYER_IDS: LayerId[] = ["sub", "seg", "ph", "none"];
+const LAYER_IDS: LayerId[] = ["sub", "hint", "seg", "ph", "none"];
+const ENTITY: Record<string, "segment" | "sfx_hint" | "range_tag" | "oped"> = { segment: "segment", hint: "sfx_hint", tag: "range_tag", oped: "oped" };
 const VOWEL_LABELS = new Set(["a", "i", "u", "e", "o", "N", "cl"]);
 const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
   const n = new Set(x);
@@ -49,6 +51,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const { row } = props;
   const toast = useApp((st) => st.toast);
   const requestFlatten = useApp((st) => st.requestFlatten);
+  const requestSpeech = useApp((st) => st.requestSpeech);
   const [detail, setDetail] = useState<SourceDetail | null>(null);
   const [assets, setAssets] = useState<AssetInfo[]>([]);
   // 当前音源：资产 ID（容器音轨或分离声部）；null = 该原片的分析音轨
@@ -60,6 +63,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const [openError, setOpenError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
+  // 从段 / 提示建一个采样（场景 F：看片时直接从这句建）：小面板贴着右键位置出现
+  const [clipFrom, setClipFrom] = useState<{ from: SamplePlanSource; at: { x: number; y: number } } | null>(null);
   const [muted, setMuted] = useState(false);
   const stamp = useRef({ time: null as number | null, at: 0, playing: false, gen: -1 });
   const tl = useRef<TimelineHandle>(null);
@@ -89,163 +94,28 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     setJump(null);
   }, [jump, row.id, setJump]);
 
-  // 标注（台本、画面内字幕、时间线图层）：当前字幕版本；导入、OP/ED、编辑后刷新
-  const [anns, setAnns] = useState<Ann[]>([]);
+  // 文本层的段（台本、画面内字幕、时间线）、音效提示、区段标签、OP/ED、派生采样；导入、编辑后刷新
+  const [segs, setSegs] = useState<TextSegment[]>([]);
+  const [hints, setHints] = useState<SfxHint[]>([]);
+  const [rtags, setRtags] = useState<RangeTagRow[]>([]);
   const [opeds, setOpeds] = useState<OpedRange[]>([]);
   const [derived, setDerived] = useState<Derived[]>([]);
   const [annNonce, setAnnNonce] = useState(0);
   const [phNonce, setPhNonce] = useState(0);
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
-    if (c.annotation || c.oped || c.source || c.sample) setAnnNonce((n) => n + 1);
-    if (c.measure) setPhNonce((n) => n + 1); // 语音分析结果、人工修正（属于句，不一定有采样）
+    if (c.segment || c.sfx_hint || c.range_tag || c.oped || c.source || c.sample) setAnnNonce((n) => n + 1);
+    if (c.measure) setPhNonce((n) => n + 1); // 语音分析结果、人工修正（属于“段 + 资产”，不一定有采样）
   });
-  useEffect(() => {
-    let live = true;
-    void call("annotations.list", { sourceId: row.id }).then((r) => {
-      if (!live) return;
-      setAnns(r.annotations);
-      setOpeds(r.opeds);
-      setDerived(r.derived);
-    });
-    return () => {
-      live = false;
-    };
-  }, [row.id, annNonce]);
   // 只按内容调整（所有者 2026-10-07：原片只有一种）：没有视频又没有字幕时上面一行缩矮
   const compact = !hasVideo && noSubtitles(row);
   const [overlayId, setOverlayId] = useState<LayerId>("sub");
-  const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "ph", "derived"]));
-  // 音素层（08 §8.8）：当前音源资产上所有句（文本单元：字幕行、手输台词）的当前对齐结果（同一物理声音；多句同时显示）；
-  // 原片页「语音分析」直接分析台词行，不需要先建采样（所有者 2026-10-08）。资产局部秒 + offset = 原片秒
+  const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["hint", "seg", "ph", "derived"]));
+  // 音素层（08 §8.8）：当前音源资产上各段的可用分析（分析属于“段 + 资产”，所有者 2026-10-09；多段同时显示）；
+  // 原片页「语音分析」直接分析台词段，不需要先建采样。资产局部秒 + offset = 原片秒
   const [aligned, setAligned] = useState<AssetAlignment[]>([]);
   const phOffset = useRef(0);
-  const layer = (id: LaneId): Layer => {
-    if (id === "ph")
-      return {
-        id,
-        label: t("layers.ph"),
-        bands: aligned.flatMap((r) =>
-          r.phones.map((p) => ({
-            a: p.start + phOffset.current,
-            b: p.end + phOffset.current,
-            label: p.label,
-            tone: p.label === "pau" ? ("pause" as const) : VOWEL_LABELS.has(p.label) ? ("vowel" as const) : ("consonant" as const),
-          })),
-        ),
-      };
-    // 派生轨（03 §3.9、R7.6）：该原片的所有用户采样，按原片时间；单击打开（跳到采样库），重叠时弹出选择菜单
-    if (id === "derived")
-      return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id })) };
-    if (id === "sub")
-      return {
-        id,
-        label: t("layers.sub"),
-        bands: anns
-          .filter((a) => a.kind !== "tag")
-          .map((a) => ({ a: a.start, b: a.end, label: a.name || a.text, tone: a.kind === "sfx" ? "sfx" : "line", id: `annotation:${a.id}` })),
-      };
-    // 区段 / 说话人：说话人显示层“角色：名”（R5.5，底层标签不变）、手动区段标签、OP/ED
-    return {
-      id,
-      label: t("layers.seg"),
-      bands: [
-        ...anns
-          .filter((a) => a.speakers.length || a.kind === "tag")
-          .map((a) => ({
-            a: a.start,
-            b: a.end,
-            label: a.speakers.length
-              ? t("layers.speaker", { names: a.speakers.join(t("settings.subtitle.speakerSep")) })
-              : a.name || a.text || a.tags.join(t("settings.subtitle.speakerSep")),
-            tone: "seg" as const,
-            id: `annotation:${a.id}`,
-          })),
-        ...opeds.map((o) => ({ a: o.start, b: o.end, label: o.kind, tone: "oped" as const, id: `oped:${o.id}` })),
-      ],
-    };
-  };
-  // 编辑覆盖层边界（UI_PLAN §3.1、03 §3.5.4）：工作副本在本地，保存 = 一次可撤销的编辑（只改时间标注 / OP/ED，不移动采样 R4.11）
-  const [editBands, setEditBands] = useState<LayerBand[] | null>(null);
-  const [editFocus, setEditFocus] = useState<string | null>(null);
-  const editing = editBands != null;
-  // 短音频原片没有字幕：只有派生采样车道
-  const baseOverlay = overlayId === "none" ? null : layer(overlayId);
-  const overlay = baseOverlay && editBands ? { ...baseOverlay, bands: editBands } : baseOverlay;
-  const lanes = (["sub", "seg", "ph", "derived"] as const)
-    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0) && (id !== "ph" || aligned.length > 0))
-    .map(layer);
-
-  const startEdit = () => {
-    if (!baseOverlay) return;
-    setEditBands(baseOverlay.bands);
-    setEditFocus(null);
-  };
-  const stopEdit = () => {
-    setEditBands(null);
-    setEditFocus(null);
-  };
-  const editRef = (id: string) => {
-    const [entity, key] = id.split(":") as ["annotation" | "oped", string];
-    const version = entity === "annotation" ? anns.find((a) => a.id === key)?.version : opeds.find((o) => o.id === key)?.version;
-    return { entity, id: key, version };
-  };
-  const saveEdit = async () => {
-    if (!editBands || !baseOverlay) return;
-    const before = new Map(baseOverlay.bands.map((b) => [b.id, b]));
-    const ops: EditOp[] = [];
-    const done = new Set<string>();
-    for (const b of editBands) {
-      const o = b.id ? before.get(b.id) : undefined;
-      if (!b.id || !o || done.has(b.id) || (o.a === b.a && o.b === b.b)) continue;
-      done.add(b.id);
-      const r = editRef(b.id);
-      const fields: Record<string, number> = {};
-      if (o.a !== b.a) fields.start = b.a;
-      if (o.b !== b.b) fields.end = b.b;
-      ops.push({ entity: r.entity, id: r.id, version: r.version, fields });
-    }
-    if (!ops.length) return stopEdit();
-    try {
-      await call("edits.apply", { batch: { label: { code: "bounds-edit", args: { n: ops.length } }, ops } });
-      stopEdit();
-      toast({ text: t("edit.boundsSaved", { n: ops.length }), action: { label: t("edit.boundsUndo"), run: () => void undo() } });
-    } catch (e) {
-      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
-    }
-  };
-  const focusBand = editing ? (editBands.find((b) => b.id === editFocus) ?? null) : null;
-  // 表单里改开始/结束：与拖动同一套规则（共用边界一起动、不越过邻居）
-  const commitEdge = (side: "a" | "b") => (v: number) => {
-    if (!editBands || !focusBand?.id) return false;
-    const eb = editBands.filter((x) => x.id).map((x) => ({ key: x.id!, a: x.a, b: x.b }));
-    const all = boundaries(eb);
-    const i = all.findIndex((x) => x.items.some((it) => it.key === focusBand.id && it.side === side));
-    if (i < 0) return false;
-    const lim = limits(all, i, eb, duration);
-    if (v < lim[0] - 1e-9 || v > lim[1] + 1e-9) return false;
-    const moved = new Map(moveBoundary(eb, all[i]!, v, lim).map((x) => [x.key, x]));
-    setEditBands(editBands.map((x) => (x.id && moved.has(x.id) ? { ...x, a: moved.get(x.id)!.a, b: moved.get(x.id)!.b } : x)));
-    return true;
-  };
-  useEffect(() => stopEdit(), [row.id, overlayId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 标注对话框与时间线右键菜单（03 §3.5.4：波形右键与选区操作栏同源，另含“设为开始 / 设为结束”）
-  const [annTarget, setAnnTarget] = useState<AnnTarget | null>(null);
-  const tlMenu = useContextMenu("timeline-menu");
-  const undo = useUndo();
-
-  const setPage = useApp((st) => st.setPage);
-  const setOpenSample = useApp((st) => st.setOpenSample);
-  const openSample = (id: string) => {
-    setOpenSample(id);
-    setPage("library");
-  };
-  const pick = useContextMenu("derived-pick");
-  const derivedItems = (list: Derived[]) =>
-    list.map((d) => ({ id: d.id, label: t("sources.derivedItem", { name: d.name, at: clock(d.start) }), run: () => openSample(d.id) }));
-
-  // 资料（分离完成等资产变化时刷新音源列表）
+  // 资料（分离完成等资产变化时刷新音源列表）。音源与偏移要在图层（layer）之前定下来：资产作用域的区段标签用到它们
   const [assetsNonce, setAssetsNonce] = useState(0);
   useCoreEvent("data.changed", (d) => {
     if ((d as Record<string, string[]>).asset) setAssetsNonce((n) => n + 1);
@@ -283,6 +153,162 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       live = false;
     };
   }, [asset?.id, annNonce, phNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let live = true;
+    void call("textLayer.list", { sourceId: row.id, assetId: asset?.id ?? null }).then((r) => {
+      if (!live) return;
+      setSegs(r.segments);
+      setHints(r.hints);
+      setRtags(r.tags);
+      setOpeds(r.opeds);
+      setDerived(r.derived);
+    });
+    return () => {
+      live = false;
+    };
+  }, [row.id, asset?.id, annNonce, phNonce]);
+
+  const layer = (id: LaneId): Layer => {
+    if (id === "ph")
+      return {
+        id,
+        label: t("layers.ph"),
+        bands: aligned.flatMap((r) =>
+          r.phones.map((p) => ({
+            a: p.start + phOffset.current,
+            b: p.end + phOffset.current,
+            label: p.label,
+            tone: p.label === "pau" ? ("pause" as const) : VOWEL_LABELS.has(p.label) ? ("vowel" as const) : ("consonant" as const),
+          })),
+        ),
+      };
+    // 派生轨（03 §3.9、R7.6）：该原片的所有用户采样，按原片时间；单击打开（跳到采样库），重叠时弹出选择菜单
+    if (id === "derived")
+      return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id })) };
+    // 文本层的段：标签 = 段文本（说话人在前，R5.5 只显示名字）
+    if (id === "sub")
+      return {
+        id,
+        label: t("layers.sub"),
+        bands: segs.map((a) => ({
+          a: a.start,
+          b: a.end,
+          label: a.speakers.length
+            ? t("layers.segLabel", { names: a.speakers.join(t("settings.subtitle.speakerSep")), text: a.text.replace(/\n/g, " ") })
+            : a.text.replace(/\n/g, " "),
+          tone: "line" as const,
+          id: `segment:${a.id}`,
+        })),
+      };
+    // 音效提示（作用于整个原片，所有轨可见）
+    if (id === "hint") return { id, label: t("layers.hint"), bands: hints.map((h) => ({ a: h.start, b: h.end, label: h.text, tone: "sfx" as const, id: `hint:${h.id}` })) };
+    // 区段标签（用户显式画的；资产作用域的只在那条资产上显示）、OP/ED
+    return {
+      id,
+      label: t("layers.seg"),
+      bands: [
+        ...rtags
+          .filter((g) => g.scope !== "asset" || g.scopeAssetId === asset?.id)
+          .map((g) => ({
+            a: g.scope === "asset" ? g.start + offset : g.start,
+            b: g.scope === "asset" ? g.end + offset : g.end,
+            label: g.label || g.tags.join(t("settings.subtitle.speakerSep")),
+            tone: "seg" as const,
+            id: `tag:${g.id}`,
+          })),
+        ...opeds.map((o) => ({ a: o.start, b: o.end, label: o.kind, tone: "oped" as const, id: `oped:${o.id}` })),
+      ],
+    };
+  };
+  // 编辑覆盖层边界（UI_PLAN §3.1、03 §3.5.4）：工作副本在本地，保存 = 一次可撤销的编辑（只改时间标注 / OP/ED，不移动采样 R4.11）
+  const [editBands, setEditBands] = useState<LayerBand[] | null>(null);
+  const [editFocus, setEditFocus] = useState<string | null>(null);
+  const editing = editBands != null;
+  // 短音频原片没有字幕：只有派生采样车道
+  const baseOverlay = overlayId === "none" ? null : layer(overlayId);
+  const overlay = baseOverlay && editBands ? { ...baseOverlay, bands: editBands } : baseOverlay;
+  const lanes = (["sub", "hint", "seg", "ph", "derived"] as const)
+    .filter((id) => laneIds.has(id) && id !== overlayId && (id !== "derived" || derived.length > 0) && (id !== "ph" || aligned.length > 0) && (id !== "hint" || hints.length > 0))
+    .map(layer);
+
+  const startEdit = () => {
+    if (!baseOverlay) return;
+    setEditBands(baseOverlay.bands);
+    setEditFocus(null);
+  };
+  const stopEdit = () => {
+    setEditBands(null);
+    setEditFocus(null);
+  };
+  const editRef = (id: string) => {
+    const [kind, key] = id.split(":") as [string, string];
+    const version =
+      kind === "segment"
+        ? segs.find((a) => a.id === key)?.version
+        : kind === "hint"
+          ? hints.find((a) => a.id === key)?.version
+          : kind === "tag"
+            ? rtags.find((a) => a.id === key)?.version
+            : opeds.find((o) => o.id === key)?.version;
+    return { entity: ENTITY[kind]!, id: key, version };
+  };
+  const saveEdit = async () => {
+    if (!editBands || !baseOverlay) return;
+    const before = new Map(baseOverlay.bands.map((b) => [b.id, b]));
+    const ops: EditOp[] = [];
+    const done = new Set<string>();
+    for (const b of editBands) {
+      const o = b.id ? before.get(b.id) : undefined;
+      if (!b.id || !o || done.has(b.id) || (o.a === b.a && o.b === b.b)) continue;
+      done.add(b.id);
+      const r = editRef(b.id);
+      const fields: Record<string, number> = {};
+      // 资产作用域的区段标签存资产局部秒
+      const shift = b.id.startsWith("tag:") && rtags.find((g) => `tag:${g.id}` === b.id)?.scope === "asset" ? offset : 0;
+      if (o.a !== b.a) fields.start = b.a - shift;
+      if (o.b !== b.b) fields.end = b.b - shift;
+      ops.push({ entity: r.entity, id: r.id, version: r.version, fields });
+    }
+    if (!ops.length) return stopEdit();
+    try {
+      await call("edits.apply", { batch: { label: { code: "bounds-edit", args: { n: ops.length } }, ops } });
+      stopEdit();
+      toast({ text: t("edit.boundsSaved", { n: ops.length }), action: { label: t("edit.boundsUndo"), run: () => void undo() } });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+  const focusBand = editing ? (editBands.find((b) => b.id === editFocus) ?? null) : null;
+  // 表单里改开始/结束：与拖动同一套规则（共用边界一起动、不越过邻居）
+  const commitEdge = (side: "a" | "b") => (v: number) => {
+    if (!editBands || !focusBand?.id) return false;
+    const eb = editBands.filter((x) => x.id).map((x) => ({ key: x.id!, a: x.a, b: x.b }));
+    const all = boundaries(eb);
+    const i = all.findIndex((x) => x.items.some((it) => it.key === focusBand.id && it.side === side));
+    if (i < 0) return false;
+    const lim = limits(all, i, eb, duration);
+    if (v < lim[0] - 1e-9 || v > lim[1] + 1e-9) return false;
+    const moved = new Map(moveBoundary(eb, all[i]!, v, lim).map((x) => [x.key, x]));
+    setEditBands(editBands.map((x) => (x.id && moved.has(x.id) ? { ...x, a: moved.get(x.id)!.a, b: moved.get(x.id)!.b } : x)));
+    return true;
+  };
+  useEffect(() => stopEdit(), [row.id, overlayId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 编辑框（段 / 提示 / 区段标签）与右键菜单（03 §3.5.4：波形右键与选区操作栏同源，另含“设为开始 / 设为结束”）
+  const [annTarget, setAnnTarget] = useState<AnnTarget | null>(null);
+  const tlMenu = useContextMenu("timeline-menu");
+  const segMenu = useContextMenu("segment-menu");
+  const undo = useUndo();
+
+  const setPage = useApp((st) => st.setPage);
+  const setOpenSample = useApp((st) => st.setOpenSample);
+  const openSample = (id: string) => {
+    setOpenSample(id);
+    setPage("library");
+  };
+  const pick = useContextMenu("derived-pick");
+  const derivedItems = (list: Derived[]) =>
+    list.map((d) => ({ id: d.id, label: t("sources.derivedItem", { name: d.name, at: clock(d.start) }), run: () => openSample(d.id) }));
 
   // 播放器：打开原片（换音源时只换音轨 / 外挂声部，选区保留）
   useEffect(() => {
@@ -468,8 +494,74 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const trackName = asset ? assetLabel(asset) : "";
   // 导出文件名的“音轨”段（规格 12 §12.1）：原混音 / 声部名
   const exportTrack = asset && asset.origin !== "stream" ? (asset.stem_name ?? t(`track.origin.${asset.origin}`)) : t("track.original");
+  const setViewerAsset = useApp((st) => st.setViewerAsset);
+  useEffect(() => setViewerAsset(asset ? { sourceId: row.id, id: asset.id, label: trackName } : null), [row.id, asset?.id, trackName, setViewerAsset]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => setViewerAsset(null), [setViewerAsset]);
   const ph = playhead();
-  const subtitleNow = ph == null ? null : anns.filter((a) => a.kind !== "tag" && ph >= a.start && ph < a.end).map((a) => a.text).join("\n") || null;
+  // 画内字幕 = 文本层的段（所有者 2026-10-09）
+  // 容许 1 毫秒：单击台本行跳到段开头时，引擎报回的位置可能比开头早一点点
+  const subtitleNow = ph == null ? null : segs.filter((a) => ph >= a.start - 1e-3 && ph < a.end).map((a) => a.text).join("\n") || null;
+  // 段与提示的菜单：台本行、画内字幕、时间线上的段 / 提示右键共用（场景 F）
+  const cur = asset ? { id: asset.id, label: trackName } : undefined;
+  const short = (x: string) => {
+    const v = x.replace(/\n/g, " ");
+    return v.length > 18 ? `${v.slice(0, 18)}…` : v;
+  };
+  const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+  const undoable = (text: string) => toast({ text, action: { label: t("common.undo"), run: () => void undo() } });
+  const removeSeg = (g: TextSegment) =>
+    call("edits.apply", { batch: { label: { code: "segment-delete", args: {} }, ops: [{ entity: "segment", id: g.id, version: g.version, fields: { deleted: true } }] } }).then(
+      () => undoable(g.usedBy ? t("seg.deletedUsed", { n: g.usedBy }) : t("seg.deleted")),
+      fail,
+    );
+  const removeHint = (h: SfxHint) =>
+    call("edits.apply", { batch: { label: { code: "hint-delete", args: {} }, ops: [{ entity: "sfx_hint", id: h.id, version: h.version, fields: { deleted: true } }] } }).then(
+      () => undoable(t("hint.deleted")),
+      fail,
+    );
+  const mergeNext = (g: TextSegment, next: TextSegment) => call("segments.merge", { ids: [g.id, next.id] }).then(() => undoable(t("seg.merged")), fail);
+  const segItems = (g: TextSegment, at: { x: number; y: number }, tt: number | null): MenuEntry[] => {
+    const i = segs.findIndex((x) => x.id === g.id);
+    const next = i >= 0 ? segs[i + 1] : undefined;
+    const splitAt = tt != null && tt > g.start + 0.02 && tt < g.end - 0.02 ? tt : (g.start + g.end) / 2;
+    return [
+      { id: `seg-clip:${g.id}`, label: t("seg.menu.clip"), disabled: editing, run: () => setClipFrom({ from: { kind: "segments", sourceId: row.id, ids: [g.id] }, at }) },
+      { id: `seg-speech:${g.id}`, label: t("seg.menu.speech"), run: () => requestSpeech({ entry: "segments", ids: [g.id], currentAsset: cur }) },
+      { id: `seg-edit:${g.id}`, label: t("seg.menu.edit"), disabled: editing, run: () => setAnnTarget({ mode: "edit-segment", seg: g }) },
+      { id: `seg-split:${g.id}`, label: t("seg.menu.split"), disabled: editing || g.end - g.start < 0.05, run: () => setAnnTarget({ mode: "split-segment", seg: g, at: splitAt }) },
+      { id: `seg-merge:${g.id}`, label: t("seg.menu.mergeNext"), disabled: editing || !next, run: () => void (next && mergeNext(g, next)) },
+      { id: `seg-delete:${g.id}`, label: g.usedBy ? t("seg.menu.deleteUsed", { n: g.usedBy }) : t("seg.menu.delete"), danger: true, disabled: editing, run: () => void removeSeg(g) },
+    ];
+  };
+  const hintItems = (h: SfxHint, at: { x: number; y: number }): MenuEntry[] => [
+    { id: `hint-clip:${h.id}`, label: t("hint.menu.clip"), disabled: editing, run: () => setClipFrom({ from: { kind: "hints", sourceId: row.id, ids: [h.id] }, at }) },
+    { id: `hint-edit:${h.id}`, label: t("hint.menu.edit"), disabled: editing, run: () => setAnnTarget({ mode: "edit-hint", hint: h }) },
+    { id: `hint-delete:${h.id}`, label: t("hint.menu.delete"), danger: true, disabled: editing, run: () => void removeHint(h) },
+  ];
+  /** 命中的段与提示：只有一个时动作直接列出（菜单头写明是哪一个），多个时各一个子菜单 */
+  const objectMenu = (gs: TextSegment[], hs: SfxHint[], at: { x: number; y: number }, tt: number | null): { head?: string; items: MenuItems } => {
+    if (gs.length + hs.length === 1)
+      return gs.length
+        ? { head: t("seg.menu.head", { text: short(gs[0]!.text) }), items: segItems(gs[0]!, at, tt) }
+        : { head: t("hint.menu.head", { text: short(hs[0]!.text) }), items: hintItems(hs[0]!, at) };
+    return {
+      items: [
+        ...gs.map((g) => ({ id: `seg:${g.id}`, label: t("seg.menu.sub", { text: short(g.text) }), items: segItems(g, at, tt) })),
+        ...hs.map((h) => ({ id: `hint:${h.id}`, label: t("hint.menu.sub", { text: short(h.text) }), items: hintItems(h, at) })),
+      ],
+    };
+  };
+  // 一键「导入到文本层」：按默认选项直接导入（OP/ED 有错时不登记 OP/ED，提示去逐对确认）
+  const quickImport = async () => {
+    try {
+      const r = await call("subtitles.importDefault", { sourceId: row.id });
+      const n = { segments: r.created.segments, hints: r.created.hints, oped: r.created.oped };
+      if (r.opedErrors) toast({ text: t("subimport.quickDoneOpedError", n), action: { label: t("subimport.quickOpedConfirm"), run: props.onImportSubtitles } });
+      else undoable(t("subimport.quickDone", n));
+    } catch (e) {
+      fail(e);
+    }
+  };
   const commitSel = (which: "a" | "b") => (v: number) => {
     const a = which === "a" ? v : (sel?.a ?? 0);
     const b = which === "b" ? v : (sel?.b ?? duration);
@@ -508,7 +600,19 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           ) : null}
           {/* 画面内字幕（规格 03 §3.4：纯文本画在画面内部底部，不执行样式指令） */}
           {subtitleNow ? (
-            <div className={s.videoSub} lang="ja" data-testid="video-subtitle" data-user-data="">
+            <div
+              className={s.videoSub}
+              lang="ja"
+              data-testid="video-subtitle"
+              data-user-data=""
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const p = playhead();
+                const gs = p == null ? [] : segs.filter((a) => p >= a.start && p < a.end).slice(0, 5);
+                if (gs.length) segMenu.open(e, objectMenu(gs, [], { x: e.clientX, y: e.clientY }, p));
+              }}
+            >
               {subtitleNow}
             </div>
           ) : null}
@@ -537,14 +641,17 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           </div>
         </div>
         <Transcript
-          anns={anns}
+          segs={segs}
           opeds={opeds}
           playhead={playhead()}
           sel={sel}
           hasSubtitleFile={!!row.subtitle_path}
+          canQuickImport={!!row.subtitle_path && !segs.length}
           onImport={props.onImportSubtitles}
+          onQuickImport={() => void quickImport()}
+          onMenu={(g, at) => segMenu.open({ clientX: at.x, clientY: at.y }, objectMenu([g], [], at, null))}
           onSelect={(a, b, mode) => {
-            // 单击 = 选区设为该句并跳到开头（不播放）；Shift 单击 = 扩展到该句
+            // 单击 = 选区设为该段并跳到开头（不播放）；Shift 单击 = 扩展到该段
             if (mode === "extend" && sel) setSel({ a: Math.min(sel.a, a), b: Math.max(sel.b, b) });
             else {
               setSel({ a, b });
@@ -645,12 +752,12 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             options={LAYER_IDS.map((id) => ({ id, label: t(`layers.${id}`) }))}
           />
           <span className={s.groupLabel}>{t("layers.lanes")}</span>
-          {(["sub", "seg", "ph", "derived"] as const).map((id) => (
+          {(["sub", "hint", "seg", "ph", "derived"] as const).map((id) => (
             <Checkbox key={id} isSelected={laneIds.has(id)} isDisabled={overlayId === (id as LayerId)} onChange={(on) => setLaneIds((x) => toggleSet(x, id, on))} label={t(`layers.${id}`)}>
               {t(`layers.${id}`)}
             </Checkbox>
           ))}
-          <span className={`${s.muted} ${s.layerHint}`}>{t("layers.hint")}</span>
+          <span className={`${s.muted} ${s.layerHint}`}>{t("layers.help")}</span>
         </div>
         )}
         <Timeline
@@ -663,11 +770,17 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           onEditBands={setEditBands}
           onEditFocus={setEditFocus}
           onContextMenu={(tt, hits, at) => {
-            const anns_ = [...hits.overlay, ...(hits.lane?.bands ?? [])]
-              .filter((b) => b.id?.startsWith("annotation:"))
-              .map((b) => anns.find((a) => `annotation:${a.id}` === b.id)!)
-              .filter((a, k, arr) => a && arr.indexOf(a) === k)
-              .slice(0, 5);
+            const ids = [...new Set([...hits.overlay, ...(hits.lane?.bands ?? [])].map((b) => b.id ?? ""))];
+            const hit = <T extends { id: string }>(prefix: string, list: T[]) =>
+              ids
+                .filter((x) => x.startsWith(prefix))
+                .map((x) => list.find((o) => `${prefix}${o.id}` === x))
+                .filter((o): o is T => !!o)
+                .slice(0, 5);
+            const gs = hit("segment:", segs);
+            const hs = hit("hint:", hints);
+            const tgs = hit("tag:", rtags);
+            const obj = gs.length + hs.length ? objectMenu(gs, hs, { x: at.clientX, y: at.clientY }, tt) : null;
             const derivedHits = hits.lane?.id === "derived" ? hits.lane.bands.slice(0, 5) : [];
             const setEdge = (side: "a" | "b") => {
               const a = side === "a" ? tt : (sel?.a ?? 0);
@@ -675,7 +788,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
               if (b > a) setSel({ a, b });
             };
             tlMenu.open(at, {
-              head: t("sources.atTime", { t: clock(tt) }),
+              head: obj?.head ? `${t("sources.atTime", { t: clock(tt) })} · ${obj.head}` : t("sources.atTime", { t: clock(tt) }),
               items: [
                 { id: "in", label: t("sources.setStart"), shortcut: "I", run: () => setEdge("a") },
                 { id: "out", label: t("sources.setEnd"), shortcut: "O", run: () => setEdge("b") },
@@ -684,13 +797,18 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
                 { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
                 { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
                 "-",
-                { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create", sourceId: row.id, start: sel.a, end: sel.b }) },
-                ...anns_.map((a) => ({
-                  id: `ann:${a.id}`,
-                  label: t("ann.editMenu", { name: a.name || a.text || a.tags.join(" ") }),
-                  disabled: editing,
-                  run: () => setAnnTarget({ mode: "edit", ann: a }),
-                })),
+                { id: "add-seg", label: t("seg.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-segment", sourceId: row.id, start: sel.a, end: sel.b }) },
+                { id: "add-hint", label: t("hint.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-hint", sourceId: row.id, start: sel.a, end: sel.b }) },
+                { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-tag", sourceId: row.id, start: sel.a, end: sel.b }) },
+                ...(obj ? (["-", ...obj.items] as MenuItems) : []),
+                ...(tgs.length
+                  ? (["-", ...tgs.map((g) => ({
+                      id: `tag:${g.id}`,
+                      label: t("ann.editTagMenu", { name: g.label || g.tags.join(" ") }),
+                      disabled: editing,
+                      run: () => setAnnTarget({ mode: "edit-tag", tag: g, shift: g.scope === "asset" ? offset : 0 }),
+                    }))] as MenuItems)
+                  : []),
                 ...derivedHits.map((b) => ({ id: `smp:${b.id}`, label: t("sources.openSample", { name: b.label }), run: () => openSample(b.id!) })),
               ],
             });
@@ -721,6 +839,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
         />
         {pick.node}
         {tlMenu.node}
+        {segMenu.node}
         <div className={s.actions}>
           <div className={s.group}>
             <Button variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">
@@ -740,6 +859,20 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           </div>
           <div className={s.group}>
             <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={selLocal} isOpen={clipOpen} onOpenChange={setClipOpen} />
+            {clipFrom ? (
+              <ClipPanel
+                from={clipFrom.from}
+                at={clipFrom.at}
+                assetId={asset?.id ?? null}
+                track={trackName}
+                sel={null}
+                isOpen
+                onOpenChange={(o) => !o && setClipFrom(null)}
+                currentAsset={cur ?? null}
+                // 看片时逐句建：留在原片页，提示里可以打开
+                afterSave={(id, name) => toast({ text: t("clip.savedHere", { name }), action: { label: t("clip.open"), run: () => openSample(id) } })}
+              />
+            ) : null}
             <Button variant="flat" icon={<AudioWaveform />} isDisabled={!sel || !asset || editing} onPress={flattenSel} data-testid="flatten">
               {t("flatten.action")}
             </Button>

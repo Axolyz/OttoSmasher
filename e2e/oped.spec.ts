@@ -8,7 +8,7 @@ import { launch } from "./helpers";
 const ts = (x: number) => `00:00:${String(Math.floor(x)).padStart(2, "0")},${String(Math.round((x % 1) * 1000)).padStart(3, "0")}`;
 const srt = (items: Array<[number, number, string]>) => items.map(([a, b, t], i) => `${i + 1}\n${ts(a)} --> ${ts(b)}\n${t}\n`).join("\n");
 
-// OP/ED（规格 05 §5.6、16 R6）：识别直接登记、弹窗来源与删除（可撤销）、出错时逐对确认、导入预览标出 OP 区间内的行
+// OP/ED（规格 05 §5.6、16 R6）：识别直接登记、弹窗来源与删除（可撤销）、出错时逐对确认、导入预览里 OP/ED 一类与已登记的比较
 test("OP/ED：识别、删除与撤销、逐对确认、导入预览", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-oped-"));
   const mkv = join(dir, "[Group] Oped Show [01].mkv");
@@ -55,11 +55,14 @@ test("OP/ED：识别、删除与撤销、逐对确认、导入预览", async () 
   const sid = await row.getAttribute("data-id");
   await expect.poll(count).toBe(2);
 
-  // 导入预览：OP 区间内的台词标“OP 区间内”，仍默认勾选
+  // 导入预览（四类一起进）：OP/ED 一类与已登记的两对比较 → 无变化
   await page.getByTestId("transcript-import").click();
   const sheet = page.getByTestId("subtitle-import");
-  await expect(sheet.getByTestId("stat-oped")).toContainText("5");
-  await expect(sheet.getByTestId("table-row").nth(1)).toContainText("OP 区间内");
+  await sheet.getByTestId("subimport-tab").getByRole("radio", { name: /OP\/ED/ }).click();
+  const pairs = sheet.getByTestId("subimport-oped-table").getByTestId("table-row");
+  await expect(pairs).toHaveCount(2);
+  await expect(pairs.nth(0)).toContainText("无变化");
+  await expect(pairs.nth(1)).toContainText("ED");
   await page.keyboard.press("Escape");
 
   // 出错：重复开始 → 不登记，弹窗列出配对，逐对确认（来源“人工确认”）

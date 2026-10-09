@@ -4,9 +4,9 @@ import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
-// S1.7（规格 16）：YY1-01 + 人声整轨（开发期钩子，S1.2）→ 默认人声轨 → 导入标记 → OP/ED →
-// 原片页「语音分析…」：分析默认人声轨上的台词行，不需要先建采样（所有者 2026-10-08：分析属于“这句”）；不触发分离、确认框 M/N/K；
-// 任务完成后再发起一次全部跳过；之后再从字幕建采样，采样直接读到这句的分析；截一个音节 = 只读到一部分（◐）；舞台显示音素。
+// S1.7（规格 16）：YY1-01 + 人声整轨（开发期钩子，S1.2）→ 默认人声轨 → 导入到文本层（含 OP/ED）→
+// 原片页「语音分析…」：分析默认人声轨上的台词段，不需要先建采样（所有者 2026-10-09：分析属于“段 + 那条轨”）；不触发分离、确认框 M/N/K；
+// 任务完成后再发起一次全部跳过；之后再从台词段批量建采样，采样直接读到这段的分析；截一个音节 = 只读到一部分（◐）；舞台显示音素。
 const FIX = process.env.OTTO_FIXTURES;
 const MODELS = resolve("dev-workspace/Models");
 test.skip(!FIX || !existsSync(join(MODELS, "pydomino", "phoneme_transition_model.onnx")), "需要 OTTO_FIXTURES 与 dev 模型");
@@ -28,9 +28,7 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   const vocals = await req<{ assetId: string }>("dev.registerStem", { sourceId: sid, path: join(FIX!, "stems", "YY1-01", "hyperacev2_vocals.mp3") });
   const tr = await req<{ sourceVersion: number }>("assets.tracks", { sourceId: sid });
   await req("edits.apply", { batch: { ops: [{ entity: "source", id: sid, version: tr.sourceVersion, fields: { default_vocal: vocals.assetId } }] } });
-  const pv = await req<{ token: string }>("subtitles.preview", { sourceId: sid });
-  await req("subtitles.import", { sourceId: sid, token: pv.token });
-  await req("oped.identify", { sourceId: sid });
+  await req("subtitles.importDefault", { sourceId: sid });
   const first = await req<{ run: number; blocked: number }>("speech.preview", { entry: "source", ids: [sid] });
   console.log("source entry lines", first.run);
   expect(first.run).toBeGreaterThan(250);
@@ -40,7 +38,7 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
   await page.getByTestId("prep").click();
-  await expect(page.getByTestId("prep-sp")).toContainText(`已分析 0 / ${first.run} 句`);
+  await expect(page.getByTestId("prep-sp")).toContainText(`已分析 0 / ${first.run} 段`);
   await page.getByTestId("prep-sp").getByRole("button").click();
   const dlg = page.getByTestId("speech-dialog");
   await expect(dlg.getByTestId("speech-run")).toContainText(String(first.run));
@@ -65,28 +63,37 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   expect(again.fresh).toBe(job.items.ok);
   expect(again.run).toBe(job.items.failed);
 
-  // 之后再从字幕建采样：直接读到这句的分析（不用重跑）
-  type Pv = { token: string; lines: Array<{ annotationId: string; name: string; status: string }> };
-  const lp = await req<Pv>("subtitleSamples.preview", { sourceId: sid, kind: "line" });
-  const pending = lp.lines.filter((l) => l.status === "pending");
-  await req("subtitleSamples.create", { sourceId: sid, kind: "line", token: lp.token, annotationIds: pending.map((l) => l.annotationId) });
+  // 之后再从台词段批量建采样（与逐句建是同一个动作）：直接读到这段的分析（不用重跑）
+  type Plan = { token: string; items: Array<{ key: string; status: string }> };
+  const from = { kind: "segments", sourceId: sid, track: "default" };
+  const lp = await req<Plan>("samples.plan", { from });
+  const pending = lp.items.filter((l) => l.status === "pending");
+  await req("samples.createPlanned", { from, token: lp.token, keys: pending.map((l) => l.key) });
   expect((await req<{ run: number }>("speech.preview", { entry: "source", ids: [sid] })).run).toBe(job.items.failed);
 
   // 舞台：アッカリ～ン 的音素
   type Row = { id: string; name: string; asset_id: string; start: number; end: number; analysis: string };
   const all = await req<{ rows: Row[] }>("samples.list", { offset: 0, limit: 500, text: "アッカリ" });
   const ak = all.rows.find((r) => r.name === "アッカリ～ン")!;
-  expect(ak.analysis).toBe("ok");
-  type View = { own: boolean; units: Array<{ unitId: string; kind: string }>; head: { partial?: boolean; result: { phones: Array<{ label: string; start: number; end: number }> } } };
+  // 对齐窗口 = 段 ± 0.65 秒，采样 = 段 ± 0.1 秒：边上的音素伸出采样范围时是 ◐（只读到这段的一部分）
+  expect(["ok", "partial"]).toContain(ak.analysis);
+  console.log("akkarin analysis", ak.analysis);
+  type Phones = { phones: Array<{ label: string; start: number; end: number }> };
+  type View = { units: Array<{ unitId: string; state: string; head: { result: Phones } }>; head: { partial?: boolean; result: Phones } };
   const view = await req<View>("speech.sample", { id: ak.id });
-  expect(view.own && view.units.length === 1 && view.units[0]!.kind === "line").toBe(true);
-  expect(view.head.result.phones.map((p) => p.label).join(" ")).toBe("a cl k a r i i N");
-  // 截一个音节（ka）：没有自己的台词，读到这句的一部分（◐）
+  expect(view.units.map((u) => u.state)).toEqual(["ok"]); // 判定区间 = 这段：只读这一段
+  // 这段的分析是整段的；采样只读到自己范围里的音素（字幕结束得比拖长音早时，尾巴在采样范围外 → 不读，列表 ◐）
+  const whole = view.units[0]!.head.result.phones.filter((p) => p.label !== "pau").map((p) => p.label).join(" ");
+  expect(whole).toBe("a cl k a r i i N");
+  const inside = view.head.result.phones.filter((p) => p.label !== "pau").map((p) => p.label).join(" ");
+  console.log("akkarin reads", inside);
+  expect(whole.startsWith(inside) || whole.endsWith(inside) || whole === inside).toBe(true);
+  // 截一个音节（ka）：判定区间 = 选区，读到这段的一部分（◐）
   const ka = view.head.result.phones.find((p) => p.label === "k")!;
   const kaEnd = view.head.result.phones[view.head.result.phones.indexOf(ka) + 1]!.end;
   const cut = await req<{ id: string }>("samples.create", { assetId: ak.asset_id, start: ka.start, end: kaEnd, name: "か", nature: "speech" });
   const cv = await req<View>("speech.sample", { id: cut.id });
-  expect(cv.own).toBe(false);
+  expect(cv.units.length).toBe(1);
   expect(cv.head.partial).toBe(true);
   expect(cv.head.result.phones.map((p) => p.label).join(" ")).toBe("k a");
   await page.keyboard.press("Escape");
@@ -94,7 +101,7 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   await page.getByTestId("refresh-lists").click().catch(() => {});
   await page.getByTestId("library-search").fill("アッカリ");
   await page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" }).first().click();
-  await expect(page.getByTestId("speech-phone")).toHaveCount(8);
+  await expect(page.getByTestId("speech-phone")).toHaveCount(view.head.result.phones.length);
   await expect(page.getByTestId("speech-status")).toHaveText("已分析 · pydomino");
   await page.waitForTimeout(800);
   await page.screenshot({ path: ".cache/playwright-results/real-speech-stage.png" });

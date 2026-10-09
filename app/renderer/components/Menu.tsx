@@ -1,5 +1,6 @@
 // 菜单（UI_PLAN §5、§6.1）：按钮菜单与右键菜单共用同一份菜单体——菜单头写明作用对象、分组、快捷键提示、危险项、子菜单。
 // 右键菜单在指针位置弹出，打开与关闭都不改变勾选和焦点；Esc 只关菜单（不会顺带清空勾选）。
+// 每一项带 data-testid="menu-<id>"（e2e 按 id 点，不按序号、不按文字——伪语言下也能用）。
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import {
@@ -72,7 +73,7 @@ function MenuBody(props: MenuSpec & { onClose?: () => void; testId?: string }) {
           {g.map((it) =>
             it.items ? (
               <SubmenuTrigger key={it.id}>
-                <MenuItem id={it.id} className={s.item} textValue={it.label}>
+                <MenuItem id={it.id} className={s.item} textValue={it.label} data-testid={`menu-${it.id}`}>
                   <span>{it.label}</span>
                   <ChevronRight size={13} className={s.subArrow} />
                 </MenuItem>
@@ -81,7 +82,7 @@ function MenuBody(props: MenuSpec & { onClose?: () => void; testId?: string }) {
                 </Popover>
               </SubmenuTrigger>
             ) : (
-              <MenuItem key={it.id} id={it.id} className={`${s.item} ${it.danger ? s.danger : ""}`} textValue={it.label}>
+              <MenuItem key={it.id} id={it.id} className={`${s.item} ${it.danger ? s.danger : ""}`} textValue={it.label} data-testid={`menu-${it.id}`}>
                 <span>{it.label}</span>
                 {it.shortcut ? <kbd className={s.kbd}>{it.shortcut}</kbd> : null}
               </MenuItem>

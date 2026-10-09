@@ -350,7 +350,7 @@ def test_migration_0012_builds_the_text_layer(tmp_path: Path):
           (rid, owner, 30.0 if rid == "R2" else 0.9, 31.0 if rid == "R2" else 2.1, dumps({"text": "てがき" if rid == "R2" else "あ"}), res, ts))
         x("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('asset_text', ?, 'alignment', ?, 1)", (owner, rid))
     x("INSERT INTO edit(id, seq, created_at, label_code, label_args) VALUES ('E1', 1, ?, 'subtitle-import', '{}')", (ts,))
-    migrate(conn, tmp_path / "bk")
+    migrate(conn, tmp_path / "bk", base[:12])
     segs = {r[0]: tuple(r[1:]) for r in x('SELECT id, start, "end", text, speakers, origin, edited FROM text_segment')}
     assert segs["L1"] == (11.0, 12.0, "あ", '["京子"]', "subtitle", 0) and segs["L3"] == (15.0, 16.0, "うたう", "[]", "subtitle", 1)
     assert "OLD" not in segs
@@ -370,3 +370,13 @@ def test_migration_0012_builds_the_text_layer(tmp_path: Path):
     x("INSERT INTO sample(id, asset_id, start, \"end\", name, created_via, created_at, updated_at) VALUES ('SM3', 'A', 5, 6, 'x', 'manual', ?, ?)", (ts, ts))
     assert tuple(x("SELECT tag_judge_start, tag_judge_end FROM sample WHERE id='SM3'").fetchone()) == (15.0, 16.0)
     assert x("SELECT name FROM upgrade_pending").fetchone()[0] == "effective-tags"
+    # 0013：删掉旧表与旧列；文本层与分析原样留着，外键完整
+    migrate(conn, tmp_path / "bk")
+    names = {r[0] for r in x("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert not names & {"annotation", "annotation_revision", "subtitle_line", "subtitle_version"}
+    assert "align_text_manual" not in {r[1] for r in x("PRAGMA table_info(sample)")}
+    assert "current_subtitle_version_id" not in {r[1] for r in x("PRAGMA table_info(source)")}
+    assert x("SELECT COUNT(*) FROM text_segment").fetchone()[0] == len(segs) and x("SELECT owner_id FROM measure_run WHERE id='R1'").fetchone()[0] == "seg:L1@A"
+    assert x("PRAGMA foreign_key_check").fetchall() == []
+    x("INSERT INTO sample(id, asset_id, start, \"end\", name, created_via, created_at, updated_at) VALUES ('SM4', 'A', 7, 8, 'y', 'manual', ?, ?)", (ts, ts))
+    assert tuple(x("SELECT tag_judge_start, tag_judge_end FROM sample WHERE id='SM4'").fetchone()) == (17.0, 18.0)

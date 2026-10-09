@@ -7,3 +7,5 @@
 .bad { color: var(--bad); }
 .muted { color: var(--muted); }
 .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 分析在哪条轨上（原片入口、段右键） */
+.trackRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }

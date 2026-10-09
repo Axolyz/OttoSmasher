@@ -25,10 +25,10 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   // 资料：一句「かかかかかか」（语音分析用真实模型，再存一个人工时间版本让音块确定），一个调谐单音
   const sid = await page.evaluate(async (p) => {
     const req = window.otto.core.request;
-    const add = (await req<Array<{ assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const add = (await req<Array<{ sourceId: string; assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string; assets: Array<{ assetId: string }> }> };
     const aid = add.r[0]!.assets[0]!.assetId;
     const c = (await req("samples.create", { assetId: aid, start: 0.9, end: 3.1, name: "かかかかかか", nature: "speech" })) as { r: { id: string; version: number } };
-    await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { align_text_manual: "かかかかかか" } }] } });
+    await req("segments.add", { sourceId: add.r[0]!.sourceId, start: 0.9, end: 3.1, text: "かかかかかか" }); // 台词 = 文本层的段（采样读判定区间里的段）
     await req("samples.create", { assetId: aid, start: 1.0, end: 1.2, name: "単音", nature: "pitched" });
     await req("speech.submit", { entry: "samples", ids: [c.r.id], rerunFresh: false });
     return c.r.id;
@@ -39,15 +39,17 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   await page.evaluate(
     async ({ id, onsets }) => {
       const req = window.otto.core.request;
-      const v = (await req("speech.sample", { id })) as { r: { head: { version: number; units: string[]; result: { phones: Array<{ label: string }> } } } };
+      // 人工时间改的是这段在这条轨上的分析（整段的音素，不是采样范围里合成的那份）
+      const v = (await req("speech.sample", { id })) as { r: { units: Array<{ unitId: string; headVersion: number; head: { result: { phones: Array<{ label: string }> } } }> } };
+      const u = v.r.units[0]!;
       let i = 0;
-      const lines = v.r.head.result.phones.map((p) => {
+      const lines = u.head.result.phones.map((p) => {
         const o = onsets[Math.floor(i / 2)]!;
         const line = p.label === "k" ? `${(o - 0.04).toFixed(3)}\t${o.toFixed(3)}\tk` : `${o.toFixed(3)}\t${(o + 0.2).toFixed(3)}\t${p.label}`;
         i += 1;
         return line;
       });
-      const r = await req("speech.saveManual", { unitId: v.r.head.units[0], version: v.r.head.version, text: lines.join("\n") }); // 改的是这句（文本单元）
+      const r = await req("speech.saveManual", { unitId: u.unitId, version: u.headVersion, text: lines.join("\n") });
       if (!r.ok) throw new Error(JSON.stringify(r.e));
     },
     { id: sid, onsets: ONSETS },

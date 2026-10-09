@@ -1,7 +1,9 @@
-// 分离结果 · 声音资产（规格 05 §5.5.2；任务抽屉「打开结果」）：每个声部可试听、保存为采样（名称“建议名 · 声部”，性质未分类）、⌥/Alt 拖出。
+// 分离结果 · 声音资产（规格 05 §5.5.2；任务抽屉「打开结果」）：每个声部可试听、保存为采样、⌥/Alt 拖出。
+// 保存为采样 = 统一的建采样动作（所有者 2026-10-09；来源 = 分离声部）：小面板里名称按规则预填（原片 · 模型 · 声部），性质按声部角色预填（C2），都可改。
 // 结果不会自动保存为采样，也不会自动设为默认轨。
 import { GripVertical, Play, Save, Square } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ClipPanel } from "../sources/ClipPanel";
 import { CoreFailure, call } from "../api/core";
 import type { AssetRecord } from "../api/types";
 import { Button } from "../components/Button";
@@ -17,6 +19,9 @@ export function SeparationResults({ jobId }: { jobId: string }) {
   const toast = useApp((st) => st.toast);
   const [rows, setRows] = useState<ResultAsset[] | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
+  const [clipFor, setClipFor] = useState<string | null>(null);
+  const setPage = useApp((st) => st.setPage);
+  const setOpenSample = useApp((st) => st.setOpenSample);
   useEffect(() => {
     void call("separation.results", { jobId }).then(setRows, () => setRows([]));
   }, [jobId]);
@@ -33,15 +38,6 @@ export function SeparationResults({ jobId }: { jobId: string }) {
       await window.otto.player.audition(a.id, 0, a.duration);
     } catch (e) {
       setPlaying(null);
-      fail(e);
-    }
-  };
-  const save = async (a: ResultAsset) => {
-    try {
-      const sg = await call("samples.suggest", { assetId: a.id, start: 0, end: a.duration, localMarker: t("naming.local") });
-      const smp = await call("samples.create", { assetId: a.id, start: 0, end: a.duration, name: `${sg.name} · ${a.stem_name}`, nature: "unclassified" });
-      toast({ text: t("clip.saved", { name: smp.name }) });
-    } catch (e) {
       fail(e);
     }
   };
@@ -68,9 +64,22 @@ export function SeparationResults({ jobId }: { jobId: string }) {
           {a.roles.length ? <span className={s.chip}>{a.roles.map((r) => t(`role.${r}`)).join(" + ")}</span> : null}
           <span className={s.grow} />
           <Button size="sm" variant="flat" icon={playing === a.id ? <Square /> : <Play />} onPress={() => void audition(a)} aria-label={t("library.audition")} />
-          <Button size="sm" variant="flat" icon={<Save />} onPress={() => void save(a)}>
-            {t("sep.saveAsSample")}
-          </Button>
+          <ClipPanel
+            from={{ kind: "stem", assetId: a.id }}
+            assetId={a.id}
+            track={a.stem_name ?? ""}
+            sel={null}
+            isOpen={clipFor === a.id}
+            onOpenChange={(o) => setClipFor(o ? a.id : null)}
+            afterSave={(id, name) =>
+              toast({ text: t("clip.savedHere", { name }), action: { label: t("clip.open"), run: () => (setOpenSample(id), setPage("library")) } })
+            }
+            trigger={
+              <Button size="sm" variant="flat" icon={<Save />} data-testid="sep-save">
+                {t("sep.saveAsSample")}
+              </Button>
+            }
+          />
         </div>
       ))}
     </div>

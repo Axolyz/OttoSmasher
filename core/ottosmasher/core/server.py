@@ -217,6 +217,8 @@ class Core:
           lambda p: self.subtitles.import_many(list(p["items"])))
         r("textLayer.list", "read", T.TextLayerParams, T.TextLayerList, "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",
           lambda p: text_layer_mod.list_for_source(self.conn, p["sourceId"], p.get("assetId")))
+        r("segments.get", "read", T.IdParams, T.TextSegment, "One text segment (with usage count and protection flags).",
+          lambda p: text_layer_mod.get_segment(self.conn, p["id"]))
         r("segments.checkAdd", "read", T.SegmentRangeParams, T.SegmentAddCheck, "Which segments a new typed segment would overlap, and whether cut is possible.",
           lambda p: self.text.check_add(p["sourceId"], float(p["start"]), float(p["end"])))
         r("segments.add", "write", T.SegmentAddParams, T.SegmentAdded, "Add a typed segment to the text layer (replace or cut overlapping ones when asked).",
