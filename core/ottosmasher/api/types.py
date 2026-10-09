@@ -2588,3 +2588,38 @@ class IndependParams(TypedDict):
     ids: list[str]
     # 独立化完成后接着删除这个原片（原片保留为“媒体已释放”）
     deleteSource: NotRequired[str | None]
+
+
+class StorageCategory(TypedDict):
+    key: Literal["cache", "searchIndex", "measurements", "tracks", "independent", "exports", "jobs", "database"]
+    bytes: int
+    # 现在可以清理的量（15 分钟内生成的不算）；永不当缓存删的类别为 0
+    cleanable: int
+    files: int
+    # 15 分钟内生成 / 修改的文件数（受保护）
+    recent: int
+
+
+class StorageSource(TypedDict):
+    sourceId: str
+    name: str
+    bytes: int
+    files: int
+
+
+class StorageReport(TypedDict):
+    categories: list[StorageCategory]
+    sources: list[StorageSource]
+    idleCleanup: bool
+    lastAuto: float | None
+
+
+class StorageCleanParams(TypedDict):
+    # 同时清掉语音检索索引与单音指标（数据库里的派生数据，之后后台重建）
+    derived: NotRequired[bool]
+
+
+class StorageCleaned(TypedDict):
+    files: int
+    bytes: int
+    rows: int

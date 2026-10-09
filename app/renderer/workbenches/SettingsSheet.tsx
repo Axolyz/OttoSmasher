@@ -12,6 +12,7 @@ import { DictionaryPanel } from "./DictionaryPanel";
 import { ModelsPanel } from "./ModelsPanel";
 import { RoleAliasEditor } from "./RoleAliasEditor";
 import { RootsPanel } from "./RootsPanel";
+import { StoragePanel } from "./StoragePanel";
 import { StudioPanel } from "./StudioPanel";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
@@ -52,6 +53,7 @@ const CHOICES: Record<string, string[]> = {
   // REAPER 交接的吸附（12 §12.3）
   "export.reaper_snap": ["onset", "start"],
   "export.reaper_kind": ["baked", "unbaked"],
+  "export.video_codec": ["h264", "prores"],
 };
 const choiceLabel = (key: string, v: string) =>
   key === "studio.device"
@@ -170,6 +172,7 @@ export function SettingsSheet() {
         </nav>
         <div className={s.list}>
           {group === "source" ? <RootsPanel /> : null}
+          {group === "storage" ? <StoragePanel /> : null}
           {group === "studio" ? (
             <StudioPanel vocalModel={String(settings["studio.vocal_model"]?.value ?? "")} onVocalModel={(m) => void save("studio.vocal_model", m)} />
           ) : null}

@@ -1983,6 +1983,38 @@ export interface StemRegistered {
   stem: string;
 }
 
+export interface StorageCategory {
+  bytes: number;
+  cleanable: number;
+  files: number;
+  key: "cache" | "database" | "exports" | "independent" | "jobs" | "measurements" | "searchIndex" | "tracks";
+  recent: number;
+}
+
+export interface StorageCleanParams {
+  derived?: boolean;
+}
+
+export interface StorageCleaned {
+  bytes: number;
+  files: number;
+  rows: number;
+}
+
+export interface StorageReport {
+  categories: StorageCategory[];
+  idleCleanup: boolean;
+  lastAuto: number | null;
+  sources: StorageSource[];
+}
+
+export interface StorageSource {
+  bytes: number;
+  files: number;
+  name: string;
+  sourceId: string;
+}
+
 export interface StreamAssetCreated {
   assetId: string | null;
   ordinal: number;
@@ -2410,6 +2442,8 @@ export interface Commands {
   "app.prepareQuit": { params: NoParams; result: PrepareQuit; effect: "app" };
   /** Cancel jobs and stop Core. */
   "app.quit": { params: QuitParams; result: Quit; effect: "app" };
+  /** The UI reports real user input (idle timer for automatic cache cleanup; polling does not count). */
+  "app.userInput": { params: NoParams; result: null; effect: "read" };
   /** One sound asset. */
   "assets.get": { params: IdParams; result: AssetRecord; effect: "read" };
   /** All sound assets of a source, full tracks first. */
@@ -2638,6 +2672,10 @@ export interface Commands {
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
   /** Make another successful version of a segment on a track the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
+  /** Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index. */
+  "storage.clean": { params: StorageCleanParams; result: StorageCleaned; effect: "write" };
+  /** Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source. */
+  "storage.report": { params: NoParams; result: StorageReport; effect: "read" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
   /** Import a subtitle file as previewed (one atomic, undoable edit). */
@@ -2828,6 +2866,7 @@ export type ErrorCode =
   | "speech-invalid"
   | "speech-nothing-to-do"
   | "speech-query-invalid"
+  | "storage-busy"
   | "stream-not-found"
   | "stretch-render-failed"
   | "studio-failed"

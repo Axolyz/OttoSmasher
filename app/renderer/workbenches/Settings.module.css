@@ -40,3 +40,4 @@
 .dictPreview { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--line2); }
 .dictResult { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); user-select: text; }
 .dictWord { display: inline-flex; gap: 2px; margin-right: 10px; }
+.storageActions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0; }

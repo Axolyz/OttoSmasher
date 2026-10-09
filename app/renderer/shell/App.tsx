@@ -74,6 +74,21 @@ export function App() {
     return () => window.removeEventListener("otto:refresh-lists", on);
   }, [st]);
 
+  // 真实用户输入（键盘、指针、滚轮）报给 Core，作空闲自动整理的计时（13 §13.3.3：界面轮询不算）；最多 15 秒一次
+  useEffect(() => {
+    let last = 0;
+    const on = () => {
+      const now = Date.now();
+      if (now - last < 15000) return;
+      last = now;
+      void call("app.userInput", {}).catch(() => {});
+    };
+    for (const ev of ["keydown", "pointerdown", "wheel"]) window.addEventListener(ev, on, { passive: true, capture: true });
+    return () => {
+      for (const ev of ["keydown", "pointerdown", "wheel"]) window.removeEventListener(ev, on, { capture: true });
+    };
+  }, []);
+
   // 视频片段导出完成（任务）：播放条显示文件，提示里写补了几帧黑帧（规格 12 §12.5）
   useEffect(
     () =>

@@ -24,6 +24,17 @@
    }
   },
   {
+   "name": "app.userInput",
+   "effect": "read",
+   "summary": "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "null"
+   }
+  },
+  {
    "name": "assets.get",
    "effect": "read",
    "summary": "One sound asset.",
@@ -1343,6 +1354,28 @@
    },
    "result": {
     "$ref": "#/$defs/SpeechHeadRef"
+   }
+  },
+  {
+   "name": "storage.clean",
+   "effect": "write",
+   "summary": "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
+   "params": {
+    "$ref": "#/$defs/StorageCleanParams"
+   },
+   "result": {
+    "$ref": "#/$defs/StorageCleaned"
+   }
+  },
+  {
+   "name": "storage.report",
+   "effect": "read",
+   "summary": "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/StorageReport"
    }
   },
   {
@@ -2688,6 +2721,13 @@
     "reason"
    ],
    "summary": "The speech search query is invalid (unknown field, out of range, overlapping or too-close notes)."
+  },
+  {
+   "code": "storage-busy",
+   "args": [
+    "jobs"
+   ],
+   "summary": "Cleanup is refused while jobs are queued or running."
   },
   {
    "code": "stream-not-found",
@@ -12709,6 +12749,134 @@
     "assetId",
     "model",
     "stem"
+   ]
+  },
+  "StorageCategory": {
+   "title": "StorageCategory",
+   "type": "object",
+   "properties": {
+    "bytes": {
+     "type": "integer"
+    },
+    "cleanable": {
+     "type": "integer"
+    },
+    "files": {
+     "type": "integer"
+    },
+    "key": {
+     "enum": [
+      "cache",
+      "database",
+      "exports",
+      "independent",
+      "jobs",
+      "measurements",
+      "searchIndex",
+      "tracks"
+     ]
+    },
+    "recent": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "bytes",
+    "cleanable",
+    "files",
+    "key",
+    "recent"
+   ]
+  },
+  "StorageCleanParams": {
+   "title": "StorageCleanParams",
+   "type": "object",
+   "properties": {
+    "derived": {
+     "type": "boolean"
+    }
+   },
+   "required": []
+  },
+  "StorageCleaned": {
+   "title": "StorageCleaned",
+   "type": "object",
+   "properties": {
+    "bytes": {
+     "type": "integer"
+    },
+    "files": {
+     "type": "integer"
+    },
+    "rows": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "bytes",
+    "files",
+    "rows"
+   ]
+  },
+  "StorageReport": {
+   "title": "StorageReport",
+   "type": "object",
+   "properties": {
+    "categories": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/StorageCategory"
+     }
+    },
+    "idleCleanup": {
+     "type": "boolean"
+    },
+    "lastAuto": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sources": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/StorageSource"
+     }
+    }
+   },
+   "required": [
+    "categories",
+    "idleCleanup",
+    "lastAuto",
+    "sources"
+   ]
+  },
+  "StorageSource": {
+   "title": "StorageSource",
+   "type": "object",
+   "properties": {
+    "bytes": {
+     "type": "integer"
+    },
+    "files": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "bytes",
+    "files",
+    "name",
+    "sourceId"
    ]
   },
   "StreamAssetCreated": {

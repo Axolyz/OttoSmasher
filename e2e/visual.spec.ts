@@ -76,3 +76,16 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await page.keyboard.press("Escape");
   await app.close();
 });
+
+test("设置 → 存储与缓存：按类别列出、手动清理", async () => {
+  const { app, page } = await launch();
+  await page.setViewportSize({ width: 1536, height: 864 });
+  await page.keyboard.press("Meta+,");
+  await page.getByTestId("settings-group-storage").click();
+  await expect(page.getByTestId("storage-panel")).toContainText("可重建缓存");
+  await expect(page.getByTestId("storage-panel")).toContainText("测量结果");
+  await page.getByTestId("storage-clean").click();
+  await expect(page.getByText(/已清理 \d+ 个文件/)).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/09-storage.png` });
+  await app.close();
+});

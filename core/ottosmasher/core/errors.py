@@ -106,6 +106,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "video-probe-failed": (("detail", "path"), "Cannot read the video stream."),
     "video-export-failed": (("detail",), "Video clip export failed."),
     "independ-invalid": (("id", "reason"), "Samples cannot be made independent as requested."),
+    "storage-busy": (("jobs",), "Cleanup is refused while jobs are queued or running."),
     "media-released": (("end", "id", "start"), "The source media was released; only the independent slices can be read."),
     "reimport-invalid": (("path", "reason"), "The file cannot be reimported."),
     "reimport-out-of-bounds": (("duration", "end", "start"), "From the selection start the reimported file runs past the current asset."),

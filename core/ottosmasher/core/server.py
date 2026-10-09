@@ -368,6 +368,13 @@ class Core:
           "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
           lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified",
                                          parent_sample_id=p.get("parentSampleId")))
+        r("storage.report", "read", T.NoParams, T.StorageReport, "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
+          lambda p: self.storage.report())
+        r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,
+          "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
+          lambda p: self.storage.clean(derived=bool(p.get("derived"))))
+        r("app.userInput", "read", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
+          lambda p: self.storage.user_input())
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
           lambda p: self.search.results())
         r("results.page", "read", T.ResultPageParams, T.ResultPage,
@@ -459,6 +466,10 @@ class Core:
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
         self.auto.kick_all()  # 启动时把检索的准备补齐一次（后台，所有者 2026-10-08）
         self._readings_soon(1.0)
+        from .storage import StorageService
+
+        self.storage = StorageService(self.conn, self.ws, self.jobs)
+        self._storage_soon()
 
     def _upgrade_steps(self) -> None:
         """迁移后在 Python 里补做的步骤（``upgrade_pending``；做完就删，失败下次打开再做）。"""
@@ -514,6 +525,22 @@ class Core:
         self._readings_timer = threading.Timer(delay, lambda: self.post(self._fill_readings))
         self._readings_timer.daemon = True
         self._readings_timer.start()
+
+    def _storage_soon(self) -> None:
+        """空闲时自动整理可重建缓存（13 §13.3.3）：每分钟在主循环里看一次条件。"""
+        t = threading.Timer(60.0, lambda: self.post(self._storage_tick))
+        t.daemon = True
+        t.start()
+
+    def _storage_tick(self) -> None:
+        try:
+            r = self.storage.tick()
+            if r and r["files"]:
+                log.info("idle cleanup removed %s files (%s bytes)", r["files"], r["bytes"])
+        except Exception:  # noqa: BLE001 — 整理失败不影响别的
+            log.exception("idle cleanup failed")
+        if not self._stop:
+            self._storage_soon()
 
     def _fill_readings(self) -> None:
         try:

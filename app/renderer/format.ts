@@ -53,3 +53,15 @@ export function stem(path: string): string {
   const i = b.lastIndexOf(".");
   return i > 0 ? b.slice(0, i) : b;
 }
+
+/** 文件大小（Q21：全应用一种固定格式）：1,024 进位，B / KB / MB / GB，保留一位小数 */
+export function fileSize(n: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return i === 0 ? `${v} B` : `${v.toFixed(1)} ${units[i]}`;
+}
