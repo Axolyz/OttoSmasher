@@ -1,4 +1,4 @@
-"""有效标签：规格 04 §4.2.9、16 R5.2–R5.4、R8.6–R8.8。"""
+"""有效标签：规格 04 §4.2.9、16 R5.2–R5.4、R8.6–R8.8；所有者 2026-10-09：区段标签是独立对象，说话人是文本层的段的属性，按判定区间继承。"""
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -19,13 +19,20 @@ def env(db):
     return sid, EditService(db), SampleService(db)
 
 
-def ann(edits, sid, start, end, tags, *, scope="role", role="vocal", asset_id=None, kind="tag"):
-    fields = {"source_id": sid, "kind": kind, "scope": scope, "start": start, "end": end, "tags": tags}
+def ann(edits, sid, start, end, tags, *, scope="role", role="vocal", asset_id=None):
+    """区段标签（用户显式画的）。"""
+    fields = {"source_id": sid, "scope": scope, "start": start, "end": end, "tags": tags}
     if scope == "role":
         fields["scope_role"] = role
     if scope == "asset":
         fields["scope_asset_id"] = asset_id
-    r = edits.apply({"ops": [{"entity": "annotation", "op": "create", "fields": fields}]})
+    r = edits.apply({"ops": [{"entity": "range_tag", "op": "create", "fields": fields}]})
+    return r["changes"][0]["id"]
+
+
+def seg(edits, sid, start, end, speakers):
+    """文本层的一段（说话人是它的属性）。"""
+    r = edits.apply({"ops": [{"entity": "segment", "op": "create", "fields": {"source_id": sid, "start": start, "end": end, "text": "あ", "speakers": speakers, "origin": "subtitle"}}]})
     return r["changes"][0]["id"]
 
 
@@ -78,39 +85,28 @@ def test_local_wins_and_counts_once(db, env):
     assert [r[0] for r in rows] == ["local"]
 
 
-def test_only_current_subtitle_version_and_deleted_annotations(db, env):
+def test_speakers_from_segments_deleted_and_undo(db, env):
     sid, edits, samples = env
     a = asset(db, sid, snapshot="a", roles=["vocal"])
-    v_old, v_new = new_id(), new_id()
-    for v in (v_old, v_new):
-        db.execute(
-            "INSERT INTO subtitle_version(id, source_id, content_hash, file_name, imported_at) VALUES (?, ?, ?, 'x.srt', ?)", (v, sid, v, now_iso())
-        )
-    edits.apply({"ops": [{"entity": "annotation", "op": "create", "fields": {"source_id": sid, "kind": "line", "scope": "role", "scope_role": "vocal", "start": 1, "end": 2, "tags": ["character:旧"], "subtitle_version_id": v_old}}]})
-    edits.apply({"ops": [{"entity": "annotation", "op": "create", "fields": {"source_id": sid, "kind": "line", "scope": "role", "scope_role": "vocal", "start": 1, "end": 2, "tags": ["character:新"], "subtitle_version_id": v_new}}]})
+    t = seg(edits, sid, 1, 2, ["京子"])
     s = samples.create(a, 1.2, 1.5, name="x")["id"]
-    src_v = lambda: db.execute("SELECT version FROM source WHERE id=?", (sid,)).fetchone()[0]  # noqa: E731
-    edits.apply({"ops": [{"entity": "source", "id": sid, "version": src_v(), "fields": {"current_subtitle_version_id": v_old}}]})
-    assert tags(db, s, "segment") == ["character:旧"]
-    edits.apply({"ops": [{"entity": "source", "id": sid, "version": src_v(), "fields": {"current_subtitle_version_id": v_new}}]})
-    assert tags(db, s, "segment") == ["character:新"]
-    # 删除标注（软删除）→ 不再继承；撤销 → 回来
-    aid = db.execute("SELECT id, version FROM annotation WHERE subtitle_version_id=?", (v_new,)).fetchone()
-    edits.apply({"ops": [{"entity": "annotation", "id": aid[0], "version": aid[1], "fields": {"deleted": True}}]})
+    assert tags(db, s, "segment") == ["character:京子"]
+    v = db.execute("SELECT version FROM text_segment WHERE id=?", (t,)).fetchone()[0]
+    edits.apply({"ops": [{"entity": "segment", "id": t, "version": v, "fields": {"deleted": True}}]})
     assert tags(db, s, "segment") == []
     edits.undo()
-    assert tags(db, s, "segment") == ["character:新"]
+    assert tags(db, s, "segment") == ["character:京子"]
 
 
-def test_subtitle_sample_uses_tag_judge_interval(db, env):
-    """字幕采样用标签判定区间（原字幕时间）：扩展部分碰到的邻句说话人不继承（S1.6、R4.8）。"""
+def test_judge_interval_decides_inheritance(db, env):
+    """判定区间（从段建的 = 段区间）：扩展部分碰到的邻句说话人不继承（S1.6）；判定区间可见可改。"""
     sid, edits, samples = env
     a = asset(db, sid, snapshot="a", roles=["vocal"])
-    ann(edits, sid, 1.0, 2.0, ["character:京子"])
-    ann(edits, sid, 2.05, 3.0, ["character:結衣"])
+    seg(edits, sid, 1.0, 2.0, ["京子"])
+    seg(edits, sid, 2.05, 3.0, ["結衣"])
     s = samples.create(a, 0.9, 2.1, name="x")["id"]  # 选区 ±0.1，碰到結衣
-    db.execute("UPDATE sample SET tag_judge_start=1.0, tag_judge_end=2.0 WHERE id=?", (s,))
-    eff.refresh(db, [s])
+    assert tags(db, s, "segment") == ["character:京子", "character:結衣"]
+    edits.apply({"ops": [{"entity": "sample", "id": s, "version": 1, "fields": {"judge": [1.0, 2.0]}}]})
     assert tags(db, s, "segment") == ["character:京子"]
 
 
@@ -118,7 +114,7 @@ def test_subtitle_sample_uses_tag_judge_interval(db, env):
 
 OPS = st.lists(
     st.tuples(
-        st.sampled_from(["ann", "del_ann", "move_ann", "roles", "work", "local", "sample"]),
+        st.sampled_from(["ann", "del_ann", "move_ann", "seg", "seg_speak", "judge", "roles", "work", "local", "sample"]),
         st.integers(0, 3),
         st.floats(0, 9),
         st.floats(0.05, 3),
@@ -137,19 +133,29 @@ def test_incremental_equals_full_rebuild(db, ops):
     assets = [asset(db, sid, snapshot=f"s{i}", ordinal=i) for i in range(2)]
     smps = [samples.create(assets[i % 2], i, i + 1.5, name=f"s{i}")["id"] for i in range(4)]
     anns: list[str] = []
+    segs: list[str] = []
     for kind, k, x, w in ops:
         if kind == "ann":
             scope = ["source", "role", "asset"][k % 3]
-            fields = {"source_id": sid, "kind": "tag", "scope": scope, "start": x, "end": x + w, "tags": [f"t:{k}", "character:京子" if k % 2 else "x:y"]}
+            fields = {"source_id": sid, "scope": scope, "start": x, "end": x + w, "tags": [f"t:{k}", "character:京子" if k % 2 else "x:y"]}
             if scope == "role":
                 fields["scope_role"] = ["vocal", "sfx"][k % 2]
             if scope == "asset":
                 fields["scope_asset_id"] = assets[k % 2]
-            anns.append(edits.apply({"ops": [{"entity": "annotation", "op": "create", "fields": fields}]})["changes"][0]["id"])
+            anns.append(edits.apply({"ops": [{"entity": "range_tag", "op": "create", "fields": fields}]})["changes"][0]["id"])
         elif kind in ("del_ann", "move_ann") and anns:
-            a_id, ver = db.execute("SELECT id, version FROM annotation WHERE id=?", (anns[k % len(anns)],)).fetchone()
+            a_id, ver = db.execute("SELECT id, version FROM range_tag WHERE id=?", (anns[k % len(anns)],)).fetchone()
             f = {"deleted": True} if kind == "del_ann" else {"start": x, "end": x + w}
-            edits.apply({"ops": [{"entity": "annotation", "id": a_id, "version": ver, "fields": f}]})
+            edits.apply({"ops": [{"entity": "range_tag", "id": a_id, "version": ver, "fields": f}]})
+        elif kind == "seg":
+            segs.append(seg(edits, sid, x, x + w, [["京子"], ["結衣"], ["京子", "結衣"], []][k]))
+        elif kind == "seg_speak" and segs:
+            t_id, ver = db.execute("SELECT id, version FROM text_segment WHERE id=?", (segs[k % len(segs)],)).fetchone()
+            edits.apply({"ops": [{"entity": "segment", "id": t_id, "version": ver, "fields": {"speakers": [f"P{k}"], "start": x, "end": x + w}}]})
+        elif kind == "judge":
+            s = smps[k % len(smps)]
+            st_, en_, ver = db.execute('SELECT start, "end", version FROM sample WHERE id=?', (s,)).fetchone()
+            edits.apply({"ops": [{"entity": "sample", "id": s, "version": ver, "fields": {"judge": [st_, st_ + (en_ - st_) * (k + 1) / 4]}}]})
         elif kind == "roles":
             a = assets[k % 2]
             ver = db.execute("SELECT version FROM sound_asset WHERE id=?", (a,)).fetchone()[0]

@@ -21,34 +21,13 @@ export interface AlignedPhone {
   start: number;
 }
 
-export interface AnnotationList {
-  annotations: AnnotationRow[];
-  derived: DerivedSample[];
-  opeds: OpedRange[];
-}
-
-export interface AnnotationRow {
-  end: number;
-  fromSubtitle: boolean;
-  id: string;
-  kind: "line" | "sfx" | "song" | "tag";
-  name: string;
-  oped: "ED" | "OP" | null;
-  scope: "asset" | "role" | "source";
-  scopeRole: "sfx" | "vocal" | null;
-  speakers: string[];
-  start: number;
-  tags: string[];
-  text: string;
-  version: number;
-}
-
 export interface AssetAlignment {
-  kind: "line" | "typed";
   manual: boolean;
-  name: string | null;
+  name: string;
+  ordinal: number;
   phones: AlignedPhone[];
   runId: string;
+  segmentId: string;
   unitId: string;
 }
 
@@ -129,14 +108,15 @@ export interface Classified {
 
 export interface DeletePreview {
   activeJobs: string[];
-  annotations: number;
   generatedAssets: number;
+  hints: number;
   independentSamples: number;
   oped: number;
   path: string;
+  rangeTags: number;
   samples: number;
+  segments: number;
   sourceId: string;
-  subtitleVersions: number;
 }
 
 export interface Deleted {
@@ -400,6 +380,13 @@ export interface Hello {
   schema_version: number;
   version: string;
   workspace: string;
+}
+
+export interface HintAddParams {
+  end: number;
+  sourceId: string;
+  start: number;
+  text: string;
 }
 
 export interface HitExportParams {
@@ -849,6 +836,18 @@ export interface QuitParams {
   cancel_jobs?: boolean;
 }
 
+export interface RangeTagRow {
+  end: number;
+  id: string;
+  label: string;
+  scope: "asset" | "role" | "source";
+  scopeAssetId: string | null;
+  scopeRole: "sfx" | "vocal" | null;
+  start: number;
+  tags: string[];
+  version: number;
+}
+
 export interface ReaperHandoff {
   clipboard: string;
   count: number;
@@ -1143,14 +1142,23 @@ export interface RuntimeStatus {
   onnxruntime: OnnxRuntimeStatus;
 }
 
+/** 单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。 */
 export interface SampleCreateParams {
   assetId: string;
-  createdVia?: string;
   end: number;
-  name: string;
+  name?: string | null;
   nature?: string | null;
   parentSampleId?: string | null;
   start: number;
+  via?: "hit" | "manual";
+}
+
+export interface SampleCreatePlannedParams {
+  from: SamplePlanSource;
+  keys: string[];
+  nature?: string | null;
+  overrides?: Record<string, SampleOverride> | null;
+  token: string;
 }
 
 export interface SampleFilter {
@@ -1161,8 +1169,9 @@ export interface SampleFilter {
   text?: string;
 }
 
-export interface SampleIds {
-  sampleIds: string[];
+export interface SampleOverride {
+  name?: string;
+  nature?: string;
 }
 
 export interface SamplePage {
@@ -1171,8 +1180,66 @@ export interface SamplePage {
   total: number;
 }
 
+export interface SamplePlan {
+  items: SamplePlanItem[];
+  kind: string;
+  missingDefault: "sfx" | "vocal" | null;
+  pads: number[] | null;
+  token: string;
+  track: SamplePlanTrack | null;
+}
+
+export interface SamplePlanItem {
+  assetId: string | null;
+  createdVia: string;
+  end: number;
+  judgeEnd: number | null;
+  judgeStart: number | null;
+  key: string;
+  name: string;
+  nature: "pitched" | "speech" | "unclassified" | "unpitched";
+  origin: Record<string, unknown> | null;
+  parentSampleId: string | null;
+  snapshot: Record<string, unknown> | null;
+  sourceEnd?: number;
+  sourceStart?: number;
+  speakers?: string[];
+  start: number;
+  status: "no-name" | "oped" | "out-of-track" | "pending";
+}
+
+export interface SamplePlanParams {
+  from: SamplePlanSource;
+}
+
+/**
+ * 建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
+ *
+ *     selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；
+ *     segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
+ *     stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。
+ */
+export interface SamplePlanSource {
+  assetId?: string | null;
+  end?: number | null;
+  ids?: string[] | null;
+  kind: "hints" | "segments" | "selection" | "stem" | "whole";
+  localMarker?: string;
+  parentSampleId?: string | null;
+  sourceId?: string;
+  sourceIds?: string[];
+  start?: number | null;
+  track?: "current" | "default";
+  via?: "hit" | "manual";
+}
+
+export interface SamplePlanTrack {
+  assetId: string;
+  roles: ("sfx" | "vocal")[];
+}
+
 export interface SampleRow {
-  analysis: "failed" | "manual" | "none" | "ok" | "partial";
+  analysis: "failed" | "incomplete" | "manual" | "none" | "ok" | "partial" | "stale";
   asset_id: string;
   asset_origin: string;
   created_at: string;
@@ -1207,6 +1274,11 @@ export interface SampleSuggestion {
   nature: "pitched" | "speech" | "unclassified" | "unpitched";
   roles: ("sfx" | "vocal")[];
   start: number;
+}
+
+export interface SamplesCreated {
+  created: number;
+  ids: string[];
 }
 
 export interface SamplesListParams {
@@ -1284,6 +1356,55 @@ export interface SearchStats {
   windows: number;
 }
 
+export interface SegmentAddCheck {
+  canCut: boolean;
+  conflicts: SegmentConflict[];
+}
+
+export interface SegmentAddParams {
+  end: number;
+  resolve?: "cut" | "replace" | null;
+  sourceId: string;
+  start: number;
+  text: string;
+}
+
+export interface SegmentAdded {
+  editId: string | null;
+  id: string | null;
+}
+
+export interface SegmentConflict {
+  end: number;
+  id: string;
+  start: number;
+  text: string;
+}
+
+export interface SegmentMergeParams {
+  ids: string[];
+  text?: string | null;
+}
+
+export interface SegmentRangeParams {
+  end: number;
+  sourceId: string;
+  start: number;
+}
+
+export interface SegmentSplitParams {
+  at: number;
+  id: string;
+  left: string;
+  right: string;
+  version: number;
+}
+
+export interface SegmentsSplit {
+  editId: string | null;
+  ids: string[];
+}
+
 export interface SeparationSubmitParams {
   assetId: string;
   end?: number | null;
@@ -1302,6 +1423,18 @@ export interface SettingEntry {
   default: unknown;
   group: string;
   value: unknown;
+  version: number;
+}
+
+export interface SfxHint {
+  edited: boolean;
+  end: number;
+  id: string;
+  oped: "ED" | "OP" | null;
+  origin: "manual" | "subtitle";
+  protected: boolean;
+  start: number;
+  text: string;
   version: number;
 }
 
@@ -1414,6 +1547,11 @@ export interface SourcesAddParams {
   paths: string[];
 }
 
+export interface SpeakersRegenerated {
+  changed: number;
+  editId: string | null;
+}
+
 /** 语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。 */
 export interface SpeechBlockCond {
   beats?: (number | null)[] | null;
@@ -1444,9 +1582,10 @@ export interface SpeechBlocked {
 }
 
 export interface SpeechConflict {
-  a: string;
-  at: number;
-  b: string;
+  a: number;
+  b: number;
+  end: number;
+  start: number;
   units: string[];
 }
 
@@ -1495,18 +1634,21 @@ export interface SpeechManualParams {
 
 /** 一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。 */
 export interface SpeechPhone {
+  clipped?: boolean;
   eff?: number[];
   end: number;
   label: string;
   mora: number | null;
   orig?: string;
+  seg?: number;
   start: number;
   strength?: number;
   word: number | null;
 }
 
 export interface SpeechPlanParams {
-  entry: "samples" | "source" | "units";
+  assetId?: string | null;
+  entry: "samples" | "segments" | "source" | "units";
   ids: string[];
   rerunFresh?: boolean;
 }
@@ -1536,11 +1678,10 @@ export interface SpeechQueryInput {
   tolerance?: number | null;
 }
 
-export interface SpeechRangeParams {
-  assetId: string;
-  end: number;
-  start: number;
-  text: string;
+/** 节奏分析不可用的原因（错误码 + 参数）：rhythm-segments-missing / rhythm-segment-stale / rhythm-units-conflict。 */
+export interface SpeechReadBlock {
+  args: Record<string, unknown>;
+  code: string;
 }
 
 export interface SpeechResult {
@@ -1568,14 +1709,16 @@ export interface SpeechRun {
   error: ErrorWire | null;
   id: string;
   manual: boolean;
+  matches?: boolean;
   status: "cancelled" | "failed" | "ok" | "stale";
   text: string | null;
 }
 
 export interface SpeechSampleView {
+  blocked: SpeechReadBlock | null;
   conflict: SpeechConflict | null;
   head: SpeechHead | null;
-  own: boolean;
+  judge: number[] | null;
   reason: string | null;
   sampleId: string;
   text: string | null;
@@ -1589,15 +1732,20 @@ export interface SpeechSwitchParams {
   version: number;
 }
 
-/** 采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。 */
+/** 采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。 */
 export interface SpeechUnit {
+  current: SpeechHead | null;
   head: SpeechHead | null;
-  kind: "line" | "typed";
-  name: string | null;
+  headVersion: number;
+  name: string;
+  ordinal: number;
   partial: boolean;
   runs: SpeechRun[];
+  segmentId: string;
+  speakers: string[];
+  state: "failed" | "none" | "ok" | "other-sound" | "stale";
   target: number[] | null;
-  text: string | null;
+  text: string;
   unitId: string;
 }
 
@@ -1661,23 +1809,52 @@ export interface StudioStatus {
   ok: boolean;
 }
 
-/** 批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键）。 */
+/** 批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键，默认选项）。 */
 export interface SubtitleBatchRow {
   counts?: SubtitleCounts;
   error?: ErrorWire;
   fileName?: string;
+  opedErrors?: number;
   problems?: number;
   skipped?: "no-subtitle";
   sourceId: string;
   token?: string;
-  versionState?: "current" | "new" | "switch";
+}
+
+export interface SubtitleCategoryCounts {
+  excluded: number;
+  invalid: number;
+  new: number;
+  removed: number;
+  removedAnalyzed: number;
+  removedProtected: number;
+  replace: number;
+  skip: number;
+  unchanged: number;
+}
+
+export interface SubtitleConflict {
+  analyzed: boolean;
+  edited: boolean;
+  end: number;
+  id: string;
+  manual: boolean;
+  protected: boolean;
+  start: number;
+  text: string;
+  usedBy: number;
 }
 
 export interface SubtitleCounts {
-  importable: number;
-  invalid: number;
+  hints: SubtitleCategoryCounts;
+  oped: SubtitleCategoryCounts;
+  segments: SubtitleCategoryCounts;
+}
+
+export interface SubtitleCreated {
+  hints: number;
   oped: number;
-  registered: number;
+  segments: number;
 }
 
 export interface SubtitleImportItem {
@@ -1691,35 +1868,44 @@ export interface SubtitleImportManyParams {
 
 /** 批量导入的一行：出错时只有 sourceId + error，否则同 SubtitleImportResult。 */
 export interface SubtitleImportManyRow {
+  counts?: SubtitleCounts;
+  created?: SubtitleCreated;
   editId?: string | null;
   error?: ErrorWire;
-  imported?: number;
   invalid?: SubtitleInvalidLine[];
-  newVersion?: boolean;
+  opedErrors?: number;
   problems?: SubtitleProblem[];
-  skipped?: SubtitleSkipped;
   sourceId: string;
-  switched?: boolean;
-  versionId?: string;
+}
+
+/** 导入选项：四类开关（默认全开）、全局替换或保留（默认替换）、逐行不勾 / 强制替换、OP/ED 逐对确认（规则有错时）。 */
+export interface SubtitleImportOptions {
+  exclude?: number[];
+  force?: number[];
+  hints?: boolean;
+  oped?: boolean;
+  opedConfirm?: Record<string, unknown>[];
+  opedForce?: number[];
+  replace?: boolean;
+  segments?: boolean;
+  speakers?: boolean;
 }
 
 export interface SubtitleImportParams {
-  lines?: number[] | null;
+  options?: SubtitleImportOptions | null;
   path?: string | null;
   sourceId: string;
   token: string;
 }
 
 export interface SubtitleImportResult {
+  counts: SubtitleCounts;
+  created: SubtitleCreated;
   editId: string | null;
-  imported: number;
   invalid: SubtitleInvalidLine[];
-  newVersion: boolean;
+  opedErrors: number;
   problems: SubtitleProblem[];
-  skipped: SubtitleSkipped;
   sourceId: string;
-  switched: boolean;
-  versionId: string;
 }
 
 export interface SubtitleInvalidLine {
@@ -1728,36 +1914,45 @@ export interface SubtitleInvalidLine {
   ref: string;
 }
 
+export interface SubtitleOped {
+  errors: Record<string, unknown>[];
+  pairs: SubtitlePairRow[];
+}
+
+export interface SubtitlePairRow {
+  conflicts: SubtitleConflict[];
+  end: number;
+  forced: boolean;
+  index: number;
+  kind: "ED" | "OP";
+  reason: string | null;
+  refs: string[];
+  same?: string;
+  start: number;
+  status: "excluded" | "invalid" | "new" | "replace" | "skip" | "unchanged";
+  suggest: "ED" | "OP";
+  text: string;
+}
+
 export interface SubtitlePreview {
   counts: SubtitleCounts;
   fileName: string;
   fingerprint: string;
   format: string;
-  lines: SubtitlePreviewLine[];
+  hints: SubtitleRow[];
+  oped: SubtitleOped;
+  options: Record<string, boolean>;
   path: string;
   problems: SubtitleProblem[];
+  removed: SubtitleRemoved;
+  segments: SubtitleRow[];
   sourceId: string;
+  speakers: SubtitleSpeaker[];
   token: string;
-  versionState: "current" | "new" | "switch";
-}
-
-export interface SubtitlePreviewLine {
-  alignText: string;
-  end: number;
-  kind: "line" | "sfx";
-  name: string;
-  no: number;
-  oped?: "ED" | "OP";
-  opedPartial?: boolean;
-  reason?: "beyond-end" | "empty" | "negative-start";
-  ref: string;
-  speakers: string[];
-  start: number;
-  status: "importable" | "invalid" | "oped" | "registered";
-  text: string;
 }
 
 export interface SubtitlePreviewParams {
+  options?: SubtitleImportOptions | null;
   path?: string | null;
   sourceId: string;
 }
@@ -1767,61 +1962,30 @@ export interface SubtitleProblem {
   reason: string;
 }
 
-export interface SubtitleSampleCounts {
-  "no-name": number;
-  oped: number;
-  "out-of-track": number;
-  pending: number;
+export interface SubtitleRemoved {
+  hints: SubtitleConflict[];
+  oped: SubtitleConflict[];
+  segments: SubtitleConflict[];
 }
 
-export interface SubtitleSampleLine {
-  annotationId: string;
+export interface SubtitleRow {
+  conflicts: SubtitleConflict[];
   end: number;
-  name: string;
-  rawText: string;
-  sampleEnd: number;
-  sampleStart: number;
+  forced: boolean;
+  no: number;
+  raw: string;
+  reason: string | null;
+  ref: string;
+  same?: string;
   speakers: string[];
   start: number;
-  status: "no-name" | "oped" | "out-of-track" | "pending";
+  status: "excluded" | "invalid" | "new" | "replace" | "skip" | "unchanged";
+  text: string;
 }
 
-export interface SubtitleSamplePreview {
-  counts: SubtitleSampleCounts;
-  kind: "line" | "sfx";
-  lines: SubtitleSampleLine[];
-  missingDefault: boolean;
-  noSubtitles: boolean;
-  pads: [number, number];
-  sourceId: string;
-  token: string;
-  trackId: string | null;
-}
-
-export interface SubtitleSamplesCreateParams {
-  annotationIds: string[];
-  end?: number | null;
-  kind: string;
-  sourceId: string;
-  start?: number | null;
-  token: string;
-}
-
-export interface SubtitleSamplesCreated {
-  created: number;
-  ids: string[];
-}
-
-export interface SubtitleSamplesPreviewParams {
-  end?: number | null;
-  kind: string;
-  sourceId: string;
-  start?: number | null;
-}
-
-export interface SubtitleSkipped {
-  invalid: number;
-  registered: number;
+export interface SubtitleSpeaker {
+  count: number;
+  name: string;
 }
 
 export interface SuggestParams {
@@ -1829,6 +1993,39 @@ export interface SuggestParams {
   end: number;
   localMarker?: string;
   start: number;
+}
+
+export interface TextLayerList {
+  derived: DerivedSample[];
+  hints: SfxHint[];
+  opeds: OpedRange[];
+  segments: TextSegment[];
+  tags: RangeTagRow[];
+}
+
+export interface TextLayerParams {
+  assetId?: string | null;
+  sourceId: string;
+}
+
+/** 文本层的一段（原片秒）：文本 = 对齐文本；受保护 = 改过（edited）或有人工音素版本（manual）。 */
+export interface TextSegment {
+  analysis: "failed" | "none" | "ok" | "stale" | null;
+  edited: boolean;
+  end: number;
+  id: string;
+  manual: boolean;
+  oped: "ED" | "OP" | null;
+  ordinal: number;
+  origin: "subtitle" | "typed";
+  protected: boolean;
+  raw: string | null;
+  speakerEdited: boolean;
+  speakers: string[];
+  start: number;
+  text: string;
+  usedBy: number;
+  version: number;
 }
 
 export interface ThumbRequest {
@@ -1885,11 +2082,6 @@ export interface UndoPeek {
   label: EditLabel;
 }
 
-export interface WholeSamplesParams {
-  ids: string[];
-  nature?: string | null;
-}
-
 /** 作品文件夹：原片文件夹的第一层子文件夹。 */
 export interface WorkFolder {
   bindPictures: boolean;
@@ -1919,8 +2111,6 @@ export interface WorkSettingsParams {
 
 /** All Core commands: params, result and effect. */
 export interface Commands {
-  /** Subtitle/segment annotations, OP/ED and derived samples of a source. */
-  "annotations.list": { params: SourceIdParams; result: AnnotationList; effect: "read" };
   /** Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start). */
   "app.prepareQuit": { params: NoParams; result: PrepareQuit; effect: "app" };
   /** Cancel jobs and stop Core. */
@@ -1969,6 +2159,8 @@ export interface Commands {
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
   /** Queue a batch flatten: one job, each sample targets independently (auto only). */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
+  /** Add an sfx hint by hand (protected). */
+  "hints.add": { params: HintAddParams; result: SegmentAdded; effect: "write" };
   /** Export a hit as WAV (original, or stretched with its evidence scheme). */
   "hits.export": { params: HitExportParams; result: ExportedWav; effect: "write" };
   /** Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks. */
@@ -2049,8 +2241,10 @@ export interface Commands {
   "roots.relocate": { params: RelocateParams; result: RootRelocated; effect: "write" };
   /** Stop treating a folder as a source folder (sources stay). */
   "roots.remove": { params: IdParams; result: RootRemoved; effect: "write" };
-  /** Create a sample on an asset range (always a new sample). */
+  /** Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides). */
   "samples.create": { params: SampleCreateParams; result: SampleRow; effect: "write" };
+  /** Create the chosen planned samples atomically (always new samples). */
+  "samples.createPlanned": { params: SampleCreatePlannedParams; result: SamplesCreated; effect: "write" };
   /** Delete samples (assets, measurements and exports stay). */
   "samples.delete": { params: IdsParams; result: Deleted; effect: "write" };
   /** One sample with its effective tags. */
@@ -2059,6 +2253,8 @@ export interface Commands {
   "samples.ids": { params: SampleFilter; result: string[]; effect: "read" };
   /** One page of samples matching the filter, with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
+  /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
+  "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };
   /** Suggested name and nature for a new sample on an asset range. */
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
   /** Cancel a running search (a cancelled search writes no fixed result). */
@@ -2075,6 +2271,16 @@ export interface Commands {
   "search.speech": { params: SearchSpeechParams; result: SearchStarted; effect: "write" };
   /** State of a search started in this session. */
   "search.status": { params: SearchIdParams; result: SearchFinished; effect: "read" };
+  /** Add a typed segment to the text layer (replace or cut overlapping ones when asked). */
+  "segments.add": { params: SegmentAddParams; result: SegmentAdded; effect: "write" };
+  /** Which segments a new typed segment would overlap, and whether cut is possible. */
+  "segments.checkAdd": { params: SegmentRangeParams; result: SegmentAddCheck; effect: "read" };
+  /** Merge segments into one new protected segment. */
+  "segments.merge": { params: SegmentMergeParams; result: SegmentAdded; effect: "write" };
+  /** Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only). */
+  "segments.regenerateSpeakers": { params: SourceIdParams; result: SpeakersRegenerated; effect: "write" };
+  /** Split a segment (old one deleted, two new protected segments). */
+  "segments.split": { params: SegmentSplitParams; result: SegmentsSplit; effect: "write" };
   /** Assets registered by a separation job. */
   "separation.results": { params: JobIdParams; result: AssetRecord[]; effect: "read" };
   /** Separate an asset (range) with a Studio model; reuses identical results. */
@@ -2083,7 +2289,7 @@ export interface Commands {
   "settings.list": { params: NoParams; result: Record<string, SettingEntry>; effect: "read" };
   /** Register source files (each succeeds or fails on its own). */
   "sources.add": { params: SourcesAddParams; result: AddResult[]; effect: "write" };
-  /** Delete a source with its assets, samples and annotations (not undoable). */
+  /** Delete a source with its assets, samples, text layer and tags (not undoable). */
   "sources.delete": { params: IdParams; result: DeletePreview; effect: "write" };
   /** What deleting a source would remove. */
   "sources.deletePreview": { params: IdParams; result: DeletePreview; effect: "read" };
@@ -2099,35 +2305,29 @@ export interface Commands {
   "sources.relocate": { params: RelocateParams; result: SourceRelocated; effect: "write" };
   /** Scan all source folders for new, moved or missing files. */
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
-  /** Create one full-length sample per source on its default track. */
-  "sources.wholeSamples": { params: WholeSamplesParams; result: SampleIds; effect: "write" };
-  /** Current alignments of all lines (text units) on an asset range (same physical audio only). */
+  /** Usable alignments of all segments on an asset range (same physical audio only). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
-  /** What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons. */
+  /** What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons. */
   "speech.preview": { params: SpeechPlanParams; result: SpeechPreview; effect: "read" };
   /** Per-item results of a speech analysis job. */
   "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
-  /** Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head. */
+  /** Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result. */
   "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
-  /** Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed). */
+  /** Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed). */
   "speech.saveManual": { params: SpeechManualParams; result: SpeechHeadRef; effect: "write" };
   /** Queue a speech analysis job (inputs frozen now; one process for all items). */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
-  /** Analyze an asset range with typed text (a typed text unit; no sample needed). */
-  "speech.submitRange": { params: SpeechRangeParams; result: JobSummary; effect: "job" };
-  /** Make another successful version of a line (text unit) the current one. */
+  /** Make another successful version of a segment on a track the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
-  /** Create samples from chosen subtitle lines (atomic). */
-  "subtitleSamples.create": { params: SubtitleSamplesCreateParams; result: SubtitleSamplesCreated; effect: "write" };
-  /** Preview creating samples from subtitle lines or sound effects. */
-  "subtitleSamples.preview": { params: SubtitleSamplesPreviewParams; result: SubtitleSamplePreview; effect: "read" };
-  /** Import subtitle markers from a preview (insert only, atomic, undoable). */
+  /** Import a subtitle file as previewed (one atomic, undoable edit). */
   "subtitles.import": { params: SubtitleImportParams; result: SubtitleImportResult; effect: "write" };
-  /** Batch subtitle import, each source atomic on its own. */
+  /** One-click import of the associated subtitle with default options. */
+  "subtitles.importDefault": { params: SourceIdParams; result: SubtitleImportResult; effect: "write" };
+  /** Batch subtitle import with default options, each source atomic. */
   "subtitles.importMany": { params: SubtitleImportManyParams; result: SubtitleImportManyRow[]; effect: "write" };
-  /** Preview importing subtitle markers of one source. */
+  /** Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line). */
   "subtitles.preview": { params: SubtitlePreviewParams; result: SubtitlePreview; effect: "read" };
   /** Batch preview of subtitle import (sources without subtitles are skipped). */
   "subtitles.previewMany": { params: SourceIdsParams; result: SubtitleBatchRow[]; effect: "read" };
@@ -2135,6 +2335,8 @@ export interface Commands {
   "subtitles.ruleTest": { params: RuleTestParams; result: Classified; effect: "read" };
   /** Edit batch that promotes local tags to a segment tag (apply with edits.apply). */
   "tags.promoteBatch": { params: PromoteParams; result: PromoteInfo; effect: "read" };
+  /** Text segments, sfx hints, range tags, OP/ED and derived samples of a source. */
+  "textLayer.list": { params: TextLayerParams; result: TextLayerList; effect: "read" };
   /** List thumbnails (pending while generated). */
   "thumbs.get": { params: ThumbsParams; result: ThumbResult[]; effect: "read" };
   /** Restore UI state of one page. */
@@ -2243,6 +2445,8 @@ export type ErrorCode =
   | "rhythm-output-too-long"
   | "rhythm-param-invalid"
   | "rhythm-render-missing"
+  | "rhythm-segment-stale"
+  | "rhythm-segments-missing"
   | "rhythm-too-many-blocks"
   | "rhythm-units-conflict"
   | "root-invalid"
@@ -2251,11 +2455,17 @@ export type ErrorCode =
   | "sample-has-active-jobs"
   | "sample-invalid"
   | "sample-not-found"
+  | "sample-plan-invalid"
+  | "sample-plan-not-pending"
+  | "sample-plan-stale"
   | "schema-migration-failed"
   | "schema-too-new"
   | "search-invalid"
   | "search-not-found"
   | "search-nothing-to-prepare"
+  | "segment-invalid"
+  | "segment-not-found"
+  | "segment-overlap"
   | "selftest-failed"
   | "sep-model-changed"
   | "sep-output-invalid"

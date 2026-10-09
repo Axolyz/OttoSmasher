@@ -1,10 +1,11 @@
 """采样：截取（新建）、列表、删除（规格 04 §4.2.6–§4.2.7、§4.5、§4.7；16 R7.1–R7.5、R8.9）。
 
 - 显式保存一律新建：同一范围保存两次就是两个采样（R7.1）；新采样直接绑定资产选区，不复制音频、不跑模型（R7.2）。
-- 建议名：对齐结果（阶段 4）→ 与选区正长度交叠的台词/音效标注（当前字幕版本、未删除，原片时间）→ 原片名 起–止。
+- 建议名：对齐结果（阶段 4）→ 与选区正长度交叠的文本层的段与音效提示的文字（未删除，原片时间；A23）→ 原片名 起–止。
+- 判定区间（所有者 2026-10-09）：没给的 = 选区（数据库触发器按资产映射补上）；从段 / 音效提示建的 = 段 / 提示的区间。
 - 性质：调用方显式给的生效；没给就按资产角色预填（R2.6）。
 - 删除：采样本身、本地标签、画面覆盖、以它为归属的测量采用；子采样保留“已删除的父采样”来源（parent_label 在创建时就记下）；
-  固定结果里的成员保留采样 ID，界面据此显示“已删除”；资产、测量运行、标注、原片、导出文件都不动。
+  固定结果里的成员保留采样 ID，界面据此显示“已删除”；资产、分析（属于段 + 资产）、文本层、原片、导出文件都不动（P9）。
 """
 
 from __future__ import annotations
@@ -20,11 +21,11 @@ from ottosmasher.store.db import transaction
 from . import assets as assets_mod
 from . import effective_tags, units
 from .clock import new_id, now_iso
-from .edits import ChangeSet, loads
+from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
 
 NATURES = ("speech", "pitched", "unpitched", "unclassified")
-CREATED_VIA = ("manual", "subtitle", "hit", "processed", "import", "reimport")
+CREATED_VIA = ("manual", "segment", "hint", "hit", "processed", "import", "reimport")
 SORTS = {
     "created": "s.created_at DESC, s.rowid DESC",
     "name": "s.name COLLATE NOCASE, s.rowid",
@@ -49,7 +50,7 @@ class SampleService:
 
     def _source_of(self, asset: dict[str, Any]) -> sqlite3.Row:
         return self.conn.execute(
-            "SELECT id, path, work, episode, current_subtitle_version_id, duration FROM source WHERE id=?", (asset["source_id"],)
+            "SELECT id, path, work, episode, duration FROM source WHERE id=?", (asset["source_id"],)
         ).fetchone()
 
     def suggest(self, asset_id: str, start: float, end: float, *, local_marker: str = "") -> dict[str, Any]:
@@ -60,14 +61,14 @@ class SampleService:
         texts: list[str] = []
         if mapping is not None:
             s0, s1 = mapping.to_source(start), mapping.to_source(end)
-            # 正长度交叠（端点相接不算，04 §4.3.3）；当前字幕版本；台词与音效；文字不受角色限制（推定 A23：台词标注的作用域是“人声”角色，只约束它的说话人标签）
+            # 正长度交叠（端点相接不算，04 §4.3.3）；文本层的段与音效提示的文字（A23：不受角色限制；名称里的换行用空格连接）
             rows = self.conn.execute(
-                "SELECT clean_text FROM annotation WHERE source_id=? AND deleted=0 AND kind IN ('line','sfx')"
-                " AND scope IN ('source','role') AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)"
-                ' AND start < ? AND "end" > ? ORDER BY start, rowid',
-                (src["id"], src["current_subtitle_version_id"], s1 - EPS, s0 + EPS),
+                'SELECT text FROM (SELECT start, "end", text, 0 AS k FROM text_segment WHERE source_id=? AND deleted=0'
+                ' UNION ALL SELECT start, "end", text, 1 AS k FROM sfx_hint WHERE source_id=? AND deleted=0)'
+                ' WHERE start < ? AND "end" > ? ORDER BY start, "end", k',
+                (src["id"], src["id"], s1 - EPS, s0 + EPS),
             ).fetchall()
-            texts = [r[0] for r in rows]
+            texts = [str(r[0]).replace("\n", " ") for r in rows]
         else:
             s0, s1 = start, end
         name = naming.suggest_sample_name(
@@ -93,6 +94,17 @@ class SampleService:
         created_via: str = "manual",
         parent_sample_id: str | None = None,
     ) -> dict[str, Any]:
+        with transaction(self.conn):
+            sid = self.insert_checked(asset_id, start, end, name=name, nature=nature, created_via=created_via, parent_sample_id=parent_sample_id)
+        self._changed("sample", [sid])
+        return self.get(sid)
+
+    def insert_checked(
+        self, asset_id: str, start: float, end: float, *, name: str, nature: str | None = None, created_via: str = "manual",
+        parent_sample_id: str | None = None, origin: dict[str, Any] | None = None, snapshot: dict[str, Any] | None = None,
+        judge: tuple[float, float] | None = None,
+    ) -> str:
+        """校验并新建一个采样，在调用方的写事务里（批量新建整批原子）。判定区间没给 = 选区。"""
         asset = assets_mod.get(self.conn, asset_id)
         start, end = check_range(start, end, asset["duration"], frame=1.0 / assets_mod.rate_of(self.conn, asset))
         name = (name or "").strip()
@@ -113,15 +125,15 @@ class SampleService:
                 raise CoreError("sample-not-found", id=parent_sample_id)
             parent_label = p[0]
         sid, ts = new_id(), now_iso()
-        with transaction(self.conn):
-            self.conn.execute(
-                'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, parent_sample_id, parent_label,'
-                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (sid, asset_id, start, end, name, nature, asset["language"], created_via, parent_sample_id, parent_label, ts, ts),
-            )
-            effective_tags.refresh(self.conn, [sid])
-        self._changed("sample", [sid])
-        return self.get(sid)
+        js, je = (round(judge[0], 6), round(judge[1], 6)) if judge else (None, None)
+        self.conn.execute(
+            'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, parent_sample_id, parent_label,'
+            " origin, text_snapshot, tag_judge_start, tag_judge_end, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (sid, asset_id, start, end, name, nature, asset["language"], created_via, parent_sample_id, parent_label,
+             dumps(origin) if origin else None, dumps(snapshot) if snapshot else None, js, je, ts, ts),
+        )
+        effective_tags.refresh(self.conn, [sid])
+        return sid
 
     # ------------------------------------------------------------ 查询
 

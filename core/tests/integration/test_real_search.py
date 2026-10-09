@@ -69,7 +69,7 @@ def test_real_three_searches(tmp_path):
         ids = []
         for a, b, text in LINES:
             s = c.call("samples.create", assetId=vox, start=a - 0.1, end=b + 0.1, name=text, nature="speech")["r"]
-            assert c.call("edits.apply", batch={"ops": [{"entity": "sample", "id": s["id"], "version": s["version"], "fields": {"align_text_manual": text}}]})["ok"]
+            assert c.call("segments.add", sourceId=src, start=a, end=b, text=text)["ok"]  # 手输台词 = 在文本层加一段（所有者 2026-10-09）
             ids.append(s["id"])
         t0 = time.monotonic()
         job = c.call("speech.submit", entry="samples", ids=ids)["r"]
@@ -116,7 +116,8 @@ def test_real_three_searches(tmp_path):
         stats2, rank_rows, rid = search(c, "search.speech", query={"blocks": xxx, "strategy": "rank", "edge": "tail"}, scope={})
         evs = [h["evidence"] for r in rank_rows for h in r["hits"]]
         assert evs and all(e["plan"] in ("near_fast", "near_slow") and e["bpm"] == 180.0 and e["speed"] > 0 for e in evs)
-        assert sum(e["strict"] for e in evs) >= sum(len(r["hits"]) for r in strict_rows)
+        # 严格命中的窗口都在排序结果里（排序的“严格”标记按中位数平移判断，严格检索按最佳平移拟合判断，可能不同）
+        assert {(r["sampleId"], h["first"]) for r in strict_rows for h in r["hits"]} <= {(r["sampleId"], h["first"]) for r in rank_rows for h in r["hits"]}
         report["s3"] = {"strict": stats["hits"], "rank": stats2["hits"], "rankStrict": sum(e["strict"] for e in evs), "ms": [stats["ms"], stats2["ms"]]}
         # 命中的卡拍试听用证据方案；导出卡拍命中
         r0 = rank_rows[0]

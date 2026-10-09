@@ -163,13 +163,20 @@ def main() -> None:
                 )
                 if char:
                     conn.execute("INSERT INTO sample_tag(sample_id, tag) VALUES (?, ?)", (sid, char))
-                rid = new_id()
+                # 分析属于“文本层的段 + 资产”（所有者 2026-10-09）：每个采样一段（与采样同区间），采样按判定区间（= 选区）读到它
+                rid, seg = new_id(), new_id()
                 conn.execute(
-                    "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at)"
-                    " VALUES (?, 'alignment', 'sample', ?, ?, ?, ?, ?, 'ok', 0, ?, ?)",
-                    (rid, sid, aid, t0, t0 + SAMPLE_SECONDS, dumps({"audio": {"snapshot": snap}}), dumps({"phones": phones, "morae": []}), ts),
+                    'INSERT INTO text_segment(id, source_id, start, "end", text, origin, created_at, updated_at) VALUES (?, ?, ?, ?, \'あ\', \'subtitle\', ?, ?)',
+                    (seg, src, t0, t0 + SAMPLE_SECONDS, ts, ts),
                 )
-                conn.execute("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('sample', ?, 'alignment', ?, 1)", (sid, rid))
+                sp = [p for p in phones if p["label"] != "pau"]
+                conn.execute(
+                    "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at,"
+                    " span_start, span_end, seg_start, seg_end, seg_text) VALUES (?, 'alignment', 'asset_text', ?, ?, ?, ?, ?, 'ok', 0, ?, ?, ?, ?, ?, ?, 'あ')",
+                    (rid, f"seg:{seg}@{aid}", aid, t0, t0 + SAMPLE_SECONDS, dumps({"audio": {"snapshot": snap}, "text": "あ"}),
+                     dumps({"phones": phones, "morae": []}), ts, sp[0]["start"] if sp else None, sp[-1]["end"] if sp else None, t0, t0 + SAMPLE_SECONDS),
+                )
+                conn.execute("INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('asset_text', ?, 'alignment', ?, 1)", (f"seg:{seg}@{aid}", rid))
                 i0 = int(round(t0 / 0.01))
                 all_frames[i0 : i0 + 300] = frames
                 jobs.append((sid, phones, frames, t0, char, 1.0))

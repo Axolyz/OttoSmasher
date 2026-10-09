@@ -418,8 +418,10 @@ class DeletePreview(TypedDict):
     samples: int
     independentSamples: int
     generatedAssets: int
-    annotations: int
-    subtitleVersions: int
+    # 文本层的段、音效提示、区段标签（所有者 2026-10-09）
+    segments: int
+    hints: int
+    rangeTags: int
     oped: int
     activeJobs: list[str]
 
@@ -467,14 +469,9 @@ class Prep(TypedDict):
     lineSamples: PrepCount
 
 
-class WholeSamplesParams(TypedDict):
+class SamplesCreated(TypedDict):
+    created: int
     ids: list[str]
-    # None = 按默认音轨的角色预填
-    nature: NotRequired[str | None]
-
-
-class SampleIds(TypedDict):
-    sampleIds: list[str]
 
 
 # ---------------------------------------------------------------- 原片文件夹与作品（阶段 3.13）
@@ -766,8 +763,8 @@ class SampleRow(TypedDict):
     media_state: str
     # 人物（说话人显示层：character: 在前，participants: 在后，只显示名字）
     people: list[str]
-    # 语音分析（读到的句）：ok 已分析 / manual 人工版本 / partial 只读到某句的一部分（◐）/ failed 分析失败（没有成功结果）/ none 未分析
-    analysis: Literal["ok", "manual", "partial", "failed", "none"]
+    # 语音分析（判定区间读到的段）：ok / manual 有人工版本 / partial 有被裁掉一部分的音素（◐）/ stale 段改过待重新分析 / incomplete 有的段还没分析 / failed 只有失败 / none 没有可用分析或没读到段
+    analysis: Literal["ok", "manual", "partial", "stale", "incomplete", "failed", "none"]
     # 有效标签（只有 samples.get 返回）
     tags: NotRequired[list[EffectiveTag]]
 
@@ -822,13 +819,87 @@ class SampleSuggestion(TypedDict):
 
 
 class SampleCreateParams(TypedDict):
+    """单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。"""
+
     assetId: str
     start: float
     end: float
-    name: str
+    name: NotRequired[str | None]
     nature: NotRequired[str | None]
-    createdVia: NotRequired[str]
     parentSampleId: NotRequired[str | None]
+    via: NotRequired[Literal["manual", "hit"]]
+
+
+class SamplePlanSource(TypedDict):
+    """建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
+
+    selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；
+    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
+    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。"""
+
+    kind: Literal["selection", "segments", "hints", "stem", "whole"]
+    assetId: NotRequired[str | None]
+    start: NotRequired[float | None]
+    end: NotRequired[float | None]
+    parentSampleId: NotRequired[str | None]
+    via: NotRequired[Literal["manual", "hit"]]
+    localMarker: NotRequired[str]
+    sourceId: NotRequired[str]
+    ids: NotRequired[list[str] | None]
+    track: NotRequired[Literal["default", "current"]]
+    sourceIds: NotRequired[list[str]]
+
+
+# 键名 from 是 Python 保留字，用函数式写法（Python 里取 p["from"]）
+SamplePlanParams = TypedDict("SamplePlanParams", {"from": SamplePlanSource})
+
+
+class SamplePlanItem(TypedDict):
+    key: str
+    assetId: str | None
+    # 资产局部秒
+    start: float
+    end: float
+    # 判定区间（原片秒；决定标签继承与读哪些段）
+    judgeStart: float | None
+    judgeEnd: float | None
+    name: str
+    nature: Nature
+    createdVia: str
+    origin: dict[str, Any] | None
+    snapshot: dict[str, Any] | None
+    status: Literal["pending", "oped", "out-of-track", "no-name"]
+    parentSampleId: str | None
+    # 段 / 音效提示来源：原片秒与说话人
+    sourceStart: NotRequired[float]
+    sourceEnd: NotRequired[float]
+    speakers: NotRequired[list[str]]
+
+
+class SamplePlanTrack(TypedDict):
+    assetId: str
+    roles: list[Role]
+
+
+class SamplePlan(TypedDict):
+    kind: str
+    token: str
+    items: list[SamplePlanItem]
+    track: SamplePlanTrack | None
+    # 默认轨缺失（vocal / sfx）：就地指定，不回退混音
+    missingDefault: Role | None
+    pads: list[float] | None
+
+
+class SampleOverride(TypedDict):
+    name: NotRequired[str]
+    nature: NotRequired[str]
+
+
+SampleCreatePlannedParams = TypedDict(
+    "SampleCreatePlannedParams",
+    {"from": SamplePlanSource, "token": str, "keys": list[str], "overrides": NotRequired[dict[str, SampleOverride] | None], "nature": NotRequired[str | None]},
+)
 
 
 class Deleted(TypedDict):
@@ -910,33 +981,106 @@ class RuleTestParams(TypedDict):
     rules: NotRequired[dict[str, Any] | None]
 
 
-class SubtitlePreviewLine(TypedDict):
+class SubtitleImportOptions(TypedDict):
+    """导入选项：四类开关（默认全开）、全局替换或保留（默认替换）、逐行不勾 / 强制替换、OP/ED 逐对确认（规则有错时）。"""
+
+    segments: NotRequired[bool]
+    hints: NotRequired[bool]
+    speakers: NotRequired[bool]
+    oped: NotRequired[bool]
+    replace: NotRequired[bool]
+    exclude: NotRequired[list[int]]
+    force: NotRequired[list[int]]
+    opedForce: NotRequired[list[int]]
+    opedConfirm: NotRequired[list[dict[str, Any]]]
+
+
+class SubtitleConflict(TypedDict):
+    id: str
+    start: float
+    end: float
+    text: str
+    protected: bool
+    edited: bool
+    manual: bool
+    analyzed: bool
+    usedBy: int
+
+
+SubtitleStatus = Literal["new", "unchanged", "replace", "skip", "excluded", "invalid"]
+
+
+class SubtitleRow(TypedDict):
     no: int
     ref: str
     # 原片秒
     start: float
     end: float
+    raw: str
+    # 段文本（= 对齐文本）或音效提示文字
     text: str
-    kind: Literal["line", "sfx"]
-    name: str
     speakers: list[str]
-    alignText: str
-    status: Literal["importable", "oped", "invalid", "registered"]
-    reason: NotRequired[Literal["negative-start", "empty", "beyond-end"]]
-    oped: NotRequired[Literal["OP", "ED"]]
-    opedPartial: NotRequired[bool]
+    status: SubtitleStatus
+    reason: str | None
+    conflicts: list[SubtitleConflict]
+    forced: bool
+    same: NotRequired[str]
+
+
+class SubtitlePairRow(TypedDict):
+    index: int
+    start: float
+    end: float
+    suggest: Literal["OP", "ED"]
+    kind: Literal["OP", "ED"]
+    refs: list[str]
+    text: str
+    status: SubtitleStatus
+    reason: str | None
+    conflicts: list[SubtitleConflict]
+    forced: bool
+    same: NotRequired[str]
+
+
+class SubtitleOped(TypedDict):
+    pairs: list[SubtitlePairRow]
+    errors: list[dict[str, Any]]
+
+
+class SubtitleCategoryCounts(TypedDict):
+    new: int
+    unchanged: int
+    replace: int
+    skip: int
+    excluded: int
+    invalid: int
+    # 将被替换（软删除）的已有对象数；其中有分析结果（要重新分析）的、受保护的
+    removed: int
+    removedAnalyzed: int
+    removedProtected: int
 
 
 class SubtitleCounts(TypedDict):
-    importable: int
-    oped: int
-    invalid: int
-    registered: int
+    segments: SubtitleCategoryCounts
+    hints: SubtitleCategoryCounts
+    oped: SubtitleCategoryCounts
+
+
+class SubtitleSpeaker(TypedDict):
+    name: str
+    count: int
+
+
+class SubtitleRemoved(TypedDict):
+    segments: list[SubtitleConflict]
+    hints: list[SubtitleConflict]
+    oped: list[SubtitleConflict]
 
 
 class SubtitlePreviewParams(TypedDict):
     sourceId: str
     path: NotRequired[str | None]
+    options: NotRequired[SubtitleImportOptions | None]
 
 
 class SubtitlePreview(TypedDict):
@@ -946,22 +1090,21 @@ class SubtitlePreview(TypedDict):
     format: str
     fingerprint: str
     token: str
-    versionState: Literal["new", "current", "switch"]
-    lines: list[SubtitlePreviewLine]
+    options: dict[str, bool]
+    segments: list[SubtitleRow]
+    hints: list[SubtitleRow]
+    speakers: list[SubtitleSpeaker]
+    oped: SubtitleOped
     counts: SubtitleCounts
+    removed: SubtitleRemoved
     problems: list[SubtitleProblem]
 
 
 class SubtitleImportParams(TypedDict):
     sourceId: str
     token: str
-    lines: NotRequired[list[int] | None]
+    options: NotRequired[SubtitleImportOptions | None]
     path: NotRequired[str | None]
-
-
-class SubtitleSkipped(TypedDict):
-    invalid: int
-    registered: int
 
 
 class SubtitleInvalidLine(TypedDict):
@@ -970,29 +1113,33 @@ class SubtitleInvalidLine(TypedDict):
     reason: str
 
 
+class SubtitleCreated(TypedDict):
+    segments: int
+    hints: int
+    oped: int
+
+
 class SubtitleImportResult(TypedDict):
     sourceId: str
     editId: str | None
-    imported: int
-    versionId: str
-    newVersion: bool
-    switched: bool
-    skipped: SubtitleSkipped
+    created: SubtitleCreated
+    counts: SubtitleCounts
     invalid: list[SubtitleInvalidLine]
+    opedErrors: int
     problems: list[SubtitleProblem]
 
 
 class SubtitleBatchRow(TypedDict):
-    """批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键）。"""
+    """批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键，默认选项）。"""
 
     sourceId: str
     skipped: NotRequired[Literal["no-subtitle"]]
     error: NotRequired[ErrorWire]
     fileName: NotRequired[str]
     token: NotRequired[str]
-    versionState: NotRequired[Literal["new", "current", "switch"]]
     counts: NotRequired[SubtitleCounts]
     problems: NotRequired[int]
+    opedErrors: NotRequired[int]
 
 
 class SubtitleImportItem(TypedDict):
@@ -1010,33 +1157,126 @@ class SubtitleImportManyRow(TypedDict):
     sourceId: str
     error: NotRequired[ErrorWire]
     editId: NotRequired[str | None]
-    imported: NotRequired[int]
-    versionId: NotRequired[str]
-    newVersion: NotRequired[bool]
-    switched: NotRequired[bool]
-    skipped: NotRequired[SubtitleSkipped]
+    created: NotRequired[SubtitleCreated]
+    counts: NotRequired[SubtitleCounts]
     invalid: NotRequired[list[SubtitleInvalidLine]]
+    opedErrors: NotRequired[int]
     problems: NotRequired[list[SubtitleProblem]]
 
 
-AnnotationKind = Literal["line", "sfx", "song", "tag"]
+class TextSegment(TypedDict):
+    """文本层的一段（原片秒）：文本 = 对齐文本；受保护 = 改过（edited）或有人工音素版本（manual）。"""
 
-
-class AnnotationRow(TypedDict):
     id: str
     version: int
-    kind: AnnotationKind
-    scope: Literal["source", "role", "asset"]
-    scopeRole: Role | None
-    # 原片秒
+    ordinal: int
     start: float
     end: float
     text: str
-    name: str
     speakers: list[str]
-    tags: list[str]
-    fromSubtitle: bool
+    origin: Literal["subtitle", "typed"]
+    edited: bool
+    speakerEdited: bool
+    manual: bool
+    protected: bool
+    # 读这一段的采样数（P13：“这段被 N 个采样使用”）
+    usedBy: int
+    raw: str | None
     oped: Literal["OP", "ED"] | None
+    # 给了 assetId 时：这段在那条资产上的分析状态
+    analysis: Literal["ok", "stale", "failed", "none"] | None
+
+
+class SfxHint(TypedDict):
+    id: str
+    version: int
+    start: float
+    end: float
+    text: str
+    origin: Literal["subtitle", "manual"]
+    edited: bool
+    protected: bool
+    oped: Literal["OP", "ED"] | None
+
+
+class RangeTagRow(TypedDict):
+    id: str
+    version: int
+    scope: Literal["source", "role", "asset"]
+    scopeRole: Role | None
+    scopeAssetId: str | None
+    # 原片 / 角色作用域：原片秒；资产作用域：资产局部秒
+    start: float
+    end: float
+    label: str
+    tags: list[str]
+
+
+class TextLayerParams(TypedDict):
+    sourceId: str
+    assetId: NotRequired[str | None]
+
+
+class SegmentRangeParams(TypedDict):
+    sourceId: str
+    start: float
+    end: float
+
+
+class SegmentConflict(TypedDict):
+    id: str
+    start: float
+    end: float
+    text: str
+
+
+class SegmentAddCheck(TypedDict):
+    conflicts: list[SegmentConflict]
+    canCut: bool
+
+
+class SegmentAddParams(TypedDict):
+    sourceId: str
+    start: float
+    end: float
+    text: str
+    resolve: NotRequired[Literal["replace", "cut"] | None]
+
+
+class SegmentAdded(TypedDict):
+    id: str | None
+    editId: str | None
+
+
+class SegmentSplitParams(TypedDict):
+    id: str
+    version: int
+    # 原片秒
+    at: float
+    left: str
+    right: str
+
+
+class SegmentsSplit(TypedDict):
+    ids: list[str]
+    editId: str | None
+
+
+class SegmentMergeParams(TypedDict):
+    ids: list[str]
+    text: NotRequired[str | None]
+
+
+class SpeakersRegenerated(TypedDict):
+    changed: int
+    editId: str | None
+
+
+class HintAddParams(TypedDict):
+    sourceId: str
+    start: float
+    end: float
+    text: str
 
 
 class OpedRange(TypedDict):
@@ -1058,8 +1298,10 @@ class DerivedSample(TypedDict):
     end: float
 
 
-class AnnotationList(TypedDict):
-    annotations: list[AnnotationRow]
+class TextLayerList(TypedDict):
+    segments: list[TextSegment]
+    hints: list[SfxHint]
+    tags: list[RangeTagRow]
     opeds: list[OpedRange]
     derived: list[DerivedSample]
 
@@ -1124,58 +1366,6 @@ class EditRef(TypedDict):
     editId: str
 
 
-class SubtitleSamplesPreviewParams(TypedDict):
-    sourceId: str
-    kind: str
-    start: NotRequired[float | None]
-    end: NotRequired[float | None]
-
-
-class SubtitleSampleLine(TypedDict):
-    annotationId: str
-    name: str
-    rawText: str
-    speakers: list[str]
-    # 原片秒
-    start: float
-    end: float
-    sampleStart: float
-    sampleEnd: float
-    status: Literal["pending", "oped", "out-of-track", "no-name"]
-
-
-
-
-SubtitleSampleCounts = TypedDict("SubtitleSampleCounts", {"pending": int, "oped": int, "out-of-track": int, "no-name": int})
-
-
-class SubtitleSamplePreview(TypedDict):
-    sourceId: str
-    kind: Literal["line", "sfx"]
-    trackId: str | None
-    missingDefault: bool
-    # 前后扩展秒数
-    pads: tuple[float, float]
-    token: str
-    lines: list[SubtitleSampleLine]
-    counts: SubtitleSampleCounts
-    noSubtitles: bool
-
-
-class SubtitleSamplesCreateParams(TypedDict):
-    sourceId: str
-    kind: str
-    token: str
-    annotationIds: list[str]
-    start: NotRequired[float | None]
-    end: NotRequired[float | None]
-
-
-class SubtitleSamplesCreated(TypedDict):
-    created: int
-    ids: list[str]
-
-
 # ---------------------------------------------------------------- 分离（PyMSS Studio，14 §14.6）
 
 
@@ -1230,12 +1420,14 @@ class SeparationSubmitted(TypedDict):
 
 
 class SpeechPlanParams(TypedDict):
-    # 分析的是“声音资产 + 文本单元”（句；所有者 2026-10-08）。source = 原片入口（默认人声轨或原混音上、不在 OP/ED 里、有对齐文本的台词行，
-    # 加上原片上语音采样自己的那一句）；samples = 所选采样读的句；units = 指定的句（结果表里再发起失败项）
-    entry: Literal["source", "samples", "units"]
+    # 分析的是“文本层的段 + 具体那条资产”（所有者 2026-10-09）。source = 所选原片的段（不在 OP/ED 里）；segments = 这几段；
+    # samples = 各采样判定区间读到的段（在采样所在的资产上）；units = 指定的“段 + 资产”（结果表里再发起失败项）
+    entry: Literal["source", "segments", "samples", "units"]
     ids: list[str]
     # 也重新分析已是最新的（排查用，默认不勾）
     rerunFresh: NotRequired[bool]
+    # source / segments：用哪条轨（当前查看的轨）；不给 = 默认人声轨（没有就是原混音）
+    assetId: NotRequired[str | None]
 
 
 class SpeechBlocked(TypedDict):
@@ -1291,6 +1483,9 @@ class SpeechPhone(TypedDict):
     orig: NotRequired[str]
     eff: NotRequired[list[float]]
     strength: NotRequired[float]
+    # 合成结果里：来自读到的第几段（units 的序号）；被采样范围裁掉一部分的非停顿音素（◐）
+    seg: NotRequired[int]
+    clipped: NotRequired[bool]
 
 
 class SpeechWord(TypedDict):
@@ -1334,43 +1529,62 @@ class SpeechRun(TypedDict):
     createdAt: str
     error: ErrorWire | None
     text: str | None
+    # 这个版本对应的段内容与段现在一致（不一致 = 段改过，停用）
+    matches: NotRequired[bool]
 
 
 class SpeechUnit(TypedDict):
-    """采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。"""
+    """采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。"""
 
     unitId: str
-    kind: Literal["line", "typed"]
-    name: str | None
-    text: str | None
-    # 资产局部秒；字幕行处理不了（没有对齐文本、不在音轨范围里）时为 null
+    segmentId: str
+    # 段在文本层里的序号（读取时按存活段的起点排出）
+    ordinal: int
+    name: str
+    text: str
+    speakers: list[str]
+    # 资产局部秒；段不在这条轨的范围里时为 null
     target: list[float] | None
-    # 只有一部分落在采样范围内（◐；只对没有自己文本的采样）
+    # ok 可用 / stale 段改过待重新分析 / failed 只有失败记录 / none 还没分析 / other-sound 文件内容变了
+    state: Literal["ok", "stale", "failed", "none", "other-sound"]
+    # 可用分析的音素跨度超出采样范围（◐）
     partial: bool
-    # 这句的当前头（音素不裁剪）；还没分析为 null
+    # 可用的分析（内容与段一致；音素不裁剪）
     head: SpeechHead | None
+    # 实际的当前头（可能已停用）
+    current: SpeechHead | None
+    headVersion: int
     runs: list[SpeechRun]
 
 
 class SpeechConflict(TypedDict):
-    a: str
-    b: str
-    at: float
+    # 两段的序号，交叠区间（原片秒）
+    a: int
+    b: int
+    start: float
+    end: float
     units: list[str]
+
+
+class SpeechReadBlock(TypedDict):
+    """节奏分析不可用的原因（错误码 + 参数）：rhythm-segments-missing / rhythm-segment-stale / rhythm-units-conflict。"""
+
+    code: str
+    args: dict[str, Any]
 
 
 class SpeechSampleView(TypedDict):
     sampleId: str
-    # 采样有自己的文本（字幕采样、手输过台词的采样）→ 只读自己那一句；否则读范围内的句
-    own: bool
-    # 对齐文本（自己那一句的；没有自己文本时是范围内各句的连起来）。没有时给 reason：no-text / out-of-track
+    # 判定区间（原片秒）
+    judge: list[float] | None
+    # 读到的段的文本连起来；没读到段时给 reason：no-text
     text: str | None
     textSource: str | None
     reason: str | None
-    # 读到的句合成的当前头（没有自己文本时音素裁到采样范围）
+    # 读到的段合成的结果（音素裁到采样范围）；任何一段不可用或冲突时为 null
     head: SpeechHead | None
-    # 两句的音素在时间上冲突（节奏分析不可用，去修其中一句的音素时间）
     conflict: SpeechConflict | None
+    blocked: SpeechReadBlock | None
     units: list[SpeechUnit]
 
 
@@ -1382,18 +1596,12 @@ class AlignedPhone(TypedDict):
 
 class AssetAlignment(TypedDict):
     unitId: str
-    kind: Literal["line", "typed"]
-    name: str | None
+    segmentId: str
+    ordinal: int
+    name: str
     runId: str
     manual: bool
     phones: list[AlignedPhone]
-
-
-class SpeechRangeParams(TypedDict):
-    assetId: str
-    start: float
-    end: float
-    text: str
 
 
 class ManualPhone(TypedDict):

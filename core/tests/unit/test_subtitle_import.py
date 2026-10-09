@@ -1,12 +1,16 @@
-"""字幕标记导入：规格 06 §6.1、04 §4.2.2；16 R4.1–R4.3、R4.7、S11.3（合成字幕）。"""
+"""字幕导入 = 一次显式操作，四类一起进（所有者 2026-10-09【基线变更】；docs/QUESTIONS.md「原片上的四类对象」B 节）。
+
+台词 → 文本层的段；音效行 → 音效提示；说话人 → 段的属性；♪～ / ～♪ → OP/ED。重新导入按 新增 / 无变化 / 替换 / 跳过 处理，受保护的不动；
+整次导入原子、可撤销。不建采样（R4.1）；无效范围不导入（R4.3）。
+"""
 
 import pytest
 
-from conftest import make_source
+from conftest import make_asset, make_source
 from ottosmasher.core.clock import new_id, now_iso
-from ottosmasher.core.edits import EditService, dumps
+from ottosmasher.core.edits import EditService
 from ottosmasher.core.errors import CoreError
-from ottosmasher.core.subtitle_import import SPEAKER_STATUS_MULTI, SubtitleImporter
+from ottosmasher.core.subtitle_import import SubtitleImporter
 
 
 def srt(*cues):
@@ -25,10 +29,12 @@ LINES = [
     (1.0, 2.0, "（京子）こんにちは"),
     (3.0, 4.0, "（足音）"),
     (5.0, 6.0, "（京子）（結衣）ありがとう"),
-    (8.0, 10.0, "♪～"),
+    (8.0, 9.0, "♪～"),
+    (9.0, 10.0, "うた"),
+    (10.0, 30.0, "～♪"),
     (11.0, 11.0, "ゼロ長"),
     (95.0, 120.0, "はみ出し"),
-    (12.0, 13.0, "普通の台詞"),
+    (40.0, 41.0, "普通の\n台詞"),
 ]
 
 
@@ -44,203 +50,113 @@ def env(db, tmp_path):
     return sid, p, SubtitleImporter(db, edits, on_change=changes.append), edits, changes
 
 
-def annotations(db, sid, live=True):
-    q = 'SELECT kind, start, "end", raw_text, clean_text, align_text_auto, tags, scope, scope_role, subtitle_version_id FROM annotation WHERE source_id=?'
-    if live:
-        q += " AND deleted=0"
-    return [dict(r) for r in db.execute(q + " ORDER BY start", (sid,))]
+def segs(db, sid):
+    return [dict(r) for r in db.execute('SELECT id, start, "end", text, speakers, origin, provenance, edited, version FROM text_segment WHERE source_id=? AND deleted=0 ORDER BY start', (sid,))]
 
 
-def test_preview_statuses_and_default_import(db, env):
-    sid, _, imp, _, changes = env
+def hints(db, sid):
+    return [dict(r) for r in db.execute('SELECT id, start, "end", text, origin FROM sfx_hint WHERE source_id=? AND deleted=0 ORDER BY start', (sid,))]
+
+
+def opeds(db, sid):
+    return [tuple(r) for r in db.execute('SELECT kind, start, "end", origin FROM oped WHERE source_id=? AND deleted=0 ORDER BY start', (sid,))]
+
+
+def test_first_import_four_categories(db, env):
+    sid, _, imp, edits, _ = env
     pv = imp.preview(sid)
-    st = {ln["no"]: (ln["status"], ln.get("reason")) for ln in pv["lines"]}
-    assert st == {
-        1: ("importable", None),
-        2: ("importable", None),
-        3: ("importable", None),
-        4: ("importable", None),
-        5: ("invalid", "empty"),
-        6: ("invalid", "beyond-end"),
-        7: ("importable", None),
-    }
-    assert pv["counts"] == {"importable": 5, "oped": 0, "invalid": 2, "registered": 0}
-    assert pv["versionState"] == "new"
+    st = {r["no"]: (r["status"], r["reason"]) for r in pv["segments"] + pv["hints"]}
+    assert st == {1: ("new", None), 2: ("new", None), 3: ("new", None), 4: ("new", None), 5: ("new", None), 6: ("new", None),
+                  7: ("invalid", "empty"), 8: ("invalid", "beyond-end"), 9: ("new", None)}
+    assert [r["no"] for r in pv["hints"]] == [2]
+    assert pv["counts"]["segments"]["new"] == 6 and pv["counts"]["hints"]["new"] == 1
+    assert [(s["name"], s["count"]) for s in pv["speakers"]] == [("京子", 2), ("結衣", 1)]
+    assert [(p["kind"], p["start"], p["end"], p["status"]) for p in pv["oped"]["pairs"]] == [("OP", 8.0, 30.0, "new")]
     r = imp.import_(sid, pv["token"])
-    assert (r["imported"], r["newVersion"], r["switched"]) == (5, True, True)
-    assert [x["reason"] for x in r["invalid"]] == ["empty", "beyond-end"]
-    # R4.1：导入只登记标注，不建采样
-    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0
-    a = annotations(db, sid)
-    assert [(x["kind"], x["clean_text"]) for x in a] == [
-        ("line", "こんにちは"),
-        ("sfx", "足音"),
-        ("line", "ありがとう"),
-        ("line", "♪～"),
-        ("line", "普通の台詞"),
-    ]
-    # 说话人：一人 character:，多人 participants: + speaker-status:多人未分段，作用域“人声”角色；音效行作用域原片、无标签
-    assert (a[0]["tags"], a[0]["scope"], a[0]["scope_role"]) == (dumps(["character:京子"]), "role", "vocal")
-    assert set(eval(a[2]["tags"])) == {"participants:京子", "participants:結衣", SPEAKER_STATUS_MULTI}
-    assert (a[1]["tags"], a[1]["scope"], a[1]["align_text_auto"]) == ("[]", "source", None)
-    vid = db.execute("SELECT current_subtitle_version_id FROM source WHERE id=?", (sid,)).fetchone()[0]
-    assert {x["subtitle_version_id"] for x in a} == {vid}
-    # 版本快照包含全部行（含无效行）
-    assert db.execute("SELECT COUNT(*) FROM subtitle_line WHERE version_id=?", (vid,)).fetchone()[0] == 7
-    assert "annotation" in changes[-1].entities
+    assert r["created"] == {"segments": 6, "hints": 1, "oped": 1} and [x["reason"] for x in r["invalid"]] == ["empty", "beyond-end"]
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0  # R4.1：不建采样
+    got = segs(db, sid)
+    assert [(s["text"], s["speakers"], s["origin"], s["edited"]) for s in got] == [
+        ("こんにちは", '["京子"]', "subtitle", 0), ("ありがとう", '["京子","結衣"]', "subtitle", 0), ("♪～", "[]", "subtitle", 0),
+        ("うた", "[]", "subtitle", 0), ("～♪", "[]", "subtitle", 0), ("普通の\n台詞", "[]", "subtitle", 0)]
+    assert '"raw":"（京子）こんにちは"' in got[0]["provenance"] and '"line":1' in got[0]["provenance"]
+    assert [(h["text"], h["origin"]) for h in hints(db, sid)] == [("足音", "subtitle")]
+    assert opeds(db, sid) == [("OP", 8.0, 30.0, "subtitle_rule")]
+    # 整次导入一个编辑、可撤销
+    edits.undo()
+    assert segs(db, sid) == [] and hints(db, sid) == [] and opeds(db, sid) == []
 
 
-def test_partial_batches_same_version_only_add_missing(db, env):
+def test_reimport_unchanged_and_categories_off(db, env):
     sid, _, imp, _, _ = env
+    imp.import_(sid, imp.preview(sid)["token"], {"speakers": False, "oped": False})
+    assert all(s["speakers"] == "[]" for s in segs(db, sid)) and opeds(db, sid) == []
     pv = imp.preview(sid)
-    imp.import_(sid, pv["token"], [1, 2])
-    pv2 = imp.preview(sid)
-    assert pv2["versionState"] == "current"
-    assert [ln["status"] for ln in pv2["lines"][:3]] == ["registered", "registered", "importable"]
-    r = imp.import_(sid, pv2["token"])
-    assert (r["imported"], r["newVersion"], r["switched"], r["skipped"]["registered"]) == (3, False, False, 2)
-    assert len(annotations(db, sid)) == 5
-    # 同一内容再导入一次：什么都不新增
-    pv3 = imp.preview(sid)
-    assert pv3["counts"]["importable"] == 0
-    assert imp.import_(sid, pv3["token"])["imported"] == 0
-    assert len(annotations(db, sid)) == 5
+    assert pv["counts"]["segments"]["unchanged"] == 6 and pv["counts"]["hints"]["unchanged"] == 1
+    r = imp.import_(sid, pv["token"], {"segments": False, "hints": False})
+    assert r["created"] == {"segments": 0, "hints": 0, "oped": 1}
 
 
-def test_invalid_or_registered_lines_cannot_be_chosen(db, env):
-    sid, _, imp, _, _ = env
-    pv = imp.preview(sid)
-    with pytest.raises(CoreError) as e:
-        imp.import_(sid, pv["token"], [1, 5])
-    assert (e.value.code, e.value.args_["line"], e.value.args_["status"]) == ("subtitle-line-not-importable", 5, "invalid")
-    # 原子：整批不登记
-    assert annotations(db, sid) == []
-    assert db.execute("SELECT COUNT(*) FROM subtitle_version").fetchone()[0] == 0
-
-
-def test_preview_goes_stale(db, env):
+def test_overlap_rules_replace_keep_protected_force(db, env, tmp_path):
     sid, p, imp, edits, _ = env
+    imp.import_(sid, imp.preview(sid)["token"])
+    old = {s["text"]: s for s in segs(db, sid)}
+    # 用户改过“ありがとう”这段（受保护）；“こんにちは”在某条轨上有人工音素版本（受保护）
+    edits.apply({"ops": [{"entity": "segment", "id": old["ありがとう"]["id"], "version": old["ありがとう"]["version"], "fields": {"end": 6.2}}]})
+    aid = make_asset(db, sid)
+    db.execute(
+        "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, inputs, status, manual, result, created_at) VALUES (?, 'alignment', 'asset_text', ?, ?, '{}', 'ok', 1, '{}', ?)",
+        (new_id(), f"seg:{old['こんにちは']['id']}@{aid}", aid, now_iso()),
+    )
+    p.write_text(srt((1.0, 2.1, "（京子）こんにちは！"), (5.0, 6.0, "（京子）（結衣）ありがとう"), (40.0, 41.0, "ふつうの台詞"), (50.0, 51.0, "新しい")), encoding="utf-8")
     pv = imp.preview(sid)
-    # 字幕内容变了
-    p.write_text(srt(*LINES, (14.0, 15.0, "追加")), encoding="utf-8")
+    st = {r["no"]: (r["status"], r["reason"]) for r in pv["segments"]}
+    # 1 碰到有人工版本的段 → 跳过；2 区间相同但那段改过（不同）→ 碰到受保护 → 跳过；3 只碰到未受保护的 → 替换；4 新增
+    assert st == {1: ("skip", "protected"), 2: ("skip", "protected"), 3: ("replace", None), 4: ("new", None)}
+    assert pv["counts"]["segments"]["removed"] == 1
+    keep = imp.preview(sid, options={"replace": False})
+    assert {r["no"]: r["status"] for r in keep["segments"]}[3] == "skip"
+    # 不勾的行不替换任何东西
+    ex = imp.preview(sid, options={"exclude": [3]})
+    assert {r["no"]: r["status"] for r in ex["segments"]}[3] == "excluded" and ex["counts"]["segments"]["removed"] == 0
+    # 逐行强制替换受保护的：写清会丢掉什么
+    forced = imp.preview(sid, options={"force": [1]})
+    assert forced["counts"]["segments"]["removedProtected"] == 1 and forced["removed"]["segments"][0]["manual"] is True
+    r = imp.import_(sid, forced["token"], {"force": [1]})
+    texts = [s["text"] for s in segs(db, sid)]
+    assert "こんにちは！" in texts and "こんにちは" not in texts and "ありがとう" in texts and "ふつうの台詞" in texts and "新しい" in texts
+    assert r["counts"]["segments"]["replace"] == 2
+
+
+def test_oped_errors_need_confirmation(db, env):
+    sid, p, imp, _, _ = env
+    p.write_text(srt((8.0, 9.0, "♪～"), (9.0, 10.0, "♪～"), (10.0, 30.0, "～♪"), (40.0, 41.0, "台詞")), encoding="utf-8")
+    pv = imp.preview(sid)
+    assert pv["oped"]["errors"] and [p["status"] for p in pv["oped"]["pairs"]] == ["excluded"]
+    r = imp.import_(sid, pv["token"])
+    assert r["opedErrors"] == 1 and opeds(db, sid) == []
+    pv = imp.preview(sid, options={"opedConfirm": [{"index": 0, "kind": "ED"}]})
+    imp.import_(sid, pv["token"], {"opedConfirm": [{"index": 0, "kind": "ED"}]})
+    assert opeds(db, sid) == [("ED", 9.0, 30.0, "manual")]
+
+
+def test_preview_goes_stale_when_the_layer_changes(db, env):
+    sid, _, imp, edits, _ = env
+    imp.import_(sid, imp.preview(sid)["token"])
+    pv = imp.preview(sid)
+    s = segs(db, sid)[0]
+    edits.apply({"ops": [{"entity": "segment", "id": s["id"], "version": s["version"], "fields": {"text": "かえた"}}]})
     with pytest.raises(CoreError) as e:
         imp.import_(sid, pv["token"])
     assert e.value.code == "subtitle-preview-stale"
-    # OP/ED 变了
-    pv = imp.preview(sid)
-    ts = now_iso()
-    db.execute(
-        "INSERT INTO oped(id, source_id, kind, start, \"end\", origin, created_at, updated_at) VALUES (?, ?, 'OP', 7.5, 9.0, 'manual', ?, ?)",
-        (new_id(), sid, ts, ts),
-    )
-    with pytest.raises(CoreError):
-        imp.import_(sid, pv["token"])
-    # 规则变了
-    pv = imp.preview(sid)
-    edits.apply({"ops": [{"entity": "setting", "id": "subtitle.speaker_split", "version": 0, "fields": {"value": "[･]"}}]})
-    with pytest.raises(CoreError):
-        imp.import_(sid, pv["token"])
-    # 音轨（原片资料）变了
-    pv = imp.preview(sid)
-    db.execute("UPDATE source SET version=version+1 WHERE id=?", (sid,))
-    with pytest.raises(CoreError):
-        imp.import_(sid, pv["token"])
 
 
-def test_oped_lines_are_flagged_but_importable(db, env):
+def test_batch_and_one_click(db, env, tmp_path):
     sid, _, imp, _, _ = env
-    ts = now_iso()
-    db.execute(
-        "INSERT INTO oped(id, source_id, kind, start, \"end\", origin, created_at, updated_at) VALUES (?, ?, 'OP', 7.5, 9.0, 'manual', ?, ?)",
-        (new_id(), sid, ts, ts),
-    )
-    # 端点相接不算交叠：6.0 结束的那行不受 7.5 开始的 OP 影响
-    pv = imp.preview(sid)
-    line = pv["lines"][3]
-    assert (line["status"], line["oped"], line["opedPartial"]) == ("oped", "OP", True)  # 8–10 跨出 9.0
-    assert pv["lines"][2]["status"] == "importable"
-    assert pv["counts"]["oped"] == 1
-    assert imp.import_(sid, pv["token"])["imported"] == 5  # OP/ED 内的行也导入（取样与批量分析时再跳过）
-
-
-def test_new_content_becomes_current_and_old_file_switches_back(db, env, tmp_path):
-    sid, p, imp, _, _ = env
-    imp.import_(sid, imp.preview(sid)["token"])
-    v1 = db.execute("SELECT current_subtitle_version_id FROM source WHERE id=?", (sid,)).fetchone()[0]
-    # 整体晚 0.404 秒的另一版本 → 新版本成为当前
-    q = tmp_path / "late.srt"
-    q.write_text(srt(*[(a + 0.404, b + 0.404, t) for a, b, t in LINES]), encoding="utf-8")
-    pv = imp.preview(sid, str(q))
-    assert pv["versionState"] == "new"
-    r = imp.import_(sid, pv["token"], path=str(q))
-    assert (r["newVersion"], r["switched"]) == (True, True)
-    v2 = r["versionId"]
-    assert v2 != v1
-    # 旧版本的标注保留（在旧版本里）
-    assert len(annotations(db, sid)) == 10
-    # 重新导入旧文件 = 切回旧版本（没有可补登的行也切换）
-    pv = imp.preview(sid)
-    assert (pv["versionState"], pv["counts"]["registered"]) == ("switch", 5)
-    r = imp.import_(sid, pv["token"])
-    assert (r["imported"], r["switched"], r["versionId"]) == (0, True, v1)
-
-
-def test_import_is_one_undoable_edit(db, env):
-    sid, _, imp, edits, _ = env
-    imp.import_(sid, imp.preview(sid)["token"])
-    assert edits.peek_undo()["label"]["code"] == "subtitle-import"
-    edits.undo()
-    assert annotations(db, sid) == []
-    assert db.execute("SELECT current_subtitle_version_id FROM source WHERE id=?", (sid,)).fetchone()[0] is None
-    # 撤销后可以重新导入（软删除的不算“已登记”）
-    pv = imp.preview(sid)
-    assert pv["counts"]["importable"] == 5
-    assert imp.import_(sid, pv["token"])["imported"] == 5
-
-
-def test_rules_at_import_time_and_no_retroactive_change(db, env):
-    """R4.7：改规则不追改已导入的标记；新导入按新规则。"""
-    sid, _, imp, edits, _ = env
-    imp.import_(sid, imp.preview(sid)["token"], [3])
-    edits.apply({"ops": [{"entity": "setting", "id": "subtitle.speaker_rule", "version": 0, "fields": {"value": r"(?P<name>京子)"}}]})
-    imp.import_(sid, imp.preview(sid)["token"], [1])
-    a = {x["clean_text"]: x["tags"] for x in annotations(db, sid)}
-    assert set(eval(a["ありがとう"])) == {"participants:京子", "participants:結衣", SPEAKER_STATUS_MULTI}
-    assert a["こんにちは"] == dumps(["character:京子"])
-
-
-def test_batch_skips_sources_without_subtitle(db, env):
-    sid, _, imp, _, _ = env
-    other = make_source(db, path="/m/other.mkv")
+    other = make_source(db)
     rows = imp.preview_many([sid, other])
-    assert rows[1] == {"sourceId": other, "skipped": "no-subtitle"}
-    assert rows[0]["counts"]["importable"] == 5
-    res = imp.import_many([{"sourceId": sid, "token": rows[0]["token"]}, {"sourceId": sid, "token": "stale"}])
-    assert res[0]["imported"] == 5
-    assert res[1]["error"]["code"] == "subtitle-preview-stale"
-
-
-def test_unassociated_source_needs_a_file(db, env):
-    sid, _, imp, _, _ = env
-    other = make_source(db, path="/m/other.mkv")
-    with pytest.raises(CoreError) as e:
-        imp.preview(other)
-    assert e.value.code == "subtitle-not-associated"
-
-
-def test_clip_name_uses_imported_lines_of_current_version_only(db, env, tmp_path):
-    """R7.5 + 04 §4.2.2：截取建议名用交叠的台词/音效文字（台词标注作用域是人声角色，文字仍对原混音生效）；非当前版本不参与。"""
-    from ottosmasher.core.samples import SampleService
-    from test_samples import asset as make_asset
-
-    sid, _, imp, _, _ = env
-    imp.import_(sid, imp.preview(sid)["token"])
-    aid = make_asset(db, sid)
-    svc = SampleService(db)
-    assert svc.suggest(aid, 1.2, 1.8)["name"] == "こんにちは"
-    assert svc.suggest(aid, 3.1, 3.5)["name"] == "足音"
-    q = tmp_path / "other.srt"
-    q.write_text(srt((1.0, 2.0, "（京子）別の版")), encoding="utf-8")
-    imp.import_(sid, imp.preview(sid, str(q))["token"], path=str(q))
-    assert svc.suggest(aid, 1.2, 1.8)["name"] == "別の版"
-    assert "足音" not in svc.suggest(aid, 3.1, 3.5)["name"]
+    assert rows[1] == {"sourceId": other, "skipped": "no-subtitle"} and rows[0]["counts"]["segments"]["new"] == 6
+    out = imp.import_many([{"sourceId": sid, "token": rows[0]["token"]}])
+    assert out[0]["created"]["segments"] == 6
+    again = imp.import_default(sid)
+    assert again["created"] == {"segments": 0, "hints": 0, "oped": 0} and again["counts"]["segments"]["unchanged"] == 6

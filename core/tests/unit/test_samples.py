@@ -35,17 +35,23 @@ def src(db):
 
 
 def annotate(db, sid, kind, start, end, text, deleted=0):
-    db.execute(
-        'INSERT INTO annotation(id, source_id, kind, scope, start, "end", raw_text, clean_text, deleted, created_at, updated_at)'
-        " VALUES (?, ?, ?, 'source', ?, ?, ?, ?, ?, ?, ?)",
-        (new_id(), sid, kind, start, end, text, text, deleted, now_iso(), now_iso()),
-    )
+    """文本层的段（kind=line）或音效提示（kind=sfx）。"""
+    if kind == "line":
+        db.execute(
+            'INSERT INTO text_segment(id, source_id, start, "end", text, origin, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, \'subtitle\', ?, ?, ?)',
+            (new_id(), sid, start, end, text, deleted, now_iso(), now_iso()),
+        )
+    else:
+        db.execute(
+            'INSERT INTO sfx_hint(id, source_id, start, "end", text, origin, deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, \'subtitle\', ?, ?, ?)',
+            (new_id(), sid, start, end, text, deleted, now_iso(), now_iso()),
+        )
 
 
 def test_suggest_name_rules(db, svc, src):
     aid = asset(db, src)
     assert svc.suggest(aid, 80.2, 82.0)["name"] == "Yuru Yuri 01 1:20.200–1:22.000"
-    # R7.5 与音效标注交叠 → 用标注文字；端点相接不算交叠；已删除的不算
+    # R7.5 与段 / 音效提示交叠 → 用它们的文字；端点相接不算交叠；已删除的不算
     annotate(db, src, "sfx", 82.0, 83.0, "足音")
     annotate(db, src, "line", 79.0, 80.5, "ちょっと待って")
     annotate(db, src, "line", 81.0, 81.5, "消した", deleted=1)

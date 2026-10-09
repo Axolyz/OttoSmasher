@@ -275,15 +275,18 @@ def test_delete_cascades_and_keeps_files(svc, db, ws, media):
     db.execute("UPDATE sound_asset SET media_file_id=? WHERE id=?", (mid, flat))
     s1, s2 = make_sample(db, stream), make_sample(db, flat)
     db.execute(
-        "INSERT INTO annotation(id, source_id, kind, scope, start, \"end\", raw_text, clean_text, created_at, updated_at)"
-        " VALUES (?, ?, 'line', 'source', 0, 1, 'x', 'x', ?, ?)",
+        "INSERT INTO text_segment(id, source_id, start, \"end\", text, origin, created_at, updated_at) VALUES (?, ?, 0, 1, 'x', 'subtitle', ?, ?)",
         (new_id(), sid, now_iso(), now_iso()),
+    )
+    db.execute(
+        "INSERT INTO range_tag(id, source_id, scope, scope_asset_id, start, \"end\", tags, created_at, updated_at) VALUES (?, ?, 'asset', ?, 0, 1, '[\"x\"]', ?, ?)",
+        (new_id(), sid, sep, now_iso(), now_iso()),
     )
     other = svc.add([str(wav(media / "other.wav"))])[0]["sourceId"]
     other_sample = make_sample(db, _asset(db, other))
 
     pv = svc.delete_preview(sid)
-    assert (pv["samples"], pv["generatedAssets"], pv["annotations"], pv["activeJobs"]) == (2, 2, 1, [])
+    assert (pv["samples"], pv["generatedAssets"], pv["segments"], pv["rangeTags"], pv["activeJobs"]) == (2, 2, 1, 1, [])
 
     # 有相关任务时拒绝
     jid = new_id()
@@ -301,7 +304,7 @@ def test_delete_cascades_and_keeps_files(svc, db, ws, media):
     assert q("SELECT COUNT(*) FROM source WHERE id=?", sid) == 0
     assert q("SELECT COUNT(*) FROM sound_asset WHERE source_id=?", sid) == 0
     assert q("SELECT COUNT(*) FROM sample WHERE id IN (?, ?)", s1, s2) == 0
-    assert q("SELECT COUNT(*) FROM annotation WHERE source_id=?", sid) == 0
+    assert q("SELECT COUNT(*) FROM text_segment WHERE source_id=?", sid) == 0 and q("SELECT COUNT(*) FROM range_tag WHERE source_id=?", sid) == 0
     assert q("SELECT COUNT(*) FROM media_file WHERE id=?", mid) == 0
     assert f.exists()  # 原片文件保留
     assert not lib.exists()  # 为它生成的库内文件删除

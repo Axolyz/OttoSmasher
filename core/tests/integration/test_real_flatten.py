@@ -50,7 +50,7 @@ def test_s4_flatten_references(tmp_path):
         lines, subs = [], []
         for _, (a, b, text), (fa, fb) in CASES:
             s = c.call("samples.create", assetId=vox, start=a, end=b, name=text, nature="speech")["r"]
-            r = c.call("edits.apply", batch={"ops": [{"entity": "sample", "id": s["id"], "version": s["version"], "fields": {"align_text_manual": text}}]})
+            r = c.call("segments.add", sourceId=sid, start=a, end=b, text=text)  # 手输台词 = 在文本层加一段（所有者 2026-10-09）
             assert r["ok"], r
             lines.append(s["id"])
             subs.append(c.call("samples.create", assetId=vox, start=fa, end=fb, name=text, nature="speech", parentSampleId=s["id"])["r"]["id"])

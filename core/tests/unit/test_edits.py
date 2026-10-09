@@ -95,29 +95,63 @@ def test_undo_skips_edit_whose_objects_changed_later(db, svc, sample_id):
     assert ei.value.code == "undo-nothing-safe"
 
 
-# R9.4 新建区段标注可预览、应用、撤销（撤销 = 软删除）
-def test_create_annotation_preview_apply_undo(db, svc):
+# R9.4 新建区段标签可预览、应用、撤销（撤销 = 软删除；所有者 2026-10-09：区段标签是独立对象 range_tag）
+def test_create_range_tag_preview_apply_undo(db, svc):
     src = make_source(db)
-    op = {"entity": "annotation", "op": "create", "fields": {"source_id": src, "kind": "tag", "scope": "source", "start": 1.0, "end": 2.5, "tags": ["character:京子"]}}
+    op = {"entity": "range_tag", "op": "create", "fields": {"source_id": src, "scope": "source", "start": 1.0, "end": 2.5, "tags": ["effect:door"]}}
     pv = svc.preview({"ops": [op]})
     assert pv["changes"][0]["op"] == "create"
-    assert db.execute("SELECT COUNT(*) FROM annotation").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM range_tag").fetchone()[0] == 0
     res = svc.apply({"ops": [op]})
-    ann = res["changes"][0]["id"]
-    r = row(db, "annotation", ann)
-    assert r["deleted"] == 0 and r["tags"] == '["character:京子"]'
+    tid = res["changes"][0]["id"]
+    r = row(db, "range_tag", tid)
+    assert r["deleted"] == 0 and r["tags"] == '["effect:door"]'
     svc.undo()
-    r = row(db, "annotation", ann)
-    assert r["deleted"] == 1
-    # 每次编辑留版本
-    assert db.execute("SELECT COUNT(*) FROM annotation_revision WHERE annotation_id=?", (ann,)).fetchone()[0] == 2
+    assert row(db, "range_tag", tid)["deleted"] == 1
 
 
-def test_annotation_range_must_be_positive(db, svc):
+def test_range_must_be_positive(db, svc):
     src = make_source(db)
     with pytest.raises(CoreError) as ei:
-        svc.apply({"ops": [{"entity": "annotation", "op": "create", "fields": {"source_id": src, "kind": "tag", "scope": "source", "start": 3.0, "end": 2.0}}]})
+        svc.apply({"ops": [{"entity": "range_tag", "op": "create", "fields": {"source_id": src, "scope": "source", "start": 3.0, "end": 2.0}}]})
     assert ei.value.args_["reason"] == "end-not-after-start"
+    with pytest.raises(CoreError) as ei:
+        svc.apply({"ops": [{"entity": "segment", "op": "create", "fields": {"source_id": src, "start": 3.0, "end": 2.0, "text": "あ", "origin": "typed"}}]})
+    assert ei.value.args_["reason"] == "end-not-after-start"
+
+
+# 段：改文本或边界自动标“改过”（受保护），改说话人只标“说话人改过”；撤销一起恢复
+def test_segment_edit_flags_and_undo(db, svc):
+    src = make_source(db)
+    sid = svc.apply({"ops": [{"entity": "segment", "op": "create", "fields": {
+        "source_id": src, "start": 1.0, "end": 2.0, "text": "  こんにちは\nみなさん  ", "origin": "subtitle", "speakers": ["京子", "京子", " 結衣 "]}}]})["changes"][0]["id"]
+    r = row(db, "text_segment", sid)
+    assert (r["text"], r["speakers"], r["edited"], r["speaker_edited"]) == ("こんにちは\nみなさん", '["京子","結衣"]', 0, 0)
+    svc.apply({"ops": [upd("segment", sid, 1, speakers=["京子"])]})
+    r = row(db, "text_segment", sid)
+    assert (r["edited"], r["speaker_edited"]) == (0, 1)
+    svc.apply({"ops": [upd("segment", sid, 2, text="こんばんは")]})
+    assert row(db, "text_segment", sid)["edited"] == 1
+    svc.undo()
+    r = row(db, "text_segment", sid)
+    assert (r["text"], r["edited"], r["speaker_edited"]) == ("こんにちは\nみなさん", 0, 1)
+    # 段长度上限 120 秒
+    with pytest.raises(CoreError) as ei:
+        svc.apply({"ops": [upd("segment", sid, 4, end=200.0)]})
+    assert ei.value.args_["reason"] in ("too-long", "out-of-bounds")
+
+
+# 迁移 0012 的屏障：之前的修改（已取消的对象）不再可撤销，撤销不越过它
+def test_undo_stops_at_the_barrier(db, svc, sample_id):
+    svc.apply({"ops": [upd("sample", sample_id, 1, name="改名")]})
+    db.execute("INSERT INTO edit(id, seq, created_at, label_code, label_args) VALUES ('barrier-x', (SELECT MAX(seq) + 1 FROM edit), '', 'barrier', '{}')")
+    with pytest.raises(CoreError) as ei:
+        svc.undo()
+    assert ei.value.code == "undo-nothing-safe"
+    # 未知对象（旧的标注）的历史也只是不可撤销，不报错
+    db.execute("INSERT INTO edit(id, seq, created_at, label_code, label_args) VALUES ('old', (SELECT MAX(seq) + 1 FROM edit), '', 'x', '{}')")
+    db.execute("INSERT INTO edit_change(edit_id, idx, entity, entity_id, op, after, version_after) VALUES ('old', 0, 'annotation', 'a', 'create', '{}', 1)")
+    assert svc.peek_undo() is None
 
 
 # R9.5 快捷编辑（改名、备注、评分、星标、性质、本地标签）也能被撤销

@@ -145,14 +145,22 @@ def test_import_without_whole_sample_then_whole_samples(db, ws, media):  # noqa:
     # 角色预填：给 a 的默认音轨加人声角色 → 语音；c 没有角色 → 未分类
     aid = db.execute("SELECT id FROM sound_asset WHERE source_id=? AND origin='stream'", (a,)).fetchone()[0]
     db.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, 'vocal', 'on')", (aid,))
-    r = imp.whole_samples([a, c], None)
+    # 「建立全长采样…」= 统一建采样动作，来源 = 整段（所有者 2026-10-09）
+    from ottosmasher.core.sample_plan import SamplePlanner
+    from ottosmasher.core.samples import SampleService
+
+    plan = SamplePlanner(db, SampleService(db))
+    src = {"kind": "whole", "sourceIds": [a, c]}
+    pv = plan.plan(src)
+    r = plan.create(src, pv["token"], [it["key"] for it in pv["items"]])
     got = {row[0]: (row[1], row[2], row[3]) for row in db.execute('SELECT a.source_id, s.nature, s.start, s.created_via FROM sample s JOIN sound_asset a ON a.id=s.asset_id')}
     assert (got[a][0], got[c][0], got[a][1], got[a][2]) == ("speech", "unclassified", 0.0, "manual")
-    assert len(r["sampleIds"]) == 2
-    imp.whole_samples([c], "pitched")  # 每次都新建
+    assert len(r["ids"]) == 2
+    src_c = {"kind": "whole", "sourceIds": [c]}
+    plan.create(src_c, plan.plan(src_c)["token"], [c], nature="pitched")  # 每次都新建
     assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 3
     with pytest.raises(CoreError):
-        imp.whole_samples([c, "nope"], None)  # 整批回滚
+        plan.plan({"kind": "whole", "sourceIds": [c, "nope"]})
     assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 3
 
 

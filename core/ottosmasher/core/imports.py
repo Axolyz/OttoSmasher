@@ -1,7 +1,7 @@
 """导入原片（规格 06 §6.6、05 §5.1；ARCHITECTURE §4.10；UI_PLAN §4、§8）。
 
 所有者 2026-10-07：原片只有一种。原片页「＋」与采样库「导入」是同一个导入框，唯一的区别是“直接建立全长采样”勾不勾
-（采样库进来默认勾，原片页进来默认不勾）；任何原片之后也能「建立全长采样…」（``whole_samples``）。
+（采样库进来默认勾，原片页进来默认不勾）；任何原片之后也能「建立全长采样…」（统一建采样动作，来源 = 整段，``core/sample_plan.py``）。
 
 - 每个文件 = 一个原片（登记位置，不复制、不转码）；勾了全长采样就在默认音轨上建一个整段采样（名 = 文件名去扩展名，性质在框里选，不靠文件名或音高推断）。
 - 作品（所有者 2026-10-07：文件夹导入的本意是把一批归到一个作品）：明确二选一——“统一设为”（预填：所有新文件按文件名推断出同一个作品就用它，
@@ -269,22 +269,6 @@ class ImportService:
         if cs.entities and self.on_change:
             self.on_change(cs)
         return {"created": created, "existing": existing, "failed": failed, "sourceIds": source_ids, "sampleIds": sample_ids}
-
-    def whole_samples(self, source_ids: list[str], nature: str | None) -> dict[str, Any]:
-        """对已有原片「建立全长采样」（所有者 2026-10-07）：每个原片在默认音轨上建一个整段采样；一次事务，失败整批回滚。
-        nature 为 None = 按默认音轨的角色预填（人声 → 语音、音效 → 非调谐单音、其他 → 未分类，04 §4.2.7）。"""
-        if nature is not None and nature not in NATURES:
-            raise CoreError("edit-invalid", index=0, field="nature", reason="not-an-option")
-        if not source_ids:
-            raise CoreError("edit-empty")
-        with transaction(self.conn):
-            ids = [create_whole_sample(self.conn, sid, nature, created_via="manual") for sid in source_ids]
-        cs = ChangeSet()
-        for sid in ids:
-            cs.add("sample", sid)
-        if self.on_change:
-            self.on_change(cs)
-        return {"sampleIds": ids}
 
 
 def create_whole_sample(conn: Any, source_id: str, nature: str | None, *, created_via: str) -> str:

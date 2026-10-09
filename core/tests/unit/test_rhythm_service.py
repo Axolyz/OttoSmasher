@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ottosmasher.core import units
+from analysis_helpers import add_analysis
 from ottosmasher.core.clock import new_id, now_iso
 from ottosmasher.core.edits import dumps, loads
 from ottosmasher.core.errors import CoreError
@@ -56,23 +56,8 @@ def sample(c, start=2.0, end=5.6, name="s", nature="speech"):
 
 
 def align(c, owner=None, start=2.0, end=5.6, ph=None):
-    """在 [start, end) 上登记一句手输单元的成功分析（所有者 2026-10-08：分析属于文本单元；没有自己文本的采样按范围读到它）。"""
-    snap = c.flatten._freeze(c.aid, start, end)["_snap"]
-    rid = new_id()
-    ph = ph or phones()
-    sp = units.span_of({"phones": ph})
-    unit = units.typed_id(c.aid, start, end)
-    c.conn.execute(
-        "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at, span_start, span_end)"
-        " VALUES (?, 'alignment', 'asset_text', ?, ?, ?, ?, ?, 'ok', 0, ?, ?, ?, ?)",
-        (rid, unit, c.aid, start, end, dumps({"audio": {"snapshot": snap}}),
-         dumps({"phones": ph, "morae": ["ka", "ka", "ka", "ta", "ka", "sa", "ka"]}), now_iso(), sp[0], sp[1]),
-    )
-    c.conn.execute(
-        "INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('asset_text', ?, 'alignment', ?, 1)"
-        " ON CONFLICT(owner_type, owner_id, kind) DO UPDATE SET run_id=excluded.run_id, version=version+1",
-        (unit, rid),
-    )
+    """在 [start, end) 上登记一段及它在这条资产上的一次成功分析（所有者 2026-10-09：分析属于“段 + 资产”；采样按判定区间读到它）。"""
+    rid, _ = add_analysis(c, start, end, ph or phones(), morae=["ka", "ka", "ka", "ta", "ka", "sa", "ka"])
     return rid
 
 

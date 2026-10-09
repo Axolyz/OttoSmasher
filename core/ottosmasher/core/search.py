@@ -291,7 +291,7 @@ class SearchService:
         for i in range(0, len(ids), 900):
             part = ids[i : i + 900]
             for r in self.conn.execute(
-                f'SELECT s.id, s.asset_id, s.start, s."end", {units.reads_sql("s")} FROM sample s'
+                f'SELECT s.id, s.asset_id, s.start, s."end", {units.reads_sql("s", "(SELECT source_id FROM sound_asset WHERE id = s.asset_id)")} FROM sample s'
                 f" WHERE s.id IN ({','.join('?' * len(part))})",
                 part,
             ):
@@ -358,7 +358,7 @@ class SearchService:
             args += [needle] * 3
         roles = sc.get("roles")
         rows = self.conn.execute(
-            f"SELECT a.id, a.mapping, a.duration, src.id AS sid, src.duration AS sdur, src.current_subtitle_version_id AS subver FROM sound_asset a"
+            f"SELECT a.id, a.mapping, a.duration, src.id AS sid, src.duration AS sdur FROM sound_asset a"
             f" JOIN source src ON src.id = a.source_id WHERE {' AND '.join(where)} ORDER BY src.created_at, a.created_at",
             args,
         ).fetchall()
@@ -378,7 +378,7 @@ class SearchService:
         return tracks
 
     def _source_tracks(self, scope: dict[str, Any] | None, prm: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-        """原片音轨模式的检索输入：整轨都测完的才检索（没测完的计入“未就绪”）；句首/句尾条件要台词标注（按映射换成资产秒）。"""
+        """原片音轨模式的检索输入：整轨都测完的才检索（没测完的计入“未就绪”）；句首/句尾条件要文本层的段（按映射换成资产秒）。"""
         tracks = self._list_tracks(scope)
         idents = asset_identities(self.conn, {r["id"]: [(0.0, float(r["duration"]))] for r, _ in tracks})
         entries: dict[str, dict[str, Any]] = {}
@@ -393,11 +393,7 @@ class SearchService:
             lines = None
             if need_lines:
                 ls = []
-                for a, b in self.conn.execute(
-                    'SELECT start, "end" FROM annotation WHERE source_id = ? AND kind = \'line\' AND deleted = 0'
-                    " AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?) AND scope != 'asset'",
-                    (r["sid"], r["subver"]),
-                ):
+                for a, b in self.conn.execute('SELECT start, "end" FROM text_segment WHERE source_id = ? AND deleted = 0', (r["sid"],)):
                     try:
                         ls.append([m.to_local(a), m.to_local(b)])
                     except CoreError:

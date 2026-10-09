@@ -36,10 +36,9 @@ def test_speech_job_end_to_end(tmp_path):
         add = c.call("sources.add", paths=[str(wav)])["r"][0]
         aid = add["assets"][0]["assetId"]
         smp = [c.call("samples.create", assetId=aid, start=s, end=e, name=n, nature="speech")["r"]["id"] for s, e, n in ((1.0, 2.0, "x"), (3.0, 4.0, "y"))]
-        # 手输文本（人工对齐文本）
-        for sid, text in zip(smp, ("あーあ", "♪♪"), strict=True):
-            v = c.call("samples.get", id=sid)["r"]["version"]
-            r = c.call("edits.apply", batch={"ops": [{"entity": "sample", "id": sid, "version": v, "fields": {"align_text_manual": text}}]})
+        # 手输台词 = 在文本层加一段（所有者 2026-10-09）
+        for (s, e), text in zip(((1.0, 2.0), (3.0, 4.0)), ("あーあ", "♪♪"), strict=True):
+            r = c.call("segments.add", sourceId=add["sourceId"], start=s, end=e, text=text)
             assert r["ok"], r
         pv = c.call("speech.preview", entry="samples", ids=smp)["r"]
         assert (pv["run"], pv["fresh"], pv["blocked"]) == (2, 0, 0)
@@ -48,9 +47,9 @@ def test_speech_job_end_to_end(tmp_path):
         assert j["status"] == "succeeded", j
         assert j["items"] == {"total": 2, "ok": 1, "failed": 1}
         rows = {r["name"]: r for r in c.call("speech.results", jobId=job["id"])["r"]}
-        assert rows["x"]["status"] == "ok"
-        assert rows["y"]["status"] == "failed"  # 只有符号：文本前端失败，写明原因
-        assert rows["y"]["error"]["code"] == "frontend-failed"
+        assert rows["あーあ"]["status"] == "ok"
+        assert rows["♪♪"]["status"] == "failed"  # 只有符号：文本前端失败，写明原因
+        assert rows["♪♪"]["error"]["code"] == "frontend-failed"
         # 再发起：成功的那条跳过，失败的那条重跑
         pv = c.call("speech.preview", entry="samples", ids=smp)["r"]
         assert (pv["run"], pv["fresh"]) == (1, 1)

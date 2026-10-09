@@ -59,7 +59,7 @@ def test_s3_stretch_on_real_lines(tmp_path):
         ids = []
         for name, a, b, text in LINES:
             s = c.call("samples.create", assetId=vox, start=a, end=b, name=name, nature="speech")["r"]
-            assert c.call("edits.apply", batch={"ops": [{"entity": "sample", "id": s["id"], "version": s["version"], "fields": {"align_text_manual": text}}]})["ok"]
+            assert c.call("segments.add", sourceId=sid, start=a, end=b, text=text)["ok"]  # 手输台词 = 在文本层加一段（所有者 2026-10-09）
             ids.append(s["id"])
         job = c.call("speech.submit", entry="samples", ids=ids)["r"]
         assert wait(c, job["id"])["status"] == "succeeded"

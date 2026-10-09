@@ -5,6 +5,9 @@
 - **F0（音高检索）**：新采样的范围、每个原片的默认人声轨（没有就用原混音）整轨 → 「测音高」任务（每个最多 6 段 = 6 分钟音频，不会长时间挡住别的任务）。
 都是**后台任务**：同一通道里排在用户提交的任务后面。正在排队或运行的不重复提交（按采样 / 按 F0 段记账，任务结束就清掉）。
 启动时全量补一次。设置「语音分析 → 自动准备检索」可以关掉（关了以后检索浮层里仍有手动的「准备」）。
+
+另有「改段后自动在后台重跑」（所有者 2026-10-09，默认关，单独的开关）：段的文本或边界改了、拆分 / 合并 / 切开之后，
+在原段已有分析的资产上排后台语音分析（导入替换不触发）；正在排队或运行的不重复提交。
 """
 
 from __future__ import annotations
@@ -16,6 +19,8 @@ from typing import Any
 
 from ..models import f0store
 from . import settings as settings_mod
+from .edits import loads
+from .errors import CoreError
 from .search_index import asset_identities, pitch_coverage
 from .units import analysis_track
 
@@ -27,9 +32,13 @@ F0_CHUNKS_PER_JOB = 6
 
 
 class AutoPrepare:
-    def __init__(self, conn: Any, search: Any, jobs: Any, post: Callable[[Callable[[], None]], None], delay: float = DEBOUNCE) -> None:
+    def __init__(self, conn: Any, search: Any, jobs: Any, post: Callable[[Callable[[], None]], None], delay: float = DEBOUNCE, speech: Any = None) -> None:
         self.conn = conn
         self.search = search
+        self.speech = speech
+        self._sources_speech: set[str] = set()
+        self._rerun: set[str] = set()
+        self.pending_units: dict[str, set[str]] = {}
         self.jobs = jobs
         self.post = post
         self.delay = delay
@@ -49,8 +58,15 @@ class AutoPrepare:
         with self._lock:
             self._samples |= set(entities.get("sample", ())) | set(entities.get("measure", ()))
             self._sources |= set(entities.get("source", ()))
-            if entities.keys() & {"setting", "annotation", "asset"}:
-                self._all_speech = True  # 惩罚度、台词标注（角色）、资产角色 → 语音检索索引可能整体过期
+            self._rerun |= set(entities.get("segment_content", ()))
+            if entities.keys() & {"setting", "asset"}:
+                self._all_speech = True  # 惩罚度、资产角色 → 语音检索索引可能整体过期
+            for ent, table in (("segment", "text_segment"), ("range_tag", "range_tag")):
+                ids = list(entities.get(ent, ()))
+                for i in range(0, len(ids), 900):
+                    part = ids[i : i + 900]
+                    self._sources_speech |= {r[0] for r in self.conn.execute(
+                        f"SELECT DISTINCT source_id FROM {table} WHERE id IN ({','.join('?' * len(part))})", part)}
         self._schedule()
 
     def kick_all(self) -> None:
@@ -74,6 +90,7 @@ class AutoPrepare:
     def _finished(self, jid: str, kind: str, status: str) -> None:
         self.pending_index.pop(jid, None)
         self.pending_f0.pop(jid, None)
+        self.pending_units.pop(jid, None)
 
     # ------------------------------------------------------------ 补
 
@@ -81,12 +98,23 @@ class AutoPrepare:
         with self._lock:
             samples, sources, full, full_speech = self._samples, self._sources, self._all, self._all_speech
             self._samples, self._sources, self._all, self._all_speech = set(), set(), False, False
-        if not settings_mod.values(self.conn)["analysis.auto_prepare"]:
+            rerun, src_speech = self._rerun, self._sources_speech
+            self._rerun, self._sources_speech = set(), set()
+        values = settings_mod.values(self.conn)
+        if rerun and values["analysis.auto_rerun_segments"]:
+            try:
+                self._rerun_segments(rerun)
+            except Exception:  # noqa: BLE001 — 自动重跑出错不影响别的
+                log.exception("auto rerun failed")
+        if not values["analysis.auto_prepare"]:
             return
         try:
             all_ids = [r[0] for r in self.conn.execute("SELECT id FROM sample")] if (full or full_speech) else []
             ids = all_ids if full else [r[0] for r in self._existing(samples)]
-            self._speech(all_ids if (full or full_speech) else ids)
+            by_src: list[str] = []
+            for sid in src_speech:
+                by_src += [r[0] for r in self.conn.execute("SELECT s.id FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE a.source_id = ?", (sid,))]
+            self._speech(all_ids if (full or full_speech) else list(dict.fromkeys(ids + by_src)))
             self._sample_f0(ids)
             src = [r[0] for r in self.conn.execute("SELECT id FROM source WHERE media_state = 'available'")] if full else list(sources)
             if not full:
@@ -95,6 +123,33 @@ class AutoPrepare:
             self._track_f0(sorted(set(src)))
         except Exception:  # noqa: BLE001 — 自动准备出错不影响别的；下次变化再试
             log.exception("auto prepare failed")
+
+    def _rerun_segments(self, ids: set[str]) -> None:
+        """段内容变了之后：在原段（拆分 / 合并的产物看来源段）已有分析的资产上排后台语音分析。"""
+        if self.speech is None:
+            return
+        busy = set().union(*self.pending_units.values()) if self.pending_units else set()
+        unit_ids: list[str] = []
+        for sid in ids:
+            row = self.conn.execute("SELECT deleted, provenance FROM text_segment WHERE id=?", (sid,)).fetchone()
+            if row is None or row["deleted"]:
+                continue
+            origins = [sid] + list((loads(row["provenance"]) or {}).get("from") or []) if row["provenance"] else [sid]
+            assets: set[str] = set()
+            for o in origins:
+                assets |= {r[0] for r in self.conn.execute(
+                    "SELECT DISTINCT asset_id FROM measure_run WHERE owner_type='asset_text' AND kind='alignment' AND owner_id >= ? AND owner_id < ?",
+                    (f"seg:{o}@", f"seg:{o}A"))}
+            unit_ids += [f"seg:{sid}@{a}" for a in sorted(assets) if f"seg:{sid}@{a}" not in busy]
+        if not unit_ids:
+            return
+        try:
+            job = self.speech.submit("units", unit_ids, False, background=True)
+        except CoreError as e:
+            if e.code == "speech-nothing-to-do":
+                return
+            raise
+        self.pending_units[job["id"]] = set(unit_ids)
 
     def _existing(self, ids: set[str]) -> list[Any]:
         out: list[Any] = []

@@ -93,37 +93,55 @@ class FlattenService:
     # ------------------------------------------------------------ 对齐（同一物理声音、覆盖外选区）
 
     def _alignment(self, asset_id: str, start: float, end: float, snap: dict[str, Any], sample_id: str | None) -> dict[str, Any] | None:
-        """选区上的对齐（所有者 2026-10-08：分析属于文本单元）。从采样打开、选区就是这个采样且它有自己的文本 → 只读自己那一句；
-        否则 → 资产上音素跨度与选区交叠的句。只取同一物理声音（文件快照一致）的；读到的句的窗口要连起来覆盖整个选区
-        （覆盖不全 = 不可用，不静默少算元音）；两句的音素在时间上冲突 → 不可用。"""
-        own = None
+        """选区上的对齐（所有者 2026-10-09：分析属于“段 + 资产”，采样按判定区间读）。从采样打开、选区就是这个采样 → 采样读到的结果；
+        否则 → 与选区（换算成原片秒）正长度交叠的段在这条资产上的可用分析。只取同一物理声音（文件快照一致）的；
+        读到的段的对齐窗口要连起来覆盖整个选区（覆盖不全 = 不可用，不静默少算元音）；任何一段不可用或两段音素冲突 → 不可用。"""
         if sample_id:
             s = self.conn.execute(f"SELECT {self.speech._SAMPLE_COLS} FROM sample WHERE id=?", (sample_id,)).fetchone()
             if s is not None and s["asset_id"] == asset_id and abs(s["start"] - start) < 1e-6 and abs(s["end"] - end) < 1e-6:
-                own = self.speech.own_unit(s)
-        if own is not None:
-            rows = self.conn.execute(
-                "SELECT h.owner_id, h.version, r.* FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
-                " WHERE h.owner_type=? AND h.owner_id=? AND h.kind='alignment' AND r.status='ok'",
-                (units.OWNER, own["unitId"]),
-            ).fetchall()
-        else:
-            rows = self.speech._overlapping(asset_id, start, end)
-        rows = [r for r in rows if (loads(r["inputs"]).get("audio") or {}).get("snapshot") == snap]
-        if not rows:
+                rd = self.speech.reading(s)
+                head = rd["head"]
+                if head is None:
+                    return None
+                windows = [v["head"].get("window") or v["target"] for v in rd["units"] if v["head"]]
+                if not self._covers(windows, start, end):
+                    return None
+                phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in head["result"]["phones"]]
+                return {"runId": head["runId"], "manual": bool(head["manual"]), "owner": ",".join(head.get("units") or []), "phones": phones}
+        asset = assets_mod.get(self.conn, asset_id)
+        try:
+            m = Mapping.of(asset["mapping"])
+            a, b = m.to_source(start), m.to_source(end)
+        except CoreError:
             return None
-        reach = start
-        for a, b in sorted(tuple(loads(r["inputs"]).get("window") or [r["range_start"], r["range_end"]]) for r in rows):
-            if a > reach + 1e-6:
-                break
-            reach = max(reach, b)
-        if reach < end - 1e-6:
+        segs = self.speech.read_segments(asset["source_id"], a, b)
+        if not segs:
             return None
-        merged = units.merge([{"unitId": r["owner_id"], "name": r["owner_id"], "result": loads(r["result"])} for r in rows], start, end)
+        ords = self.speech.ordinals(asset["source_id"], [t["id"] for t in segs])
+        parts = []
+        for t in segs:
+            uid = units.unit_id(t["id"], asset_id)
+            r = self.speech.usable_run(uid, t)
+            if r is None or (loads(r["inputs"]).get("audio") or {}).get("snapshot") != snap:
+                return None
+            parts.append((uid, r))
+        if not self._covers([loads(r["inputs"]).get("window") or [r["range_start"], r["range_end"]] for _, r in parts], start, end):
+            return None
+        merged = units.merge([{"unitId": uid, "ordinal": ords.get(uid[4:].split("@", 1)[0], 0), "result": loads(r["result"])} for uid, r in parts], start, end)
         if "conflict" in merged:
             return None
         phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in merged["phones"]]
-        return {"runId": "+".join(r["id"] for r in rows), "manual": any(bool(r["manual"]) for r in rows), "owner": ",".join(r["owner_id"] for r in rows), "phones": phones}
+        return {"runId": "+".join(r["id"] for _, r in parts), "manual": any(bool(r["manual"]) for _, r in parts), "owner": ",".join(u for u, _ in parts),
+                "phones": phones}
+
+    @staticmethod
+    def _covers(windows: list[Any], start: float, end: float) -> bool:
+        reach = start
+        for a, b in sorted(tuple(w) for w in windows if w):
+            if a > reach + 1e-6:
+                break
+            reach = max(reach, b)
+        return reach >= end - 1e-6
 
     @staticmethod
     def _local_phones(al: dict[str, Any], start: float) -> list[list[Any]]:

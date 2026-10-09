@@ -4,10 +4,10 @@
 
 - 本地：``sample_tag``；
 - 原片：``work:作品``、``type:来源类型``（随原片属性实时变化）；
-- 区段：时间标注上的标签，按作用域 + 正长度交叠继承——
-  判定区间 = 采样的“标签判定区间”（字幕采样 = 原字幕时间，原片秒）或采样选区经资产映射到原片秒；
-  原片作用域：所有资产；角色作用域：资产必须带该角色（state=on）；资产作用域：只对这一个资产，用资产局部秒比较；
-  只算当前字幕版本的标注（手动建的标注没有版本，始终参与）和未删除的标注；端点相接不算交叠；
+- 区段（所有者 2026-10-09）：按采样的**判定区间**（原片秒；可见可改，从段 / 音效提示建的 = 段 / 提示的区间，其余 = 选区）正长度交叠继承——
+  - 区段标签（用户显式画的）：原片作用域 → 所有资产；角色作用域 → 资产必须带该角色（state=on）；资产作用域 → 只对这一个资产，用资产局部秒比较；
+  - 文本层的段的说话人（段的属性）：只对带人声角色的资产生效；一人 ``character:``，多人 ``participants:`` + ``speaker-status:多人未分段``；
+  未删除的才算；端点相接不算交叠；
 - 自动：拉平成品的目标音 ``pitch:音名``——取绑定资产登记时记录的目标音（``production.target``，不是重测结果），
   按绑定音频实时求值：在拉平成品上再截取也带；同范围绑回原音频则不带（规格 11 §11.4）。
 
@@ -27,7 +27,7 @@ from typing import Any
 from ottosmasher.domain.mapping import Mapping
 from ottosmasher.domain.overlap import overlaps
 
-from .edits import facet_of, loads
+from .edits import SEGMENT_MAX, facet_of, loads
 from .errors import CoreError
 
 _PRIORITY = {"local": 0, "source": 1, "segment": 2, "auto": 3}
@@ -35,9 +35,11 @@ _PRIORITY = {"local": 0, "source": 1, "segment": 2, "auto": 3}
 
 def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, str | None]]:
     """一个采样的有效标签：[(tag, provenance, provenance_ref)]，按标签排序。"""
+    from .text_layer import speaker_tags  # 避免循环导入
+
     s = conn.execute(
         'SELECT s.id, s.start, s."end", s.tag_judge_start, s.tag_judge_end, s.asset_id, a.mapping, a.source_id, a.origin, a.production,'
-        " src.work, src.source_type, src.current_subtitle_version_id"
+        " src.work, src.source_type"
         " FROM sample s JOIN sound_asset a ON a.id=s.asset_id JOIN source src ON src.id=a.source_id WHERE s.id=?",
         (sample_id,),
     ).fetchone()
@@ -56,31 +58,35 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
         add(f"work:{s['work']}", "source", s["source_id"])
     if s["source_type"]:
         add(f"type:{s['source_type']}", "source", s["source_id"])
-
-    roles = {r[0] for r in conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (s["asset_id"],))}
-    # 原片秒的判定区间：字幕采样用标签判定区间，否则选区经映射换算；没有映射就只看资产作用域
-    src_win: tuple[float, float] | None = None
-    if s["tag_judge_start"] is not None and s["tag_judge_end"] is not None:
-        src_win = (s["tag_judge_start"], s["tag_judge_end"])
-    elif s["mapping"]:
-        try:
-            m = Mapping.of(loads(s["mapping"]))
-            src_win = (m.to_source(s["start"]), m.to_source(s["end"]))
-        except CoreError:
-            src_win = None
-    rows = conn.execute(
-        'SELECT id, scope, scope_role, scope_asset_id, start, "end", tags FROM annotation'
-        " WHERE source_id=? AND deleted=0 AND tags != '[]'"
-        " AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)",
-        (s["source_id"], s["current_subtitle_version_id"]),
-    )
     if s["origin"] == "flatten" and s["production"]:
         name = (loads(s["production"]).get("target") or {}).get("name")
         if name:
             add(f"pitch:{name}", "auto", s["asset_id"])
-    for r in rows:
+
+    roles = {r[0] for r in conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (s["asset_id"],))}
+    # 判定区间（原片秒）；没有记录的 = 选区经映射换算；资产作用域用它在资产局部秒里的对应
+    mapping: Mapping | None = None
+    try:
+        mapping = Mapping.of(loads(s["mapping"])) if s["mapping"] else None
+    except CoreError:
+        mapping = None
+    src_win: tuple[float, float] | None = None
+    if s["tag_judge_start"] is not None and s["tag_judge_end"] is not None:
+        src_win = (s["tag_judge_start"], s["tag_judge_end"])
+    elif mapping is not None:
+        src_win = (mapping.to_source(s["start"]), mapping.to_source(s["end"]))
+    local_win = (s["start"], s["end"])
+    if src_win is not None and mapping is not None:
+        try:
+            local_win = (mapping.to_local(max(src_win[0], mapping.source_start)), mapping.to_local(min(src_win[1], mapping.source_end)))
+        except CoreError:
+            pass
+    for r in conn.execute(
+        'SELECT id, scope, scope_role, scope_asset_id, start, "end", tags FROM range_tag WHERE source_id=? AND deleted=0 AND tags != \'[]\'',
+        (s["source_id"],),
+    ):
         if r["scope"] == "asset":
-            if r["scope_asset_id"] != s["asset_id"] or not overlaps(s["start"], s["end"], r["start"], r["end"]):
+            if r["scope_asset_id"] != s["asset_id"] or not overlaps(local_win[0], local_win[1], r["start"], r["end"]):
                 continue
         else:
             if src_win is None or not overlaps(src_win[0], src_win[1], r["start"], r["end"]):
@@ -89,6 +95,14 @@ def compute(conn: sqlite3.Connection, sample_id: str) -> list[tuple[str, str, st
                 continue
         for tag in loads(r["tags"]):
             add(tag, "segment", r["id"])
+    if src_win is not None and "vocal" in roles:
+        for r in conn.execute(
+            'SELECT id, speakers FROM text_segment WHERE source_id=? AND deleted=0 AND start < ? AND "end" > ? AND start > ? AND speakers != \'[]\''
+            ' ORDER BY start, "end", id',
+            (s["source_id"], src_win[1], src_win[0], src_win[0] - SEGMENT_MAX - 1e-6),
+        ):
+            for tag in speaker_tags(loads(r["speakers"])):
+                add(tag, "segment", r["id"])
     return sorted((t, p, ref) for t, (p, ref) in found.items())
 
 
@@ -114,20 +128,23 @@ def samples_of_asset(conn: sqlite3.Connection, asset_id: str) -> list[str]:
     return [r[0] for r in conn.execute("SELECT id FROM sample WHERE asset_id=?", (asset_id,))]
 
 
-_SOURCE_FIELDS = {"work", "source_type", "current_subtitle_version_id"}
+_SOURCE_FIELDS = {"work", "source_type"}
 
 
 def affected_by_change(conn: sqlite3.Connection, entity: str, entity_id: str, fields: Iterable[str]) -> list[str]:
     """一个对象的一次修改会影响哪些采样的有效标签。"""
     fields = set(fields)
     if entity == "sample":
-        return [entity_id] if "local_tags" in fields else []
+        return [entity_id] if fields & {"local_tags", "judge"} else []
     if entity == "source":
         return samples_of_source(conn, entity_id) if fields & _SOURCE_FIELDS else []
     if entity == "asset":
         return samples_of_asset(conn, entity_id) if "roles" in fields else []
-    if entity == "annotation":
-        row = conn.execute("SELECT source_id FROM annotation WHERE id=?", (entity_id,)).fetchone()
+    if entity in ("segment", "range_tag"):
+        table = "text_segment" if entity == "segment" else "range_tag"
+        if entity == "segment" and not fields & {"speakers", "start", "end", "deleted"}:
+            return []  # 只改了文本：标签不变
+        row = conn.execute(f"SELECT source_id FROM {table} WHERE id=?", (entity_id,)).fetchone()
         return samples_of_source(conn, row[0]) if row else []
     return []
 

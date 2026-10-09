@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from ottosmasher.core import effective_tags
-from ottosmasher.core import units
+from analysis_helpers import add_analysis
 from ottosmasher.core.clock import new_id, now_iso
 from ottosmasher.core.edits import dumps, loads
 from ottosmasher.core.errors import CoreError
@@ -44,21 +44,8 @@ PHONES = [
 
 
 def alignment(c, owner, start, end, *, manual=False, snapshot=None, phones=PHONES):
-    """在 [start, end) 上登记一句手输单元的成功分析（分析属于文本单元；没有自己文本的采样、选区按范围读到它）。"""
-    snap = snapshot if snapshot is not None else c.flatten._freeze(c.aid, start, end)["_snap"]
-    rid = new_id()
-    sp = units.span_of({"phones": phones})
-    unit = units.typed_id(c.aid, start, end)
-    c.conn.execute(
-        "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at, span_start, span_end)"
-        " VALUES (?, 'alignment', 'asset_text', ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?)",
-        (rid, unit, c.aid, start, end, dumps({"audio": {"snapshot": snap}}), int(manual), dumps({"phones": phones}), now_iso(), sp[0], sp[1]),
-    )
-    c.conn.execute(
-        "INSERT INTO measure_head(owner_type, owner_id, kind, run_id, version) VALUES ('asset_text', ?, 'alignment', ?, 1)"
-        " ON CONFLICT(owner_type, owner_id, kind) DO UPDATE SET run_id=excluded.run_id, version=version+1",
-        (unit, rid),
-    )
+    """在 [start, end) 上登记一段及它在这条资产上的一次成功分析（采样、选区按范围读到它）。"""
+    rid, _ = add_analysis(c, start, end, phones, manual=manual, snapshot=snapshot)
     return rid
 
 
@@ -101,11 +88,11 @@ def test_alignment_must_cover_the_selection_and_be_the_same_physical_sound(core)
     assert e.value.code == "flatten-needs-alignment"
     alignment(core, s, 1.0, 2.0, snapshot={"size": 1, "mtime_ns": 2})  # 文件快照不同 = 别的声音
     assert core.flatten.open(core.aid, 1.0, 2.0, "single", s)["alignment"] is None
-    # 覆盖它的别的句可以用（采样没有自己的文本，读范围内的句）；但与 1.2–2.0 那句的音素在时间上冲突 → 不可用（不自动处理）
+    # 判定区间读到的段只要有一段不可用（这里是别的声音上测的）→ 不可用；只剩覆盖它的那一段时可以用
     big = sample(core, 0.5, 3.0)
     alignment(core, big, 0.5, 3.0)
     assert core.flatten.open(core.aid, 1.0, 2.0, "single", s)["alignment"] is None
-    core.conn.execute("DELETE FROM measure_head WHERE owner_id=?", (units.typed_id(core.aid, 1.2, 2.0),))
+    core.conn.execute('UPDATE text_segment SET deleted=1 WHERE NOT (abs(start-0.5)<1e-9 AND abs("end"-3.0)<1e-9)')
     op = core.flatten.open(core.aid, 1.0, 2.0, "single", s)
     assert op["alignment"] is not None and op["name"] == "s"
 

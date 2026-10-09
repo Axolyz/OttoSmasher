@@ -2,17 +2,6 @@
  "catalogVersion": 1,
  "commands": [
   {
-   "name": "annotations.list",
-   "effect": "read",
-   "summary": "Subtitle/segment annotations, OP/ED and derived samples of a source.",
-   "params": {
-    "$ref": "#/$defs/SourceIdParams"
-   },
-   "result": {
-    "$ref": "#/$defs/AnnotationList"
-   }
-  },
-  {
    "name": "app.prepareQuit",
    "effect": "app",
    "summary": "Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start).",
@@ -290,6 +279,17 @@
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "hints.add",
+   "effect": "write",
+   "summary": "Add an sfx hint by hand (protected).",
+   "params": {
+    "$ref": "#/$defs/HintAddParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SegmentAdded"
    }
   },
   {
@@ -750,12 +750,23 @@
   {
    "name": "samples.create",
    "effect": "write",
-   "summary": "Create a sample on an asset range (always a new sample).",
+   "summary": "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
    "params": {
     "$ref": "#/$defs/SampleCreateParams"
    },
    "result": {
     "$ref": "#/$defs/SampleRow"
+   }
+  },
+  {
+   "name": "samples.createPlanned",
+   "effect": "write",
+   "summary": "Create the chosen planned samples atomically (always new samples).",
+   "params": {
+    "$ref": "#/$defs/SampleCreatePlannedParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SamplesCreated"
    }
   },
   {
@@ -803,6 +814,17 @@
    },
    "result": {
     "$ref": "#/$defs/SamplePage"
+   }
+  },
+  {
+   "name": "samples.plan",
+   "effect": "read",
+   "summary": "Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch.",
+   "params": {
+    "$ref": "#/$defs/SamplePlanParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SamplePlan"
    }
   },
   {
@@ -894,6 +916,61 @@
    }
   },
   {
+   "name": "segments.add",
+   "effect": "write",
+   "summary": "Add a typed segment to the text layer (replace or cut overlapping ones when asked).",
+   "params": {
+    "$ref": "#/$defs/SegmentAddParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SegmentAdded"
+   }
+  },
+  {
+   "name": "segments.checkAdd",
+   "effect": "read",
+   "summary": "Which segments a new typed segment would overlap, and whether cut is possible.",
+   "params": {
+    "$ref": "#/$defs/SegmentRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SegmentAddCheck"
+   }
+  },
+  {
+   "name": "segments.merge",
+   "effect": "write",
+   "summary": "Merge segments into one new protected segment.",
+   "params": {
+    "$ref": "#/$defs/SegmentMergeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SegmentAdded"
+   }
+  },
+  {
+   "name": "segments.regenerateSpeakers",
+   "effect": "write",
+   "summary": "Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only).",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeakersRegenerated"
+   }
+  },
+  {
+   "name": "segments.split",
+   "effect": "write",
+   "summary": "Split a segment (old one deleted, two new protected segments).",
+   "params": {
+    "$ref": "#/$defs/SegmentSplitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SegmentsSplit"
+   }
+  },
+  {
    "name": "separation.results",
    "effect": "read",
    "summary": "Assets registered by a separation job.",
@@ -949,7 +1026,7 @@
   {
    "name": "sources.delete",
    "effect": "write",
-   "summary": "Delete a source with its assets, samples and annotations (not undoable).",
+   "summary": "Delete a source with its assets, samples, text layer and tags (not undoable).",
    "params": {
     "$ref": "#/$defs/IdParams"
    },
@@ -1045,20 +1122,9 @@
    }
   },
   {
-   "name": "sources.wholeSamples",
-   "effect": "write",
-   "summary": "Create one full-length sample per source on its default track.",
-   "params": {
-    "$ref": "#/$defs/WholeSamplesParams"
-   },
-   "result": {
-    "$ref": "#/$defs/SampleIds"
-   }
-  },
-  {
    "name": "speech.forAsset",
    "effect": "read",
-   "summary": "Current alignments of all lines (text units) on an asset range (same physical audio only).",
+   "summary": "Usable alignments of all segments on an asset range (same physical audio only).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
    },
@@ -1072,7 +1138,7 @@
   {
    "name": "speech.preview",
    "effect": "read",
-   "summary": "What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons.",
+   "summary": "What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons.",
    "params": {
     "$ref": "#/$defs/SpeechPlanParams"
    },
@@ -1097,7 +1163,7 @@
   {
    "name": "speech.sample",
    "effect": "read",
-   "summary": "Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head.",
+   "summary": "Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result.",
    "params": {
     "$ref": "#/$defs/IdParams"
    },
@@ -1108,7 +1174,7 @@
   {
    "name": "speech.saveManual",
    "effect": "write",
-   "summary": "Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+   "summary": "Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed).",
    "params": {
     "$ref": "#/$defs/SpeechManualParams"
    },
@@ -1128,20 +1194,9 @@
    }
   },
   {
-   "name": "speech.submitRange",
-   "effect": "job",
-   "summary": "Analyze an asset range with typed text (a typed text unit; no sample needed).",
-   "params": {
-    "$ref": "#/$defs/SpeechRangeParams"
-   },
-   "result": {
-    "$ref": "#/$defs/JobSummary"
-   }
-  },
-  {
    "name": "speech.switchHead",
    "effect": "write",
-   "summary": "Make another successful version of a line (text unit) the current one.",
+   "summary": "Make another successful version of a segment on a track the current one.",
    "params": {
     "$ref": "#/$defs/SpeechSwitchParams"
    },
@@ -1161,31 +1216,9 @@
    }
   },
   {
-   "name": "subtitleSamples.create",
-   "effect": "write",
-   "summary": "Create samples from chosen subtitle lines (atomic).",
-   "params": {
-    "$ref": "#/$defs/SubtitleSamplesCreateParams"
-   },
-   "result": {
-    "$ref": "#/$defs/SubtitleSamplesCreated"
-   }
-  },
-  {
-   "name": "subtitleSamples.preview",
-   "effect": "read",
-   "summary": "Preview creating samples from subtitle lines or sound effects.",
-   "params": {
-    "$ref": "#/$defs/SubtitleSamplesPreviewParams"
-   },
-   "result": {
-    "$ref": "#/$defs/SubtitleSamplePreview"
-   }
-  },
-  {
    "name": "subtitles.import",
    "effect": "write",
-   "summary": "Import subtitle markers from a preview (insert only, atomic, undoable).",
+   "summary": "Import a subtitle file as previewed (one atomic, undoable edit).",
    "params": {
     "$ref": "#/$defs/SubtitleImportParams"
    },
@@ -1194,9 +1227,20 @@
    }
   },
   {
+   "name": "subtitles.importDefault",
+   "effect": "write",
+   "summary": "One-click import of the associated subtitle with default options.",
+   "params": {
+    "$ref": "#/$defs/SourceIdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleImportResult"
+   }
+  },
+  {
    "name": "subtitles.importMany",
    "effect": "write",
-   "summary": "Batch subtitle import, each source atomic on its own.",
+   "summary": "Batch subtitle import with default options, each source atomic.",
    "params": {
     "$ref": "#/$defs/SubtitleImportManyParams"
    },
@@ -1210,7 +1254,7 @@
   {
    "name": "subtitles.preview",
    "effect": "read",
-   "summary": "Preview importing subtitle markers of one source.",
+   "summary": "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line).",
    "params": {
     "$ref": "#/$defs/SubtitlePreviewParams"
    },
@@ -1252,6 +1296,17 @@
    },
    "result": {
     "$ref": "#/$defs/PromoteInfo"
+   }
+  },
+  {
+   "name": "textLayer.list",
+   "effect": "read",
+   "summary": "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",
+   "params": {
+    "$ref": "#/$defs/TextLayerParams"
+   },
+   "result": {
+    "$ref": "#/$defs/TextLayerList"
    }
   },
   {
@@ -2016,6 +2071,22 @@
    "summary": "The rendered audition is no longer in the cache."
   },
   {
+   "code": "rhythm-segment-stale",
+   "args": [
+    "segments",
+    "n"
+   ],
+   "summary": "Some segments read by this sample were edited after their analysis; analyze them again."
+  },
+  {
+   "code": "rhythm-segments-missing",
+   "args": [
+    "segments",
+    "n"
+   ],
+   "summary": "Some segments read by this sample have no usable analysis on this track yet."
+  },
+  {
    "code": "rhythm-too-many-blocks",
    "args": [
     "count",
@@ -2028,9 +2099,10 @@
    "args": [
     "a",
     "b",
-    "at"
+    "start",
+    "end"
    ],
-   "summary": "Two analyzed lines read by this sample overlap in time; fix the phoneme times of one of them."
+   "summary": "Two segments read by this sample overlap in time; shrink the judge interval or fix one segment's phoneme times."
   },
   {
    "code": "root-invalid",
@@ -2084,6 +2156,26 @@
    "summary": "No such sample."
   },
   {
+   "code": "sample-plan-invalid",
+   "args": [
+    "field"
+   ],
+   "summary": "The sample plan request is invalid."
+  },
+  {
+   "code": "sample-plan-not-pending",
+   "args": [
+    "key",
+    "status"
+   ],
+   "summary": "That planned sample cannot be created (OP/ED, outside the track or without a name)."
+  },
+  {
+   "code": "sample-plan-stale",
+   "args": [],
+   "summary": "Things changed since the plan was made; plan again."
+  },
+  {
    "code": "schema-migration-failed",
    "args": [
     "backup",
@@ -2118,6 +2210,28 @@
    "code": "search-nothing-to-prepare",
    "args": [],
    "summary": "Everything in the current scope is already prepared for this search."
+  },
+  {
+   "code": "segment-invalid",
+   "args": [
+    "reason"
+   ],
+   "summary": "The segment operation is invalid (split point outside the segment, merge needs two segments)."
+  },
+  {
+   "code": "segment-not-found",
+   "args": [
+    "id"
+   ],
+   "summary": "No such text segment (or it was deleted)."
+  },
+  {
+   "code": "segment-overlap",
+   "args": [
+    "n",
+    "canCut"
+   ],
+   "summary": "The new segment overlaps existing segments; choose replace, cut or cancel."
   },
   {
    "code": "selftest-failed",
@@ -2569,152 +2683,18 @@
     "start"
    ]
   },
-  "AnnotationList": {
-   "title": "AnnotationList",
-   "type": "object",
-   "properties": {
-    "annotations": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/AnnotationRow"
-     }
-    },
-    "derived": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/DerivedSample"
-     }
-    },
-    "opeds": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/OpedRange"
-     }
-    }
-   },
-   "required": [
-    "annotations",
-    "derived",
-    "opeds"
-   ]
-  },
-  "AnnotationRow": {
-   "title": "AnnotationRow",
-   "type": "object",
-   "properties": {
-    "end": {
-     "type": "number"
-    },
-    "fromSubtitle": {
-     "type": "boolean"
-    },
-    "id": {
-     "type": "string"
-    },
-    "kind": {
-     "enum": [
-      "line",
-      "sfx",
-      "song",
-      "tag"
-     ]
-    },
-    "name": {
-     "type": "string"
-    },
-    "oped": {
-     "anyOf": [
-      {
-       "enum": [
-        "ED",
-        "OP"
-       ]
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "scope": {
-     "enum": [
-      "asset",
-      "role",
-      "source"
-     ]
-    },
-    "scopeRole": {
-     "anyOf": [
-      {
-       "enum": [
-        "sfx",
-        "vocal"
-       ]
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "speakers": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "start": {
-     "type": "number"
-    },
-    "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "text": {
-     "type": "string"
-    },
-    "version": {
-     "type": "integer"
-    }
-   },
-   "required": [
-    "end",
-    "fromSubtitle",
-    "id",
-    "kind",
-    "name",
-    "oped",
-    "scope",
-    "scopeRole",
-    "speakers",
-    "start",
-    "tags",
-    "text",
-    "version"
-   ]
-  },
   "AssetAlignment": {
    "title": "AssetAlignment",
    "type": "object",
    "properties": {
-    "kind": {
-     "enum": [
-      "line",
-      "typed"
-     ]
-    },
     "manual": {
      "type": "boolean"
     },
     "name": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
+    },
+    "ordinal": {
+     "type": "integer"
     },
     "phones": {
      "type": "array",
@@ -2725,16 +2705,20 @@
     "runId": {
      "type": "string"
     },
+    "segmentId": {
+     "type": "string"
+    },
     "unitId": {
      "type": "string"
     }
    },
    "required": [
-    "kind",
     "manual",
     "name",
+    "ordinal",
     "phones",
     "runId",
+    "segmentId",
     "unitId"
    ]
   },
@@ -3214,10 +3198,10 @@
       "type": "string"
      }
     },
-    "annotations": {
+    "generatedAssets": {
      "type": "integer"
     },
-    "generatedAssets": {
+    "hints": {
      "type": "integer"
     },
     "independentSamples": {
@@ -3229,26 +3213,30 @@
     "path": {
      "type": "string"
     },
+    "rangeTags": {
+     "type": "integer"
+    },
     "samples": {
+     "type": "integer"
+    },
+    "segments": {
      "type": "integer"
     },
     "sourceId": {
      "type": "string"
-    },
-    "subtitleVersions": {
-     "type": "integer"
     }
    },
    "required": [
     "activeJobs",
-    "annotations",
     "generatedAssets",
+    "hints",
     "independentSamples",
     "oped",
     "path",
+    "rangeTags",
     "samples",
-    "sourceId",
-    "subtitleVersions"
+    "segments",
+    "sourceId"
    ]
   },
   "Deleted": {
@@ -4418,6 +4406,30 @@
     "schema_version",
     "version",
     "workspace"
+   ]
+  },
+  "HintAddParams": {
+   "title": "HintAddParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "sourceId",
+    "start",
+    "text"
    ]
   },
   "HitExportParams": {
@@ -6541,6 +6553,74 @@
    },
    "required": []
   },
+  "RangeTagRow": {
+   "title": "RangeTagRow",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "label": {
+     "type": "string"
+    },
+    "scope": {
+     "enum": [
+      "asset",
+      "role",
+      "source"
+     ]
+    },
+    "scopeAssetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scopeRole": {
+     "anyOf": [
+      {
+       "enum": [
+        "sfx",
+        "vocal"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "end",
+    "id",
+    "label",
+    "scope",
+    "scopeAssetId",
+    "scopeRole",
+    "start",
+    "tags",
+    "version"
+   ]
+  },
   "ReaperHandoff": {
    "title": "ReaperHandoff",
    "type": "object",
@@ -8007,19 +8087,24 @@
   },
   "SampleCreateParams": {
    "title": "SampleCreateParams",
+   "description": "单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。",
    "type": "object",
    "properties": {
     "assetId": {
-     "type": "string"
-    },
-    "createdVia": {
      "type": "string"
     },
     "end": {
      "type": "number"
     },
     "name": {
-     "type": "string"
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "nature": {
      "anyOf": [
@@ -8043,13 +8128,64 @@
     },
     "start": {
      "type": "number"
+    },
+    "via": {
+     "enum": [
+      "hit",
+      "manual"
+     ]
     }
    },
    "required": [
     "assetId",
     "end",
-    "name",
     "start"
+   ]
+  },
+  "SampleCreatePlannedParams": {
+   "title": "SampleCreatePlannedParams",
+   "type": "object",
+   "properties": {
+    "from": {
+     "$ref": "#/$defs/SamplePlanSource"
+    },
+    "keys": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "nature": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "overrides": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "$ref": "#/$defs/SampleOverride"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "token": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "from",
+    "keys",
+    "token"
    ]
   },
   "SampleFilter": {
@@ -8105,20 +8241,18 @@
    },
    "required": []
   },
-  "SampleIds": {
-   "title": "SampleIds",
+  "SampleOverride": {
+   "title": "SampleOverride",
    "type": "object",
    "properties": {
-    "sampleIds": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "type": "string"
     }
    },
-   "required": [
-    "sampleIds"
-   ]
+   "required": []
   },
   "SamplePage": {
    "title": "SamplePage",
@@ -8143,6 +8277,322 @@
     "total"
    ]
   },
+  "SamplePlan": {
+   "title": "SamplePlan",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SamplePlanItem"
+     }
+    },
+    "kind": {
+     "type": "string"
+    },
+    "missingDefault": {
+     "anyOf": [
+      {
+       "enum": [
+        "sfx",
+        "vocal"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "pads": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "token": {
+     "type": "string"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SamplePlanTrack"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "items",
+    "kind",
+    "missingDefault",
+    "pads",
+    "token",
+    "track"
+   ]
+  },
+  "SamplePlanItem": {
+   "title": "SamplePlanItem",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "createdVia": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "judgeEnd": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "judgeStart": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "key": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "origin": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "parentSampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "snapshot": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceEnd": {
+     "type": "number"
+    },
+    "sourceStart": {
+     "type": "number"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "status": {
+     "enum": [
+      "no-name",
+      "oped",
+      "out-of-track",
+      "pending"
+     ]
+    }
+   },
+   "required": [
+    "assetId",
+    "createdVia",
+    "end",
+    "judgeEnd",
+    "judgeStart",
+    "key",
+    "name",
+    "nature",
+    "origin",
+    "parentSampleId",
+    "snapshot",
+    "start",
+    "status"
+   ]
+  },
+  "SamplePlanParams": {
+   "title": "SamplePlanParams",
+   "type": "object",
+   "properties": {
+    "from": {
+     "$ref": "#/$defs/SamplePlanSource"
+    }
+   },
+   "required": [
+    "from"
+   ]
+  },
+  "SamplePlanSource": {
+   "title": "SamplePlanSource",
+   "description": "建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。\n\n    selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；\n    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；\n    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "end": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ids": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "enum": [
+      "hints",
+      "segments",
+      "selection",
+      "stem",
+      "whole"
+     ]
+    },
+    "localMarker": {
+     "type": "string"
+    },
+    "parentSampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "sourceIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "track": {
+     "enum": [
+      "current",
+      "default"
+     ]
+    },
+    "via": {
+     "enum": [
+      "hit",
+      "manual"
+     ]
+    }
+   },
+   "required": [
+    "kind"
+   ]
+  },
+  "SamplePlanTrack": {
+   "title": "SamplePlanTrack",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "roles": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "sfx",
+       "vocal"
+      ]
+     }
+    }
+   },
+   "required": [
+    "assetId",
+    "roles"
+   ]
+  },
   "SampleRow": {
    "title": "SampleRow",
    "type": "object",
@@ -8150,10 +8600,12 @@
     "analysis": {
      "enum": [
       "failed",
+      "incomplete",
       "manual",
       "none",
       "ok",
-      "partial"
+      "partial",
+      "stale"
      ]
     },
     "asset_id": {
@@ -8354,6 +8806,25 @@
     "nature",
     "roles",
     "start"
+   ]
+  },
+  "SamplesCreated": {
+   "title": "SamplesCreated",
+   "type": "object",
+   "properties": {
+    "created": {
+     "type": "integer"
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "created",
+    "ids"
    ]
   },
   "SamplesListParams": {
@@ -8711,6 +9182,215 @@
     "windows"
    ]
   },
+  "SegmentAddCheck": {
+   "title": "SegmentAddCheck",
+   "type": "object",
+   "properties": {
+    "canCut": {
+     "type": "boolean"
+    },
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SegmentConflict"
+     }
+    }
+   },
+   "required": [
+    "canCut",
+    "conflicts"
+   ]
+  },
+  "SegmentAddParams": {
+   "title": "SegmentAddParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "resolve": {
+     "anyOf": [
+      {
+       "enum": [
+        "cut",
+        "replace"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "sourceId",
+    "start",
+    "text"
+   ]
+  },
+  "SegmentAdded": {
+   "title": "SegmentAdded",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "editId",
+    "id"
+   ]
+  },
+  "SegmentConflict": {
+   "title": "SegmentConflict",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "id",
+    "start",
+    "text"
+   ]
+  },
+  "SegmentMergeParams": {
+   "title": "SegmentMergeParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "ids"
+   ]
+  },
+  "SegmentRangeParams": {
+   "title": "SegmentRangeParams",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "sourceId",
+    "start"
+   ]
+  },
+  "SegmentSplitParams": {
+   "title": "SegmentSplitParams",
+   "type": "object",
+   "properties": {
+    "at": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "left": {
+     "type": "string"
+    },
+    "right": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "at",
+    "id",
+    "left",
+    "right",
+    "version"
+   ]
+  },
+  "SegmentsSplit": {
+   "title": "SegmentsSplit",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "editId",
+    "ids"
+   ]
+  },
   "SeparationSubmitParams": {
    "title": "SeparationSubmitParams",
    "type": "object",
@@ -8794,6 +9474,63 @@
     "default",
     "group",
     "value",
+    "version"
+   ]
+  },
+  "SfxHint": {
+   "title": "SfxHint",
+   "type": "object",
+   "properties": {
+    "edited": {
+     "type": "boolean"
+    },
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "oped": {
+     "anyOf": [
+      {
+       "enum": [
+        "ED",
+        "OP"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "origin": {
+     "enum": [
+      "manual",
+      "subtitle"
+     ]
+    },
+    "protected": {
+     "type": "boolean"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "edited",
+    "end",
+    "id",
+    "oped",
+    "origin",
+    "protected",
+    "start",
+    "text",
     "version"
    ]
   },
@@ -9381,6 +10118,29 @@
     "paths"
    ]
   },
+  "SpeakersRegenerated": {
+   "title": "SpeakersRegenerated",
+   "type": "object",
+   "properties": {
+    "changed": {
+     "type": "integer"
+    },
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "changed",
+    "editId"
+   ]
+  },
   "SpeechBlockCond": {
    "title": "SpeechBlockCond",
    "description": "语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。",
@@ -9645,13 +10405,16 @@
    "type": "object",
    "properties": {
     "a": {
-     "type": "string"
-    },
-    "at": {
-     "type": "number"
+     "type": "integer"
     },
     "b": {
-     "type": "string"
+     "type": "integer"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
     },
     "units": {
      "type": "array",
@@ -9662,8 +10425,9 @@
    },
    "required": [
     "a",
-    "at",
     "b",
+    "end",
+    "start",
     "units"
    ]
   },
@@ -9909,6 +10673,9 @@
    "description": "一个音素（资产局部秒）。``orig`` = 前端给的原标签（清音 I/U）；``eff`` = 有效范围；``strength`` = 起音强度 0–1。",
    "type": "object",
    "properties": {
+    "clipped": {
+     "type": "boolean"
+    },
     "eff": {
      "type": "array",
      "items": {
@@ -9933,6 +10700,9 @@
     },
     "orig": {
      "type": "string"
+    },
+    "seg": {
+     "type": "integer"
     },
     "start": {
      "type": "number"
@@ -9963,9 +10733,20 @@
    "title": "SpeechPlanParams",
    "type": "object",
    "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "entry": {
      "enum": [
       "samples",
+      "segments",
       "source",
       "units"
      ]
@@ -10165,28 +10946,21 @@
     "blocks"
    ]
   },
-  "SpeechRangeParams": {
-   "title": "SpeechRangeParams",
+  "SpeechReadBlock": {
+   "title": "SpeechReadBlock",
+   "description": "节奏分析不可用的原因（错误码 + 参数）：rhythm-segments-missing / rhythm-segment-stale / rhythm-units-conflict。",
    "type": "object",
    "properties": {
-    "assetId": {
-     "type": "string"
+    "args": {
+     "type": "object"
     },
-    "end": {
-     "type": "number"
-    },
-    "start": {
-     "type": "number"
-    },
-    "text": {
+    "code": {
      "type": "string"
     }
    },
    "required": [
-    "assetId",
-    "end",
-    "start",
-    "text"
+    "args",
+    "code"
    ]
   },
   "SpeechResult": {
@@ -10326,6 +11100,9 @@
     "manual": {
      "type": "boolean"
     },
+    "matches": {
+     "type": "boolean"
+    },
     "status": {
      "enum": [
       "cancelled",
@@ -10358,6 +11135,16 @@
    "title": "SpeechSampleView",
    "type": "object",
    "properties": {
+    "blocked": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechReadBlock"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "conflict": {
      "anyOf": [
       {
@@ -10378,8 +11165,18 @@
       }
      ]
     },
-    "own": {
-     "type": "boolean"
+    "judge": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "reason": {
      "anyOf": [
@@ -10422,9 +11219,10 @@
     }
    },
    "required": [
+    "blocked",
     "conflict",
     "head",
-    "own",
+    "judge",
     "reason",
     "sampleId",
     "text",
@@ -10454,9 +11252,19 @@
   },
   "SpeechUnit": {
    "title": "SpeechUnit",
-   "description": "采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。",
+   "description": "采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。",
    "type": "object",
    "properties": {
+    "current": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechHead"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "head": {
      "anyOf": [
       {
@@ -10467,21 +11275,14 @@
       }
      ]
     },
-    "kind": {
-     "enum": [
-      "line",
-      "typed"
-     ]
+    "headVersion": {
+     "type": "integer"
     },
     "name": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
+    },
+    "ordinal": {
+     "type": "integer"
     },
     "partial": {
      "type": "boolean"
@@ -10491,6 +11292,24 @@
      "items": {
       "$ref": "#/$defs/SpeechRun"
      }
+    },
+    "segmentId": {
+     "type": "string"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "state": {
+     "enum": [
+      "failed",
+      "none",
+      "ok",
+      "other-sound",
+      "stale"
+     ]
     },
     "target": {
      "anyOf": [
@@ -10506,25 +11325,23 @@
      ]
     },
     "text": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "unitId": {
      "type": "string"
     }
    },
    "required": [
+    "current",
     "head",
-    "kind",
+    "headVersion",
     "name",
+    "ordinal",
     "partial",
     "runs",
+    "segmentId",
+    "speakers",
+    "state",
     "target",
     "text",
     "unitId"
@@ -10817,7 +11634,7 @@
   },
   "SubtitleBatchRow": {
    "title": "SubtitleBatchRow",
-   "description": "批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键）。",
+   "description": "批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键，默认选项）。",
    "type": "object",
    "properties": {
     "counts": {
@@ -10828,6 +11645,9 @@
     },
     "fileName": {
      "type": "string"
+    },
+    "opedErrors": {
+     "type": "integer"
     },
     "problems": {
      "type": "integer"
@@ -10842,41 +11662,138 @@
     },
     "token": {
      "type": "string"
-    },
-    "versionState": {
-     "enum": [
-      "current",
-      "new",
-      "switch"
-     ]
     }
    },
    "required": [
     "sourceId"
    ]
   },
-  "SubtitleCounts": {
-   "title": "SubtitleCounts",
+  "SubtitleCategoryCounts": {
+   "title": "SubtitleCategoryCounts",
    "type": "object",
    "properties": {
-    "importable": {
+    "excluded": {
      "type": "integer"
     },
     "invalid": {
      "type": "integer"
     },
-    "oped": {
+    "new": {
      "type": "integer"
     },
-    "registered": {
+    "removed": {
+     "type": "integer"
+    },
+    "removedAnalyzed": {
+     "type": "integer"
+    },
+    "removedProtected": {
+     "type": "integer"
+    },
+    "replace": {
+     "type": "integer"
+    },
+    "skip": {
+     "type": "integer"
+    },
+    "unchanged": {
      "type": "integer"
     }
    },
    "required": [
-    "importable",
+    "excluded",
     "invalid",
+    "new",
+    "removed",
+    "removedAnalyzed",
+    "removedProtected",
+    "replace",
+    "skip",
+    "unchanged"
+   ]
+  },
+  "SubtitleConflict": {
+   "title": "SubtitleConflict",
+   "type": "object",
+   "properties": {
+    "analyzed": {
+     "type": "boolean"
+    },
+    "edited": {
+     "type": "boolean"
+    },
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "manual": {
+     "type": "boolean"
+    },
+    "protected": {
+     "type": "boolean"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    },
+    "usedBy": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "analyzed",
+    "edited",
+    "end",
+    "id",
+    "manual",
+    "protected",
+    "start",
+    "text",
+    "usedBy"
+   ]
+  },
+  "SubtitleCounts": {
+   "title": "SubtitleCounts",
+   "type": "object",
+   "properties": {
+    "hints": {
+     "$ref": "#/$defs/SubtitleCategoryCounts"
+    },
+    "oped": {
+     "$ref": "#/$defs/SubtitleCategoryCounts"
+    },
+    "segments": {
+     "$ref": "#/$defs/SubtitleCategoryCounts"
+    }
+   },
+   "required": [
+    "hints",
     "oped",
-    "registered"
+    "segments"
+   ]
+  },
+  "SubtitleCreated": {
+   "title": "SubtitleCreated",
+   "type": "object",
+   "properties": {
+    "hints": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "segments": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "hints",
+    "oped",
+    "segments"
    ]
   },
   "SubtitleImportItem": {
@@ -10915,6 +11832,12 @@
    "description": "批量导入的一行：出错时只有 sourceId + error，否则同 SubtitleImportResult。",
    "type": "object",
    "properties": {
+    "counts": {
+     "$ref": "#/$defs/SubtitleCounts"
+    },
+    "created": {
+     "$ref": "#/$defs/SubtitleCreated"
+    },
     "editId": {
      "anyOf": [
       {
@@ -10928,17 +11851,14 @@
     "error": {
      "$ref": "#/$defs/ErrorWire"
     },
-    "imported": {
-     "type": "integer"
-    },
     "invalid": {
      "type": "array",
      "items": {
       "$ref": "#/$defs/SubtitleInvalidLine"
      }
     },
-    "newVersion": {
-     "type": "boolean"
+    "opedErrors": {
+     "type": "integer"
     },
     "problems": {
      "type": "array",
@@ -10946,16 +11866,7 @@
       "$ref": "#/$defs/SubtitleProblem"
      }
     },
-    "skipped": {
-     "$ref": "#/$defs/SubtitleSkipped"
-    },
     "sourceId": {
-     "type": "string"
-    },
-    "switched": {
-     "type": "boolean"
-    },
-    "versionId": {
      "type": "string"
     }
    },
@@ -10963,17 +11874,61 @@
     "sourceId"
    ]
   },
+  "SubtitleImportOptions": {
+   "title": "SubtitleImportOptions",
+   "description": "导入选项：四类开关（默认全开）、全局替换或保留（默认替换）、逐行不勾 / 强制替换、OP/ED 逐对确认（规则有错时）。",
+   "type": "object",
+   "properties": {
+    "exclude": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "force": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "hints": {
+     "type": "boolean"
+    },
+    "oped": {
+     "type": "boolean"
+    },
+    "opedConfirm": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    },
+    "opedForce": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "replace": {
+     "type": "boolean"
+    },
+    "segments": {
+     "type": "boolean"
+    },
+    "speakers": {
+     "type": "boolean"
+    }
+   },
+   "required": []
+  },
   "SubtitleImportParams": {
    "title": "SubtitleImportParams",
    "type": "object",
    "properties": {
-    "lines": {
+    "options": {
      "anyOf": [
       {
-       "type": "array",
-       "items": {
-        "type": "integer"
-       }
+       "$ref": "#/$defs/SubtitleImportOptions"
       },
       {
        "type": "null"
@@ -11006,6 +11961,12 @@
    "title": "SubtitleImportResult",
    "type": "object",
    "properties": {
+    "counts": {
+     "$ref": "#/$defs/SubtitleCounts"
+    },
+    "created": {
+     "$ref": "#/$defs/SubtitleCreated"
+    },
     "editId": {
      "anyOf": [
       {
@@ -11016,17 +11977,14 @@
       }
      ]
     },
-    "imported": {
-     "type": "integer"
-    },
     "invalid": {
      "type": "array",
      "items": {
       "$ref": "#/$defs/SubtitleInvalidLine"
      }
     },
-    "newVersion": {
-     "type": "boolean"
+    "opedErrors": {
+     "type": "integer"
     },
     "problems": {
      "type": "array",
@@ -11034,29 +11992,18 @@
       "$ref": "#/$defs/SubtitleProblem"
      }
     },
-    "skipped": {
-     "$ref": "#/$defs/SubtitleSkipped"
-    },
     "sourceId": {
-     "type": "string"
-    },
-    "switched": {
-     "type": "boolean"
-    },
-    "versionId": {
      "type": "string"
     }
    },
    "required": [
+    "counts",
+    "created",
     "editId",
-    "imported",
     "invalid",
-    "newVersion",
+    "opedErrors",
     "problems",
-    "skipped",
-    "sourceId",
-    "switched",
-    "versionId"
+    "sourceId"
    ]
   },
   "SubtitleInvalidLine": {
@@ -11079,6 +12026,109 @@
     "ref"
    ]
   },
+  "SubtitleOped": {
+   "title": "SubtitleOped",
+   "type": "object",
+   "properties": {
+    "errors": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    },
+    "pairs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitlePairRow"
+     }
+    }
+   },
+   "required": [
+    "errors",
+    "pairs"
+   ]
+  },
+  "SubtitlePairRow": {
+   "title": "SubtitlePairRow",
+   "type": "object",
+   "properties": {
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleConflict"
+     }
+    },
+    "end": {
+     "type": "number"
+    },
+    "forced": {
+     "type": "boolean"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "kind": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "refs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "same": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "status": {
+     "enum": [
+      "excluded",
+      "invalid",
+      "new",
+      "replace",
+      "skip",
+      "unchanged"
+     ]
+    },
+    "suggest": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "conflicts",
+    "end",
+    "forced",
+    "index",
+    "kind",
+    "reason",
+    "refs",
+    "start",
+    "status",
+    "suggest",
+    "text"
+   ]
+  },
   "SubtitlePreview": {
    "title": "SubtitlePreview",
    "type": "object",
@@ -11095,10 +12145,19 @@
     "format": {
      "type": "string"
     },
-    "lines": {
+    "hints": {
      "type": "array",
      "items": {
-      "$ref": "#/$defs/SubtitlePreviewLine"
+      "$ref": "#/$defs/SubtitleRow"
+     }
+    },
+    "oped": {
+     "$ref": "#/$defs/SubtitleOped"
+    },
+    "options": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "boolean"
      }
     },
     "path": {
@@ -11110,18 +12169,26 @@
       "$ref": "#/$defs/SubtitleProblem"
      }
     },
+    "removed": {
+     "$ref": "#/$defs/SubtitleRemoved"
+    },
+    "segments": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleRow"
+     }
+    },
     "sourceId": {
      "type": "string"
     },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleSpeaker"
+     }
+    },
     "token": {
      "type": "string"
-    },
-    "versionState": {
-     "enum": [
-      "current",
-      "new",
-      "switch"
-     ]
     }
    },
    "required": [
@@ -11129,93 +12196,32 @@
     "fileName",
     "fingerprint",
     "format",
-    "lines",
+    "hints",
+    "oped",
+    "options",
     "path",
     "problems",
+    "removed",
+    "segments",
     "sourceId",
-    "token",
-    "versionState"
-   ]
-  },
-  "SubtitlePreviewLine": {
-   "title": "SubtitlePreviewLine",
-   "type": "object",
-   "properties": {
-    "alignText": {
-     "type": "string"
-    },
-    "end": {
-     "type": "number"
-    },
-    "kind": {
-     "enum": [
-      "line",
-      "sfx"
-     ]
-    },
-    "name": {
-     "type": "string"
-    },
-    "no": {
-     "type": "integer"
-    },
-    "oped": {
-     "enum": [
-      "ED",
-      "OP"
-     ]
-    },
-    "opedPartial": {
-     "type": "boolean"
-    },
-    "reason": {
-     "enum": [
-      "beyond-end",
-      "empty",
-      "negative-start"
-     ]
-    },
-    "ref": {
-     "type": "string"
-    },
-    "speakers": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "start": {
-     "type": "number"
-    },
-    "status": {
-     "enum": [
-      "importable",
-      "invalid",
-      "oped",
-      "registered"
-     ]
-    },
-    "text": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "alignText",
-    "end",
-    "kind",
-    "name",
-    "no",
-    "ref",
     "speakers",
-    "start",
-    "status",
-    "text"
+    "token"
    ]
   },
   "SubtitlePreviewParams": {
    "title": "SubtitlePreviewParams",
    "type": "object",
    "properties": {
+    "options": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SubtitleImportOptions"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "path": {
      "anyOf": [
       {
@@ -11250,51 +12256,72 @@
     "reason"
    ]
   },
-  "SubtitleSampleCounts": {
-   "title": "SubtitleSampleCounts",
+  "SubtitleRemoved": {
+   "title": "SubtitleRemoved",
    "type": "object",
    "properties": {
-    "no-name": {
-     "type": "integer"
+    "hints": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleConflict"
+     }
     },
     "oped": {
-     "type": "integer"
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleConflict"
+     }
     },
-    "out-of-track": {
-     "type": "integer"
-    },
-    "pending": {
-     "type": "integer"
+    "segments": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleConflict"
+     }
     }
    },
    "required": [
-    "no-name",
+    "hints",
     "oped",
-    "out-of-track",
-    "pending"
+    "segments"
    ]
   },
-  "SubtitleSampleLine": {
-   "title": "SubtitleSampleLine",
+  "SubtitleRow": {
+   "title": "SubtitleRow",
    "type": "object",
    "properties": {
-    "annotationId": {
-     "type": "string"
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleConflict"
+     }
     },
     "end": {
      "type": "number"
     },
-    "name": {
+    "forced": {
+     "type": "boolean"
+    },
+    "no": {
+     "type": "integer"
+    },
+    "raw": {
      "type": "string"
     },
-    "rawText": {
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ref": {
      "type": "string"
     },
-    "sampleEnd": {
-     "type": "number"
-    },
-    "sampleStart": {
-     "type": "number"
+    "same": {
+     "type": "string"
     },
     "speakers": {
      "type": "array",
@@ -11307,209 +12334,46 @@
     },
     "status": {
      "enum": [
-      "no-name",
-      "oped",
-      "out-of-track",
-      "pending"
+      "excluded",
+      "invalid",
+      "new",
+      "replace",
+      "skip",
+      "unchanged"
      ]
+    },
+    "text": {
+     "type": "string"
     }
    },
    "required": [
-    "annotationId",
+    "conflicts",
     "end",
-    "name",
-    "rawText",
-    "sampleEnd",
-    "sampleStart",
+    "forced",
+    "no",
+    "raw",
+    "reason",
+    "ref",
     "speakers",
     "start",
-    "status"
+    "status",
+    "text"
    ]
   },
-  "SubtitleSamplePreview": {
-   "title": "SubtitleSamplePreview",
+  "SubtitleSpeaker": {
+   "title": "SubtitleSpeaker",
    "type": "object",
    "properties": {
-    "counts": {
-     "$ref": "#/$defs/SubtitleSampleCounts"
-    },
-    "kind": {
-     "enum": [
-      "line",
-      "sfx"
-     ]
-    },
-    "lines": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/SubtitleSampleLine"
-     }
-    },
-    "missingDefault": {
-     "type": "boolean"
-    },
-    "noSubtitles": {
-     "type": "boolean"
-    },
-    "pads": {
-     "type": "array",
-     "minItems": 2,
-     "maxItems": 2,
-     "prefixItems": [
-      {
-       "type": "number"
-      },
-      {
-       "type": "number"
-      }
-     ],
-     "items": false
-    },
-    "sourceId": {
-     "type": "string"
-    },
-    "token": {
-     "type": "string"
-    },
-    "trackId": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    }
-   },
-   "required": [
-    "counts",
-    "kind",
-    "lines",
-    "missingDefault",
-    "noSubtitles",
-    "pads",
-    "sourceId",
-    "token",
-    "trackId"
-   ]
-  },
-  "SubtitleSamplesCreateParams": {
-   "title": "SubtitleSamplesCreateParams",
-   "type": "object",
-   "properties": {
-    "annotationIds": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "end": {
-     "anyOf": [
-      {
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "kind": {
-     "type": "string"
-    },
-    "sourceId": {
-     "type": "string"
-    },
-    "start": {
-     "anyOf": [
-      {
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "token": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "annotationIds",
-    "kind",
-    "sourceId",
-    "token"
-   ]
-  },
-  "SubtitleSamplesCreated": {
-   "title": "SubtitleSamplesCreated",
-   "type": "object",
-   "properties": {
-    "created": {
+    "count": {
      "type": "integer"
     },
-    "ids": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   },
-   "required": [
-    "created",
-    "ids"
-   ]
-  },
-  "SubtitleSamplesPreviewParams": {
-   "title": "SubtitleSamplesPreviewParams",
-   "type": "object",
-   "properties": {
-    "end": {
-     "anyOf": [
-      {
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "kind": {
+    "name": {
      "type": "string"
-    },
-    "sourceId": {
-     "type": "string"
-    },
-    "start": {
-     "anyOf": [
-      {
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
     }
    },
    "required": [
-    "kind",
-    "sourceId"
-   ]
-  },
-  "SubtitleSkipped": {
-   "title": "SubtitleSkipped",
-   "type": "object",
-   "properties": {
-    "invalid": {
-     "type": "integer"
-    },
-    "registered": {
-     "type": "integer"
-    }
-   },
-   "required": [
-    "invalid",
-    "registered"
+    "count",
+    "name"
    ]
   },
   "SuggestParams": {
@@ -11533,6 +12397,179 @@
     "assetId",
     "end",
     "start"
+   ]
+  },
+  "TextLayerList": {
+   "title": "TextLayerList",
+   "type": "object",
+   "properties": {
+    "derived": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/DerivedSample"
+     }
+    },
+    "hints": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SfxHint"
+     }
+    },
+    "opeds": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/OpedRange"
+     }
+    },
+    "segments": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TextSegment"
+     }
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RangeTagRow"
+     }
+    }
+   },
+   "required": [
+    "derived",
+    "hints",
+    "opeds",
+    "segments",
+    "tags"
+   ]
+  },
+  "TextLayerParams": {
+   "title": "TextLayerParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "sourceId"
+   ]
+  },
+  "TextSegment": {
+   "title": "TextSegment",
+   "description": "文本层的一段（原片秒）：文本 = 对齐文本；受保护 = 改过（edited）或有人工音素版本（manual）。",
+   "type": "object",
+   "properties": {
+    "analysis": {
+     "anyOf": [
+      {
+       "enum": [
+        "failed",
+        "none",
+        "ok",
+        "stale"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "edited": {
+     "type": "boolean"
+    },
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "manual": {
+     "type": "boolean"
+    },
+    "oped": {
+     "anyOf": [
+      {
+       "enum": [
+        "ED",
+        "OP"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "ordinal": {
+     "type": "integer"
+    },
+    "origin": {
+     "enum": [
+      "subtitle",
+      "typed"
+     ]
+    },
+    "protected": {
+     "type": "boolean"
+    },
+    "raw": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "speakerEdited": {
+     "type": "boolean"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    },
+    "usedBy": {
+     "type": "integer"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "analysis",
+    "edited",
+    "end",
+    "id",
+    "manual",
+    "oped",
+    "ordinal",
+    "origin",
+    "protected",
+    "raw",
+    "speakerEdited",
+    "speakers",
+    "start",
+    "text",
+    "usedBy",
+    "version"
    ]
   },
   "ThumbRequest": {
@@ -11777,31 +12814,6 @@
    "required": [
     "edit_id",
     "label"
-   ]
-  },
-  "WholeSamplesParams": {
-   "title": "WholeSamplesParams",
-   "type": "object",
-   "properties": {
-    "ids": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "nature": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    }
-   },
-   "required": [
-    "ids"
    ]
   },
   "WorkFolder": {

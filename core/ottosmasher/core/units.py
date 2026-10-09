@@ -1,16 +1,14 @@
-"""文本单元（所有者 2026-10-08【基线变更，细化 D41】）：语音分析只挂在“声音资产 + 文本单元”上，不属于任何采样。
+"""分析归属与采样读取（所有者 2026-10-09【基线变更】，docs/QUESTIONS.md「原片上的四类对象」C、D 节）。
 
-- 文本单元 = 一段有文本的音轨区间，两种来源：
-  - 字幕的一行：``line:<标注>@<资产>``；目标 = 字幕区间 ± 字幕采样扩展量（设置 subtitle.pad_before / pad_after），裁到资产覆盖范围，
-    换算成资产局部秒（默认情况下与默认字幕采样的选区完全一样）；文本 = 这一行的对齐文本（人工 > 自动）；
-  - 用户给一段选区手输的台词：``typed:<资产>@<起>-<止>``；目标 = 输入时的那段选区（采样的手输台词、详情里的「选区标注 / 对齐」）。
-  当前版本、历史版本、人工修正都属于这句（measure_head / measure_run 的归属类型 ``asset_text``）。
-- 采样读取覆盖它的文本单元，只有两条规则：
-  - 采样有自己的文本（字幕采样、手输过台词的采样）：只读自己那一句；
-  - 没有自己的文本（普通截取，包括跨两句的合并截取）：读范围内所有文本单元（音素跨度与采样范围正长度交叠），
-    只有一部分落在范围内的标 ◐（partial）；两句的音素在时间上冲突 → 节奏分析不可用并说明原因（不自动处理）。
-- 节奏和检索照旧按采样计算（音素裁到采样范围）。
-时钟：单元的目标、音素跨度、音素时间都是资产局部秒。
+- 分析结果归属于“文本层的段 + 具体那条声音资产”：``seg:<段>@<资产>``（measure_head / measure_run 的归属类型 ``asset_text``）。
+  版本、当前头、人工修音素时间都挂在这里；同一段在不同的轨上各有一份。
+  目标 = 段区间映射到资产（裁到覆盖范围），窗口 = 目标 ± 对齐容差，只送这段的文本。
+- 每个分析版本记下分析时的段内容（``seg_start / seg_end / seg_text``）。段的文本或区间改了 → 这些版本停用（不可用），
+  直到重新分析；撤销那次修改 → 内容又一致，立即恢复。
+- **可用的分析**（一段在一条资产上）：内容与段现在一致的成功版本里，优先当前头，其次人工版本，再其次最新的；文件快照另在读取时核对。
+- 采样只读取：读与判定区间正长度交叠的所有段在采样所在资产上的分析；任何一段没有可用分析 → 节奏不可用并写明缺哪段；
+  音素裁到采样范围，被裁掉一部分的非停顿音素标 ◐；两段的非停顿音素在采样范围内交叠 → 冲突（不自动裁决）。
+时钟：段与判定区间是原片秒；分析的目标、音素跨度、音素时间是资产局部秒。
 """
 
 from __future__ import annotations
@@ -19,47 +17,39 @@ import sqlite3
 from typing import Any
 
 from ..domain.mapping import Mapping
-from .edits import loads
+from .edits import SEGMENT_MAX, loads
 from .errors import CoreError
 
 OWNER = "asset_text"
-LINE, TYPED = "line", "typed"
 EPS = 1e-6
 
 
-def line_id(annotation: str, asset: str) -> str:
-    return f"line:{annotation}@{asset}"
+def unit_id(segment: str, asset: str) -> str:
+    return f"seg:{segment}@{asset}"
 
 
-def typed_id(asset: str, start: float, end: float) -> str:
-    return f"typed:{asset}@{start:.6f}-{end:.6f}"
+def parse(unit: str) -> tuple[str, str]:
+    if not unit.startswith("seg:") or "@" not in unit:
+        raise CoreError("speech-blocked", reason="not-a-unit")
+    seg, asset = unit[len("seg:") :].split("@", 1)
+    return seg, asset
 
 
-def kind_of(unit: str) -> str:
-    return LINE if unit.startswith("line:") else TYPED
-
-
-def parse_line(unit: str) -> tuple[str, str]:
-    ann, asset = unit[len("line:") :].split("@", 1)
-    return ann, asset
-
-
-def find_typed(conn: sqlite3.Connection, asset: str, start: float, end: float) -> str | None:
-    """同一资产、同一选区已有的手输单元（按区间比较，不靠编号的格式）。"""
-    r = conn.execute(
-        "SELECT owner_id FROM measure_run WHERE owner_type = ? AND kind = 'alignment' AND owner_id LIKE 'typed:%' AND asset_id = ?"
-        " AND abs(range_start - ?) < ? AND abs(range_end - ?) < ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
-        (OWNER, asset, start, EPS, end, EPS),
-    ).fetchone()
-    return r[0] if r else None
-
-
-def typed_owner(conn: sqlite3.Connection, asset: str, start: float, end: float) -> str:
-    return find_typed(conn, asset, start, end) or typed_id(asset, start, end)
+def seg_target(seg_start: float, seg_end: float, mapping: Any, duration: float) -> tuple[float, float] | None:
+    """段在资产上的目标（资产局部秒）：段区间裁到资产覆盖的原片范围再换算；完全在覆盖范围外 → None。"""
+    m = mapping if isinstance(mapping, Mapping) else Mapping.of(loads(mapping) if isinstance(mapping, str) else mapping)
+    lo, hi = m.source_start, m.source_end
+    if not (seg_end > lo and seg_start < hi):
+        return None
+    try:
+        la, lb = max(0.0, m.to_local(max(seg_start, lo))), min(duration, m.to_local(min(seg_end, hi)))
+    except CoreError:
+        return None
+    return (la, lb) if lb > la else None
 
 
 def analysis_track(conn: sqlite3.Connection, source_id: str) -> str | None:
-    """原片的分析音轨（原片页「语音分析」、自动准备的整轨 F0）：默认人声轨；没有就是原混音（原片默认音频流的那条）。原片不可用 → None。"""
+    """原片的分析音轨（原片页「语音分析」的默认、自动准备的整轨 F0）：默认人声轨；没有就是原混音（原片默认音频流的那条）。原片不可用 → None。"""
     row = conn.execute(
         "SELECT (SELECT asset_id FROM default_track WHERE source_id = src.id AND role = 'vocal') AS vox, src.default_audio_stream AS ord"
         " FROM source src WHERE src.id = ? AND src.media_state = 'available'",
@@ -76,86 +66,83 @@ def analysis_track(conn: sqlite3.Connection, source_id: str) -> str | None:
     return r[0] if r else None
 
 
-def line_text(ann: sqlite3.Row | dict[str, Any]) -> tuple[str, str] | None:
-    """字幕行的对齐文本：人工 > 自动；没有 → None。返回（文本, 来源）。"""
-    manual = (ann["align_text_manual"] or "").strip()
-    if manual:
-        return manual, "line-manual"
-    auto = (ann["align_text_auto"] or "").strip()
-    return (auto, "line-auto") if auto else None
+def content_matches(run: Any, seg: Any) -> bool:
+    return (
+        run["seg_text"] is not None
+        and run["seg_text"] == seg["text"]
+        and run["seg_start"] is not None
+        and abs(float(run["seg_start"]) - float(seg["start"])) < EPS
+        and abs(float(run["seg_end"]) - float(seg["end"])) < EPS
+    )
 
 
-def line_target(ann_start: float, ann_end: float, mapping: Any, duration: float, pads: tuple[float, float]) -> tuple[float, float] | None:
-    """字幕行在资产上的目标（资产局部秒）：字幕区间 ± 扩展量，裁到资产覆盖的原片范围；完全在覆盖范围外 → None。"""
-    m = mapping if isinstance(mapping, Mapping) else Mapping.of(loads(mapping) if isinstance(mapping, str) else mapping)
-    lo, hi = m.source_start, m.source_end
-    if not (ann_end > lo and ann_start < hi):
+def pick_usable(runs: list[Any], seg: Any, head_run: str | None) -> Any | None:
+    """一段在一条资产上的可用版本：内容一致的成功版本里，当前头 > 人工 > 最新。``runs`` 按 created_at、rowid 降序。"""
+    ok = [r for r in runs if r["status"] == "ok" and content_matches(r, seg)]
+    if not ok:
         return None
-    a, b = max(ann_start - pads[0], lo, 0.0), min(ann_end + pads[1], hi)
-    try:
-        la, lb = max(0.0, m.to_local(a)), min(duration, m.to_local(b))
-    except CoreError:
-        return None
-    return (la, lb) if lb > la else None
+    for r in ok:
+        if r["id"] == head_run:
+            return r
+    manual = [r for r in ok if r["manual"]]
+    return manual[0] if manual else ok[0]
 
 
-# ---------------------------------------------------------------- SQL：采样读哪些句（列表状态、检索索引的失效键、固定结果的快照）
+# ---------------------------------------------------------------- SQL：采样读哪些段（列表状态、检索索引的失效键、固定结果的快照）
 
 
-def _own_line(s: str) -> str:
+def _segs(s: str, src: str) -> str:
     return (
-        f"CASE WHEN TRIM(COALESCE({s}.align_text_manual, '')) = '' AND json_extract({s}.origin, '$.kind') = 'subtitle'"
-        f" AND json_extract({s}.origin, '$.annotation') IS NOT NULL THEN 'line:' || json_extract({s}.origin, '$.annotation') || '@' || {s}.asset_id END"
+        f"t.source_id = {src} AND t.deleted = 0 AND t.start < {s}.tag_judge_end AND t.\"end\" > {s}.tag_judge_start"
+        f" AND t.start > {s}.tag_judge_start - {SEGMENT_MAX + 1e-6}"
     )
 
 
-def _typed_match(s: str, r: str) -> str:
+def _runs(s: str, extra: str = "") -> str:
     return (
-        f"{r}.owner_type = 'asset_text' AND {r}.kind = 'alignment' AND {r}.owner_id LIKE 'typed:%' AND {r}.asset_id = {s}.asset_id"
-        f" AND abs({r}.range_start - {s}.start) < 1e-6 AND abs({r}.range_end - {s}.\"end\") < 1e-6"
+        f"FROM measure_run r WHERE r.owner_type = 'asset_text' AND r.kind = 'alignment' AND r.owner_id = 'seg:' || t.id || '@' || {s}.asset_id{extra}"
     )
 
 
-def _overlap(s: str, r: str) -> str:
+def _usable(s: str) -> str:
+    return _runs(s, " AND r.status = 'ok' AND r.seg_text = t.text AND abs(r.seg_start - t.start) < 1e-6 AND abs(r.seg_end - t.\"end\") < 1e-6")
+
+
+def state_sql(s: str = "s", src: str = "a.source_id") -> str:
+    """语音分析状态（列表）：stale（段改过待重新分析）> incomplete（读到的段有的还没分析）> failed > none > partial（◐）/ manual / ok。"""
+    flags = (
+        f"SELECT EXISTS (SELECT 1 {_usable(s)}) AS u,"
+        f" EXISTS (SELECT 1 {_runs(s, ' AND r.status = ' + chr(39) + 'ok' + chr(39))}) AS ok,"
+        f" EXISTS (SELECT 1 {_runs(s, ' AND r.status = ' + chr(39) + 'failed' + chr(39))}) AS fl,"
+        f" EXISTS (SELECT 1 {_usable(s)} AND r.manual = 1) AS man,"
+        f" EXISTS (SELECT 1 {_usable(s)} AND (r.span_start < {s}.start - 1e-6 OR r.span_end > {s}.\"end\" + 1e-6)) AS part"
+        f" FROM text_segment t WHERE {_segs(s, src)}"
+    )
     return (
-        f"h.owner_type = 'asset_text' AND h.kind = 'alignment' AND {r}.asset_id = {s}.asset_id AND {r}.status = 'ok'"
-        f" AND {r}.span_end > {s}.start AND {r}.span_start < {s}.\"end\""
+        "(SELECT CASE WHEN COUNT(*) = 0 THEN 'none'"
+        " WHEN SUM(u = 0 AND ok = 1) > 0 THEN 'stale'"
+        " WHEN SUM(u) = COUNT(*) THEN (CASE WHEN MAX(part) = 1 THEN 'partial' WHEN MAX(man) = 1 THEN 'manual' ELSE 'ok' END)"
+        " WHEN SUM(u) > 0 THEN 'incomplete'"
+        " WHEN SUM(fl) > 0 THEN 'failed' ELSE 'none' END"
+        f" FROM ({flags}))"
     )
 
 
-def _typed(s: str) -> str:
-    return f"TRIM(COALESCE({s}.align_text_manual, '')) <> ''"
-
-
-def state_sql(s: str = "s") -> str:
-    """语音分析状态（列表“已分析”）：manual / ok / partial（◐，没有自己文本的采样只读到某句的一部分）/ failed（只有失败记录）/ none。"""
-    own = _own_line(s)
-    head = "CASE WHEN r.manual = 1 THEN 'manual' ELSE 'ok' END"
+def reads_sql(s: str = "s", src: str = "a.source_id") -> str:
+    """采样读到的段与各段用的分析版本的签名（检索索引的失效键、固定结果的“分析变了”判断）：
+    段的编号、区间、文本、说话人 + 可用版本（没有 = '-'）+ 它的文件快照。没有读到段 → NULL。"""
+    pick = (
+        f"(SELECT r.id || ':' || r.manual || ':' || COALESCE(json_extract(r.inputs, '$.audio.snapshot'), '') {_usable(s)}"
+        " ORDER BY (r.id = (SELECT h.run_id FROM measure_head h WHERE h.owner_type = 'asset_text' AND h.owner_id = r.owner_id AND h.kind = 'alignment')) DESC,"
+        " r.manual DESC, r.created_at DESC, r.rowid DESC LIMIT 1)"
+    )
     return (
-        f"(CASE WHEN {_typed(s)} THEN COALESCE("
-        f"(SELECT {head} FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE h.kind = 'alignment' AND {_typed_match(s, 'r')}),"
-        f"(SELECT 'failed' FROM measure_run m WHERE {_typed_match(s, 'm')} AND m.status = 'failed' LIMIT 1), 'none')"
-        f" WHEN ({own}) IS NOT NULL THEN COALESCE("
-        f"(SELECT {head} FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE h.owner_type = 'asset_text' AND h.owner_id = ({own}) AND h.kind = 'alignment'),"
-        f"(SELECT 'failed' FROM measure_run m WHERE m.owner_type = 'asset_text' AND m.owner_id = ({own}) AND m.kind = 'alignment' AND m.status = 'failed' LIMIT 1), 'none')"
-        f" ELSE COALESCE((SELECT CASE WHEN SUM(r.span_start < {s}.start - 1e-6 OR r.span_end > {s}.\"end\" + 1e-6) > 0 THEN 'partial' ELSE 'ok' END"
-        f" FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE {_overlap(s, 'r')} HAVING COUNT(*) > 0), 'none') END)"
+        "(SELECT group_concat(x, ',') FROM (SELECT t.id || '|' || t.start || '|' || t.\"end\" || '|' || t.text || '|' || t.speakers || '|' || COALESCE("
+        f"{pick}, '-') AS x FROM text_segment t WHERE {_segs(s, src)} ORDER BY t.start, t.\"end\", t.id))"
     )
 
 
-def reads_sql(s: str = "s") -> str:
-    """采样读到的句与版本的签名（检索索引的失效键、固定结果的“分析变了”判断）；没有可读的 → NULL。"""
-    own = _own_line(s)
-    one = "h.owner_id || ':' || h.run_id || ':' || h.version"
-    return (
-        f"(CASE WHEN {_typed(s)} THEN (SELECT {one} FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE h.kind = 'alignment' AND {_typed_match(s, 'r')})"
-        f" WHEN ({own}) IS NOT NULL THEN (SELECT {one} FROM measure_head h WHERE h.owner_type = 'asset_text' AND h.owner_id = ({own}) AND h.kind = 'alignment')"
-        f" ELSE (SELECT group_concat(x, ',') FROM (SELECT {one} || ':' || COALESCE(json_extract(r.inputs, '$.audio.snapshot'), '') AS x"
-        f" FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE {_overlap(s, 'r')} ORDER BY h.owner_id)) END)"
-    )
-
-
-# ---------------------------------------------------------------- 合并：采样读到的几句 → 一个头（裁到采样范围）
+# ---------------------------------------------------------------- 合并：采样读到的几段 → 一个结果（裁到采样范围）
 
 
 def _span(phones: list[dict[str, Any]]) -> tuple[float, float] | None:
@@ -169,53 +156,67 @@ def span_of(result: dict[str, Any] | None) -> tuple[float, float] | None:
 
 
 def clip(phones: list[dict[str, Any]], start: float, end: float) -> list[dict[str, Any]]:
-    return [p | {"start": max(float(p["start"]), start), "end": min(float(p["end"]), end)} for p in phones if p["end"] > start and p["start"] < end]
+    """裁到 [start, end)；被裁掉一部分的非停顿音素标 ``clipped``（◐）。"""
+    out = []
+    for p in phones:
+        if not (p["end"] > start and p["start"] < end):
+            continue
+        a, b = max(float(p["start"]), start), min(float(p["end"]), end)
+        q = p | {"start": a, "end": b}
+        if p["label"] != "pau" and (a > float(p["start"]) + EPS or b < float(p["end"]) - EPS):
+            q["clipped"] = True
+        out.append(q)
+    return out
 
 
 def merge(units: list[dict[str, Any]], start: float, end: float) -> dict[str, Any]:
-    """几句（各自的当前头：``result`` 里有 phones / morae / words）合成一个头，音素裁到 [start, end)。
+    """几段（各自的可用分析：``result`` 里有 phones / morae / words）合成一个结果，音素裁到 [start, end)。
 
-    按首个非停顿音素排序；相邻两句的非停顿音素正长度交叠 → ``{"conflict": {...}}``（不自动处理）。
-    每句去掉首尾停顿，句间空隙补一个停顿；第一句前、最后一句后的停顿保留（裁到范围）。mora、词的序号按句依次平移。
+    每个输入带 ``unitId``、``ordinal``（段在文本层里的序号）。按首个非停顿音素排序；两段的非停顿音素在范围内正长度交叠 →
+    ``{"conflict": {a, b, start, end, units}}``（a、b 是序号，start–end 是交叠区间的资产局部秒；不自动裁决）。
+    每段去掉首尾停顿，段间空隙补一个停顿；第一段前、最后一段后的停顿保留。mora、词的序号按段依次平移；每个音素记下来自第几个输入（``seg``）。
     """
     parts = []
-    for u in units:
+    for i, u in enumerate(units):
         phones = list(u["result"]["phones"])
         sp = _span(phones)
         if sp is None:
             continue
-        parts.append((sp, u, phones))
+        parts.append((sp, i, u, phones))
     parts.sort(key=lambda x: (x[0][0], x[0][1]))
-    speech = [clip([p for p in ph if p["label"] != "pau"], start, end) for _, _, ph in parts]
+    speech = [clip([p for p in ph if p["label"] != "pau"], start, end) for _, _, _, ph in parts]
     for i in range(len(parts)):
         for j in range(i + 1, len(parts)):
-            clash = next(((x, y) for x in speech[i] for y in speech[j] if min(x["end"], y["end"]) - max(x["start"], y["start"]) > EPS), None)
-            if clash is not None:
-                ua, ub = parts[i][1], parts[j][1]
-                at = max(clash[0]["start"], clash[1]["start"])
-                return {"conflict": {"a": ua["name"], "b": ub["name"], "at": round(float(at), 6), "units": [ua["unitId"], ub["unitId"]]}}
+            for x in speech[i]:
+                for y in speech[j]:
+                    a, b = max(x["start"], y["start"]), min(x["end"], y["end"])
+                    if b - a > EPS:
+                        ua, ub = parts[i][2], parts[j][2]
+                        oa, ob = sorted((ua.get("ordinal") or 0, ub.get("ordinal") or 0))
+                        return {"conflict": {"a": oa, "b": ob, "start": round(float(a), 6), "end": round(float(b), 6), "units": [ua["unitId"], ub["unitId"]]}}
     phones: list[dict[str, Any]] = []
     morae: list[str] = []
     words: list[Any] = []
-    for i, (sp, u, ph) in enumerate(parts):
+    for k, (sp, idx, u, ph) in enumerate(parts):
         res = u["result"]
         mo, wo = len(morae), len(words)
-        lo = 0 if i == 0 else next(k for k, p in enumerate(ph) if p["label"] != "pau")
-        hi = len(ph) if i == len(parts) - 1 else max(k for k, p in enumerate(ph) if p["label"] != "pau") + 1
-        if i > 0 and phones and sp[0] > phones[-1]["end"] + EPS:
-            phones.append({"label": "pau", "start": phones[-1]["end"], "end": sp[0], "mora": None, "word": None})
+        lo = 0 if k == 0 else next(n for n, p in enumerate(ph) if p["label"] != "pau")
+        hi = len(ph) if k == len(parts) - 1 else max(n for n, p in enumerate(ph) if p["label"] != "pau") + 1
+        if k > 0 and phones and sp[0] > phones[-1]["end"] + EPS:
+            phones.append({"label": "pau", "start": phones[-1]["end"], "end": sp[0], "mora": None, "word": None, "seg": idx})
         for p in ph[lo:hi]:
             q = dict(p)
             if q.get("mora") is not None:
                 q["mora"] = int(q["mora"]) + mo
             if q.get("word") is not None:
                 q["word"] = int(q["word"]) + wo
+            q["seg"] = idx
             phones.append(q)
         morae += list(res.get("morae") or [])
         words += [w | {"moraStart": int(w["moraStart"]) + mo} if w.get("moraStart") is not None else w for w in res.get("words") or []]
     out_phones = clip(phones, start, end)
-    if len(parts) == 1:  # 只读到一句：其余字段（前端、对齐器信息）照搬
-        return parts[0][1]["result"] | {"phones": out_phones, "morae": morae, "words": words}
+    if len(parts) == 1:  # 只读到一段：其余字段（前端、对齐器信息）照搬
+        return parts[0][2]["result"] | {"phones": out_phones, "morae": morae, "words": words}
     return {"phones": out_phones, "morae": morae, "words": words, "frontend": {}}
 
 

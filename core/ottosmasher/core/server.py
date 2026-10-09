@@ -31,7 +31,7 @@ from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
 from . import actor as actor_mod
-from . import annotations as annotations_mod
+from . import text_layer as text_layer_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
 from .exports import ExportService, export_range
@@ -45,7 +45,8 @@ from .rhythm import RhythmService
 from .search import SearchService
 from .handoff import HandoffService
 from .speech import SpeechService
-from .subtitle_samples import SubtitleSamples
+from .sample_plan import SamplePlanner
+from .text_layer import TextLayer
 from .sources import SourceService
 from .imports import ImportService
 from .roots import RootService
@@ -120,10 +121,8 @@ class Core:
         r("sources.relocate", "write", T.RelocateParams, T.SourceRelocated, "Point a source at a moved file (reports changed streams, does not refuse).",
           lambda p: self.sources.relocate(p["id"], p["path"]))
         r("sources.deletePreview", "read", T.IdParams, T.DeletePreview, "What deleting a source would remove.", lambda p: self.sources.delete_preview(p["id"]))
-        r("sources.delete", "write", T.IdParams, T.DeletePreview, "Delete a source with its assets, samples and annotations (not undoable).",
+        r("sources.delete", "write", T.IdParams, T.DeletePreview, "Delete a source with its assets, samples, text layer and tags (not undoable).",
           lambda p: self.sources.delete(p["id"]))
-        r("sources.wholeSamples", "write", T.WholeSamplesParams, T.SampleIds, "Create one full-length sample per source on its default track.",
-          lambda p: self.imports.whole_samples(list(p["ids"]), p.get("nature")))
         r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files.", lambda p: self.roots.rescan())
         r("roots.list", "read", T.NoParams, list[T.SourceRoot], "Source folders.", lambda p: self.roots.list())
         r("roots.add", "write", T.PathParams, T.RootAdded, "Add a source folder (adopts sources already inside, then scans).", lambda p: self.roots.add(str(p["path"])))
@@ -161,11 +160,16 @@ class Core:
         # ---- 采样、导出、标签
         r("samples.suggest", "read", T.SuggestParams, T.SampleSuggestion, "Suggested name and nature for a new sample on an asset range.",
           lambda p: self.samples.suggest(p["assetId"], float(p["start"]), float(p["end"]), local_marker=p.get("localMarker", "")))
-        r("samples.create", "write", T.SampleCreateParams, T.SampleRow, "Create a sample on an asset range (always a new sample).",
-          lambda p: self.samples.create(
-              p["assetId"], float(p["start"]), float(p["end"]), name=p["name"], nature=p.get("nature"),
-              created_via=p.get("createdVia", "manual"), parent_sample_id=p.get("parentSampleId"),
-          ))
+        r("samples.create", "write", T.SampleCreateParams, T.SampleRow,
+          "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
+          lambda p: self.samples.get(self.sample_plan.create_selection(
+              p["assetId"], float(p["start"]), float(p["end"]), name=p.get("name"), nature=p.get("nature"),
+              parent_sample_id=p.get("parentSampleId"), via=p.get("via") or "manual")))
+        r("samples.plan", "read", T.SamplePlanParams, T.SamplePlan,
+          "Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch.",
+          lambda p: self.sample_plan.plan(dict(p["from"])))
+        r("samples.createPlanned", "write", T.SampleCreatePlannedParams, T.SamplesCreated, "Create the chosen planned samples atomically (always new samples).",
+          lambda p: self.sample_plan.create(dict(p["from"]), p["token"], list(p["keys"]), p.get("overrides"), p.get("nature")))
         r("samples.list", "read", T.SamplesListParams, T.SamplePage, "One page of samples matching the filter, with the total.",
           lambda p: self.samples.list(
               offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
@@ -198,22 +202,34 @@ class Core:
         r("exports.range", "write", T.ExportRangeParams, T.ExportedWav, "Export an asset range as WAV named by the naming rule (+ fragment word).",
           lambda p: export_range(self.exports, self.samples.suggest, p["assetId"], float(p["start"]), float(p["end"]), dict(p.get("words", {}))))
         r("tags.promoteBatch", "read", T.PromoteParams, T.PromoteInfo, "Edit batch that promotes local tags to a segment tag (apply with edits.apply).",
-          lambda p: annotations_mod.promote_batch(self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")))
-        # ---- 字幕标记、标注、OP/ED
-        r("subtitles.preview", "read", T.SubtitlePreviewParams, T.SubtitlePreview, "Preview importing subtitle markers of one source.",
-          lambda p: self.subtitles.preview(p["sourceId"], p.get("path")))
-        r("subtitles.import", "write", T.SubtitleImportParams, T.SubtitleImportResult, "Import subtitle markers from a preview (insert only, atomic, undoable).",
-          lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("lines"), p.get("path")))
+          lambda p: text_layer_mod.promote_batch(self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")))
+        # ---- 字幕导入、文本层、音效提示、区段标签、OP/ED（所有者 2026-10-09）
+        r("subtitles.preview", "read", T.SubtitlePreviewParams, T.SubtitlePreview,
+          "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line).",
+          lambda p: self.subtitles.preview(p["sourceId"], p.get("path"), p.get("options")))
+        r("subtitles.import", "write", T.SubtitleImportParams, T.SubtitleImportResult, "Import a subtitle file as previewed (one atomic, undoable edit).",
+          lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("options"), p.get("path")))
+        r("subtitles.importDefault", "write", T.SourceIdParams, T.SubtitleImportResult, "One-click import of the associated subtitle with default options.",
+          lambda p: self.subtitles.import_default(p["sourceId"]))
         r("subtitles.previewMany", "read", T.SourceIdsParams, list[T.SubtitleBatchRow], "Batch preview of subtitle import (sources without subtitles are skipped).",
           lambda p: self.subtitles.preview_many(list(p["sourceIds"])))
-        r("subtitles.importMany", "write", T.SubtitleImportManyParams, list[T.SubtitleImportManyRow], "Batch subtitle import, each source atomic on its own.",
+        r("subtitles.importMany", "write", T.SubtitleImportManyParams, list[T.SubtitleImportManyRow], "Batch subtitle import with default options, each source atomic.",
           lambda p: self.subtitles.import_many(list(p["items"])))
-        r("annotations.list", "read", T.SourceIdParams, T.AnnotationList, "Subtitle/segment annotations, OP/ED and derived samples of a source.",
-          lambda p: annotations_mod.list_for_source(self.conn, p["sourceId"]))
-        r("subtitleSamples.preview", "read", T.SubtitleSamplesPreviewParams, T.SubtitleSamplePreview, "Preview creating samples from subtitle lines or sound effects.",
-          lambda p: self.subtitle_samples.preview(p["sourceId"], p["kind"], p.get("start"), p.get("end")))
-        r("subtitleSamples.create", "write", T.SubtitleSamplesCreateParams, T.SubtitleSamplesCreated, "Create samples from chosen subtitle lines (atomic).",
-          lambda p: self.subtitle_samples.create(p["sourceId"], p["kind"], p["token"], list(p["annotationIds"]), p.get("start"), p.get("end")))
+        r("textLayer.list", "read", T.TextLayerParams, T.TextLayerList, "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",
+          lambda p: text_layer_mod.list_for_source(self.conn, p["sourceId"], p.get("assetId")))
+        r("segments.checkAdd", "read", T.SegmentRangeParams, T.SegmentAddCheck, "Which segments a new typed segment would overlap, and whether cut is possible.",
+          lambda p: self.text.check_add(p["sourceId"], float(p["start"]), float(p["end"])))
+        r("segments.add", "write", T.SegmentAddParams, T.SegmentAdded, "Add a typed segment to the text layer (replace or cut overlapping ones when asked).",
+          lambda p: self.text.add_segment(p["sourceId"], float(p["start"]), float(p["end"]), str(p["text"]), p.get("resolve")))
+        r("segments.split", "write", T.SegmentSplitParams, T.SegmentsSplit, "Split a segment (old one deleted, two new protected segments).",
+          lambda p: self.text.split(p["id"], int(p["version"]), float(p["at"]), str(p["left"]), str(p["right"])))
+        r("segments.merge", "write", T.SegmentMergeParams, T.SegmentAdded, "Merge segments into one new protected segment.",
+          lambda p: self.text.merge(list(p["ids"]), p.get("text")))
+        r("segments.regenerateSpeakers", "write", T.SourceIdParams, T.SpeakersRegenerated,
+          "Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only).",
+          lambda p: self.text.regenerate_speakers(p["sourceId"]))
+        r("hints.add", "write", T.HintAddParams, T.SegmentAdded, "Add an sfx hint by hand (protected).",
+          lambda p: self.text.add_hint(p["sourceId"], float(p["start"]), float(p["end"]), str(p["text"])))
         r("oped.list", "read", T.SourceIdParams, list[T.Oped], "OP/ED ranges of a source.", lambda p: self.oped.list(p["sourceId"]))
         r("oped.identify", "write", T.SourceIdParams, T.IdentifyResult, "Identify OP/ED from subtitle rules; applies non-overlapping pairs when there are no errors.",
           lambda p: self.oped.identify(p["sourceId"]))
@@ -224,20 +240,18 @@ class Core:
         # ---- 分离（PyMSS Studio）
         # ---- 语音分析（08 §8.4）
         r("speech.preview", "read", T.SpeechPlanParams, T.SpeechPreview,
-          "What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons.",
-          lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
+          "What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons.",
+          lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
         r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
-          lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
-        r("speech.submitRange", "job", T.SpeechRangeParams, T.JobSummary, "Analyze an asset range with typed text (a typed text unit; no sample needed).",
-          lambda p: self.speech.submit_range(p["assetId"], float(p["start"]), float(p["end"]), str(p["text"])))
+          lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
         r("speech.saveManual", "write", T.SpeechManualParams, T.SpeechHeadRef,
-          "Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+          "Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed).",
           lambda p: self.speech.save_manual(p["unitId"], int(p["version"]), p.get("phones"), p.get("text")))
-        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version of a line (text unit) the current one.",
+        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version of a segment on a track the current one.",
           lambda p: self.speech.switch_head(p["unitId"], p["runId"], int(p["version"])))
-        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head.",
+        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result.",
           lambda p: self.speech.sample_view(p["id"]))
-        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Current alignments of all lines (text units) on an asset range (same physical audio only).",
+        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Usable alignments of all segments on an asset range (same physical audio only).",
           lambda p: self.speech.for_asset(p["assetId"], float(p["start"]), float(p["end"])))
         r("measure.f0", "read", T.AssetRangeParams, T.F0Frames, "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
           lambda p: self.speech.f0(p["assetId"], float(p["start"]), float(p["end"])))
@@ -326,6 +340,7 @@ class Core:
         self.conn = connect(self.ws.db_path)
         report = migrate(self.conn, self.ws.backups)
         actor_mod.install(self.conn)
+        self._upgrade_steps()
         if report.backup:
             log.info("schema migrated %s -> %s, backup %s", report.from_version, report.to_version, report.backup)
         self.edits = EditService(self.conn, on_change=self._on_change)
@@ -334,7 +349,8 @@ class Core:
         self.samples = SampleService(self.conn, on_change=self._on_change)
         self.subtitles = SubtitleImporter(self.conn, self.edits, on_change=self._on_change)
         self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
-        self.subtitle_samples = SubtitleSamples(self.conn, on_change=self._on_change)
+        self.text = TextLayer(self.conn, self.edits, on_change=self._on_change)
+        self.sample_plan = SamplePlanner(self.conn, self.samples, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.thumbs = ThumbnailService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.jobs = Scheduler(
@@ -365,12 +381,26 @@ class Core:
         self.handoff.hits = self.hits
         from .search_auto import AutoPrepare
 
-        self.auto = AutoPrepare(self.conn, self.search, self.jobs, self.post)
+        self.auto = AutoPrepare(self.conn, self.search, self.jobs, self.post, speech=self.speech)
         self.acoustic = AcousticService(self.conn, self.ws, self.jobs, self.search, self.speech, self.support_dir, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
         self.auto.kick_all()  # 启动时把检索的准备补齐一次（后台，所有者 2026-10-08）
+
+    def _upgrade_steps(self) -> None:
+        """迁移后在 Python 里补做的步骤（``upgrade_pending``；做完就删，失败下次打开再做）。"""
+        try:
+            pending = [r[0] for r in self.conn.execute("SELECT name FROM upgrade_pending")]
+        except Exception:  # noqa: BLE001 — 旧库没有这张表
+            return
+        for name in pending:
+            if name == "effective-tags":
+                from . import effective_tags
+
+                with transaction(self.conn):
+                    effective_tags.rebuild_all(self.conn)
+                    self.conn.execute("DELETE FROM upgrade_pending WHERE name=?", (name,))
 
     def close(self) -> None:
         try:
@@ -567,14 +597,14 @@ class Core:
 
     def _sources_list(self, p: dict[str, Any]) -> list[dict[str, Any]]:
         """原片列表 + 每个原片的统计（05 §5.8：句数、OP/ED、派生采样数；阶段 4：语音采样数与已分析数）。"""
-        c = annotations_mod.counts(self.conn)
+        c = text_layer_mod.counts(self.conn)
         sp = self.speech.analyzed_counts()
         zero = {"speech": 0, "analyzed": 0}
         return [r | {"counts": None if r["id"] not in c else c[r["id"]] | sp.get(r["id"], zero)} for r in self.sources.list()]
 
     def _sources_prep(self, p: dict[str, Any]) -> dict[str, Any]:
         sp = self.speech.source_counts(p["id"])  # 句（文本单元）：原片入口范围内的台词行与语音采样自己的那一句
-        return annotations_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["speech"] > 0 and sp["analyzed"] == sp["speech"], **sp}}
+        return text_layer_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["speech"] > 0 and sp["analyzed"] == sp["speech"], **sp}}
 
     def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:
         """开发期测试钩子（S1.2；只在开发模式）：把现成的分离声部文件登记为原片的整轨声部（原地引用，不复制）。

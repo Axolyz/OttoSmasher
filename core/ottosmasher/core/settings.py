@@ -148,6 +148,8 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("analysis.segment_threshold", 0.28, _float_range(0.16, 2.0), "analysis"),
         # 检索的准备在后台自动做（所有者 2026-10-08）：新采样与默认轨测 F0、语音分析后建语音检索索引
         SettingSpec("analysis.auto_prepare", True, _bool, "analysis"),
+        # 改段后自动在后台重跑（所有者 2026-10-09，默认关）：段的文本或边界改了、拆分 / 合并 / 切开之后，在原段已有分析的资产上重新分析
+        SettingSpec("analysis.auto_rerun_segments", False, _bool, "analysis"),
         # 全局目标 BPM（03 §3.1：20–400，None = 原速卡拍）：工作参数，不进撤销，由 rhythm.setBpm 写（不在设置页里出现）
         SettingSpec("rhythm.bpm", None, _opt_bpm, "rhythm"),
         # 拉平：各入口的默认处理范围与定音方式（03 §3.7；只是默认值，拉平台上随时可改，改范围不自动改定音，Q6）。

@@ -31,7 +31,7 @@ from .clock import now_iso
 from .edits import loads
 from .errors import CoreError
 
-KEY_VERSION = "speech-index-2"  # 2：分析属于文本单元（所有者 2026-10-08）
+KEY_VERSION = "speech-index-3"  # 3：分析属于“段 + 资产”，采样按判定区间读（所有者 2026-10-09）
 
 # 资产存储的签名（范围、种类、文件快照；按固定顺序拼接）：文件被替换、存储变了 → 签名变（只用数据库，不探测文件）
 STORAGE_SIG_SQL = (
@@ -50,22 +50,19 @@ def _chunks(ids: Sequence[str]) -> Iterable[list[str]]:
 
 
 _KEY_SQL = """
-WITH ann AS (
-  SELECT source_id, COUNT(*) AS n, MAX(updated_at) AS t FROM annotation WHERE deleted = 0 GROUP BY source_id
-)
-SELECT s.id, s.asset_id, s.start, s."end", s.rhythm, s.align_text_manual, s.origin,
+SELECT s.id, s.asset_id, s.start, s."end", s.rhythm,
   {reads} AS reads,
   {storage} AS storage,
   src.file_snapshot AS src_snap,
   fr.result AS f0res, a.duration AS adur,
-  a.source_id, src.current_subtitle_version_id AS subver, ann.n AS ann_n, ann.t AS ann_t,
+  a.source_id,
+  (SELECT COUNT(*) || ':' || COALESCE(MAX(rt.updated_at), '') FROM range_tag rt WHERE rt.source_id = a.source_id AND rt.tags LIKE '%character:%') AS rtags,
   (SELECT group_concat(role || state, ',') FROM asset_role WHERE asset_id = s.asset_id) AS roles,
   (SELECT group_concat(tag, ',') FROM sample_tag WHERE sample_id = s.id AND tag LIKE 'character:%') AS chars,
   s.tag_judge_start, s.tag_judge_end
 FROM sample s
 JOIN sound_asset a ON a.id = s.asset_id
 JOIN source src ON src.id = a.source_id
-LEFT JOIN ann ON ann.source_id = a.source_id
 LEFT JOIN measure_head fh ON fh.owner_type = 'asset' AND fh.owner_id = s.asset_id AND fh.kind = 'f0'
 LEFT JOIN measure_run fr ON fr.id = fh.run_id
 WHERE s.id IN ({marks})
@@ -78,8 +75,9 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
     versions = [KEY_VERSION, rh.ALGO_VERSION, st.ALGO_VERSION, ss.ALGO_VERSION, ss.INDEX_VERSION, penalty]
     out: dict[str, tuple[str, bool]] = {}
     for part in _chunks(list(dict.fromkeys(sample_ids))):
-        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id"), reads=units.reads_sql("s")), part):
-            has = bool(r["reads"])  # 读到的句（自己那一句，或范围内的句）有成功测量
+        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id"), reads=units.reads_sql("s", "a.source_id")), part):
+            # 读到的段都有可用分析才需要索引（段改过、还没分析的计入“缺少有效分析”）；冲突的建索引时记为 none
+            has = bool(r["reads"]) and all(not x.endswith("|-") for x in str(r["reads"]).split(","))
             # F0 只看采样范围所在的段（同一资产别处补测 F0 不让这条失效）
             f0 = loads(r["f0res"]) if r["f0res"] else {}
             need = f0store.chunks_for(float(r["start"]), float(r["end"]), float(r["adur"]))
@@ -92,11 +90,11 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
 # ---------------------------------------------------------------- 语音检索索引：构建一行（任务进程里，只读）
 
 
-def block_characters(conn: sqlite3.Connection, sample_id: str, blocks: Sequence[rh.Block]) -> list[str | None]:
-    """块区间上的单一角色（09 §9.6.3）：采样本地的 ``character:`` 标签 + 与块区间交叠的标注（作用域规则同有效标签）；恰好一个才算，否则未知。"""
+def block_characters(conn: sqlite3.Connection, sample_id: str, blocks: Sequence[rh.Block], block_units: Sequence[str | None] = ()) -> list[str | None]:
+    """块区间上的单一角色（09 §9.6.3）：采样本地的 ``character:`` 标签 + 产生这一块的那一段的说话人（一人才算；资产要带人声角色）
+    + 与块区间交叠的区段标签里的 ``character:``（作用域规则同有效标签）；恰好一个才算，否则未知。"""
     s = conn.execute(
-        'SELECT s.asset_id, a.mapping, a.source_id, src.current_subtitle_version_id FROM sample s JOIN sound_asset a ON a.id = s.asset_id'
-        " JOIN source src ON src.id = a.source_id WHERE s.id = ?",
+        "SELECT s.asset_id, a.mapping, a.source_id FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE s.id = ?",
         (sample_id,),
     ).fetchone()
     if s is None:
@@ -107,21 +105,29 @@ def block_characters(conn: sqlite3.Connection, sample_id: str, blocks: Sequence[
         m: Mapping | None = Mapping.of(loads(s["mapping"]))
     except CoreError:
         m = None
-    anns = conn.execute(
-        'SELECT scope, scope_role, scope_asset_id, start, "end", tags FROM annotation WHERE source_id = ? AND deleted = 0'
-        " AND tags LIKE '%character:%' AND (subtitle_version_id IS NULL OR subtitle_version_id IS ?)",
-        (s["source_id"], s["current_subtitle_version_id"]),
+    tags = conn.execute(
+        'SELECT scope, scope_role, scope_asset_id, start, "end", tags FROM range_tag WHERE source_id = ? AND deleted = 0 AND tags LIKE \'%character:%\'',
+        (s["source_id"],),
     ).fetchall()
+    speakers: dict[str, list[str]] = {}
+    for u in {x for x in block_units if x}:
+        seg_id = u[len("seg:") :].split("@", 1)[0]
+        r = conn.execute("SELECT speakers FROM text_segment WHERE id = ?", (seg_id,)).fetchone()
+        speakers[u] = loads(r[0]) if r else []
     out: list[str | None] = []
-    for b in blocks:
+    for i, b in enumerate(blocks):
         found = set(local)
+        u = block_units[i] if i < len(block_units) else None
+        if u and "vocal" in roles:
+            names = speakers.get(u) or []
+            found |= {f"character:{names[0]}"} if len(names) == 1 else {f"participants:{n}" for n in names}
         src_win = None
         if m is not None:
             try:
                 src_win = (m.to_source(b.onset), m.to_source(b.end))
             except CoreError:
                 src_win = None
-        for a in anns:
+        for a in tags:
             if a["scope"] == "asset":
                 if a["scope_asset_id"] != s["asset_id"] or not overlaps(b.onset, b.end, a["start"], a["end"]):
                     continue
@@ -131,7 +137,8 @@ def block_characters(conn: sqlite3.Connection, sample_id: str, blocks: Sequence[
                 if a["scope"] == "role" and a["scope_role"] not in roles:
                     continue
             found |= {t for t in loads(a["tags"]) if t.startswith("character:")}
-        out.append(next(iter(found)) if len(found) == 1 else None)
+        chars = {t for t in found if t.startswith("character:")}
+        out.append(next(iter(chars)) if len(chars) == 1 and len(found) == 1 else None)
     return out
 
 
@@ -154,7 +161,7 @@ def build_row(rhythm: Any, conn: sqlite3.Connection, sample_id: str) -> tuple[st
     manual = bool(head and head.get("manual"))
     thr = ss.active_threshold(energy, measured)
     sustain = [ss.sustain_end(b, an.pauses, times, energy, measured, thr, manual) for b in an.blocks]
-    chars = block_characters(conn, sample_id, an.blocks)
+    chars = block_characters(conn, sample_id, an.blocks, [an.phone_units[b.members[0]] if b.members[0] < len(an.phone_units) else None for b in an.blocks])
     cells = list(an.raw.cells or [])
     idx = ss.build_index(
         sample_id, an.phones, an.blocks, an.pauses, an.seg, an.cuts, an.segments, an.dur, cells, an.window, an.sr, an.attrs, sustain, chars,

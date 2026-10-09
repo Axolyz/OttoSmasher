@@ -62,13 +62,14 @@ class Analysis:
     identity: str
     run: str
     run_version: int
-    units: list[str]  # 读到的句（文本单元，所有者 2026-10-08）
-    partial: bool  # 没有自己文本的采样只读到某句的一部分（◐）
+    units: list[str]  # 读到的“段 + 资产”（所有者 2026-10-09）
+    partial: bool  # 有被采样范围裁掉一部分的非停顿音素（◐）
     params: dict[str, Any]
     manual_applied: bool
     manual_stale: bool
     ignored: list[str]
     phones: list[rh.Phone]
+    phone_units: list[str | None]  # 每个音素来自哪个“段 + 资产”（语音检索每块的角色取产生该块的那一段）
     morae: list[str]
     blocks: list[rh.Block]
     pauses: list[rh.Pause]
@@ -165,9 +166,8 @@ class RhythmService:
         start, end = float(row["start"]), float(row["end"])
         view = self.speech.sample_view(sample_id)
         head = view["head"]
-        if view.get("conflict"):
-            c = view["conflict"]
-            raise CoreError("rhythm-units-conflict", a=c["a"], b=c["b"], at=c["at"])
+        if view.get("blocked"):
+            raise CoreError(view["blocked"]["code"], **view["blocked"]["args"])
         if head is None or head["status"] != "ok" or not head.get("result"):
             raise CoreError("rhythm-no-analysis", id=sample_id)
         params = self.params_of(row)
@@ -184,9 +184,13 @@ class RhythmService:
             return hit
         res = head["result"]
         phones: list[rh.Phone] = []
+        phone_units: list[str | None] = []
+        head_units = list(head.get("units") or [])
         for p in res["phones"]:
             if p["end"] <= start or p["start"] >= end:
                 continue
+            k = p.get("seg")
+            phone_units.append(head_units[k] if isinstance(k, int) and 0 <= k < len(head_units) else (head_units[0] if len(head_units) == 1 else None))
             eff = p.get("eff")
             if eff:
                 ea, eb = max(float(eff[0]), start), min(float(eff[1]), end)
@@ -224,7 +228,7 @@ class RhythmService:
             sample_id=sample_id, name=row["name"], nature=row["nature"], version=int(row["version"]), asset_id=row["asset_id"], window=window,
             sr=sr, channels=pcm.shape[1] if pcm.ndim == 2 else 1, identity=identity, run=head["runId"], run_version=int(head["version"]),
             units=list(head.get("units") or []), partial=bool(head.get("partial")), params=params, manual_applied=applied, manual_stale=stale, ignored=ignored,
-            phones=phones, morae=list(res.get("morae") or []), blocks=blocks, pauses=pauses, seg=seg, cuts=cuts, segments=segs, dur=dur, raw=raw,
+            phones=phones, phone_units=phone_units, morae=list(res.get("morae") or []), blocks=blocks, pauses=pauses, seg=seg, cuts=cuts, segments=segs, dur=dur, raw=raw,
             mora_cells=mc, manual_cells=m_cells, attrs=attrs, penalty=penalty,
         )
         self._cache[identity] = an
@@ -270,7 +274,7 @@ class RhythmService:
         try:
             an = self.analysis(sample_id)
         except CoreError as e:
-            if e.code in ("rhythm-no-analysis", "rhythm-no-blocks", "rhythm-units-conflict"):
+            if e.code in ("rhythm-no-analysis", "rhythm-no-blocks", "rhythm-units-conflict", "rhythm-segments-missing", "rhythm-segment-stale"):
                 return {"sampleId": sample_id, "status": "none", "reason": e.to_wire(), "bpm": bpm, "version": int(row["version"])}
             raise
         out: dict[str, Any] = {
