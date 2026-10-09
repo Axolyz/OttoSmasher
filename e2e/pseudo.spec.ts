@@ -16,7 +16,8 @@ async function unbracketed(page: import("@playwright/test").Page): Promise<strin
       const text = (n.textContent ?? "").trim();
       const visible = el && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden";
       // 允许：纯符号/数字/快捷键、mono 显示的路径与令牌名、用户数据
-      const exempt = !text || /^[\s\d.,:;·/\\()\-–—+×♩?⌘⌫⇧⌥↶{}#%→]*$/.test(text) || el?.closest(".mono, kbd, [data-user-data], [aria-hidden=\"true\"]");
+      // 文件大小（Q21：数字与单位是统一格式，不翻译）
+      const exempt = !text || /^[\s\d.,:;·/\\()\-–—+×♩?⌘⌫⇧⌥↶{}#%→]*$/.test(text) || /^[\d.]+ (B|KB|MB|GB|TB)$/.test(text) || el?.closest(".mono, kbd, [data-user-data], [aria-hidden=\"true\"], [data-live-announcer]");
       if (visible && !exempt && !/[[\]]/.test(text) && !/^(Esc|Space|B|OttoSmasher)$/.test(text)) bad.push(text);
       n = walker.nextNode();
     }
@@ -262,5 +263,67 @@ test("伪语言：三大搜索", async () => {
     await expect(composer.getByTestId("metrics-table")).toBeVisible();
     expect(await unbracketed(page)).toEqual([]);
   }
+  await app.close();
+});
+
+test("伪语言：阶段 8 / 9 的界面（范围行、批量、管理标签、画面绑定、视频、独立化、回导、存储、删除原片）", async () => {
+  test.setTimeout(120_000);
+  const { app, page } = await launch({ locale: "pseudo" });
+  const dir = mkdtempSync(join(tmpdir(), "otto-pseudo89-"));
+  const mkv = join(dir, "v.mkv");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=4", "-f", "lavfi", "-i", "sine=duration=4", "-c:v", "libx264", "-c:a", "flac", mkv]);
+  await page.evaluate(async (p) => {
+    const req = window.otto.core.request;
+    const r = (await req("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+    const c = (await req("samples.create", { assetId: r.r[0]!.assets[0]!.assetId, start: 0.5, end: 1.5, name: "x" })) as { r: { id: string; version: number } };
+    await req("edits.apply", { batch: { ops: [{ entity: "sample", id: c.r.id, version: c.r.version, fields: { local_tags: ["character:k", "ok"] } }] } });
+  }, mkv);
+  await page.getByTestId("nav-library").click();
+  await refreshLists(page);
+  await page.getByTestId("sample-row").first().click();
+  const check = async () => expect(await unbracketed(page)).toEqual([]);
+  await check();
+  await page.getByTestId("scope-add").click();
+  await check();
+  await page.keyboard.press("Escape");
+  const dialogs: Array<[string, string]> = [
+    ["menu-edit", "batch-dialog"],
+    ["menu-tags-remove", "batch-dialog"],
+    ["menu-visual", "visual-dialog"],
+    ["menu-independ", "independ-dialog"],
+  ];
+  for (const [item, dlg] of dialogs) {
+    await page.getByTestId("sample-row").first().click({ button: "right" });
+    await page.getByTestId(item).click();
+    await expect(page.getByTestId(dlg)).toBeVisible();
+    await page.waitForTimeout(300);
+    await check();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId(dlg)).toHaveCount(0);
+  }
+  await page.getByTestId("stage-handoff").click();
+  await page.getByTestId("menu-video").click();
+  await page.waitForTimeout(300);
+  await check();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("stage-reimport").click();
+  await check();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("top-more").click();
+  await page.getByTestId("menu-manage-tags").click();
+  await page.waitForTimeout(300);
+  await check();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Meta+,");
+  await page.getByTestId("settings-group-storage").click();
+  await page.waitForTimeout(300);
+  await check();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("nav-sources").click();
+  await page.getByTestId("source-group").first().click();
+  await page.getByTestId("source-row").first().click({ button: "right" });
+  await page.getByTestId("menu-delete").click();
+  await expect(page.getByTestId("delete-independ")).toBeVisible();
+  await check();
   await app.close();
 });
