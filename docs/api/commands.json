@@ -817,6 +817,20 @@
    }
   },
   {
+   "name": "samples.glyphs",
+   "effect": "read",
+   "summary": "List-row extras by nature (rhythm glyph, note + pitch curve, attack + envelope) from existing index and measurements only.",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "object",
+    "additionalProperties": {
+     "$ref": "#/$defs/SampleGlyph"
+    }
+   }
+  },
+  {
    "name": "samples.ids",
    "effect": "read",
    "summary": "IDs of all samples matching the filter (select all across pages).",
@@ -8717,6 +8731,55 @@
      ]
     },
     "text": {
+     "type": "string"
+    }
+   },
+   "required": []
+  },
+  "SampleGlyph": {
+   "title": "SampleGlyph",
+   "description": "列表行的副信息（用途视图）：语音 = 音块在整句窗口里的位置（0–1）；调谐 = 音名 + 音高曲线（MIDI，32 点）；非调谐 = 起音时间 + 包络（32 点）。",
+   "type": "object",
+   "properties": {
+    "attackMs": {
+     "type": "number"
+    },
+    "blocks": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "curve": {
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "envelope": {
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "note": {
      "type": "string"
     }
    },

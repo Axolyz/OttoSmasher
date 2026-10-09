@@ -733,6 +733,16 @@ class EffectiveTag(TypedDict):
     ref: str | None
 
 
+class SampleGlyph(TypedDict):
+    """列表行的副信息（用途视图）：语音 = 音块在整句窗口里的位置（0–1）；调谐 = 音名 + 音高曲线（MIDI，32 点）；非调谐 = 起音时间 + 包络（32 点）。"""
+
+    blocks: NotRequired[list[list[float]]]
+    note: NotRequired[str]
+    curve: NotRequired[list[float | None]]
+    attackMs: NotRequired[float]
+    envelope: NotRequired[list[float | None]]
+
+
 class SampleRef(TypedDict):
     id: str
     name: str

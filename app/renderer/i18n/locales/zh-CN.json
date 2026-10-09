@@ -1942,5 +1942,10 @@
   "info.localSec": "（资产局部秒）",
   "info.sourceAt": "原片时间",
   "info.judge": "判定区间（原片）",
-  "info.created": "建立时间"
+  "info.created": "建立时间",
+  "library.blocks": "{n} 块",
+  "library.pitchCurve": "音高曲线",
+  "library.envelope": "包络",
+  "library.attack": "起音 {ms} ms",
+  "library.reclassified": "已归类为{nature}"
 }

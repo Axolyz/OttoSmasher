@@ -38,6 +38,7 @@ from . import sample_filter, saved_filters, text_search
 from .exports import ExportService, export_range
 from .samples import SampleService
 from .tag_ops import TagOps
+from .glyphs import Glyphs
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
 from .flatten import FlattenService
@@ -187,6 +188,9 @@ class Core:
         r("samples.batchEdit", "read", T.BatchEditParams, T.BatchEditPlan,
           "Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply.",
           lambda p: self.tag_ops.batch_edit(list(p["ids"]), dict(p["fields"])))
+        r("samples.glyphs", "read", T.IdsParams, dict[str, T.SampleGlyph],
+          "List-row extras by nature (rhythm glyph, note + pitch curve, attack + envelope) from existing index and measurements only.",
+          lambda p: self.glyphs.get(list(p["ids"])))
         r("tags.ofSamples", "read", T.IdsParams, list[T.SampleTagCount], "Tags of the given samples: local n / inherited m (per sample) and inherited sources.",
           lambda p: self.tag_ops.of_samples(list(p["ids"])))
         r("tags.list", "read", T.NoParams, list[T.TagUsage], "All tags in use with counts (samples, local, range tags, sources, segment speakers).",
@@ -391,6 +395,7 @@ class Core:
         self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
+        self.glyphs = Glyphs(self.conn, self.speech)
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)

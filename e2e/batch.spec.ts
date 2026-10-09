@@ -96,5 +96,17 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   const id = await page.getByTestId("sample-row").first().getAttribute("data-id");
   await expect.poll(() => page.evaluate(async (i) => ((await window.otto.core.request("samples.get", { id: i })) as { r: { detail: { note: string } } }).r.detail.note, id)).toBe("开头那句");
   await page.screenshot({ path: `${SHOTS}/09-stage-info.png` });
+
+  // R8.10 用途视图：只看语音时一步归类（数字键 0）→ 该行就地写“已归类为未分类”、不立即消失；刷新后移出
+  await page.getByTestId("scope-preset").click();
+  await page.getByTestId("menu-preset-clear").click();
+  await page.getByTestId("purpose-speech").click();
+  await expect(page.getByTestId("library-total")).toHaveText("3 个采样");
+  await page.getByTestId("sample-row").first().focus();
+  await page.keyboard.press("0");
+  await expect(page.getByTestId("sample-row").filter({ hasText: "一" }).getByTestId("row-reclassified")).toHaveText("已归类为未分类");
+  await expect(page.getByTestId("sample-row")).toHaveCount(3);
+  await page.getByTestId("refresh-lists").click();
+  await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
   await app.close();
 });

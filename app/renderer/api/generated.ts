@@ -1263,6 +1263,15 @@ export interface SampleFilter {
   text?: string;
 }
 
+/** 列表行的副信息（用途视图）：语音 = 音块在整句窗口里的位置（0–1）；调谐 = 音名 + 音高曲线（MIDI，32 点）；非调谐 = 起音时间 + 包络（32 点）。 */
+export interface SampleGlyph {
+  attackMs?: number;
+  blocks?: number[][];
+  curve?: (number | null)[];
+  envelope?: (number | null)[];
+  note?: string;
+}
+
 export interface SampleOverride {
   name?: string;
   nature?: string;
@@ -2396,6 +2405,8 @@ export interface Commands {
   "samples.delete": { params: IdsParams; result: Deleted; effect: "write" };
   /** One sample with its effective tags. */
   "samples.get": { params: IdParams; result: SampleRow; effect: "read" };
+  /** List-row extras by nature (rhythm glyph, note + pitch curve, attack + envelope) from existing index and measurements only. */
+  "samples.glyphs": { params: IdsParams; result: Record<string, SampleGlyph>; effect: "read" };
   /** IDs of all samples matching the filter (select all across pages). */
   "samples.ids": { params: SampleFilter; result: string[]; effect: "read" };
   /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */

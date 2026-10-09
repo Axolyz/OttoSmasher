@@ -125,3 +125,12 @@
 .badge { font-size: var(--fs-xs); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; color: var(--sub); }
 .techList { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: var(--fs-xs); color: var(--muted); margin: 0; }
 .techList dd { margin: 0; color: var(--sub); min-width: 0; overflow-wrap: anywhere; }
+/* 列表第二行的副信息（用途视图） */
+.extra { display: inline-flex; align-items: center; gap: 6px; }
+.extraGlyph { display: inline-flex; color: var(--muted); }
+.extraGlyph[data-nature="speech"] { color: var(--nat-speech); }
+.extraGlyph[data-nature="unclassified"] { color: var(--nat-unclassified); }
+.extraGlyph[data-nature="pitched"] { color: var(--nat-pitched); }
+.extraGlyph[data-nature="unpitched"] { color: var(--nat-unpitched); }
+.note2 { font-weight: 650; color: var(--nat-pitched); }
+.reclass { color: var(--accent2); }

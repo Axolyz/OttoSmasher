@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
-import type { EffectiveTag, FacetCondition, FacetValues, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SavedFilter, SearchFinished } from "../api/types";
+import { RhythmGlyph, Sparkline } from "../components/Glyphs";
+import type { EffectiveTag, FacetCondition, FacetValues, SampleGlyph, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSound, SampleFilter, SamplePage, SampleRow, SavedFilter, SearchFinished } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
@@ -159,6 +160,8 @@ export function LibraryPage() {
   const limit = pageSize === "fit" ? fitRows : pageSize;
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<SamplePage | null>(null);
+  /** 列表行的副信息（用途视图）：每次换页 / 刷新后按本页的采样取一次 */
+  const [glyphs, setGlyphs] = useState<Record<string, SampleGlyph>>({});
   const [focus, setFocus] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState<string | null>(null);
@@ -408,6 +411,17 @@ export function LibraryPage() {
   }, [results.active, inResult]);
   const items: Item[] = inResult ? (resPage?.rows ?? []).map(toItem) : (data?.rows ?? []);
   const rows = items;
+  const glyphKey = items.map((x) => x.id).join(",");
+  useEffect(() => {
+    const ids = items.filter((x) => !x.dead && !x.id.startsWith("asset:") && !x.id.startsWith("gone:")).map((x) => x.id);
+    if (!ready || !ids.length) return setGlyphs({});
+    let live = true;
+    void call("samples.glyphs", { ids }).then((g) => live && setGlyphs(g), () => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [glyphKey, ready, refreshTick]);
   /** 试听一个采样（PB1：原声、卡拍都一步）：原声直接读绑定区间（R22.3）；卡拍与咔哒声先由 Core 渲染（方案按需计算）。
    *  再按一次同一个 = 停止。 */
   const audition = async (r: SampleRow, version: AuditionVersion = "original", opts: AuditionOpts = {}) => {
@@ -1053,9 +1067,13 @@ export function LibraryPage() {
                 </span>
               </div>
               <div className={s.meta}>
-                <span data-testid="row-analysis" data-analysis={r.analysis}>
-                  {t(`library.via.${r.created_via}`)} · {t(`library.analysis.${r.analysis}`)}
-                </span>
+                {purpose !== "all" && r.nature !== purpose && !r._res ? (
+                  // 用途视图里一步归类后：就地写“已归类为…”，不立即消失（R8.10），刷新或翻页后移出
+                  <span className={s.reclass} data-testid="row-reclassified">
+                    {t("library.reclassified", { nature: t(`nature.${r.nature}`) })}
+                  </span>
+                ) : null}
+                <RowExtra r={r} g={glyphs[r.id]} />
                 {r.people.length ? (
                   <span className={s.who} lang="ja" data-user-data="">
                     {r.people.join(t("settings.subtitle.speakerSep"))}
@@ -1366,6 +1384,53 @@ export function LibraryPage() {
         <div className={s.keep}>{t("library.deleteKeeps")}</div>
       </ConfirmDialog>
     </div>
+  );
+}
+
+/** 第二行的副信息（UI_PLAN §2.2）：语音 / 未分类 = 节奏字形 + 音块数；调谐 = 音名 + 音高曲线；非调谐 = 起音时间 + 包络；
+ *  还没有这些测量时显示建立方式与分析状态（例如“手动截取 · 未分析”）。 */
+function RowExtra(props: { r: SampleRow; g: SampleGlyph | undefined }) {
+  const { r, g } = props;
+  const status = (
+    <span data-testid="row-analysis" data-analysis={r.analysis}>
+      {t(`library.via.${r.created_via}`)} · {t(`library.analysis.${r.analysis}`)}
+    </span>
+  );
+  if (!g) return status;
+  if (g.blocks)
+    return (
+      <span className={s.extra} data-analysis={r.analysis} data-testid="row-analysis">
+        <span className={s.extraGlyph} data-nature={r.nature}>
+          <RhythmGlyph blocks={g.blocks} label={t("library.blocks", { n: g.blocks.length })} />
+        </span>
+        <span>{t("library.blocks", { n: g.blocks.length })}</span>
+        {r.analysis === "partial" || r.analysis === "manual" ? <span>· {t(`library.analysis.${r.analysis}`)}</span> : null}
+      </span>
+    );
+  if (r.nature === "pitched")
+    return (
+      <span className={s.extra}>
+        {g.note ? (
+          <b className={s.note2} data-nature="pitched">
+            {g.note}
+          </b>
+        ) : null}
+        {g.curve ? (
+          <span className={s.extraGlyph} data-nature="pitched">
+            <Sparkline values={g.curve} label={t("library.pitchCurve")} />
+          </span>
+        ) : null}
+      </span>
+    );
+  return (
+    <span className={s.extra}>
+      {g.attackMs != null ? <span className="num">{t("library.attack", { ms: g.attackMs })}</span> : null}
+      {g.envelope ? (
+        <span className={s.extraGlyph} data-nature="unpitched">
+          <Sparkline values={g.envelope} log label={t("library.envelope")} />
+        </span>
+      ) : null}
+    </span>
   );
 }
 
