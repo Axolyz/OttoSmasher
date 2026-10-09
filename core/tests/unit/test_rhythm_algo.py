@@ -314,3 +314,18 @@ def test_segment_cut_tolerates_alignment_overhang():
         blocks = rh.group_blocks(ph)
         cuts = rh.find_cuts(blocks, rh.detect_pauses(x, 16000, 10.0, ph), ph)
         assert bool(cuts) is cut, overhang
+
+
+def test_blocks_use_trimmed_vowel_edges_but_merge_on_alignment():
+    # 所有者 2026-10-08【基线变更 09 §9.2】：起音 / 结束取修过的边界；合块仍看对齐边界
+    ph = [rh.Phone("k", 0.0, 0.05), rh.Phone("a", 0.05, 0.40, eff=(0.09, 0.30)), rh.Phone("a", 0.40, 0.70, eff=(0.42, 0.62))]
+    b = rh.group_blocks(ph)
+    # 两个 a 的修过边界之间隔了 120 ms，但对齐边界相接 → 仍是一块（同一元音重复默认合成一块）
+    assert len(b) == 1 and (b[0].onset, b[0].end) == (0.09, 0.62)
+    # 没有有效范围（辅音开头的 N 以外、人工版本按对齐边界）就用对齐边界
+    b = rh.group_blocks([rh.Phone("a", 0.1, 0.3)])
+    assert (b[0].onset, b[0].end) == (0.1, 0.3)
+    # 末块时值按修过的结尾：尾巴的安静不算进时值
+    blocks = rh.group_blocks([rh.Phone("a", 0.0, 0.2), rh.Phone("k", 0.2, 0.25), rh.Phone("a", 0.25, 0.80, eff=(0.25, 0.55))])
+    d = rh.durations(blocks, [], (0.0, 0.9))
+    assert d.dur[-1] == pytest.approx(0.30)

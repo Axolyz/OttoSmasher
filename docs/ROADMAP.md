@@ -169,6 +169,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 - **开工前要知道的**（阶段 6 留下的）：
   - 节奏的一切从 `core/rhythm.py::RhythmService.analysis(sample_id)` 拿（音块、停顿、停顿段、切口与语段、时值、原节奏占格、逐音属性；身份含分析版本、参数、惩罚度、文件快照）；
     方案用 `st.candidates(plan, bpm)`（`algo/stretch.py`，任意 2^k，K1 已满足）。检索的节奏证据要的“精确映射”就是 `scheme(...).map`（帧域，`to_target`）。
+  - 音块的起音与结束已改用修过的元音边界（所有者 2026-10-08，rhythm-2）：检索的“原声时值”本来就用有效范围，现在两边口径一致；合块仍按对齐边界。
   - 逐块属性（09 §9.6.3：可靠帧 MIDI 中位数、P10–P90 波动、覆盖率、走势、停顿段内相对音高、相对响度、前导辅音〔cl 不计〕）在 `algo/rhythm.block_attributes`；持续终点、有效持续还没算（检索时补）。
   - 语段的 mora 重编号用 `rh.mora_span(phones, window, strict=True)`；整句用 `strict=False`。语段量化：对语段窗口里的块单独跑 `durations` + `quantize_raw`。
   - 命中卡拍试听：`rhythm.render` 目前只按采样整体渲染；命中要加“采样 + 区间 + 方案”的渲染（K3：用证据所选方案）。导出卡拍、REAPER 交接同理（`core/handoff.py` 现在只接采样 ID）。

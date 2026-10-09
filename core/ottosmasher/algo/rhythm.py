@@ -4,6 +4,8 @@
 
 - 音块：只有元音（a i u e o；清音 I/U 视为 i/u）和拨音 N 参与，其他标签都打断；元音并入前一块要求前一个音素是元音（不是 N）、
   不是人工拆点、与前一块末尾的间隔在 [−1 ms, 35 ms]；N 只向后附着到前一个元音所在的块。最多 128 块，起音严格递增。
+  所有者 2026-10-08【基线变更 09 §9.2】：合块仍按对齐边界判断；合好后起音 = 首个成员**修过的**开头、结束 = 末个成员**修过的**结尾
+  （08 §8.5 有效范围；人工版本不修边，等于对齐边界）。
 - 停顿：10 ms 不重叠块的 RMS，阈值 = max(P85 × 0.25 × 灵敏度, 1e-5)，安静段 ≥ 0.12 / 灵敏度；与促音重叠的不是停顿；
   裁到 [首个音素开始, 末个音素结束] 后仍须 ≥ 0.12 / 灵敏度；两侧各内缩 20 ms。
 - 停顿段序号 = 结束 ≤ 该音块起音的停顿个数。
@@ -24,7 +26,7 @@ import numpy as np
 
 from ..core.errors import CoreError
 
-ALGO_VERSION = "rhythm-1"
+ALGO_VERSION = "rhythm-2"
 
 VOWELS = frozenset("aiueo")
 SYLLABIC = VOWELS | {"N"}
@@ -85,6 +87,7 @@ class Phone:
     end: float
     mora: int | None = None
     strength: float | None = None
+    eff: tuple[float, float] | None = None  # 有效范围（08 §8.5，修过首尾安静的元音 / N）；没有 = 用对齐边界
 
 
 @dataclass(frozen=True)
@@ -121,7 +124,10 @@ def group_blocks(phones: Sequence[Phone], splits: Sequence[int] = ()) -> list[Bl
     for g in groups:
         strengths = [phones[k].strength for k in g if phones[k].strength is not None]
         vowel = next((_norm(phones[k].label) for k in g if _norm(phones[k].label) in VOWELS), None)
-        out.append(Block(phones[g[0]].start, phones[g[-1]].end, vowel, tuple(g), max(strengths) if strengths else None))
+        first, last = phones[g[0]], phones[g[-1]]
+        onset = first.eff[0] if first.eff else first.start
+        end = last.eff[1] if last.eff else last.end
+        out.append(Block(onset, max(end, onset), vowel, tuple(g), max(strengths) if strengths else None))
     if len(out) > MAX_BLOCKS:
         raise CoreError("rhythm-too-many-blocks", count=len(out), max=MAX_BLOCKS)
     for a, b in zip(out, out[1:]):

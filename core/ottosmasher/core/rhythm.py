@@ -166,7 +166,11 @@ class RhythmService:
         for p in res["phones"]:
             if p["end"] <= start or p["start"] >= end:
                 continue
-            phones.append(rh.Phone(p["label"], max(float(p["start"]), start), min(float(p["end"]), end), p.get("mora"), p.get("strength")))
+            eff = p.get("eff")
+            if eff:
+                ea, eb = max(float(eff[0]), start), min(float(eff[1]), end)
+                eff = (ea, eb) if eb > ea else None
+            phones.append(rh.Phone(p["label"], max(float(p["start"]), start), min(float(p["end"]), end), p.get("mora"), p.get("strength"), eff))
         manual = params["manual"]
         has_manual = bool(manual["splits"] or manual["cells"] or manual["cuts"] or manual["merges"])
         applied = has_manual and manual["run"] == head["runId"]
