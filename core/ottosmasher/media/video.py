@@ -4,7 +4,7 @@
   输出帧需要的源时间单调不减时（原声、同映射变速）一边读一边选，内存只放两帧；循环动画先整段读进内存（很短）。
 - 超出视频流范围的输出帧补黑帧（调用方在完成提示里说明，不移动音频）。
 - 编码：默认 H.264（yuv420p，CRF 18）+ AAC 256k，MP4；可选高质量中间编码 ProRes 422 HQ + PCM 24-bit（MOV）。宽高补成偶数。
-- 帧数 = round(时长 × 帧率)，时长与音频一致（不加 -shortest，避免截掉音频）。
+- 帧数 = ⌈时长 × 帧率⌉，输出按音频时长截断：时长与音频一致（不加 -shortest，避免截掉音频）。帧率写成分数（24000/1001）。
 """
 
 from __future__ import annotations
@@ -72,7 +72,8 @@ def _reader(path: str, ordinal: int, a: float, b: float, w: int, h: int, on_proc
     """解码 [a, b]（流时间）里的帧：逐帧给出（时间, rgb24 字节）。"""
     cmd = [
         tools.find("ffmpeg"), "-hide_banner", "-nostdin", "-loglevel", "info", "-copyts", "-ss", f"{max(0.0, a):.6f}", "-i", path,
-        "-map", f"0:v:{ordinal}", "-t", f"{max(0.0, b - max(0.0, a)):.6f}", "-vf", f"showinfo,scale={w}:{h}:flags=bicubic,format=rgb24",
+        # -copyts 下要用 -to（输出时间戳是原片时间；-t 会按绝对时间戳截断，长片子后段一帧都不出）
+        "-map", f"0:v:{ordinal}", "-to", f"{max(0.0, b):.6f}", "-vf", f"showinfo,scale={w}:{h}:flags=bicubic,format=rgb24",
         "-fps_mode", "passthrough", "-f", "rawvideo", "-",
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -115,6 +116,16 @@ def _reader(path: str, ordinal: int, a: float, b: float, w: int, h: int, on_proc
             raise CoreError("video-export-failed", detail="".join(tail)[-500:])
 
 
+def rate_text(fps: float) -> str:
+    """帧率写成分数（23.976 → 24000/1001），容器里的帧率才干净。"""
+    return str(Fraction(fps).limit_denominator(1001))
+
+
+def frame_count(duration: float, fps: float) -> int:
+    """要生成的画面帧数：向上取整，最后按音频时长截断。"""
+    return max(1, int(math.ceil(duration * fps - 1e-6)))
+
+
 def even(v: int) -> int:
     return v + (v % 2)
 
@@ -129,6 +140,7 @@ def render(
     times: list[float],
     audio: str | None,
     codec: str = "h264",
+    duration: float | None = None,
     on_proc: Callable[[Any], None] | None = None,
     progress: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
@@ -144,11 +156,13 @@ def render(
         vcodec = ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
         acodec = ["-c:a", "aac", "-b:a", "256k"]
     cmd = [tools.find("ffmpeg"), "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-           "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}", "-r", f"{fps:.6f}", "-i", "-"]
+           "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}", "-r", rate_text(fps), "-i", "-"]
     if audio:
         cmd += ["-i", audio]
     cmd += ["-map", "0:v"] + (["-map", "1:a"] + acodec if audio else ["-an"])
-    cmd += ["-vf", f"pad={w2}:{h2}"] + vcodec + ["-r", f"{fps:.6f}", "-frames:v", str(frames), str(out)]
+    # 时长与音频一致：画面帧数向上取整，再按音频时长截（不加 -shortest，不截掉音频）
+    cut = ["-t", f"{duration:.6f}"] if duration else ["-frames:v", str(frames)]
+    cmd += ["-vf", f"pad={w2}:{h2}"] + vcodec + ["-r", rate_text(fps), *cut, str(out)]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     if on_proc:
         on_proc(enc)

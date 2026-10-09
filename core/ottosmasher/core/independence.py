@@ -103,14 +103,14 @@ class IndependenceService:
                 mapping = Mapping.of(asset["mapping"])
                 info = video_mod.info(b["path"], int(b["ordinal"]))
                 s0 = mapping.to_source(start)
-                n = max(1, int(round((end - start) * info.fps)))
+                n = video_mod.frame_count(end - start, info.fps)
                 times = []
                 for k in range(n):
                     t = min(k / info.fps, end - start)
                     times.append(round(mapping.to_source(min(start + t, mapping.duration)), 6))
                 item["video"] = {"out": str(self.ws.staging / f"{new_id()}.mp4"), "frames": n, "fps": info.fps, "size": [info.width, info.height],
                                  "picture": {"kind": "video", "path": b["path"], "ordinal": int(b["ordinal"]), "start": info.start, "end": info.end},
-                                 "times": times, "s0": s0}
+                                 "times": times, "s0": s0, "duration": end - start}
             items.append(item)
         if not items and not delete_source:
             raise CoreError("independ-invalid", reason="nothing")
@@ -193,6 +193,6 @@ def run_job(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
         if v:
             times = [math.nan if x is None else float(x) for x in v["times"]]
             video_mod.render(Path(v["out"]), frames=int(v["frames"]), fps=float(v["fps"]), size=(int(v["size"][0]), int(v["size"][1])),
-                             picture=v["picture"], times=times, audio=None)
+                             picture=v["picture"], times=times, audio=None, duration=float(v["duration"]))
     ctx.progress("slice", len(items), len(items))
     return {"n": len(items)}

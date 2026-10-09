@@ -127,7 +127,7 @@ class VideoExportService:
             to_local = lambda t: start + t  # noqa: E731
             audio_pcm, audio_sr = None, None
             ver_key = ["original"]
-        frames = max(1, int(round(duration * fps)))
+        frames = video_mod.frame_count(duration, fps)
         times: list[float] = []
         for k in range(frames):
             t = min(k / fps, duration)
@@ -227,7 +227,7 @@ def run_job(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     times = [math.nan if x is None else float(x) for x in params["times"]]
     res = video_mod.render(
         Path(params["out"]), frames=int(params["frames"]), fps=float(params["fps"]), size=(int(params["size"][0]), int(params["size"][1])),
-        picture=params["picture"], times=times, audio=params.get("audio"), codec=params["codec"],
+        picture=params["picture"], times=times, audio=params.get("audio"), codec=params["codec"], duration=float(params["duration"]),
         progress=lambda d, n: ctx.progress("encode", d, n),
     )
     ctx.progress("encode", int(params["frames"]), int(params["frames"]))
