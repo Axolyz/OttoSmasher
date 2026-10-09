@@ -1026,6 +1026,20 @@ export interface SamplesListParams {
   text?: string;
 }
 
+/** 范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。 */
+export interface SearchCoverage {
+  mode: "pitch" | "speech";
+  noAnalysis: number;
+  ready: number;
+  stale: number;
+  total: number;
+}
+
+export interface SearchCoverageParams {
+  mode: "pitch" | "speech";
+  scope?: SampleFilter | null;
+}
+
 export interface SeparationSubmitParams {
   assetId: string;
   end?: number | null;
@@ -1707,6 +1721,10 @@ export interface Commands {
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Suggested name and nature for a new sample on an asset range. */
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
+  /** How much of the current browse scope is ready to search (speech index built / F0 measured). */
+  "search.coverage": { params: SearchCoverageParams; result: SearchCoverage; effect: "read" };
+  /** Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search. */
+  "search.prepare": { params: SearchCoverageParams; result: JobSummary; effect: "job" };
   /** Assets registered by a separation job. */
   "separation.results": { params: JobIdParams; result: AssetRecord[]; effect: "read" };
   /** Separate an asset (range) with a Studio model; reuses identical results. */
@@ -1880,6 +1898,8 @@ export type ErrorCode =
   | "sample-not-found"
   | "schema-migration-failed"
   | "schema-too-new"
+  | "search-invalid"
+  | "search-nothing-to-prepare"
   | "selftest-failed"
   | "sep-model-changed"
   | "sep-output-invalid"

@@ -175,6 +175,109 @@ def build_index(
     return SampleIndex(sample_id, out_blocks, plans, gaps)
 
 
+INDEX_VERSION = 1
+_NUM_COLS = ("onset", "end", "lead", "midi", "spread", "coverage", "trend", "rel_pitch", "rel_loud", "strength", "sustain")
+
+
+def to_wire(idx: SampleIndex, members: Sequence[Sequence[int]]) -> dict[str, Any]:
+    """落库格式（msgpack）：块属性按列存；方案输入只存不能便宜重算的（时值、方案由块 + 停顿 + 窗口现算）。"""
+    sent = idx.plans[0].plan
+    b = idx.blocks
+    return {
+        "v": INDEX_VERSION,
+        "id": idx.sample_id,
+        "b": {
+            **{k: [getattr(x, k) for x in b] for k in _NUM_COLS},
+            "pseg": [x.pseg for x in b], "seg": [x.seg for x in b], "vowel": [x.vowel for x in b],
+            "cons": [list(x.consonants) for x in b], "char": [x.character for x in b], "members": [list(m) for m in members],
+            "bstrength": [blk.strength for blk in sent.blocks],
+        },
+        "pauses": [[p.start, p.end] for p in sent.pauses],
+        "cuts": [[c.k, c.kind, c.left_end, c.right_start] for c in sent.cuts],
+        "window": list(sent.window),
+        "sr": sent.sr,
+        "cells": list(sent.cells),
+        "segs": [[p.scope, p.first, p.stop, p.plan.window[0], p.plan.window[1], list(p.plan.cells)] for p in idx.plans[1:]],
+    }
+
+
+def from_wire(w: dict[str, Any]) -> SampleIndex:
+    b = w["b"]
+    n = len(b["onset"])
+    attrs = [
+        BlockAttr(
+            onset=b["onset"][i], end=b["end"][i], lead=b["lead"][i], vowel=b["vowel"][i], consonants=tuple(b["cons"][i]), midi=b["midi"][i],
+            spread=b["spread"][i], coverage=b["coverage"][i], trend=b["trend"][i], rel_pitch=b["rel_pitch"][i], rel_loud=b["rel_loud"][i],
+            strength=b["strength"][i], sustain=b["sustain"][i], character=b["char"][i], pseg=b["pseg"][i], seg=b["seg"][i],
+        )
+        for i in range(n)
+    ]
+    blocks = [rh.Block(b["onset"][i], b["end"][i], b["vowel"][i], tuple(b["members"][i]), b["bstrength"][i]) for i in range(n)]
+    pauses = [rh.Pause(p[0], p[1]) for p in w["pauses"]]
+    cuts = [rh.Cut(c[0], c[1], c[2], c[3]) for c in w["cuts"]]
+    window = (w["window"][0], w["window"][1])
+    sr = int(w["sr"])
+    plans = [PlanData(-1, 0, n, st.Plan(blocks, rh.durations(blocks, pauses, window), list(w["cells"]), pauses, cuts, window, sr))]
+    gaps = []
+    for scope, first, stop, a, e, cells in w["segs"]:
+        sb = blocks[first:stop]
+        sw = (a, e)
+        sp = [p for p in pauses if p.end > sw[0] and p.start < sw[1]]
+        plans.append(PlanData(scope, first, stop, st.Plan(sb, rh.durations(sb, sp, sw), list(cells), sp, [], sw, sr)))
+        if scope > 0:
+            gaps.append(blocks[first].onset - blocks[first - 1].end)
+    return SampleIndex(w["id"], attrs, plans, gaps)
+
+
+class Batch:
+    """一批采样的索引：列（向量化条件用）一次建好；完整的 ``SampleIndex`` 只在要算证据或报告命中时才按需展开。"""
+
+    def __init__(self, sample_ids: list[str], cols: "_Cols", wires: list[dict[str, Any]] | None = None, rows: list[SampleIndex] | None = None) -> None:
+        self.sample_ids = sample_ids
+        self.cols = cols
+        self._wires = wires
+        self._rows: dict[int, SampleIndex] = dict(enumerate(rows)) if rows is not None else {}
+
+    def __len__(self) -> int:
+        return len(self.sample_ids)
+
+    @classmethod
+    def of_rows(cls, rows: Sequence[SampleIndex]) -> "Batch":
+        return cls([r.sample_id for r in rows], columns(rows), rows=list(rows))
+
+    @classmethod
+    def of_wires(cls, wires: list[dict[str, Any]]) -> "Batch":
+        sample, local, num, pseg = [], [], {k: [] for k in _NUM_COLS}, []  # type: ignore[var-annotated]
+        vowel: list[str | None] = []
+        cons: list[tuple[str, ...]] = []
+        char: list[str | None] = []
+        for i, w in enumerate(wires):
+            b = w["b"]
+            n = len(b["onset"])
+            sample.extend([i] * n)
+            local.extend(range(n))
+            for k in _NUM_COLS:
+                num[k].extend(b[k])
+            pseg.extend(b["pseg"])
+            vowel.extend(b["vowel"])
+            cons.extend(tuple(x) for x in b["cons"])
+            char.extend(b["char"])
+        f = lambda k: np.array([math.nan if x is None else x for x in num[k]], dtype=np.float64)  # noqa: E731
+        cols = _Cols(
+            sample=np.array(sample, dtype=np.int64), local=np.array(local, dtype=np.int64), onset=f("onset"), end=f("end"), midi=f("midi"),
+            spread=f("spread"), coverage=f("coverage"), trend=f("trend"), rel_pitch=f("rel_pitch"), rel_loud=f("rel_loud"), strength=f("strength"),
+            sustain=f("sustain"), pseg=np.array(pseg, dtype=np.int64), vowel=vowel, consonants=cons, character=char,
+        )
+        return cls([w["id"] for w in wires], cols, wires=wires)
+
+    def row(self, i: int) -> SampleIndex:
+        r = self._rows.get(i)
+        if r is None:
+            assert self._wires is not None
+            r = self._rows[i] = from_wire(self._wires[i])
+        return r
+
+
 # ---------------------------------------------------------------- 查询
 
 
@@ -482,7 +585,7 @@ def block_match(c: _Cols, cond: BlockCond) -> tuple[np.ndarray, np.ndarray]:
     return ok, score
 
 
-def windows(c: _Cols, rows: Sequence[SampleIndex], q: SpeechQuery) -> tuple[np.ndarray, np.ndarray]:
+def windows(c: _Cols, q: SpeechQuery) -> tuple[np.ndarray, np.ndarray]:
     """合格窗口的首块（拼接序号）与逐块分之和。"""
     n = len(q.blocks)
     N = len(c.onset)
@@ -878,10 +981,11 @@ class SpeechOutcome:
     cancelled: bool = False
 
 
-def search(rows: Sequence[SampleIndex], q: SpeechQuery, bpm: float | None, cache: SchemeCache | None = None,
+def search(rows: "Batch | Sequence[SampleIndex]", q: SpeechQuery, bpm: float | None, cache: SchemeCache | None = None,
            cancel: Callable[[], bool] | None = None) -> SpeechOutcome:
-    c = columns(rows)
-    idx, bscore = windows(c, rows, q)
+    batch = rows if isinstance(rows, Batch) else Batch.of_rows(rows)
+    c = batch.cols
+    idx, bscore = windows(c, q)
     n = len(q.blocks)
     hits: list[SpeechHit] = []
     no_ev = 0
@@ -890,7 +994,7 @@ def search(rows: Sequence[SampleIndex], q: SpeechQuery, bpm: float | None, cache
             return SpeechOutcome([], len(idx), no_ev, cancelled=True)
         si = int(c.sample[g])
         i0 = int(c.local[g])
-        row = rows[si]
+        row = batch.row(si)
         ev = None
         if q.strategy != "free":
             ev = evidence_for_window(row, i0, q, bpm, cache)
@@ -900,16 +1004,16 @@ def search(rows: Sequence[SampleIndex], q: SpeechQuery, bpm: float | None, cache
         total = float(s) + (ev.cost if ev is not None else 0.0)
         b0, b1 = row.blocks[i0], row.blocks[i0 + n - 1]
         hits.append(SpeechHit(si, i0, n, b0.lead, b1.end, total, float(s), ev))
-    return SpeechOutcome(order_hits(hits, rows), len(idx), no_ev)
+    return SpeechOutcome(order_hits(hits, batch.sample_ids), len(idx), no_ev)
 
 
-def order_hits(hits: list[SpeechHit], rows: Sequence[SampleIndex]) -> list[SpeechHit]:
+def order_hits(hits: list[SpeechHit], sample_ids: Sequence[str]) -> list[SpeechHit]:
     by: dict[int, list[SpeechHit]] = {}
     for h in hits:
         by.setdefault(h.sample, []).append(h)
     groups = []
     for si, hs in by.items():
         hs.sort(key=lambda h: (round(h.score, 10), h.start, h.first))
-        groups.append((round(hs[0].score, 10), rows[si].sample_id, hs))
+        groups.append((round(hs[0].score, 10), sample_ids[si], hs))
     groups.sort(key=lambda g: (g[0], g[1]))
     return [h for _, _, hs in groups for h in hs]

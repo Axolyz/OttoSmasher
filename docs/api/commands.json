@@ -715,6 +715,28 @@
    }
   },
   {
+   "name": "search.coverage",
+   "effect": "read",
+   "summary": "How much of the current browse scope is ready to search (speech index built / F0 measured).",
+   "params": {
+    "$ref": "#/$defs/SearchCoverageParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SearchCoverage"
+   }
+  },
+  {
+   "name": "search.prepare",
+   "effect": "job",
+   "summary": "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
+   "params": {
+    "$ref": "#/$defs/SearchCoverageParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "separation.results",
    "effect": "read",
    "summary": "Assets registered by a separation job.",
@@ -1883,6 +1905,18 @@
     "supported"
    ],
    "summary": "The database was written by a newer version."
+  },
+  {
+   "code": "search-invalid",
+   "args": [
+    "field"
+   ],
+   "summary": "Search request is invalid."
+  },
+  {
+   "code": "search-nothing-to-prepare",
+   "args": [],
+   "summary": "Everything in the current scope is already prepared for this search."
   },
   {
    "code": "selftest-failed",
@@ -7202,6 +7236,63 @@
     }
    },
    "required": []
+  },
+  "SearchCoverage": {
+   "title": "SearchCoverage",
+   "description": "范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。",
+   "type": "object",
+   "properties": {
+    "mode": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "noAnalysis": {
+     "type": "integer"
+    },
+    "ready": {
+     "type": "integer"
+    },
+    "stale": {
+     "type": "integer"
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "mode",
+    "noAnalysis",
+    "ready",
+    "stale",
+    "total"
+   ]
+  },
+  "SearchCoverageParams": {
+   "title": "SearchCoverageParams",
+   "type": "object",
+   "properties": {
+    "mode": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "mode"
+   ]
   },
   "SeparationSubmitParams": {
    "title": "SeparationSubmitParams",

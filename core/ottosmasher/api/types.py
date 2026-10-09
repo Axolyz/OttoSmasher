@@ -1703,3 +1703,23 @@ class ReaperTemplate(TypedDict):
     files: list[str]
     manifest: str
     count: int
+
+
+# ---------------------------------------------------------------- 三大搜索（阶段 7）
+
+
+class SearchCoverageParams(TypedDict):
+    mode: Literal["speech", "pitch"]
+    # 当前浏览范围（与 samples.list 同一套条件）
+    scope: NotRequired[SampleFilter | None]
+
+
+class SearchCoverage(TypedDict):
+    """范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。"""
+
+    mode: Literal["speech", "pitch"]
+    total: int
+    ready: int
+    stale: int
+    noAnalysis: int
+

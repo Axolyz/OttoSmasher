@@ -357,7 +357,23 @@ def _flatten(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return run(params, ctx)
 
 
+def _search_index(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """语音检索索引（09 §9.6.5）：只读构建，登记由 Core 做。"""
+    from .search import index
+
+    return index(params, ctx)
+
+
+def _f0_measure(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """音高检索覆盖（10 §10.2.5）：测缺的 F0 段。"""
+    from .search import f0
+
+    return f0(params, ctx)
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "search.index": _search_index,
+    "f0.measure": _f0_measure,
     "speech.analyze": _speech_analyze,
     "dictionary.compile": _dictionary_compile,
     "dictionary.preview": _dictionary_preview,

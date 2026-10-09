@@ -42,6 +42,7 @@ from .flatten import FlattenService
 from .separation import SeparationService
 from .probes import record_probes
 from .rhythm import RhythmService
+from .search import SearchService
 from .handoff import HandoffService
 from .speech import SpeechService
 from .subtitle_samples import SubtitleSamples
@@ -255,6 +256,13 @@ class Core:
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
           lambda p: self.flatten.results(p["jobId"]))
         # ---- 节奏与卡拍（阶段 6）
+        # ---- 三大搜索（规格 09 §9.6、10 §10.2）
+        r("search.coverage", "read", T.SearchCoverageParams, T.SearchCoverage,
+          "How much of the current browse scope is ready to search (speech index built / F0 measured).",
+          lambda p: self.search.coverage(p["mode"], p.get("scope")))
+        r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
+          "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
+          lambda p: self.search.prepare(p["mode"], p.get("scope")))
         r("rhythm.bpm", "read", T.NoParams, T.Bpm, "Global target BPM (null = original-speed stretch).", lambda p: {"bpm": self.rhythm.bpm()})
         r("rhythm.setBpm", "ui", T.BpmParams, T.Bpm, "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
           lambda p: self.rhythm.set_bpm(p.get("bpm")))
@@ -309,6 +317,7 @@ class Core:
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)
+        self.search = SearchService(self.conn, self.ws, self.jobs, self.samples, self.speech, self.support_dir, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）

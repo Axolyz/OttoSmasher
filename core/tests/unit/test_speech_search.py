@@ -370,3 +370,21 @@ def test_build_index_from_rhythm_analysis():
     # 检索直接可用
     out = ss.search([idx], Q([{"consonants": ["t"], "vowel": "a"}, {"consonants": ["k"], "vowel": "o"}]), None)
     assert [(h.first, h.start, h.end) for h in out.hits] == [(1, 0.75, 1.3)]
+
+
+def test_wire_round_trip_gives_same_results():
+    import msgspec
+
+    specs = [{"onset": 0.0, "end": 0.2, "midi": 60}, {"onset": 0.25, "end": 0.45, "midi": 64}, {"onset": 1.1, "end": 1.3, "midi": 67},
+             {"onset": 1.35, "end": 1.55, "midi": 72, "sustain": None}]
+    r = row("s", specs, pauses=[(0.5, 1.05)], segments=[(0, 2), (2, 4)])
+    members = [[i] for i in range(4)]
+    wire = msgspec.msgpack.decode(msgspec.msgpack.encode(ss.to_wire(r, members)))
+    back = ss.from_wire(wire)
+    assert back.blocks == r.blocks and back.gaps == pytest.approx(r.gaps)
+    assert [(p.scope, p.first, p.stop, list(p.plan.cells), p.plan.window) for p in back.plans] == [(p.scope, p.first, p.stop, list(p.plan.cells), p.plan.window) for p in r.plans]
+    for q, bpm in [(Q([{"pitch": C}, {"pitch": E}]), None), (Q([{"note": [0, 0.4]}, {"note": [0.5, 0.9]}], strategy="rank"), 120.0),
+                   (Q([{"note": [0, 0.4]}, {"note": [1.0, 1.4]}], strategy="rank", cross=True, restAdjust=True), 150.0)]:
+        a = ss.search([r], q, bpm).hits
+        b = ss.search(ss.Batch.of_wires([wire]), q, bpm).hits
+        assert a == b and a
