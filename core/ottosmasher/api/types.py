@@ -827,6 +827,80 @@ class ExprCheck(TypedDict):
     reason: NotRequired[str]
 
 
+class BatchEditFields(TypedDict):
+    name: NotRequired[str]
+    nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
+    starred: NotRequired[bool]
+    # 评分 1–5；None = 不评分
+    rating: NotRequired[int | None]
+    addTags: NotRequired[list[str]]
+    removeTags: NotRequired[list[str]]
+
+
+class BatchEditParams(TypedDict):
+    ids: list[str]
+    fields: BatchEditFields
+
+
+class BatchEditPlan(TypedDict):
+    """预览（不写库）；确认后把 ``batch`` 原样交给 ``edits.apply``（版本不符整批拒绝）。"""
+
+    batch: EditBatch
+    preview: EditPreview
+    samples: int
+    unchanged: int
+    # 有变化的采样的名称（预览表用）
+    names: dict[str, str]
+
+
+class TagSourceRef(TypedDict):
+    kind: Literal["rangeTag", "segment", "source", "asset"]
+    id: str
+    sourceId: str | None
+    start: NotRequired[float]
+    end: NotRequired[float]
+
+
+class SampleTagCount(TypedDict):
+    tag: str
+    facet: str
+    local: int
+    inherited: int
+    sources: list[TagSourceRef]
+
+
+class TagUsage(TypedDict):
+    tag: str
+    facet: str
+    samples: int
+    local: int
+    rangeTags: int
+    sources: int
+    segments: int
+
+
+class GlobalTagParams(TypedDict):
+    op: Literal["rename", "remove"]
+    tag: str
+    to: NotRequired[str | None]
+
+
+class GlobalTagReport(TypedDict):
+    samples: int
+    rangeTags: int
+    sources: int
+    segments: int
+    # 原片文件夹里的原片（作品跟文件夹走，不改）；派生的 speaker-status（改不了）
+    folderSources: int
+    derived: int
+
+
+class GlobalTagPlan(TypedDict):
+    batch: EditBatch
+    report: GlobalTagReport
+    changes: int
+
+
 class SavedFilter(TypedDict):
     id: str
     name: str

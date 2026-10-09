@@ -87,6 +87,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const [zoomNonce, setZoomNonce] = useState(0);
   useEffect(() => {
     if (!jump || jump.sourceId !== row.id) return;
+    if (!(jump.b > jump.a)) return setJump(null); // 只打开原片（例如“去来源”到原片属性），不设选区
     setSel({ a: jump.a, b: jump.b });
     if (jump.assetId) setAssetSel(jump.assetId);
     pendingZoom.current = { a: jump.a, b: jump.b };

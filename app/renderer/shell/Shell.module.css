@@ -44,3 +44,4 @@
   .cmdLabel, .top .kbd, .tempoUnit { display: none; }
   .tempo input { width: 40px; }
 }
+.rowOps { display: inline-flex; gap: 2px; justify-content: flex-end; }

@@ -86,6 +86,9 @@ interface AppState {
   tasksOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
+  /** 「管理标签」（UI_PLAN §8：⋯ 菜单） */
+  manageTagsOpen: boolean;
+  setManageTagsOpen(v: boolean): void;
   theme: "dark" | "light";
   core: CoreStatus;
   hello: Hello | null;
@@ -150,6 +153,8 @@ export const useApp = create<AppState>((set) => ({
   tasksOpen: false,
   settingsOpen: false,
   shortcutsOpen: false,
+  manageTagsOpen: false,
+  setManageTagsOpen: (manageTagsOpen) => set({ manageTagsOpen }),
   theme: "dark",
   core: { state: "starting" },
   hello: null,

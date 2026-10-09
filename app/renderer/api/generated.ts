@@ -91,6 +91,29 @@ export interface AssetRecord {
   version: number;
 }
 
+export interface BatchEditFields {
+  addTags?: string[];
+  name?: string;
+  nature?: "pitched" | "speech" | "unclassified" | "unpitched";
+  rating?: number | null;
+  removeTags?: string[];
+  starred?: boolean;
+}
+
+export interface BatchEditParams {
+  fields: BatchEditFields;
+  ids: string[];
+}
+
+/** 预览（不写库）；确认后把 ``batch`` 原样交给 ``edits.apply``（版本不符整批拒绝）。 */
+export interface BatchEditPlan {
+  batch: EditBatch;
+  names: Record<string, string>;
+  preview: EditPreview;
+  samples: number;
+  unchanged: number;
+}
+
 export interface Bpm {
   bpm: number | null;
 }
@@ -401,6 +424,27 @@ export interface FlattenToken {
   media: string;
   snapshot: string;
   start: number;
+}
+
+export interface GlobalTagParams {
+  op: "remove" | "rename";
+  tag: string;
+  to?: string | null;
+}
+
+export interface GlobalTagPlan {
+  batch: EditBatch;
+  changes: number;
+  report: GlobalTagReport;
+}
+
+export interface GlobalTagReport {
+  derived: number;
+  folderSources: number;
+  rangeTags: number;
+  samples: number;
+  segments: number;
+  sources: number;
 }
 
 export interface Hello {
@@ -1309,6 +1353,14 @@ export interface SampleSuggestion {
   start: number;
 }
 
+export interface SampleTagCount {
+  facet: string;
+  inherited: number;
+  local: number;
+  sources: TagSourceRef[];
+  tag: string;
+}
+
 export interface SamplesCreated {
   created: number;
   ids: string[];
@@ -2045,6 +2097,24 @@ export interface TagScope {
   facets?: FacetCondition[];
 }
 
+export interface TagSourceRef {
+  end?: number;
+  id: string;
+  kind: "asset" | "rangeTag" | "segment" | "source";
+  sourceId: string | null;
+  start?: number;
+}
+
+export interface TagUsage {
+  facet: string;
+  local: number;
+  rangeTags: number;
+  samples: number;
+  segments: number;
+  sources: number;
+  tag: string;
+}
+
 export interface TextLayerList {
   derived: DerivedSample[];
   hints: SfxHint[];
@@ -2293,6 +2363,8 @@ export interface Commands {
   "roots.relocate": { params: RelocateParams; result: RootRelocated; effect: "write" };
   /** Stop treating a folder as a source folder (sources stay). */
   "roots.remove": { params: IdParams; result: RootRemoved; effect: "write" };
+  /** Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply. */
+  "samples.batchEdit": { params: BatchEditParams; result: BatchEditPlan; effect: "read" };
   /** Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides). */
   "samples.create": { params: SampleCreateParams; result: SampleRow; effect: "write" };
   /** Create the chosen planned samples atomically (always new samples). */
@@ -2391,6 +2463,12 @@ export interface Commands {
   "tags.checkExpr": { params: ExprParams; result: ExprCheck; effect: "read" };
   /** Existing values of each tag facet with sample counts (scope row). */
   "tags.facets": { params: NoParams; result: FacetValues; effect: "read" };
+  /** Plan a global rename/remove of a tag (local tags, range tags, source work/type, segment speakers): preview only; apply with edits.apply. */
+  "tags.globalPlan": { params: GlobalTagParams; result: GlobalTagPlan; effect: "read" };
+  /** All tags in use with counts (samples, local, range tags, sources, segment speakers). */
+  "tags.list": { params: NoParams; result: TagUsage[]; effect: "read" };
+  /** Tags of the given samples: local n / inherited m (per sample) and inherited sources. */
+  "tags.ofSamples": { params: IdsParams; result: SampleTagCount[]; effect: "read" };
   /** Edit batch that promotes local tags to a segment tag (apply with edits.apply). */
   "tags.promoteBatch": { params: PromoteParams; result: PromoteInfo; effect: "read" };
   /** Text segments, sfx hints, range tags, OP/ED and derived samples of a source. */

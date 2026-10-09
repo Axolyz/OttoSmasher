@@ -92,8 +92,10 @@ export function TopBar() {
         <Button variant="flat" isDisabled={!peek} onPress={() => void undo()} icon={<Undo2 />} aria-label={t("top.undo")} data-testid="undo" />
       </Tip>
       <Menu
-        trigger={<Button variant="flat" icon={<Ellipsis />} aria-label={t("top.more")} />}
+        trigger={<Button variant="flat" icon={<Ellipsis />} aria-label={t("top.more")} data-testid="top-more" />}
         items={[
+          { id: "manage-tags", label: t("tags.manageDots"), run: () => useApp.getState().setManageTagsOpen(true) },
+          "-",
           { id: "theme", label: theme === "dark" ? t("top.theme.light") : t("top.theme.dark"), run: () => setTheme(theme === "dark" ? "light" : "dark") },
           { id: "keys", label: t("shortcuts.title"), shortcut: "?", run: () => setShortcutsOpen(true) },
         ]}

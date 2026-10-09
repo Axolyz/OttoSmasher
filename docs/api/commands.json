@@ -762,6 +762,17 @@
    }
   },
   {
+   "name": "samples.batchEdit",
+   "effect": "read",
+   "summary": "Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply.",
+   "params": {
+    "$ref": "#/$defs/BatchEditParams"
+   },
+   "result": {
+    "$ref": "#/$defs/BatchEditPlan"
+   }
+  },
+  {
    "name": "samples.create",
    "effect": "write",
    "summary": "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
@@ -1332,6 +1343,45 @@
    },
    "result": {
     "$ref": "#/$defs/FacetValues"
+   }
+  },
+  {
+   "name": "tags.globalPlan",
+   "effect": "read",
+   "summary": "Plan a global rename/remove of a tag (local tags, range tags, source work/type, segment speakers): preview only; apply with edits.apply.",
+   "params": {
+    "$ref": "#/$defs/GlobalTagParams"
+   },
+   "result": {
+    "$ref": "#/$defs/GlobalTagPlan"
+   }
+  },
+  {
+   "name": "tags.list",
+   "effect": "read",
+   "summary": "All tags in use with counts (samples, local, range tags, sources, segment speakers).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/TagUsage"
+    }
+   }
+  },
+  {
+   "name": "tags.ofSamples",
+   "effect": "read",
+   "summary": "Tags of the given samples: local n / inherited m (per sample) and inherited sources.",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SampleTagCount"
+    }
    }
   },
   {
@@ -3145,6 +3195,100 @@
     "version"
    ]
   },
+  "BatchEditFields": {
+   "title": "BatchEditFields",
+   "type": "object",
+   "properties": {
+    "addTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "rating": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "removeTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "starred": {
+     "type": "boolean"
+    }
+   },
+   "required": []
+  },
+  "BatchEditParams": {
+   "title": "BatchEditParams",
+   "type": "object",
+   "properties": {
+    "fields": {
+     "$ref": "#/$defs/BatchEditFields"
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "fields",
+    "ids"
+   ]
+  },
+  "BatchEditPlan": {
+   "title": "BatchEditPlan",
+   "description": "预览（不写库）；确认后把 ``batch`` 原样交给 ``edits.apply``（版本不符整批拒绝）。",
+   "type": "object",
+   "properties": {
+    "batch": {
+     "$ref": "#/$defs/EditBatch"
+    },
+    "names": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "preview": {
+     "$ref": "#/$defs/EditPreview"
+    },
+    "samples": {
+     "type": "integer"
+    },
+    "unchanged": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "batch",
+    "names",
+    "preview",
+    "samples",
+    "unchanged"
+   ]
+  },
   "Bpm": {
    "title": "Bpm",
    "type": "object",
@@ -4519,6 +4663,87 @@
     "media",
     "snapshot",
     "start"
+   ]
+  },
+  "GlobalTagParams": {
+   "title": "GlobalTagParams",
+   "type": "object",
+   "properties": {
+    "op": {
+     "enum": [
+      "remove",
+      "rename"
+     ]
+    },
+    "tag": {
+     "type": "string"
+    },
+    "to": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "op",
+    "tag"
+   ]
+  },
+  "GlobalTagPlan": {
+   "title": "GlobalTagPlan",
+   "type": "object",
+   "properties": {
+    "batch": {
+     "$ref": "#/$defs/EditBatch"
+    },
+    "changes": {
+     "type": "integer"
+    },
+    "report": {
+     "$ref": "#/$defs/GlobalTagReport"
+    }
+   },
+   "required": [
+    "batch",
+    "changes",
+    "report"
+   ]
+  },
+  "GlobalTagReport": {
+   "title": "GlobalTagReport",
+   "type": "object",
+   "properties": {
+    "derived": {
+     "type": "integer"
+    },
+    "folderSources": {
+     "type": "integer"
+    },
+    "rangeTags": {
+     "type": "integer"
+    },
+    "samples": {
+     "type": "integer"
+    },
+    "segments": {
+     "type": "integer"
+    },
+    "sources": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "derived",
+    "folderSources",
+    "rangeTags",
+    "samples",
+    "segments",
+    "sources"
    ]
   },
   "Hello": {
@@ -8979,6 +9204,37 @@
     "start"
    ]
   },
+  "SampleTagCount": {
+   "title": "SampleTagCount",
+   "type": "object",
+   "properties": {
+    "facet": {
+     "type": "string"
+    },
+    "inherited": {
+     "type": "integer"
+    },
+    "local": {
+     "type": "integer"
+    },
+    "sources": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TagSourceRef"
+     }
+    },
+    "tag": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "facet",
+    "inherited",
+    "local",
+    "sources",
+    "tag"
+   ]
+  },
   "SamplesCreated": {
    "title": "SamplesCreated",
    "type": "object",
@@ -12643,6 +12899,80 @@
     }
    },
    "required": []
+  },
+  "TagSourceRef": {
+   "title": "TagSourceRef",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "asset",
+      "rangeTag",
+      "segment",
+      "source"
+     ]
+    },
+    "sourceId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "id",
+    "kind",
+    "sourceId"
+   ]
+  },
+  "TagUsage": {
+   "title": "TagUsage",
+   "type": "object",
+   "properties": {
+    "facet": {
+     "type": "string"
+    },
+    "local": {
+     "type": "integer"
+    },
+    "rangeTags": {
+     "type": "integer"
+    },
+    "samples": {
+     "type": "integer"
+    },
+    "segments": {
+     "type": "integer"
+    },
+    "sources": {
+     "type": "integer"
+    },
+    "tag": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "facet",
+    "local",
+    "rangeTags",
+    "samples",
+    "segments",
+    "sources",
+    "tag"
+   ]
   },
   "TextLayerList": {
    "title": "TextLayerList",

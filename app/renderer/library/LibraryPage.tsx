@@ -30,6 +30,7 @@ import { type AuditionVersion, useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
 import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeSize } from "./FindBar";
 import { ManageFiltersDialog, SaveFilterDialog, ScopeExprDialog } from "./FilterDialogs";
+import { BatchDialog, type BatchKind } from "./BatchDialogs";
 import s from "./Library.module.css";
 import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
@@ -142,6 +143,7 @@ export function LibraryPage() {
   const [filters, setFilters] = useState<SavedFilter[]>([]);
   const [facets, setFacets] = useState<FacetValues | null>(null);
   const [filterDialog, setFilterDialog] = useState<"save" | "manage" | "expr" | null>(null);
+  const [batch, setBatch] = useState<{ kind: BatchKind; ids: string[] } | null>(null);
   const plusRef = useRef<HTMLInputElement>(null);
   const listBox = useRef<HTMLDivElement>(null);
   const libraryScope = useApp((st) => st.libraryScope);
@@ -714,9 +716,12 @@ export function LibraryPage() {
   const natureItems = (ids: string[]): MenuItems =>
     NATURES.map((n) => ({ id: `nature-${n}`, label: t(`nature.${n}`), shortcut: KEY_OF[n], run: () => void edit(ids, { nature: n }, "sample-nature") }));
   const groupItems = (ids: string[]): MenuItems => [
+    { id: "tags-add", label: t("library.addTags"), run: () => setBatch({ kind: "tags-add", ids }) },
+    { id: "tags-remove", label: t("library.removeTags"), run: () => setBatch({ kind: "tags-remove", ids }) },
     { id: "nature", label: t("library.setNature"), items: natureItems(ids) },
     { id: "star", label: t("library.starOn"), shortcut: "S", run: () => void edit(ids, { starred: true }, "sample-star") },
     { id: "unstar", label: t("library.starOff"), run: () => void edit(ids, { starred: false }, "sample-star") },
+    { id: "edit", label: t("library.editInfo"), run: () => setBatch({ kind: "edit", ids }) },
     "-",
     { id: "speech", label: t("speech.menuN", { n: ids.length }), run: () => requestSpeech({ entry: "samples", ids }) },
     { id: "flatten", label: t("flatten.menuN", { n: ids.length }), run: () => requestFlatten({ kind: "batch", ids }) },
@@ -753,8 +758,11 @@ export function LibraryPage() {
             { id: "audition", label: t("library.auditionOriginal"), shortcut: "Space", run: () => void audition(r) },
             ...(isSingle(r.nature) ? [] : [{ id: "auditionStretched", label: t("library.auditionStretched"), shortcut: "B", run: () => void audition(r, "stretched") }]),
             "-",
+            { id: "tags-add", label: t("library.addTags"), run: () => setBatch({ kind: "tags-add", ids: [r.id] }) },
+            { id: "tags-remove", label: t("library.removeTags"), run: () => setBatch({ kind: "tags-remove", ids: [r.id] }) },
             { id: "nature", label: t("library.setNature"), items: natureItems([r.id]) },
             { id: "star", label: r.starred ? t("library.starOff") : t("library.starOn"), shortcut: "S", run: () => void edit([r.id], { starred: !r.starred }, "sample-star") },
+            { id: "edit", label: t("library.editInfo"), run: () => setBatch({ kind: "edit", ids: [r.id] }) },
             "-",
             { id: "back", label: t("library.backToSource"), disabled: r.source_start == null, run: () => backToSource(r) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "samples", ids: [r.id] }) },
@@ -1226,6 +1234,25 @@ export function LibraryPage() {
           }))}
         />
       </TopSlot>
+      <BatchDialog
+        kind={batch?.kind ?? null}
+        ids={batch?.ids ?? []}
+        onClose={() => setBatch(null)}
+        onDone={() => {
+          void load(offset);
+          if (focus) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
+        }}
+        onGoSource={(ref) => {
+          setBatch(null);
+          if (ref.sourceId && ref.start != null && ref.end != null) {
+            setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: ref.start, b: ref.end });
+            setPage("sources");
+          } else if (ref.sourceId) {
+            setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: 0, b: 0 });
+            setPage("sources");
+          }
+        }}
+      />
       <SaveFilterDialog
         isOpen={filterDialog === "save"}
         scope={find.tags}

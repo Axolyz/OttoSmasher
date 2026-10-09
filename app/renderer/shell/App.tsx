@@ -16,6 +16,7 @@ import { NewSamplesSheet } from "../sources/NewSamplesSheet";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
+import { ManageTags } from "./ManageTags";
 import { Rail } from "./Rail";
 import s from "./Shell.module.css";
 import { TaskDrawer, useJobs } from "./TaskDrawer";
@@ -130,6 +131,7 @@ export function App() {
       <SeparationDialog />
       <FlattenSheet />
       <NewSamplesSheet />
+      <ManageTags />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>
           <tbody>

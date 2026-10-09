@@ -37,6 +37,7 @@ from . import playback as playback_mod
 from . import sample_filter, saved_filters, text_search
 from .exports import ExportService, export_range
 from .samples import SampleService
+from .tag_ops import TagOps
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
 from .flatten import FlattenService
@@ -183,6 +184,16 @@ class Core:
           lambda p: sample_filter.facet_values(self.conn))
         r("tags.checkExpr", "read", T.ExprParams, T.ExprCheck, "Parse a tag expression; on error give the reason and the 1-based character position.",
           lambda p: sample_filter.check_expr(str(p["expr"])))
+        r("samples.batchEdit", "read", T.BatchEditParams, T.BatchEditPlan,
+          "Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply.",
+          lambda p: self.tag_ops.batch_edit(list(p["ids"]), dict(p["fields"])))
+        r("tags.ofSamples", "read", T.IdsParams, list[T.SampleTagCount], "Tags of the given samples: local n / inherited m (per sample) and inherited sources.",
+          lambda p: self.tag_ops.of_samples(list(p["ids"])))
+        r("tags.list", "read", T.NoParams, list[T.TagUsage], "All tags in use with counts (samples, local, range tags, sources, segment speakers).",
+          lambda p: self.tag_ops.list_all())
+        r("tags.globalPlan", "read", T.GlobalTagParams, T.GlobalTagPlan,
+          "Plan a global rename/remove of a tag (local tags, range tags, source work/type, segment speakers): preview only; apply with edits.apply.",
+          lambda p: self.tag_ops.global_plan(p["op"], p["tag"], p.get("to")))
         r("filters.list", "read", T.NoParams, list[T.SavedFilter],
           "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
           lambda p: saved_filters.list_filters(self.conn))
@@ -360,6 +371,7 @@ class Core:
         self.subtitles = SubtitleImporter(self.conn, self.edits, on_change=self._on_change)
         self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
         self.text = TextLayer(self.conn, self.edits, on_change=self._on_change)
+        self.tag_ops = TagOps(self.conn, self.edits)
         self.sample_plan = SamplePlanner(self.conn, self.samples, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.thumbs = ThumbnailService(self.conn, self.ws, post=self.post, emit=self.emit)
