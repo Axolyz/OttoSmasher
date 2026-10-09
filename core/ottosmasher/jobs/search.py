@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -73,7 +74,7 @@ def index(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     workers = max(1, min(int(params.get("workers") or 0) or (os.cpu_count() or 2) - 2, 8))
     if total >= PARALLEL_MIN and workers > 1:
         batches = [todo[i : i + BATCH] for i in range(0, total, BATCH)]
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn")) as pool:
             futs = [pool.submit(build_batch, db, workspace, support, b) for b in batches]
             for f in as_completed(futs):
                 rows += f.result()
