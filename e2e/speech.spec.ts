@@ -43,19 +43,19 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: ".cache/playwright-results/speech-dialog.png" });
   await dlg.getByTestId("speech-submit").click();
-  await expect(page.getByText("已排队分析 2 条")).toBeVisible();
+  await expect(page.getByText("已排队分析 2 句")).toBeVisible();
 
   await page.getByTestId("nav-tasks").click();
   const job = page.getByTestId("job").filter({ hasText: "语音分析" }).first(); // 抽屉里还有自动准备检索的后台任务
   await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
-  await expect(job.getByTestId("speech-summary")).toHaveText("1 条成功 · 1 条失败");
+  await expect(job.getByTestId("speech-summary")).toHaveText("1 句成功 · 1 句失败");
   await job.getByTestId("job-results").click();
   const res = job.getByTestId("speech-results");
   await expect(res).toContainText("成功");
   await expect(res).toContainText("文本前端失败");
   await page.waitForTimeout(300);
   await page.screenshot({ path: ".cache/playwright-results/speech-results.png" });
-  // 勾失败项再分析 → 确认框只有这一条
+  // 勾失败项再分析（按句）→ 确认框只有这一句
   await res.getByTestId("table-check-all").click(); // 只有失败项可勾
   await res.getByTestId("speech-rerun-failed").click();
   await expect(dlg.getByTestId("speech-run")).toContainText("1");
@@ -73,7 +73,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await page.getByTestId("batch-actions").click();
   await page.getByRole("menuitem", { name: "语音分析所选 3 项…" }).click();
   await expect(dlg.getByTestId("speech-fresh")).toContainText("1");
-  await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 条");
+  await expect(dlg.getByTestId("speech-rerun")).toContainText("也重新分析已是最新的 1 句");
   await dlg.getByTestId("speech-rerun").click();
   await expect(dlg.getByTestId("speech-run")).toContainText("2");
   await page.keyboard.press("Escape");

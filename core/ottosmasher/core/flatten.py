@@ -34,6 +34,7 @@ from ..store.workspace import Workspace
 from . import assets as assets_mod
 from . import effective_tags
 from . import settings as settings_mod
+from . import units
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
@@ -92,24 +93,37 @@ class FlattenService:
     # ------------------------------------------------------------ 对齐（同一物理声音、覆盖外选区）
 
     def _alignment(self, asset_id: str, start: float, end: float, snap: dict[str, Any], sample_id: str | None) -> dict[str, Any] | None:
-        rows = self.conn.execute(
-            "SELECT h.owner_type, h.owner_id, r.id, r.manual, r.inputs, r.result, r.range_start, r.range_end FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
-            " WHERE h.kind='alignment' AND r.status='ok' AND r.asset_id=? AND r.range_start <= ? AND r.range_end >= ?"
-            " ORDER BY (h.owner_type='sample' AND h.owner_id=?) DESC, (r.range_end - r.range_start), r.created_at DESC",
-            (asset_id, start + 1e-6, end - 1e-6, sample_id or ""),
-        ).fetchall()
-        for r in rows:
-            inp = loads(r["inputs"])
-            if (inp.get("audio") or {}).get("snapshot") != snap:
-                continue
-            res = loads(r["result"])
-            phones = [
-                {"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")}
-                for p in res["phones"]
-                if p["end"] > start and p["start"] < end
-            ]
-            return {"runId": r["id"], "manual": bool(r["manual"]), "owner": r["owner_id"], "phones": phones}
-        return None
+        """选区上的对齐（所有者 2026-10-08：分析属于文本单元）。从采样打开、选区就是这个采样且它有自己的文本 → 只读自己那一句；
+        否则 → 资产上音素跨度与选区交叠的句。只取同一物理声音（文件快照一致）的；读到的句的窗口要连起来覆盖整个选区
+        （覆盖不全 = 不可用，不静默少算元音）；两句的音素在时间上冲突 → 不可用。"""
+        own = None
+        if sample_id:
+            s = self.conn.execute(f"SELECT {self.speech._SAMPLE_COLS} FROM sample WHERE id=?", (sample_id,)).fetchone()
+            if s is not None and s["asset_id"] == asset_id and abs(s["start"] - start) < 1e-6 and abs(s["end"] - end) < 1e-6:
+                own = self.speech.own_unit(s)
+        if own is not None:
+            rows = self.conn.execute(
+                "SELECT h.owner_id, h.version, r.* FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
+                " WHERE h.owner_type=? AND h.owner_id=? AND h.kind='alignment' AND r.status='ok'",
+                (units.OWNER, own["unitId"]),
+            ).fetchall()
+        else:
+            rows = self.speech._overlapping(asset_id, start, end)
+        rows = [r for r in rows if (loads(r["inputs"]).get("audio") or {}).get("snapshot") == snap]
+        if not rows:
+            return None
+        reach = start
+        for a, b in sorted(tuple(loads(r["inputs"]).get("window") or [r["range_start"], r["range_end"]]) for r in rows):
+            if a > reach + 1e-6:
+                break
+            reach = max(reach, b)
+        if reach < end - 1e-6:
+            return None
+        merged = units.merge([{"unitId": r["owner_id"], "name": r["owner_id"], "result": loads(r["result"])} for r in rows], start, end)
+        if "conflict" in merged:
+            return None
+        phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in merged["phones"]]
+        return {"runId": "+".join(r["id"] for r in rows), "manual": any(bool(r["manual"]) for r in rows), "owner": ",".join(r["owner_id"] for r in rows), "phones": phones}
 
     @staticmethod
     def _local_phones(al: dict[str, Any], start: float) -> list[list[Any]]:

@@ -62,7 +62,8 @@ class Analysis:
     identity: str
     run: str
     run_version: int
-    projected_from: str | None
+    units: list[str]  # 读到的句（文本单元，所有者 2026-10-08）
+    partial: bool  # 没有自己文本的采样只读到某句的一部分（◐）
     params: dict[str, Any]
     manual_applied: bool
     manual_stale: bool
@@ -164,13 +165,16 @@ class RhythmService:
         start, end = float(row["start"]), float(row["end"])
         view = self.speech.sample_view(sample_id)
         head = view["head"]
+        if view.get("conflict"):
+            c = view["conflict"]
+            raise CoreError("rhythm-units-conflict", a=c["a"], b=c["b"], at=c["at"])
         if head is None or head["status"] != "ok" or not head.get("result"):
             raise CoreError("rhythm-no-analysis", id=sample_id)
         params = self.params_of(row)
         penalty = self._penalty()
         snap, sr, channels = self._snapshot(row["asset_id"], start, end)
         identity = _sha([
-            sample_id, row["asset_id"], start, end, head["runId"], head["version"], head.get("projectedFrom"), params, penalty, snap,
+            sample_id, row["asset_id"], start, end, head["runId"], head["version"], head.get("units"), params, penalty, snap,
             rh.ALGO_VERSION, st.ALGO_VERSION,
         ])
         hit = self._cache.get(identity)
@@ -219,7 +223,7 @@ class RhythmService:
         an = Analysis(
             sample_id=sample_id, name=row["name"], nature=row["nature"], version=int(row["version"]), asset_id=row["asset_id"], window=window,
             sr=sr, channels=pcm.shape[1] if pcm.ndim == 2 else 1, identity=identity, run=head["runId"], run_version=int(head["version"]),
-            projected_from=head.get("projectedFrom"), params=params, manual_applied=applied, manual_stale=stale, ignored=ignored,
+            units=list(head.get("units") or []), partial=bool(head.get("partial")), params=params, manual_applied=applied, manual_stale=stale, ignored=ignored,
             phones=phones, morae=list(res.get("morae") or []), blocks=blocks, pauses=pauses, seg=seg, cuts=cuts, segments=segs, dur=dur, raw=raw,
             mora_cells=mc, manual_cells=m_cells, attrs=attrs, penalty=penalty,
         )
@@ -266,12 +270,12 @@ class RhythmService:
         try:
             an = self.analysis(sample_id)
         except CoreError as e:
-            if e.code in ("rhythm-no-analysis", "rhythm-no-blocks"):
+            if e.code in ("rhythm-no-analysis", "rhythm-no-blocks", "rhythm-units-conflict"):
                 return {"sampleId": sample_id, "status": "none", "reason": e.to_wire(), "bpm": bpm, "version": int(row["version"])}
             raise
         out: dict[str, Any] = {
             "sampleId": sample_id, "status": "ok", "reason": None, "bpm": bpm, "version": an.version, "run": an.run,
-            "projectedFrom": an.projected_from, "window": list(an.window),
+            "units": an.units, "partial": an.partial, "window": list(an.window),
             "params": {"sensitivity": an.params["sensitivity"], "segmentThreshold": an.params["segmentThreshold"]},
             "manual": {**an.params["manual"], "applied": an.manual_applied, "stale": an.manual_stale, "ignored": an.ignored},
             "penalty": an.penalty,

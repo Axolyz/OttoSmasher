@@ -24,7 +24,8 @@ export interface SourceJump {
 
 /** 语音分析确认框的请求（规格 08 §8.4：不同入口只是默认范围不同） */
 export interface SpeechRequest {
-  entry: "source" | "samples";
+  /** units = 指定的句（文本单元；结果表里再发起失败项） */
+  entry: "source" | "samples" | "units";
   ids: string[];
 }
 

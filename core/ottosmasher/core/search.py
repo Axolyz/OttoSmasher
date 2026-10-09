@@ -27,6 +27,7 @@ from ..models import f0store
 from ..store.db import transaction
 from ..store.workspace import Workspace
 from . import assets as assets_mod
+from . import units
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
@@ -285,17 +286,16 @@ class SearchService:
         return rid, stats
 
     def _speech_snapshots(self, ids: list[str]) -> dict[str, dict[str, Any]]:
-        """成员的绑定快照：资产与范围 + 语音分析头（自己的，或投影的来源）。"""
+        """成员的绑定快照：资产与范围 + 读到的句与版本（units.reads_sql）。"""
         out: dict[str, dict[str, Any]] = {}
         for i in range(0, len(ids), 900):
             part = ids[i : i + 900]
             for r in self.conn.execute(
-                'SELECT s.id, s.asset_id, s.start, s."end", h.run_id, h.version FROM sample s'
-                " LEFT JOIN measure_head h ON h.owner_type = 'sample' AND h.owner_id = s.id AND h.kind = 'alignment'"
+                f'SELECT s.id, s.asset_id, s.start, s."end", {units.reads_sql("s")} FROM sample s'
                 f" WHERE s.id IN ({','.join('?' * len(part))})",
                 part,
             ):
-                out[r[0]] = {"assetId": r[1], "start": r[2], "end": r[3], "analysis": [r[4], r[5]]}
+                out[r[0]] = {"assetId": r[1], "start": r[2], "end": r[3], "analysis": r[4]}
         return out
 
     # ---- 音高检索

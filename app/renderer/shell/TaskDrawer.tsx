@@ -78,7 +78,7 @@ function JobRow({ job }: { job: JobSummary }) {
       ) : null}
       {(job.kind === "speech.analyze" || (job.kind === "flatten" && !singleFlatten)) && job.items && !active ? (
         <div className={s.meta} data-testid="speech-summary">
-          {t("speech.jobSummary", { ok: job.items.ok ?? 0, failed: job.items.failed ?? 0 })}
+          {t(job.kind === "speech.analyze" ? "speech.jobSummary" : "tasks.itemSummary", { ok: job.items.ok ?? 0, failed: job.items.failed ?? 0 })}
         </div>
       ) : null}
       {job.error ? (

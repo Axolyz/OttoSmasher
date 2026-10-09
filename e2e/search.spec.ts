@@ -39,7 +39,7 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   await page.evaluate(
     async ({ id, onsets }) => {
       const req = window.otto.core.request;
-      const v = (await req("speech.sample", { id })) as { r: { head: { version: number; result: { phones: Array<{ label: string }> } } } };
+      const v = (await req("speech.sample", { id })) as { r: { head: { version: number; units: string[]; result: { phones: Array<{ label: string }> } } } };
       let i = 0;
       const lines = v.r.head.result.phones.map((p) => {
         const o = onsets[Math.floor(i / 2)]!;
@@ -47,7 +47,7 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
         i += 1;
         return line;
       });
-      const r = await req("speech.saveManual", { sampleId: id, version: v.r.head.version, text: lines.join("\n") });
+      const r = await req("speech.saveManual", { unitId: v.r.head.units[0], version: v.r.head.version, text: lines.join("\n") }); // 改的是这句（文本单元）
       if (!r.ok) throw new Error(JSON.stringify(r.e));
     },
     { id: sid, onsets: ONSETS },

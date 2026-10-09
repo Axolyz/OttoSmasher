@@ -1,11 +1,13 @@
 // 舞台的“声音与语音”（UI_PLAN §3、§3.1；原型 renderStage 的波形卡与 speechPanel）：
 // - 波形卡：“声音：绑定资产名”（只显示，不能切换，Q7）；图层栏选一个覆盖层（音素 / mora / 无），其他图层用车道；金色 F0 线；
 // - 语音面板：音素按 mora 分组（假名在上、音素在下）、分析状态、「语音分析…」；没有台词时「提供台词并分析」。
+// - 分析属于“这句”（文本单元，所有者 2026-10-08）：有自己文本的采样只读自己那一句；没有的读范围内的句（只读到一部分标 ◐）。
+//   修音素时间、切换版本作用于所选的那一句，所有读这句的采样和原片页音素层同时生效（P13：面板上写明）。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
 import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView } from "../api/types";
+import type { AssetRecord, JobSummary, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, Segmented, Token } from "../components/Controls";
 import { Select, TextArea, TextField, TimeField } from "../components/Fields";
@@ -106,6 +108,7 @@ export function StageSpeech(props: {
   const [rangeText, setRangeText] = useState("");
   const [asset, setAsset] = useState<AssetRecord | null>(null);
   const [view, setView] = useState<SpeechSampleView | null>(null);
+  const [unitSel, setUnitSel] = useState<string | null>(null);
   const [curve, setCurve] = useState<Curve | null>(null);
   const [layer, setLayer] = useState<LayerId>("ph");
   const [sel, setSel] = useState<Sel | null>(null);
@@ -115,6 +118,7 @@ export function StageSpeech(props: {
   const loadSpeech = () => void call("speech.sample", { id: smp.id }).then(setView, () => setView(null));
   useEffect(() => {
     setView(null);
+    setUnitSel(null);
     setCurve(null);
     setSel(null);
     loadSpeech();
@@ -163,9 +167,13 @@ export function StageSpeech(props: {
     if (asset) requestAnimationFrame(() => tl.current?.zoomTo(smp.start, smp.end));
   }, [asset, smp.start, smp.end]);
 
-  const res = view?.head?.result ?? null;
+  // 所选的那一句（编辑、版本、精确时间都作用于它）：默认第一句已分析的
+  const unitList = view?.units ?? [];
+  const unit: SpeechUnit | null = unitList.find((u) => u.unitId === unitSel) ?? unitList.find((u) => u.head?.status === "ok") ?? unitList[0] ?? null;
+  const ownHead = unit?.head && unit.head.status === "ok" && unit.head.result ? unit.head : null;
+  // 显示：读到的句合成的头；冲突时显示所选那一句（去修它的音素时间）
+  const res = view?.head?.result ?? (view?.conflict ? (ownHead?.result ?? null) : null);
   const editing = editBands !== null;
-  const ownHead = view?.head && view.head.status === "ok" && !view.head.projectedFrom ? view.head : null;
   const layers = useMemo(() => {
     if (!res) return { ph: null, mora: null };
     return { ph: phoneBands(res.phones), mora: moraBands(res.phones, res.morae) };
@@ -177,7 +185,7 @@ export function StageSpeech(props: {
   const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
     if (!ownHead) return false;
     try {
-      await call("speech.saveManual", { sampleId: smp.id, version: ownHead.version, ...args });
+      await call("speech.saveManual", { unitId: unit!.unitId, version: ownHead.version, ...args });
       toast({ text: t("speech.manualSaved") });
       loadSpeech();
       return true;
@@ -218,7 +226,7 @@ export function StageSpeech(props: {
   const switchTo = async (runId: string) => {
     if (!ownHead || runId === ownHead.runId) return;
     try {
-      await call("speech.switchHead", { sampleId: smp.id, runId, version: ownHead.version });
+      await call("speech.switchHead", { unitId: unit!.unitId, runId, version: ownHead.version });
       loadSpeech();
     } catch (e) {
       fail(e);
@@ -309,17 +317,20 @@ export function StageSpeech(props: {
     }
   };
 
-  const lastFail = view?.runs.find((r) => r.status === "failed");
+  const lastFail = view?.own ? unit?.runs.find((r) => r.status === "failed") : undefined;
   const headOk = view?.head?.status === "ok";
   const status = !view
     ? ""
-    : headOk
-      ? view.head!.manual
-        ? t("speech.status.manual")
-        : t("speech.status.ok")
-      : lastFail
-        ? t("speech.status.failed", { reason: lastFail.error ? errorText(lastFail.error) : "" })
-        : t("speech.status.none");
+    : view.conflict
+      ? t("speech.status.conflict", { a: view.conflict.a, b: view.conflict.b })
+      : headOk
+        ? view.head!.manual
+          ? t("speech.status.manual")
+          : t("speech.status.ok")
+        : lastFail
+          ? t("speech.status.failed", { reason: lastFail.error ? errorText(lastFail.error) : "" })
+          : t("speech.status.none");
+  const unitLabel = (u: SpeechUnit) => `${t(`speech.unit.kind.${u.kind}`)} · ${u.name ?? ""}${u.partial ? ` ${t("speech.unit.partialMark")}` : ""}`;
 
   // 音素按 mora 分组（假名在上、音素在下）；没有 mora 的（停顿、对不上的）单独成组
   const groups = useMemo(() => {
@@ -451,18 +462,33 @@ export function StageSpeech(props: {
       <section className={s.card} data-testid="speech-panel">
         <div className={s.waveHead}>
           <h3 className={s.cardTitle}>{t("speech.panel")}</h3>
-          <span className={headOk ? s.okText : lastFail ? s.badText : s.mutedText} data-testid="speech-status">
+          <span className={view?.conflict ? s.badText : headOk ? s.okText : lastFail ? s.badText : s.mutedText} data-testid="speech-status">
             {status}
           </span>
-          {view?.head?.projectedFrom ? <span className={s.mutedText}>{t("speech.projected")}</span> : null}
+          {view?.head?.partial ? (
+            <span className={s.mutedText} data-testid="speech-partial">
+              {t("speech.partial")}
+            </span>
+          ) : null}
           <div className={s.grow} />
-          {ownHead && (view?.runs.filter((r) => r.status === "ok").length ?? 0) > 1 ? (
+          {unitList.length > 1 ? (
+            <Select
+              label={t("speech.unit.pick")}
+              prefix={t("speech.unit.pick")}
+              value={unit?.unitId ?? ""}
+              onChange={(id) => setUnitSel(id)}
+              isDisabled={editing}
+              options={unitList.map((u) => ({ id: u.unitId, label: unitLabel(u) }))}
+              testId="speech-unit"
+            />
+          ) : null}
+          {ownHead && (unit?.runs.filter((r) => r.status === "ok").length ?? 0) > 1 ? (
             <Select
               label={t("speech.version")}
               prefix={t("speech.version")}
               value={ownHead.runId}
               onChange={(id) => void switchTo(id)}
-              options={view!.runs
+              options={unit!.runs
                 .filter((r) => r.status === "ok")
                 .map((r) => ({ id: r.id, label: `${r.manual ? t("speech.versionManual") : t("speech.versionModel")} · ${r.createdAt.replace("T", " ").slice(5, 16)}` }))}
             />
@@ -505,13 +531,24 @@ export function StageSpeech(props: {
         ) : null}
         {view?.text ? (
           <div className={s.textLine}>
-            <span className={s.mutedText}>{t(hasKey(`speech.textSource.${view.textSource}`) ? `speech.textSource.${view.textSource}` : "speech.textSource.snapshot")}</span>
+            <span className={s.mutedText}>{t(hasKey(`speech.textSource.${view.textSource}`) ? `speech.textSource.${view.textSource}` : "speech.textSource.units")}</span>
             <span lang="ja" data-user-data="" data-testid="speech-text">
               {view.text}
             </span>
           </div>
         ) : null}
-        {view?.text && view.head && headOk && view.head.text !== view.text ? <Callout tone="warn">{t("speech.textChanged")}</Callout> : null}
+        {view?.own && view.text && view.head && headOk && view.head.text !== view.text ? <Callout tone="warn">{t("speech.textChanged")}</Callout> : null}
+        {view?.conflict ? (
+          <Callout tone="bad" testId="speech-conflict">
+            {t("speech.conflict", { a: view.conflict.a, b: view.conflict.b, at: seconds(view.conflict.at) })}
+          </Callout>
+        ) : null}
+        {unit ? (
+          <div className={s.mutedText} data-testid="speech-unit-note">
+            {view?.own ? t(`speech.unit.own.${unit.kind}`, { name: unit.name ?? "" }) : t("speech.unit.reads", { n: unitList.length })}
+            {ownHead ? ` ${t("speech.unit.shared")}` : ""}
+          </div>
+        ) : null}
         <div className={s.speechActions}>
           <Button size="sm" onPress={() => requestSpeech({ entry: "samples", ids: [smp.id] })} isDisabled={!view?.text || editing} data-testid="speech-analyze">
             {t("speech.menu")}

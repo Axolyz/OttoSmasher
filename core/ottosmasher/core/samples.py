@@ -18,7 +18,7 @@ from ottosmasher.domain.mapping import EPS, Mapping, check_range
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
-from . import effective_tags
+from . import effective_tags, units
 from .clock import new_id, now_iso
 from .edits import ChangeSet, loads
 from .errors import CoreError
@@ -130,13 +130,8 @@ class SampleService:
         " s.parent_sample_id, s.parent_label, s.created_at, s.version,"
         " a.source_id, a.mapping, a.origin AS asset_origin, a.stream_ordinal,"
         " src.work, src.episode, src.path AS source_path, src.media_state,"
-        # 语音分析状态（08 §8.8：“已分析”= 当前头是成功测量）：manual / ok / failed（当前头失败或只有失败记录）/ none
-        " (SELECT CASE WHEN r.status='ok' AND r.manual=1 THEN 'manual' ELSE r.status END FROM measure_head h JOIN measure_run r ON r.id=h.run_id"
-        "   WHERE h.owner_type='sample' AND h.owner_id=s.id AND h.kind='alignment') AS analysis_head,"
-        " EXISTS(SELECT 1 FROM measure_run m WHERE m.owner_type='sample' AND m.owner_id=s.id AND m.kind='alignment' AND m.status='failed') AS analysis_failed,"
-        # 子采样（截取）：覆盖它的同一资产上的成功测量也算“已分析”（08 §8.8）
-        " EXISTS(SELECT 1 FROM measure_head h2 JOIN measure_run r2 ON r2.id=h2.run_id WHERE h2.kind='alignment' AND r2.status='ok'"
-        "   AND r2.asset_id=s.asset_id AND r2.range_start <= s.start + 1e-6 AND r2.range_end >= s.\"end\" - 1e-6) AS analysis_cover"
+        # 语音分析状态（所有者 2026-10-08：分析属于文本单元，采样按规则读取）：manual / ok / partial（◐）/ failed / none
+        f" {units.state_sql('s')} AS analysis"
     )
     _FROM = " FROM sample s JOIN sound_asset a ON a.id = s.asset_id JOIN source src ON src.id = a.source_id"
 
@@ -150,8 +145,6 @@ class SampleService:
         d["duration"] = d["end"] - d["start"]
         d["starred"] = bool(d["starred"])
         d["source_name"] = source_display_name(d["work"], d["episode"], d["source_path"])
-        head, failed, cover = d.pop("analysis_head"), d.pop("analysis_failed"), d.pop("analysis_cover")
-        d["analysis"] = head if head in ("ok", "manual") else ("ok" if head is None and cover else ("failed" if (head == "failed" or failed) else "none"))
         return d
 
     def get(self, sample_id: str) -> dict[str, Any]:
@@ -257,7 +250,7 @@ class SampleService:
             raise CoreError("sample-has-active-jobs", jobs=",".join(active))
         with transaction(self.conn):
             x = self.conn.execute
-            x(f"DELETE FROM measure_head WHERE owner_type='sample' AND owner_id IN ({marks})", ids)
+            # 语音分析属于文本单元（所有者 2026-10-08），删采样不删分析（P9）
             x(f"DELETE FROM visual_binding WHERE owner_type='sample' AND owner_id IN ({marks})", ids)
             x(f"DELETE FROM sample WHERE id IN ({marks})", ids)  # 本地标签、有效标签级联；子采样 parent_sample_id 置空，parent_label 保留
         self._changed("sample", ids)

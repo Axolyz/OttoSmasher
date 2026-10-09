@@ -228,16 +228,16 @@ class Core:
           lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
         r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
           lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False))))
-        r("speech.submitRange", "job", T.SpeechRangeParams, T.JobSummary, "Analyze an asset range with a given text segment (no sample needed).",
+        r("speech.submitRange", "job", T.SpeechRangeParams, T.JobSummary, "Analyze an asset range with typed text (a typed text unit; no sample needed).",
           lambda p: self.speech.submit_range(p["assetId"], float(p["start"]), float(p["end"]), str(p["text"])))
         r("speech.saveManual", "write", T.SpeechManualParams, T.SpeechHeadRef,
-          "Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed).",
-          lambda p: self.speech.save_manual(p["sampleId"], int(p["version"]), p.get("phones"), p.get("text")))
-        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version the current one.",
-          lambda p: self.speech.switch_head(p["sampleId"], p["runId"], int(p["version"])))
-        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis of one sample: alignment text, current head with phonemes, all versions.",
+          "Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+          lambda p: self.speech.save_manual(p["unitId"], int(p["version"]), p.get("phones"), p.get("text")))
+        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version of a line (text unit) the current one.",
+          lambda p: self.speech.switch_head(p["unitId"], p["runId"], int(p["version"])))
+        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head.",
           lambda p: self.speech.sample_view(p["id"]))
-        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Current alignments of all samples on an asset range (same physical audio only).",
+        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Current alignments of all lines (text units) on an asset range (same physical audio only).",
           lambda p: self.speech.for_asset(p["assetId"], float(p["start"]), float(p["end"])))
         r("measure.f0", "read", T.AssetRangeParams, T.F0Frames, "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
           lambda p: self.speech.f0(p["assetId"], float(p["start"]), float(p["end"])))
@@ -573,7 +573,7 @@ class Core:
         return [r | {"counts": None if r["id"] not in c else c[r["id"]] | sp.get(r["id"], zero)} for r in self.sources.list()]
 
     def _sources_prep(self, p: dict[str, Any]) -> dict[str, Any]:
-        sp = self.speech.analyzed_counts(p["id"]).get(p["id"], {"speech": 0, "analyzed": 0})
+        sp = self.speech.source_counts(p["id"])  # 句（文本单元）：原片入口范围内的台词行与语音采样自己的那一句
         return annotations_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["speech"] > 0 and sp["analyzed"] == sp["speech"], **sp}}
 
     def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:

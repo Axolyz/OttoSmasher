@@ -26,11 +26,12 @@ from ..domain.mapping import Mapping
 from ..domain.overlap import overlaps
 from ..models import f0store, fcpe
 from . import settings as settings_mod
+from . import units
 from .clock import now_iso
 from .edits import loads
 from .errors import CoreError
 
-KEY_VERSION = "speech-index-1"
+KEY_VERSION = "speech-index-2"  # 2：分析属于文本单元（所有者 2026-10-08）
 
 # 资产存储的签名（范围、种类、文件快照；按固定顺序拼接）：文件被替换、存储变了 → 签名变（只用数据库，不探测文件）
 STORAGE_SIG_SQL = (
@@ -52,13 +53,8 @@ _KEY_SQL = """
 WITH ann AS (
   SELECT source_id, COUNT(*) AS n, MAX(updated_at) AS t FROM annotation WHERE deleted = 0 GROUP BY source_id
 )
-SELECT s.id, s.asset_id, s.start, s."end", s.rhythm,
-  h.run_id, h.version, r.status, r.manual,
-  CASE WHEN h.run_id IS NULL THEN (
-    SELECT group_concat(h2.run_id || ':' || h2.version || ':' || COALESCE(json_extract(r2.inputs, '$.audio.snapshot'), ''), ',') FROM measure_head h2 JOIN measure_run r2 ON r2.id = h2.run_id
-    WHERE h2.kind = 'alignment' AND r2.kind = 'alignment' AND r2.status = 'ok' AND r2.asset_id = s.asset_id
-      AND r2.range_start <= s.start + 1e-6 AND r2.range_end >= s."end" - 1e-6
-  ) END AS proj,
+SELECT s.id, s.asset_id, s.start, s."end", s.rhythm, s.align_text_manual, s.origin,
+  {reads} AS reads,
   {storage} AS storage,
   src.file_snapshot AS src_snap,
   fr.result AS f0res, a.duration AS adur,
@@ -70,8 +66,6 @@ FROM sample s
 JOIN sound_asset a ON a.id = s.asset_id
 JOIN source src ON src.id = a.source_id
 LEFT JOIN ann ON ann.source_id = a.source_id
-LEFT JOIN measure_head h ON h.owner_type = 'sample' AND h.owner_id = s.id AND h.kind = 'alignment'
-LEFT JOIN measure_run r ON r.id = h.run_id
 LEFT JOIN measure_head fh ON fh.owner_type = 'asset' AND fh.owner_id = s.asset_id AND fh.kind = 'f0'
 LEFT JOIN measure_run fr ON fr.id = fh.run_id
 WHERE s.id IN ({marks})
@@ -84,8 +78,8 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
     versions = [KEY_VERSION, rh.ALGO_VERSION, st.ALGO_VERSION, ss.ALGO_VERSION, ss.INDEX_VERSION, penalty]
     out: dict[str, tuple[str, bool]] = {}
     for part in _chunks(list(dict.fromkeys(sample_ids))):
-        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id")), part):
-            has = (r["run_id"] is not None and r["status"] == "ok") or (r["run_id"] is None and bool(r["proj"]))
+        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id"), reads=units.reads_sql("s")), part):
+            has = bool(r["reads"])  # 读到的句（自己那一句，或范围内的句）有成功测量
             # F0 只看采样范围所在的段（同一资产别处补测 F0 不让这条失效）
             f0 = loads(r["f0res"]) if r["f0res"] else {}
             need = f0store.chunks_for(float(r["start"]), float(r["end"]), float(r["adur"]))

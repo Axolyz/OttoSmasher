@@ -167,6 +167,7 @@ def test_preloaded_decode_gives_identical_rows(core):
     for k, (a, b) in enumerate([(2.0, 3.5), (3.5, 5.6), (2.3, 4.9)]):
         s = sample(core, start=a, end=b, name=f"p{k}")
         align(core, s, a, b, ph=[p for p in __import__("test_rhythm_service").phones() if a <= p["start"] and p["end"] <= b])
+        core.conn.execute("UPDATE sample SET align_text_manual='か' WHERE id=?", (s,))  # 各自手输过台词：只读自己那一句（三句互相交叠）
         ids.append(s)
     keys = si.speech_keys(core.conn, ids)
     batch = search_jobs.build_batch(str(core.ws.db_path), str(core.ws.root), str(core.support_dir), [(s, keys[s][0]) for s in ids])

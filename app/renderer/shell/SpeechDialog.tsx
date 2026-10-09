@@ -69,8 +69,8 @@ export function SpeechDialog() {
     <DialogBox
       isOpen={req !== null}
       onClose={() => close(null)}
-      title={src ? t("speech.title.source", { n: req?.ids.length ?? 0 }) : t("speech.title.samples", { n: req?.ids.length ?? 0 })}
-      sub={src ? t("speech.scope.source") : t("speech.scope.samples")}
+      title={t(`speech.title.${req?.entry ?? "samples"}`, { n: req?.ids.length ?? 0 })}
+      sub={t(`speech.scope.${req?.entry ?? "samples"}`)}
       width={560}
       testId="speech-dialog"
       footer={

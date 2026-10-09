@@ -1058,7 +1058,7 @@
   {
    "name": "speech.forAsset",
    "effect": "read",
-   "summary": "Current alignments of all samples on an asset range (same physical audio only).",
+   "summary": "Current alignments of all lines (text units) on an asset range (same physical audio only).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
    },
@@ -1097,7 +1097,7 @@
   {
    "name": "speech.sample",
    "effect": "read",
-   "summary": "Speech analysis of one sample: alignment text, current head with phonemes, all versions.",
+   "summary": "Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head.",
    "params": {
     "$ref": "#/$defs/IdParams"
    },
@@ -1108,7 +1108,7 @@
   {
    "name": "speech.saveManual",
    "effect": "write",
-   "summary": "Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+   "summary": "Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed).",
    "params": {
     "$ref": "#/$defs/SpeechManualParams"
    },
@@ -1130,7 +1130,7 @@
   {
    "name": "speech.submitRange",
    "effect": "job",
-   "summary": "Analyze an asset range with a given text segment (no sample needed).",
+   "summary": "Analyze an asset range with typed text (a typed text unit; no sample needed).",
    "params": {
     "$ref": "#/$defs/SpeechRangeParams"
    },
@@ -1141,7 +1141,7 @@
   {
    "name": "speech.switchHead",
    "effect": "write",
-   "summary": "Make another successful version the current one.",
+   "summary": "Make another successful version of a line (text unit) the current one.",
    "params": {
     "$ref": "#/$defs/SpeechSwitchParams"
    },
@@ -2024,6 +2024,15 @@
    "summary": "A sentence may have at most 128 rhythm blocks."
   },
   {
+   "code": "rhythm-units-conflict",
+   "args": [
+    "a",
+    "b",
+    "at"
+   ],
+   "summary": "Two analyzed lines read by this sample overlap in time; fix the phoneme times of one of them."
+  },
+  {
    "code": "root-invalid",
    "args": [
     "other",
@@ -2212,7 +2221,7 @@
    "args": [
     "reason"
    ],
-   "summary": "This sample cannot be analyzed (reason given)."
+   "summary": "This line or sample cannot be analyzed (reason given)."
   },
   {
    "code": "speech-edit-conflict",
@@ -2688,8 +2697,24 @@
    "title": "AssetAlignment",
    "type": "object",
    "properties": {
+    "kind": {
+     "enum": [
+      "line",
+      "typed"
+     ]
+    },
     "manual": {
      "type": "boolean"
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "phones": {
      "type": "array",
@@ -2700,22 +2725,17 @@
     "runId": {
      "type": "string"
     },
-    "sampleId": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+    "unitId": {
+     "type": "string"
     }
    },
    "required": [
+    "kind",
     "manual",
+    "name",
     "phones",
     "runId",
-    "sampleId"
+    "unitId"
    ]
   },
   "AssetHandle": {
@@ -7746,6 +7766,9 @@
     "params": {
      "$ref": "#/$defs/RhythmParamsState"
     },
+    "partial": {
+     "type": "boolean"
+    },
     "pauses": {
      "type": "array",
      "items": {
@@ -7763,16 +7786,6 @@
      "items": {
       "$ref": "#/$defs/RhythmPhone"
      }
-    },
-    "projectedFrom": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
     },
     "reason": {
      "anyOf": [
@@ -7839,6 +7852,12 @@
        "type": "null"
       }
      ]
+    },
+    "units": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "version": {
      "type": "integer"
@@ -8133,7 +8152,8 @@
       "failed",
       "manual",
       "none",
-      "ok"
+      "ok",
+      "partial"
      ]
     },
     "asset_id": {
@@ -9620,6 +9640,33 @@
     "reason"
    ]
   },
+  "SpeechConflict": {
+   "title": "SpeechConflict",
+   "type": "object",
+   "properties": {
+    "a": {
+     "type": "string"
+    },
+    "at": {
+     "type": "number"
+    },
+    "b": {
+     "type": "string"
+    },
+    "units": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "a",
+    "at",
+    "b",
+    "units"
+   ]
+  },
   "SpeechEvidence": {
    "title": "SpeechEvidence",
    "type": "object",
@@ -9728,15 +9775,8 @@
     "manual": {
      "type": "boolean"
     },
-    "projectedFrom": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+    "partial": {
+     "type": "boolean"
     },
     "result": {
      "anyOf": [
@@ -9774,6 +9814,12 @@
       }
      ]
     },
+    "units": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "version": {
      "type": "integer"
     },
@@ -9794,7 +9840,6 @@
    "required": [
     "createdAt",
     "manual",
-    "projectedFrom",
     "result",
     "runId",
     "status",
@@ -9837,9 +9882,6 @@
       }
      ]
     },
-    "sampleId": {
-     "type": "string"
-    },
     "text": {
      "anyOf": [
       {
@@ -9850,12 +9892,15 @@
       }
      ]
     },
+    "unitId": {
+     "type": "string"
+    },
     "version": {
      "type": "integer"
     }
    },
    "required": [
-    "sampleId",
+    "unitId",
     "version"
    ]
   },
@@ -9921,7 +9966,8 @@
     "entry": {
      "enum": [
       "samples",
-      "source"
+      "source",
+      "units"
      ]
     },
     "ids": {
@@ -10235,6 +10281,16 @@
       "queued",
       "skipped"
      ]
+    },
+    "unitId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     }
    },
    "required": [
@@ -10243,7 +10299,8 @@
     "idx",
     "name",
     "sampleId",
-    "status"
+    "status",
+    "unitId"
    ]
   },
   "SpeechRun": {
@@ -10301,6 +10358,16 @@
    "title": "SpeechSampleView",
    "type": "object",
    "properties": {
+    "conflict": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechConflict"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "head": {
      "anyOf": [
       {
@@ -10311,6 +10378,9 @@
       }
      ]
     },
+    "own": {
+     "type": "boolean"
+    },
     "reason": {
      "anyOf": [
       {
@@ -10320,12 +10390,6 @@
        "type": "null"
       }
      ]
-    },
-    "runs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/SpeechRun"
-     }
     },
     "sampleId": {
      "type": "string"
@@ -10349,15 +10413,23 @@
        "type": "null"
       }
      ]
+    },
+    "units": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechUnit"
+     }
     }
    },
    "required": [
+    "conflict",
     "head",
+    "own",
     "reason",
-    "runs",
     "sampleId",
     "text",
-    "textSource"
+    "textSource",
+    "units"
    ]
   },
   "SpeechSwitchParams": {
@@ -10367,7 +10439,7 @@
     "runId": {
      "type": "string"
     },
-    "sampleId": {
+    "unitId": {
      "type": "string"
     },
     "version": {
@@ -10376,8 +10448,86 @@
    },
    "required": [
     "runId",
-    "sampleId",
+    "unitId",
     "version"
+   ]
+  },
+  "SpeechUnit": {
+   "title": "SpeechUnit",
+   "description": "采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。",
+   "type": "object",
+   "properties": {
+    "head": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SpeechHead"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "typed"
+     ]
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "partial": {
+     "type": "boolean"
+    },
+    "runs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SpeechRun"
+     }
+    },
+    "target": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "unitId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "head",
+    "kind",
+    "name",
+    "partial",
+    "runs",
+    "target",
+    "text",
+    "unitId"
    ]
   },
   "SpeechWord": {

@@ -390,7 +390,6 @@ class SourceService:
             x = self.conn.execute
             if samples:
                 # 固定结果里的成员保留采样 ID，界面据此显示“已删除”（规格 04 §4.5）
-                x(f"DELETE FROM measure_head WHERE owner_type='sample' AND owner_id IN ({sm})", samples)
                 x(f"DELETE FROM visual_binding WHERE owner_type='sample' AND owner_id IN ({sm})", samples)
                 x(f"DELETE FROM sample WHERE id IN ({sm})", samples)
             x("DELETE FROM visual_binding WHERE owner_type='source' AND owner_id=?", (source_id,))

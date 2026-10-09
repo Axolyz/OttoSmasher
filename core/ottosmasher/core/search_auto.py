@@ -17,6 +17,7 @@ from typing import Any
 from ..models import f0store
 from . import settings as settings_mod
 from .search_index import asset_identities, pitch_coverage
+from .units import analysis_track
 
 log = logging.getLogger(__name__)
 
@@ -154,20 +155,7 @@ class AutoPrepare:
         """每个原片的默认人声轨（没有就用原混音：原片默认音频流的那条）整轨测 F0（无字幕时原片音轨模式也能直接用）。"""
         assets: list[tuple[str, float]] = []
         for sid in sources:
-            row = self.conn.execute(
-                "SELECT (SELECT asset_id FROM default_track WHERE source_id = src.id AND role = 'vocal') AS vox, src.default_audio_stream AS ord"
-                " FROM source src WHERE src.id = ? AND src.media_state = 'available'",
-                (sid,),
-            ).fetchone()
-            if row is None:
-                continue
-            aid = row["vox"]
-            if aid is None:
-                r = self.conn.execute(
-                    "SELECT id FROM sound_asset WHERE source_id = ? AND origin = 'stream' ORDER BY (stream_ordinal IS ?) DESC, stream_ordinal LIMIT 1",
-                    (sid, row["ord"]),
-                ).fetchone()
-                aid = r[0] if r else None
+            aid = analysis_track(self.conn, sid)
             if aid is None:
                 continue
             dur = self.conn.execute("SELECT duration FROM sound_asset WHERE id = ?", (aid,)).fetchone()[0]

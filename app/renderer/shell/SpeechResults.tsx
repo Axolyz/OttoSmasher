@@ -18,7 +18,9 @@ export function SpeechResults({ jobId }: { jobId: string }) {
   useEffect(load, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   useCoreEvent("job.updated", (d) => (d as { id: string }).id === jobId && load());
   if (!rows) return null;
-  const failed = rows.filter((r) => r.status === "failed" && !r.deleted && r.sampleId !== null);
+  // 再发起按句（文本单元）；旧格式（归属采样）的任务按采样
+  const target = (r: Row) => r.unitId ?? r.sampleId;
+  const failed = rows.filter((r) => r.status === "failed" && !r.deleted && target(r) !== null);
   const tone = (st: Row["status"]) => (st === "ok" ? s.ok : st === "failed" ? s.bad : s.muted);
   return (
     <div className={s.results} data-testid="speech-results">
@@ -28,8 +30,8 @@ export function SpeechResults({ jobId }: { jobId: string }) {
         pageSize={50}
         checked={checked}
         onChecked={setChecked}
-        isSelectable={(r) => r.status === "failed" && !r.deleted && r.sampleId !== null}
-        checkLabel={(r) => r.name ?? r.sampleId ?? ""}
+        isSelectable={(r) => r.status === "failed" && !r.deleted && target(r) !== null}
+        checkLabel={(r) => r.name ?? target(r) ?? ""}
         fadeUnselectable={false}
         columns={[
           {
@@ -54,7 +56,11 @@ export function SpeechResults({ jobId }: { jobId: string }) {
           <Button
             size="sm"
             isDisabled={!checked.size}
-            onPress={() => requestSpeech({ entry: "samples", ids: rows.filter((r) => checked.has(r.id) && r.sampleId).map((r) => r.sampleId!) })}
+            onPress={() => {
+              const picked = rows.filter((r) => checked.has(r.id) && target(r));
+              const byUnit = picked.filter((r) => r.unitId);
+              requestSpeech(byUnit.length ? { entry: "units", ids: byUnit.map((r) => r.unitId!) } : { entry: "samples", ids: picked.map((r) => r.sampleId!) });
+            }}
             data-testid="speech-rerun-failed"
           >
             {t("speech.results.rerun")}

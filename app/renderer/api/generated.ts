@@ -44,10 +44,12 @@ export interface AnnotationRow {
 }
 
 export interface AssetAlignment {
+  kind: "line" | "typed";
   manual: boolean;
+  name: string | null;
   phones: AlignedPhone[];
   runId: string;
-  sampleId: string | null;
+  unitId: string;
 }
 
 export interface AssetHandle {
@@ -1092,10 +1094,10 @@ export interface RhythmView {
   manual?: RhythmManual;
   mora?: RhythmMora;
   params?: RhythmParamsState;
+  partial?: boolean;
   pauses?: number[][];
   penalty?: number;
   phones?: RhythmPhone[];
-  projectedFrom?: string | null;
   reason: ErrorWire | null;
   route?: "mora" | "raw";
   routeError?: ErrorWire;
@@ -1106,6 +1108,7 @@ export interface RhythmView {
   segments?: number[][];
   status: "none" | "ok";
   tick?: number | null;
+  units?: string[];
   version: number;
   window?: number[];
 }
@@ -1169,7 +1172,7 @@ export interface SamplePage {
 }
 
 export interface SampleRow {
-  analysis: "failed" | "manual" | "none" | "ok";
+  analysis: "failed" | "manual" | "none" | "ok" | "partial";
   asset_id: string;
   asset_origin: string;
   created_at: string;
@@ -1440,6 +1443,13 @@ export interface SpeechBlocked {
   reason: string;
 }
 
+export interface SpeechConflict {
+  a: string;
+  at: number;
+  b: string;
+  units: string[];
+}
+
 export interface SpeechEvidence {
   bpm: number | null;
   changed: number;
@@ -1460,12 +1470,13 @@ export interface SpeechEvidence {
 export interface SpeechHead {
   createdAt: string;
   manual: boolean;
-  projectedFrom: string | null;
+  partial?: boolean;
   result: SpeechResult | null;
   runId: string;
   status: string;
   text: string | null;
   textSource: string | null;
+  units?: string[];
   version: number;
   window: number[] | null;
 }
@@ -1477,8 +1488,8 @@ export interface SpeechHeadRef {
 
 export interface SpeechManualParams {
   phones?: ManualPhone[] | null;
-  sampleId: string;
   text?: string | null;
+  unitId: string;
   version: number;
 }
 
@@ -1495,7 +1506,7 @@ export interface SpeechPhone {
 }
 
 export interface SpeechPlanParams {
-  entry: "samples" | "source";
+  entry: "samples" | "source" | "units";
   ids: string[];
   rerunFresh?: boolean;
 }
@@ -1549,6 +1560,7 @@ export interface SpeechResultRow {
   name: string | null;
   sampleId: string | null;
   status: "failed" | "ok" | "queued" | "skipped";
+  unitId: string | null;
 }
 
 export interface SpeechRun {
@@ -1561,18 +1573,32 @@ export interface SpeechRun {
 }
 
 export interface SpeechSampleView {
+  conflict: SpeechConflict | null;
   head: SpeechHead | null;
+  own: boolean;
   reason: string | null;
-  runs: SpeechRun[];
   sampleId: string;
   text: string | null;
   textSource: string | null;
+  units: SpeechUnit[];
 }
 
 export interface SpeechSwitchParams {
   runId: string;
-  sampleId: string;
+  unitId: string;
   version: number;
+}
+
+/** 采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。 */
+export interface SpeechUnit {
+  head: SpeechHead | null;
+  kind: "line" | "typed";
+  name: string | null;
+  partial: boolean;
+  runs: SpeechRun[];
+  target: number[] | null;
+  text: string | null;
+  unitId: string;
 }
 
 export interface SpeechWord {
@@ -2075,21 +2101,21 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Create one full-length sample per source on its default track. */
   "sources.wholeSamples": { params: WholeSamplesParams; result: SampleIds; effect: "write" };
-  /** Current alignments of all samples on an asset range (same physical audio only). */
+  /** Current alignments of all lines (text units) on an asset range (same physical audio only). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
   /** What a speech analysis would do: M to analyze, N up to date (skipped), K blocked with reasons. */
   "speech.preview": { params: SpeechPlanParams; result: SpeechPreview; effect: "read" };
   /** Per-item results of a speech analysis job. */
   "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
-  /** Speech analysis of one sample: alignment text, current head with phonemes, all versions. */
+  /** Speech analysis a sample reads: its own line or the lines in its range, each with head and versions, plus the merged head. */
   "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
-  /** Save edited phoneme times as a new manual version (times only; labels/order fixed; rejected if the version changed). */
+  /** Save edited phoneme times of a line (text unit) as a new manual version (times only; labels/order fixed; rejected if the version changed). */
   "speech.saveManual": { params: SpeechManualParams; result: SpeechHeadRef; effect: "write" };
   /** Queue a speech analysis job (inputs frozen now; one process for all items). */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
-  /** Analyze an asset range with a given text segment (no sample needed). */
+  /** Analyze an asset range with typed text (a typed text unit; no sample needed). */
   "speech.submitRange": { params: SpeechRangeParams; result: JobSummary; effect: "job" };
-  /** Make another successful version the current one. */
+  /** Make another successful version of a line (text unit) the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
@@ -2218,6 +2244,7 @@ export type ErrorCode =
   | "rhythm-param-invalid"
   | "rhythm-render-missing"
   | "rhythm-too-many-blocks"
+  | "rhythm-units-conflict"
   | "root-invalid"
   | "root-offline"
   | "rule-invalid"

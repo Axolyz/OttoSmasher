@@ -94,9 +94,11 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const [opeds, setOpeds] = useState<OpedRange[]>([]);
   const [derived, setDerived] = useState<Derived[]>([]);
   const [annNonce, setAnnNonce] = useState(0);
+  const [phNonce, setPhNonce] = useState(0);
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
     if (c.annotation || c.oped || c.source || c.sample) setAnnNonce((n) => n + 1);
+    if (c.measure) setPhNonce((n) => n + 1); // 语音分析结果、人工修正（属于句，不一定有采样）
   });
   useEffect(() => {
     let live = true;
@@ -114,7 +116,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const compact = !hasVideo && noSubtitles(row);
   const [overlayId, setOverlayId] = useState<LayerId>("sub");
   const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["seg", "ph", "derived"]));
-  // 音素层（08 §8.8）：当前音源资产上所有采样的当前对齐结果（同一物理声音；多句同时显示），资产局部秒 + offset = 原片秒
+  // 音素层（08 §8.8）：当前音源资产上所有句（文本单元：字幕行、手输台词）的当前对齐结果（同一物理声音；多句同时显示）；
+  // 原片页「语音分析」直接分析台词行，不需要先建采样（所有者 2026-10-08）。资产局部秒 + offset = 原片秒
   const [aligned, setAligned] = useState<AssetAlignment[]>([]);
   const phOffset = useRef(0);
   const layer = (id: LaneId): Layer => {
@@ -279,7 +282,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     return () => {
       live = false;
     };
-  }, [asset?.id, annNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [asset?.id, annNonce, phNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 播放器：打开原片（换音源时只换音轨 / 外挂声部，选区保留）
   useEffect(() => {

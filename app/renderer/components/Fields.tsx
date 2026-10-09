@@ -113,7 +113,15 @@ export interface Option {
   label: string;
 }
 
-export function Select(props: { value: string; onChange: (v: string) => void; options: Option[]; label: string; isDisabled?: boolean; prefix?: string }) {
+export function Select(props: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Option[];
+  label: string;
+  isDisabled?: boolean;
+  prefix?: string;
+  testId?: string;
+}) {
   return (
     <RacSelect
       selectedKey={props.value}
@@ -121,6 +129,7 @@ export function Select(props: { value: string; onChange: (v: string) => void; op
       isDisabled={props.isDisabled}
       aria-label={props.label}
       className={s.select}
+      data-testid={props.testId}
     >
       <RacButton className={s.selectBtn}>
         {props.prefix ? <span className={s.selectPrefix}>{props.prefix}</span> : null}

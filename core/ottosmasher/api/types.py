@@ -450,6 +450,7 @@ class PrepCount(TypedDict):
 
 class PrepSpeech(TypedDict):
     ok: bool
+    # 句（文本单元）：原片入口范围内的台词行（默认人声轨或原混音上）与语音采样自己的那一句；analyzed = 有成功的当前头
     speech: int
     analyzed: int
 
@@ -765,8 +766,8 @@ class SampleRow(TypedDict):
     media_state: str
     # 人物（说话人显示层：character: 在前，participants: 在后，只显示名字）
     people: list[str]
-    # 语音分析：ok 已分析 / manual 人工版本 / failed 分析失败（没有成功结果）/ none 未分析
-    analysis: Literal["ok", "manual", "failed", "none"]
+    # 语音分析（读到的句）：ok 已分析 / manual 人工版本 / partial 只读到某句的一部分（◐）/ failed 分析失败（没有成功结果）/ none 未分析
+    analysis: Literal["ok", "manual", "partial", "failed", "none"]
     # 有效标签（只有 samples.get 返回）
     tags: NotRequired[list[EffectiveTag]]
 
@@ -1229,8 +1230,9 @@ class SeparationSubmitted(TypedDict):
 
 
 class SpeechPlanParams(TypedDict):
-    # source = 原片入口（默认范围：语音、有对齐文本、原字幕区间不在 OP/ED 里）；samples = 所选采样（有对齐文本的）
-    entry: Literal["source", "samples"]
+    # 分析的是“声音资产 + 文本单元”（句；所有者 2026-10-08）。source = 原片入口（默认人声轨或原混音上、不在 OP/ED 里、有对齐文本的台词行，
+    # 加上原片上语音采样自己的那一句）；samples = 所选采样读的句；units = 指定的句（结果表里再发起失败项）
+    entry: Literal["source", "samples", "units"]
     ids: list[str]
     # 也重新分析已是最新的（排查用，默认不勾）
     rerunFresh: NotRequired[bool]
@@ -1257,7 +1259,8 @@ class SpeechPreview(TypedDict):
 
 class SpeechResultRow(TypedDict):
     idx: int
-    # 资产选区的分析为 null
+    # 句（文本单元）；旧格式（归属采样）的任务为 null，那时给 sampleId
+    unitId: str | None
     sampleId: str | None
     name: str | None
     status: Literal["queued", "ok", "failed", "skipped"]
@@ -1319,8 +1322,9 @@ class SpeechHead(TypedDict):
     textSource: str | None
     window: list[float] | None
     result: SpeechResult | None
-    # 子采样借用的投影：来源测量的归属（采样 ID 或资产选区）；自己的测量为 null
-    projectedFrom: str | None
+    # 采样读到的句（合成的头才有）；partial = 没有自己文本的采样只读到某句的一部分（◐）
+    units: NotRequired[list[str]]
+    partial: NotRequired[bool]
 
 
 class SpeechRun(TypedDict):
@@ -1332,14 +1336,42 @@ class SpeechRun(TypedDict):
     text: str | None
 
 
+class SpeechUnit(TypedDict):
+    """采样读到的一句（文本单元）：字幕的一行（line）或手输台词（typed）。人工修正改的是这句，所有读这句的采样同时生效。"""
+
+    unitId: str
+    kind: Literal["line", "typed"]
+    name: str | None
+    text: str | None
+    # 资产局部秒；字幕行处理不了（没有对齐文本、不在音轨范围里）时为 null
+    target: list[float] | None
+    # 只有一部分落在采样范围内（◐；只对没有自己文本的采样）
+    partial: bool
+    # 这句的当前头（音素不裁剪）；还没分析为 null
+    head: SpeechHead | None
+    runs: list[SpeechRun]
+
+
+class SpeechConflict(TypedDict):
+    a: str
+    b: str
+    at: float
+    units: list[str]
+
+
 class SpeechSampleView(TypedDict):
     sampleId: str
-    # 当前会用的对齐文本（没有时给 reason：no-text / range-differs）
+    # 采样有自己的文本（字幕采样、手输过台词的采样）→ 只读自己那一句；否则读范围内的句
+    own: bool
+    # 对齐文本（自己那一句的；没有自己文本时是范围内各句的连起来）。没有时给 reason：no-text / out-of-track
     text: str | None
     textSource: str | None
     reason: str | None
+    # 读到的句合成的当前头（没有自己文本时音素裁到采样范围）
     head: SpeechHead | None
-    runs: list[SpeechRun]
+    # 两句的音素在时间上冲突（节奏分析不可用，去修其中一句的音素时间）
+    conflict: SpeechConflict | None
+    units: list[SpeechUnit]
 
 
 class AlignedPhone(TypedDict):
@@ -1349,8 +1381,9 @@ class AlignedPhone(TypedDict):
 
 
 class AssetAlignment(TypedDict):
-    # 资产选区上的分析（不属于采样）为 null
-    sampleId: str | None
+    unitId: str
+    kind: Literal["line", "typed"]
+    name: str | None
     runId: str
     manual: bool
     phones: list[AlignedPhone]
@@ -1370,7 +1403,8 @@ class ManualPhone(TypedDict):
 
 
 class SpeechManualParams(TypedDict):
-    sampleId: str
+    # 改的是这句（文本单元）：所有读这句的采样和原片页音素层同时生效
+    unitId: str
     # 读到的当前头版本（乐观并发）
     version: int
     phones: NotRequired[list[ManualPhone] | None]
@@ -1379,7 +1413,7 @@ class SpeechManualParams(TypedDict):
 
 
 class SpeechSwitchParams(TypedDict):
-    sampleId: str
+    unitId: str
     runId: str
     version: int
 
@@ -1616,7 +1650,9 @@ class RhythmView(TypedDict):
     bpm: float | None
     version: int
     run: NotRequired[str]
-    projectedFrom: NotRequired[str | None]
+    # 读到的句（文本单元）；partial = 只读到某句的一部分（◐）
+    units: NotRequired[list[str]]
+    partial: NotRequired[bool]
     window: NotRequired[list[float]]
     params: NotRequired[RhythmParamsState]
     manual: NotRequired[RhythmManual]
