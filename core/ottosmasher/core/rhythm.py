@@ -90,6 +90,7 @@ class RhythmService:
         self.edits = edits
         self.emit = emit
         self._cache: OrderedDict[str, Analysis] = OrderedDict()
+        self._preloaded: tuple[tuple[str, str, int], int, int, np.ndarray] | None = None
         self.render_dir = ws.data / "Cache" / "rhythm"
 
     # ------------------------------------------------------------ 全局 BPM（03 §3.1）
@@ -127,14 +128,30 @@ class RhythmService:
         return float(settings_mod.values(self.conn)["analysis.penalty"])
 
     def _audio(self, asset_id: str, start: float, end: float) -> tuple[np.ndarray, int, dict[str, Any]]:
-        """采样范围的音频 [帧, 声道]（帧 0 = start）与文件快照；文件缺失或被改动 → 明确报错（不换别的轨）。"""
+        """采样范围的音频 [帧, 声道]（帧 0 = start）与文件快照；文件缺失或被改动 → 明确报错（不换别的轨）。
+        ``preload`` 解码过的一段（同一资产、同一存储）覆盖这段时直接切片：区间解码与整段解码逐样本相同（media/decode），结果不变。"""
         asset = assets_mod.get(self.conn, asset_id)
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
         assets_mod.check_media(media)
         sr = ref.sample_rate
         a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
+        pre = self._preloaded
+        if pre is not None and pre[0] == (asset_id, ref.path, ref.ordinal) and pre[1] <= a and b <= pre[2]:
+            return pre[3][a - pre[1] : b - pre[1]], sr, media
         pcm = dec.decode_frames(ref, a, b, cache=self.ws.data / "Cache")
         return pcm, sr, media
+
+    def preload(self, asset_id: str, start: float, end: float) -> None:
+        """批量处理同一资产上相邻的一批采样前，把它们覆盖的整段解码一次（准备检索索引用，阶段 7 提速）。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
+        assets_mod.check_media(media)
+        sr = ref.sample_rate
+        a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
+        self._preloaded = ((asset_id, ref.path, ref.ordinal), a, b, dec.decode_frames(ref, a, b, cache=self.ws.data / "Cache"))
+
+    def unload(self) -> None:
+        self._preloaded = None
 
     def _snapshot(self, asset_id: str, start: float, end: float) -> tuple[Any, int, int]:
         asset = assets_mod.get(self.conn, asset_id)

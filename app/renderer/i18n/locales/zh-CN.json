@@ -1638,5 +1638,8 @@
   "specimen.tabBrowse": "浏览",
   "specimen.tabResult": "结果 {n}",
   "search.hit.more": "展开其余 {n} 处",
-  "search.hit.fewer": "收起"
+  "search.hit.fewer": "收起",
+  "settings.analysis.auto_prepare.label": "自动准备检索",
+  "settings.analysis.auto_prepare.hint": "在后台自动做：新采样与每个原片的默认人声轨（没有就用原混音）测音高（F0），语音分析后建语音检索索引。排在你提交的任务后面；空间很小（F0 每小时音频约 4 MB，语音检索索引每条约 1.6 KB）。关掉后在检索浮层里手动「准备」。",
+  "tasks.background": "后台"
 }

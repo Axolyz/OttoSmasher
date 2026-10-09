@@ -550,6 +550,7 @@ export interface JobSubmitParams {
 
 export interface JobSummary {
   affects: Record<string, string[]>;
+  background?: boolean;
   channel: "light" | "model";
   created_at: string;
   device: JobDevice;
@@ -1894,7 +1895,7 @@ export interface WorkSettingsParams {
 export interface Commands {
   /** Subtitle/segment annotations, OP/ED and derived samples of a source. */
   "annotations.list": { params: SourceIdParams; result: AnnotationList; effect: "read" };
-  /** Number of active jobs that quitting would cancel. */
+  /** Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start). */
   "app.prepareQuit": { params: NoParams; result: PrepareQuit; effect: "app" };
   /** Cancel jobs and stop Core. */
   "app.quit": { params: QuitParams; result: Quit; effect: "app" };

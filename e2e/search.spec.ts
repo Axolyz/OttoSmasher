@@ -56,14 +56,13 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   await page.getByTestId("refresh-lists").click();
   await expect(page.getByTestId("sample-row")).toHaveCount(2);
 
-  // ---- 浮层：覆盖预检 0 就绪 → 查找禁用；准备当前范围索引 → 只刷新覆盖数
+  // ---- 浮层：覆盖预检。语音分析完成后自动在后台建语音检索索引（所有者 2026-10-08）；还没建好时可以手动「准备」
   await page.getByTestId("hunt-open").click();
   const composer = page.getByTestId("composer");
   await expect(composer).toBeVisible();
-  await expect(composer.getByTestId("search-coverage")).toContainText("已就绪 0/2");
-  await expect(composer.getByTestId("search-find")).toBeDisabled();
   await page.screenshot({ path: `${SHOTS}/01-speech-composer.png` });
-  await composer.getByTestId("search-prepare").click();
+  const prep = composer.getByTestId("search-prepare");
+  if (await prep.isVisible()) await prep.click().catch(() => {});
   // 単音在句子范围里，用的是投影的分析（08 §8.8），所以两条都就绪
   await expect(composer.getByTestId("search-coverage")).toContainText("已就绪 2/2", { timeout: 60000 });
   await expect(page.getByTestId("result-tab")).toHaveCount(0); // 准备完成不自动检索

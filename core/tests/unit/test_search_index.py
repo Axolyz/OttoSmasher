@@ -157,3 +157,23 @@ def test_f0_identity_from_db_equals_service_and_pitch_coverage(core):
     f0store.adopt_chunk(core.ws.f0, core.aid, ident, 0, src, {})
     cov = core.search.coverage("pitch", {})
     assert (cov["ready"], cov["stale"]) == (1, 0)
+
+
+def test_preloaded_decode_gives_identical_rows(core):
+    """阶段 7 提速：同一资产上相邻采样一次解码再切片，与逐条解码得到的索引逐字节相同。"""
+    from ottosmasher.jobs.search import _services
+
+    ids = []
+    for k, (a, b) in enumerate([(2.0, 3.5), (3.5, 5.6), (2.3, 4.9)]):
+        s = sample(core, start=a, end=b, name=f"p{k}")
+        align(core, s, a, b, ph=[p for p in __import__("test_rhythm_service").phones() if a <= p["start"] and p["end"] <= b])
+        ids.append(s)
+    keys = si.speech_keys(core.conn, ids)
+    batch = search_jobs.build_batch(str(core.ws.db_path), str(core.ws.root), str(core.support_dir), [(s, keys[s][0]) for s in ids])
+    conn, rhythm = _services(str(core.ws.db_path), str(core.ws.root), str(core.support_dir))
+    try:
+        single = [si.build_row(rhythm, conn, s) for s in ids]
+    finally:
+        conn.close()
+    assert [tuple(r[2:]) for r in batch] == single
+    assert all(r[2] == "ok" for r in batch)

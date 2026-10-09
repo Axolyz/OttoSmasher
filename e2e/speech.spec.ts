@@ -46,7 +46,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   await expect(page.getByText("已排队分析 2 条")).toBeVisible();
 
   await page.getByTestId("nav-tasks").click();
-  const job = page.getByTestId("job").first();
+  const job = page.getByTestId("job").filter({ hasText: "语音分析" }).first(); // 抽屉里还有自动准备检索的后台任务
   await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
   await expect(job.getByTestId("speech-summary")).toHaveText("1 条成功 · 1 条失败");
   await job.getByTestId("job-results").click();

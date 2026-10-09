@@ -46,14 +46,50 @@ def build_batch(db: str, workspace: str, support_dir: str, items: list[tuple[str
     conn, rhythm = _services(db, workspace, support_dir)
     out: list[list[Any]] = []
     try:
-        for sid, key in items:
-            try:
-                status, reason, data = build_row(rhythm, conn, sid)
-            except CoreError as e:
-                status, reason, data = "none", e.code, None
-            out.append([sid, key, status, reason, data])
+        ranges = {r[0]: (r[1], float(r[2]), float(r[3])) for r in conn.execute(
+            f'SELECT id, asset_id, start, "end" FROM sample WHERE id IN ({",".join("?" * len(items))})', [i[0] for i in items])} if items else {}
+        # 同一资产上相邻的采样一起解码一次（跨度不超过 PRELOAD_SPAN 秒），再逐条切片
+        for group in _groups(items, ranges):
+            g = [ranges[sid] for sid, _ in group if sid in ranges]
+            if len(group) > 1 and g:
+                try:
+                    rhythm.preload(g[0][0], min(x[1] for x in g), max(x[2] for x in g))
+                except CoreError:
+                    rhythm.unload()
+            for sid, key in group:
+                try:
+                    status, reason, data = build_row(rhythm, conn, sid)
+                except CoreError as e:
+                    status, reason, data = "none", e.code, None
+                out.append([sid, key, status, reason, data])
+            rhythm.unload()
     finally:
         conn.close()
+    return out
+
+
+PRELOAD_SPAN = 300.0
+
+
+def _groups(items: list[tuple[str, str]], ranges: dict[str, tuple[str, float, float]]) -> list[list[tuple[str, str]]]:
+    out: list[list[tuple[str, str]]] = []
+    cur: list[tuple[str, str]] = []
+    lo = hi = 0.0
+    asset = None
+    for it in items:
+        r = ranges.get(it[0])
+        if r is None:
+            out.append([it])
+            continue
+        if cur and r[0] == asset and max(hi, r[2]) - min(lo, r[1]) <= PRELOAD_SPAN:
+            cur.append(it)
+            lo, hi = min(lo, r[1]), max(hi, r[2])
+            continue
+        if cur:
+            out.append(cur)
+        cur, asset, lo, hi = [it], r[0], r[1], r[2]
+    if cur:
+        out.append(cur)
     return out
 
 
@@ -68,6 +104,17 @@ def index(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     finally:
         conn.close()
     todo = [(sid, k) for sid, (k, has) in keys.items() if has]
+    # 按资产、起点排序：同一批里的采样尽量是同一条音轨上相邻的，一次解码
+    conn = connect(Path(db), readonly=True)
+    try:
+        pos = {}
+        ids = [t[0] for t in todo]
+        for i in range(0, len(ids), 900):
+            part = ids[i : i + 900]
+            pos.update({r[0]: (r[1], r[2]) for r in conn.execute(f"SELECT id, asset_id, start FROM sample WHERE id IN ({','.join('?' * len(part))})", part)})
+    finally:
+        conn.close()
+    todo.sort(key=lambda t: pos.get(t[0], ("", 0.0)))
     rows: list[list[Any]] = []
     total = len(todo)
     ctx.progress("index", 0, total, "search-indexing")

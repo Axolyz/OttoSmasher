@@ -62,6 +62,7 @@ function JobRow({ job }: { job: JobSummary }) {
         <span className={`${s.dot} ${s[job.status]}`} />
         <b className={s.kind}>{kindLabel(job.kind)}</b>
         <span className={s.chip}>{t(`tasks.channel.${job.channel}`)}</span>
+        {job.background ? <span className={s.chip}>{t("tasks.background")}</span> : null}
         <div className={s.grow} />
         <span className={s.status}>{t(`tasks.status.${job.status}`)}</span>
       </div>

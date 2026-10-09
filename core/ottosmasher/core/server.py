@@ -97,7 +97,9 @@ class Core:
           self._models_probe)
         r("ui.get", "ui", T.UiGetParams, dict[str, Any], "Restore UI state of one page.", self._ui_get)
         r("ui.set", "ui", T.UiSetParams, None, "Save one UI state value (not user data, no undo).", self._ui_set)
-        r("app.prepareQuit", "app", T.NoParams, T.PrepareQuit, "Number of active jobs that quitting would cancel.", lambda p: {"active": self.jobs.active_count()})
+        r("app.prepareQuit", "app", T.NoParams, T.PrepareQuit,
+          "Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start).",
+          lambda p: {"active": self.jobs.active_count(include_background=False)})
         r("app.quit", "app", T.QuitParams, T.Quit, "Cancel jobs and stop Core.", self._quit)
         # ---- 编辑通道、任务
         r("edits.preview", "read", T.EditBatchParams, T.EditPreview, "Validate an edit batch and show its changes without writing.", lambda p: self.edits.preview(p["batch"]))
@@ -361,10 +363,14 @@ class Core:
 
         self.hits = HitService(self.conn, self.search, self.rhythm, self.handoff, self.exports)
         self.handoff.hits = self.hits
+        from .search_auto import AutoPrepare
+
+        self.auto = AutoPrepare(self.conn, self.search, self.jobs, self.post)
         self.acoustic = AcousticService(self.conn, self.ws, self.jobs, self.search, self.speech, self.support_dir, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）
+        self.auto.kick_all()  # 启动时把检索的准备补齐一次（后台，所有者 2026-10-08）
 
     def close(self) -> None:
         try:
@@ -373,6 +379,8 @@ class Core:
             self.jobs.kill_all()
             if getattr(self, "search", None) is not None:
                 self.search.shutdown()
+            if getattr(self, "auto", None) is not None:
+                self.auto.shutdown()
         finally:
             self.conn.close()
             self._lock.release()
@@ -388,6 +396,8 @@ class Core:
 
     def _on_change(self, cs: ChangeSet) -> None:
         self.emit("data.changed", cs.to_wire())
+        if getattr(self, "auto", None) is not None:
+            self.auto.on_change(cs.entities)
 
     # ---------- 主循环
 

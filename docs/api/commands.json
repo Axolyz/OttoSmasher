@@ -15,7 +15,7 @@
   {
    "name": "app.prepareQuit",
    "effect": "app",
-   "summary": "Number of active jobs that quitting would cancel.",
+   "summary": "Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start).",
    "params": {
     "$ref": "#/$defs/NoParams"
    },
@@ -5122,6 +5122,9 @@
        "type": "string"
       }
      }
+    },
+    "background": {
+     "type": "boolean"
     },
     "channel": {
      "enum": [

@@ -283,6 +283,8 @@ class JobSummary(TypedDict):
     created_at: str
     started_at: str | None
     finished_at: str | None
+    # 自动准备之类的后台任务（排在用户提交的任务后面）
+    background: NotRequired[bool]
 
 
 class JobsListParams(TypedDict):

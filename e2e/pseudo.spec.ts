@@ -223,8 +223,9 @@ test("伪语言：三大搜索", async () => {
   await page.keyboard.press("Escape");
   await composer.getByTestId("strategy-strict").click();
   expect(await unbracketed(page)).toEqual([]);
-  await composer.getByTestId("search-prepare").click();
-  await expect(composer.getByTestId("search-prepare")).toHaveCount(0, { timeout: 60000 });
+  const prep = composer.getByTestId("search-prepare"); // 语音分析后会自动在后台准备；没好时手动点
+  if (await prep.isVisible()) await prep.click().catch(() => {});
+  await expect(prep).toHaveCount(0, { timeout: 60000 });
   await composer.getByTestId("strategy-free").click();
   await composer.getByTestId("search-find").click();
   await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 30000 });

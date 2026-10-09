@@ -68,6 +68,8 @@ class Scheduler:
         self.dev = dev
         self.python = python
         self.adopters: dict[str, Adopter] = {}
+        # 任务结束（任何结局）后的回调：(任务 ID, 种类, 结局)。自动准备用它清掉“正在准备”的记账
+        self.finish_hooks: list[Callable[[str, str, str], None]] = []
         self._running: dict[str, _Running] = {}
         self._pump_scheduled = False
 
@@ -97,16 +99,18 @@ class Scheduler:
 
     # ---------- 提交、取消、重试
 
-    def submit(self, kind: str, params: dict[str, Any], affects: dict[str, list[str]] | None = None, *, retry_of: str | None = None) -> dict[str, Any]:
+    def submit(self, kind: str, params: dict[str, Any], affects: dict[str, list[str]] | None = None, *, retry_of: str | None = None,
+               background: bool = False) -> dict[str, Any]:
+        """``background``：自动准备之类的后台任务，同一通道里排在用户提交的任务后面。"""
         channel = channel_of(kind, dev=self.dev)
         if channel is None:
             raise CoreError("job-kind-unknown", kind=kind)
         jid = new_id()
         with transaction(self.conn):
             self.conn.execute(
-                "INSERT INTO job(id, kind, channel, status, params, device, affects, retry_of, created_at)"
-                " VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?)",
-                (jid, kind, channel, dumps(params), dumps(self.device_snapshot()), dumps(affects or {}), retry_of, now_iso()),
+                "INSERT INTO job(id, kind, channel, status, params, device, affects, retry_of, created_at, background)"
+                " VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)",
+                (jid, kind, channel, dumps(params), dumps(self.device_snapshot()), dumps(affects or {}), retry_of, now_iso(), int(background)),
             )
         summary = self.summary(jid)
         self.emit("job.updated", summary)
@@ -120,6 +124,8 @@ class Scheduler:
                 "UPDATE job SET status='cancelled', finished_at=? WHERE id=? AND status='queued'", (now_iso(), jid)
             )
             self._emit(jid)
+            for hook in list(self.finish_hooks):
+                hook(jid, row["kind"], "cancelled")
         elif row["status"] == "running":
             r = self._running.get(jid)
             if r is not None and not r.cancel_requested:
@@ -148,8 +154,9 @@ class Scheduler:
         q = "SELECT COUNT(*) FROM job WHERE status='running'" + (" AND channel=?" if channel else "")
         return self.conn.execute(q, (channel,) if channel else ()).fetchone()[0]
 
-    def active_count(self) -> int:
-        return self.conn.execute("SELECT COUNT(*) FROM job WHERE status IN ('queued', 'running')").fetchone()[0]
+    def active_count(self, include_background: bool = True) -> int:
+        q = "SELECT COUNT(*) FROM job WHERE status IN ('queued', 'running')" + ("" if include_background else " AND background = 0")
+        return self.conn.execute(q).fetchone()[0]
 
     def _row(self, jid: str) -> sqlite3.Row:
         row = self.conn.execute("SELECT * FROM job WHERE id=?", (jid,)).fetchone()
@@ -173,7 +180,7 @@ class Scheduler:
             limit = int(self.get_setting(key))
             while self.running_count(channel) < limit:
                 row = self.conn.execute(
-                    "SELECT * FROM job WHERE status='queued' AND channel=? ORDER BY created_at, rowid LIMIT 1", (channel,)
+                    "SELECT * FROM job WHERE status='queued' AND channel=? ORDER BY background, created_at, rowid LIMIT 1", (channel,)
                 ).fetchone()
                 if row is None:
                     break
@@ -281,6 +288,12 @@ class Scheduler:
             (status, now_iso(), None if error is None else dumps(error), None if result is None else dumps(result), jid),
         )
         self._emit(jid)
+        kind = self.conn.execute("SELECT kind FROM job WHERE id=?", (jid,)).fetchone()[0]
+        for hook in list(self.finish_hooks):
+            try:
+                hook(jid, kind, status)
+            except Exception:  # noqa: BLE001 — 回调出错不影响任务记录
+                log.exception("finish hook failed")
 
 
 def _small(result: dict[str, Any]) -> dict[str, Any]:
@@ -305,4 +318,5 @@ def _summary(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
+        "background": bool(row["background"]),
     }

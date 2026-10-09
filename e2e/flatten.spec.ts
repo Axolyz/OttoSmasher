@@ -69,7 +69,7 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await expect(page.getByTestId("stage-title")).toHaveText("ふぁー");
 
   await page.getByTestId("nav-tasks").click();
-  const job = page.getByTestId("job").first();
+  const job = page.getByTestId("job").filter({ hasText: "拉平" }).first(); // 抽屉里还有自动准备检索的后台任务
   await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 120000 });
   await job.getByTestId("job-results").click();
   // 「打开结果」= 选中成品并回到采样库
@@ -102,7 +102,7 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await page.screenshot({ path: ".cache/playwright-results/flatten-batch.png" });
   await bsheet.getByTestId("flatten-batch-go").click();
   await page.getByTestId("nav-tasks").click();
-  const bjob = page.getByTestId("job").first();
+  const bjob = page.getByTestId("job").filter({ hasText: "拉平" }).first();
   await expect(bjob).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
   await expect(bjob.getByTestId("speech-summary")).toHaveText("0 条成功 · 1 条失败");
   await bjob.getByTestId("job-results").click();

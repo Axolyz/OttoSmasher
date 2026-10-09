@@ -61,7 +61,7 @@ SELECT s.id, s.asset_id, s.start, s."end", s.rhythm,
   ) END AS proj,
   {storage} AS storage,
   src.file_snapshot AS src_snap,
-  fh.run_id AS f0run, fh.version AS f0ver,
+  fr.result AS f0res, a.duration AS adur,
   a.source_id, src.current_subtitle_version_id AS subver, ann.n AS ann_n, ann.t AS ann_t,
   (SELECT group_concat(role || state, ',') FROM asset_role WHERE asset_id = s.asset_id) AS roles,
   (SELECT group_concat(tag, ',') FROM sample_tag WHERE sample_id = s.id AND tag LIKE 'character:%') AS chars,
@@ -73,6 +73,7 @@ LEFT JOIN ann ON ann.source_id = a.source_id
 LEFT JOIN measure_head h ON h.owner_type = 'sample' AND h.owner_id = s.id AND h.kind = 'alignment'
 LEFT JOIN measure_run r ON r.id = h.run_id
 LEFT JOIN measure_head fh ON fh.owner_type = 'asset' AND fh.owner_id = s.asset_id AND fh.kind = 'f0'
+LEFT JOIN measure_run fr ON fr.id = fh.run_id
 WHERE s.id IN ({marks})
 """
 
@@ -85,7 +86,11 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
     for part in _chunks(list(dict.fromkeys(sample_ids))):
         for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id")), part):
             has = (r["run_id"] is not None and r["status"] == "ok") or (r["run_id"] is None and bool(r["proj"]))
-            raw = [versions, *[r[k] for k in r.keys()]]
+            # F0 只看采样范围所在的段（同一资产别处补测 F0 不让这条失效）
+            f0 = loads(r["f0res"]) if r["f0res"] else {}
+            need = f0store.chunks_for(float(r["start"]), float(r["end"]), float(r["adur"]))
+            f0part = [f0.get("identity"), sorted(set(need) & set(f0.get("chunks") or []))]
+            raw = [versions, f0part, *[r[k] for k in r.keys() if k not in ("f0res", "adur")]]
             out[r["id"]] = (hashlib.sha1(json.dumps(raw, default=str, ensure_ascii=False).encode("utf-8")).hexdigest(), has)
     return out
 
