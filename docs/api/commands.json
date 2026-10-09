@@ -213,6 +213,20 @@
    }
   },
   {
+   "name": "filters.list",
+   "effect": "read",
+   "summary": "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SavedFilter"
+    }
+   }
+  },
+  {
    "name": "flatten.estimate",
    "effect": "read",
    "summary": "Estimate the target from cached measurements only (no model run).",
@@ -9035,6 +9049,34 @@
     }
    },
    "required": []
+  },
+  "SavedFilter": {
+   "title": "SavedFilter",
+   "type": "object",
+   "properties": {
+    "conditions": {
+     "$ref": "#/$defs/TagScope"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "sortOrder": {
+     "type": "integer"
+    },
+    "version": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "conditions",
+    "id",
+    "name",
+    "sortOrder",
+    "version"
+   ]
   },
   "SearchCancelled": {
    "title": "SearchCancelled",

@@ -34,7 +34,7 @@ from . import actor as actor_mod
 from . import text_layer as text_layer_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
-from . import sample_filter, text_search
+from . import sample_filter, saved_filters, text_search
 from .exports import ExportService, export_range
 from .samples import SampleService
 from .oped import OpedService
@@ -181,6 +181,9 @@ class Core:
           lambda p: self.samples.ids(**p))
         r("tags.facets", "read", T.NoParams, T.FacetValues, "Existing values of each tag facet with sample counts (scope row).",
           lambda p: sample_filter.facet_values(self.conn))
+        r("filters.list", "read", T.NoParams, list[T.SavedFilter],
+          "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
+          lambda p: saved_filters.list_filters(self.conn))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
         r("exports.samples", "write", T.ExportSamplesParams, list[str],

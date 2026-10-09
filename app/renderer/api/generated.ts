@@ -1318,6 +1318,14 @@ export interface SamplesListParams {
   text?: string;
 }
 
+export interface SavedFilter {
+  conditions: TagScope;
+  id: string;
+  name: string;
+  sortOrder: number;
+  version: number;
+}
+
 export interface SearchCancelled {
   cancelling: boolean;
   searchId: string;
@@ -2179,6 +2187,8 @@ export interface Commands {
   "exports.stretched": { params: StretchedExportParams; result: ExportedWav; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */
   "exports.wav": { params: ExportWavParams; result: ExportedWav; effect: "write" };
+  /** Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply. */
+  "filters.list": { params: NoParams; result: SavedFilter[]; effect: "read" };
   /** Estimate the target from cached measurements only (no model run). */
   "flatten.estimate": { params: FlattenEstimateParams; result: FlattenEstimate; effect: "read" };
   /** Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name. */

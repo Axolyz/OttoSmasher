@@ -196,6 +196,18 @@ def v_judge(v: Any) -> list[float]:
     return [a, b]
 
 
+def v_filter_conditions(v: Any) -> Any:
+    """保存筛选器的内容 = 范围行的标签条件（Q16：只有分面与标签表达式）；表达式要能解析。"""
+    from .sample_filter import check_tags
+
+    try:
+        return check_tags(v if isinstance(v, dict) else {"bad": True})
+    except CoreError as exc:
+        if exc.code == "tag-expr-invalid":
+            raise _Invalid("tag-expr", position=exc.args_["position"], expr_reason=exc.args_["reason"]) from None
+        raise _Invalid("not-an-option") from None
+
+
 def v_rhythm(v: Any) -> Any:
     from ..algo.rhythm import validate_params
 
@@ -345,7 +357,7 @@ _register(
         "saved_filter",
         {
             "name": FieldSpec(v_text(min_len=1, max_len=200)),
-            "conditions": FieldSpec(v_json, json=True),
+            "conditions": FieldSpec(v_filter_conditions, json=True),
             "sort_order": FieldSpec(v_opt_int(0, 1_000_000)),
             "deleted": FieldSpec(v_bool),
         },

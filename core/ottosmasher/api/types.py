@@ -817,6 +817,14 @@ class SampleFilter(TypedDict):
     languages: NotRequired[list[str] | None]
 
 
+class SavedFilter(TypedDict):
+    id: str
+    name: str
+    conditions: TagScope
+    sortOrder: int
+    version: int
+
+
 class FacetValue(TypedDict):
     value: str
     count: int
