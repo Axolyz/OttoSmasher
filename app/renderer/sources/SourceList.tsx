@@ -100,6 +100,7 @@ export function SourceList(props: {
       <CollectionList<Item>
         label={t("sources.listLabel")}
         items={items}
+        virtual={{ rowHeight: 52 }}
         textValue={(i) => (i.kind === "group" ? i.work || t("sources.noWork") : displayName(i.row))}
         focus={props.current}
         onFocus={props.onOpen}

@@ -10,7 +10,7 @@ import { Menu, type MenuSpec } from "../components/Menu";
 import { TopSlot } from "../shell/TopSlot";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
-import { DeleteDialog, InputSettingsDialog } from "./SourceDialogs";
+import { DeleteDialog, InputSettingsDialog, RelocateDialog } from "./SourceDialogs";
 import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
@@ -216,6 +216,7 @@ export function SourcesPage() {
 
   const [visualFor, setVisualFor] = useState<VisualTarget | null>(null);
   const [matchFor, setMatchFor] = useState<string[] | null>(null);
+  const [relocateFor, setRelocateFor] = useState<{ ids: string[]; folder: string } | null>(null);
   const relocate = async (id: string) => {
     const [path] = await window.otto.files.pick("media-one");
     if (!path) return;
@@ -249,6 +250,14 @@ export function SourcesPage() {
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
             { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "match-pictures", label: t("visual.matchMenu", { n: ids.length }), run: () => setMatchFor(ids) },
+            {
+              id: "relocate-many",
+              label: t("relocate.menu", { n: ids.length }),
+              run: async () => {
+                const [folder] = await window.otto.files.pick("folder");
+                if (folder) setRelocateFor({ ids, folder });
+              },
+            },
             "-",
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds(ids) },
           ],
@@ -369,6 +378,7 @@ export function SourcesPage() {
       <TracksDialog source={tracksFor} onClose={() => setTracksFor(null)} />
       <VisualDialog target={visualFor} onClose={() => setVisualFor(null)} onDone={() => void reload()} />
       <MatchPicturesDialog ids={matchFor} onClose={() => setMatchFor(null)} onDone={() => void reload()} />
+      <RelocateDialog req={relocateFor} rows={rows ?? []} onClose={() => setRelocateFor(null)} onDone={() => void reload()} />
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />

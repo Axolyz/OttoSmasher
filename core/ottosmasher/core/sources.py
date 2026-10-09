@@ -333,6 +333,50 @@ class SourceService:
             self.on_change(cs)
         return {"sourceId": source_id, "path": path, "streamsChanged": before != snap["streams"]}
 
+    def relocate_plan(self, ids: list[str], folder: str) -> list[dict[str, Any]]:
+        """批量重新定位（ARCHITECTURE §4.10、UI_PLAN §8）：在新文件夹里按“相对导入根文件夹的路径”找，找不到再按文件名找（唯一才算）。
+        原片文件夹里的原片不在这里处理（整个文件夹搬家用「更换位置…」）。只看不写。"""
+        root = Path(os.path.abspath(folder))
+        if not root.is_dir():
+            raise CoreError("file-missing", path=str(root))
+        by_name: dict[str, list[str]] = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for f in filenames:
+                by_name.setdefault(unicodedata.normalize("NFC", f).casefold(), []).append(os.path.join(dirpath, f))
+        out = []
+        for sid in dict.fromkeys(ids):
+            r = self.conn.execute("SELECT path, import_root, root_id, media_state FROM source WHERE id=?", (sid,)).fetchone()
+            if r is None:
+                raise CoreError("source-not-found", id=sid)
+            item: dict[str, Any] = {"sourceId": sid, "oldPath": r["path"], "path": None, "how": None, "candidates": []}
+            if r["root_id"] is not None:
+                item["how"] = "in-root"
+            elif r["media_state"] != "available":
+                item["how"] = "released"
+            else:
+                rel = None
+                if r["import_root"]:
+                    try:
+                        rel = os.path.relpath(r["path"], r["import_root"])
+                    except ValueError:
+                        rel = None
+                if rel and not rel.startswith("..") and (root / rel).is_file():
+                    item["path"], item["how"] = str(root / rel), "relative"
+                else:
+                    cands = by_name.get(unicodedata.normalize("NFC", Path(r["path"]).name).casefold(), [])
+                    if len(cands) == 1:
+                        item["path"], item["how"] = cands[0], "name"
+                    else:
+                        item["how"] = "ambiguous" if cands else "missing"
+                        item["candidates"] = cands[:5]
+            out.append(item)
+        return out
+
+    def relocate_many(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """按计划逐个重新定位（只改位置；流签名不同如实返回）。"""
+        return [self.relocate(it["sourceId"], it["path"]) for it in items if it.get("path")]
+
     # ------------------------------------------------------------ 删除
 
     def _owned(self, source_id: str) -> dict[str, list[str]]:

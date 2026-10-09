@@ -319,3 +319,32 @@ def test_delete_refuses_independent_samples_for_now(svc, db, media):
     with pytest.raises(CoreError) as ei:
         svc.delete(r["sourceId"])
     assert ei.value.code == "source-has-independent-samples"
+
+
+def test_batch_relocate_by_relative_path_then_name(db, ws, tmp_path):
+    """批量重新定位（ARCHITECTURE §4.10）：先按相对导入根文件夹的路径，再按唯一的文件名；同名多个不猜。"""
+    import shutil as _sh
+    import subprocess as _sp
+
+    from ottosmasher.core.sources import SourceService
+
+    old = tmp_path / "old"
+    (old / "a").mkdir(parents=True)
+    for rel in ("a/x.wav", "y.wav", "z.wav"):
+        _sp.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=d=0.5", str(old / rel)], check=True)
+    svc = SourceService(db, workspace_root=ws.root)
+    added = svc.add([str(old / "a" / "x.wav"), str(old / "y.wav"), str(old / "z.wav")])
+    db.execute("UPDATE source SET import_root=?", (str(old),))
+    new = tmp_path / "moved"
+    _sh.copytree(old, new / "deep")
+    (new / "other").mkdir()
+    _sh.copy(old / "z.wav", new / "other" / "z.wav")  # z 有两个同名
+    _sh.rmtree(old)
+    ids = [a["sourceId"] for a in added]
+    plan = {p["sourceId"]: p for p in svc.relocate_plan(ids, str(new / "deep"))}
+    assert plan[ids[0]]["how"] == "relative" and plan[ids[0]]["path"].endswith("deep/a/x.wav")
+    plan2 = {p["sourceId"]: p for p in svc.relocate_plan(ids, str(new))}
+    assert plan2[ids[0]]["how"] == "name" and plan2[ids[2]]["how"] == "ambiguous" and plan2[ids[2]]["path"] is None
+    done = svc.relocate_many(list(plan.values()))
+    assert len(done) == 3
+    assert db.execute("SELECT path FROM source WHERE id=?", (ids[1],)).fetchone()[0].endswith("deep/y.wav")

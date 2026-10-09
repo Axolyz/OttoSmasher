@@ -11,7 +11,7 @@
 // 实现：React Aria GridList 负责焦点移动、键盘导航、无障碍；selectionMode 设为 none——GridList 自带的多选
 // 在“已有勾选”时会把单击变成切换勾选（正是 UI_PLAN §10 第 14 条去掉的模式切换），所以勾选状态由这里按上面的规则维护。
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { GridList, GridListItem } from "react-aria-components";
+import { GridList, GridListItem, ListLayout, Virtualizer } from "react-aria-components";
 import { t } from "../i18n";
 import { Checkbox } from "./Controls";
 import { type MenuSpec, useContextMenu } from "./Menu";
@@ -70,6 +70,8 @@ export function CollectionList<T extends CollectionRow>(props: {
   footer?: ReactNode;
   testId?: string;
   rowTestId?: string;
+  /** 行很多时只渲染看得见的行（React Aria Virtualizer；原片列表，L15）。rowHeight = 估计行高 */
+  virtual?: { rowHeight: number };
   groupTestId?: string;
   className?: string;
 }) {
@@ -255,6 +257,7 @@ export function CollectionList<T extends CollectionRow>(props: {
           }
         }}
       >
+        <MaybeVirtual on={!!props.virtual} rowHeight={props.virtual?.rowHeight ?? 48}>
         <GridList
           aria-label={props.label}
           items={props.items}
@@ -297,9 +300,20 @@ export function CollectionList<T extends CollectionRow>(props: {
             );
           }}
         </GridList>
+        </MaybeVirtual>
         {props.footer}
       </div>
       {ctx.node}
     </>
+  );
+}
+
+/** 只在需要时包一层 Virtualizer（行高不一：组头与行都按估计高度起步，渲染后按实际高度修正） */
+function MaybeVirtual(props: { on: boolean; rowHeight: number; children: ReactNode }) {
+  if (!props.on) return <>{props.children}</>;
+  return (
+    <Virtualizer layout={ListLayout} layoutOptions={{ estimatedRowHeight: props.rowHeight }}>
+      {props.children}
+    </Virtualizer>
   );
 }

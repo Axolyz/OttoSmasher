@@ -1018,9 +1018,26 @@ export interface ReimportPreview {
   start: number;
 }
 
+export interface RelocateItem {
+  candidates: string[];
+  how: "ambiguous" | "in-root" | "missing" | "name" | "relative" | "released" | null;
+  oldPath: string;
+  path: string | null;
+  sourceId: string;
+}
+
+export interface RelocateManyParams {
+  items: RelocateItem[];
+}
+
 export interface RelocateParams {
   id: string;
   path: string;
+}
+
+export interface RelocatePlanParams {
+  folder: string;
+  ids: string[];
 }
 
 export interface RenderKeyParams {
@@ -2654,6 +2671,10 @@ export interface Commands {
   "sources.prep": { params: IdParams; result: Prep; effect: "read" };
   /** Point a source at a moved file (reports changed streams, does not refuse). */
   "sources.relocate": { params: RelocateParams; result: SourceRelocated; effect: "write" };
+  /** Apply a batch relocate plan (location only; stream changes reported). */
+  "sources.relocateMany": { params: RelocateManyParams; result: SourceRelocated[]; effect: "write" };
+  /** Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name. */
+  "sources.relocatePlan": { params: RelocatePlanParams; result: RelocateItem[]; effect: "read" };
   /** Scan all source folders for new, moved or missing files. */
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */

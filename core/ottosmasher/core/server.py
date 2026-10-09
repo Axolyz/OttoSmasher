@@ -130,6 +130,11 @@ class Core:
         r("sources.delete", "write", T.IdParams, T.DeletePreview,
           "Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'.",
           lambda p: self.sources.delete(p["id"], release=True))
+        r("sources.relocatePlan", "read", T.RelocatePlanParams, list[T.RelocateItem],
+          "Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name.",
+          lambda p: self.sources.relocate_plan(list(p["ids"]), p["folder"]))
+        r("sources.relocateMany", "write", T.RelocateManyParams, list[T.SourceRelocated], "Apply a batch relocate plan (location only; stream changes reported).",
+          lambda p: self.sources.relocate_many(list(p["items"])))
         r("samples.independPlan", "read", T.IdsParams, list[T.IndependItem], "What independence would store for each sample (slice size, picture clip).",
           lambda p: self.independence.plan(list(p["ids"])))
         r("samples.independ", "job", T.IndependParams, T.JobSummary,

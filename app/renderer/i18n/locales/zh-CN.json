@@ -2114,5 +2114,19 @@
   "indep.noBack": "原片媒体已释放：独立化的采样不能再返回原片看前后文",
   "indep.viewerTitle": "原片媒体已释放",
   "indep.viewerSay": "原片文件已经删除（只是不再引用，磁盘上的文件没有动）。保留了作品、文本层的段、音效提示、区段标签、OP/ED 与 {n} 个独立化采样；它们的标签继承和来源照常。",
-  "indep.already": "其中 {n} 个已经独立化了，跳过"
+  "indep.already": "其中 {n} 个已经独立化了，跳过",
+  "relocate.menu": "重新定位（{n} 个）…",
+  "relocate.title": "重新定位 {n} 个原片",
+  "relocate.say": "在「{folder}」里找：先按相对导入根文件夹的路径，找不到再按文件名（只有唯一一个同名文件才算）。只改文件位置，已有的资产、时间、分析、采样都不变。",
+  "relocate.apply": "重新定位 {n} 个",
+  "relocate.done": "已重新定位 {n} 个原片",
+  "relocate.doneChanged": "已重新定位 {n} 个原片；其中 {c} 个的音视频流和原来不同，请检查",
+  "relocate.col.source": "原片",
+  "relocate.col.result": "找到的文件",
+  "relocate.how.relative": "按相对路径",
+  "relocate.how.name": "按文件名",
+  "relocate.how.ambiguous": "同名的有好几个，没有自动选",
+  "relocate.how.missing": "没找到",
+  "relocate.how.in-root": "在原片文件夹里：用设置里的「更换位置…」",
+  "relocate.how.released": "媒体已释放"
 }

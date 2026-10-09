@@ -2623,3 +2623,22 @@ class StorageCleaned(TypedDict):
     files: int
     bytes: int
     rows: int
+
+
+class RelocatePlanParams(TypedDict):
+    ids: list[str]
+    folder: str
+
+
+class RelocateItem(TypedDict):
+    sourceId: str
+    oldPath: str
+    path: str | None
+    # relative = 按相对导入根文件夹的路径找到；name = 按文件名找到（唯一）；ambiguous = 同名多个；missing = 没找到；
+    # in-root = 原片文件夹里的（用「更换位置…」）；released = 媒体已释放
+    how: Literal["relative", "name", "ambiguous", "missing", "in-root", "released"] | None
+    candidates: list[str]
+
+
+class RelocateManyParams(TypedDict):
+    items: list[RelocateItem]

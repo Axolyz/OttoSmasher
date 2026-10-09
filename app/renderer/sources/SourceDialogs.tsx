@@ -1,7 +1,7 @@
 // 原片的两个确认框（UI_PLAN §5）：「作品与输入设置」（规格 05 §5.2，走可撤销编辑通道）与删除原片（写清删什么、不删什么）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { DeletePreview, IndependItem, SampleRow, SourceDetail, SourceRow } from "../api/types";
+import type { DeletePreview, IndependItem, RelocateItem, SampleRow, SourceDetail, SourceRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Select, TextField } from "../components/Fields";
 import { ConfirmDialog } from "../components/Overlay";
@@ -246,6 +246,66 @@ export function DeleteDialog(props: { ids: string[] | null; rows: SourceRow[]; o
           ) : null}
           {previews.some((p) => p.activeJobs.length) ? <div className={s.warn}>{t("error.source-has-active-jobs")}</div> : null}
         </>
+      ) : (
+        <div>{t("common.loading")}</div>
+      )}
+    </ConfirmDialog>
+  );
+}
+
+/** 原片批量「重新定位」（ARCHITECTURE §4.10、UI_PLAN §8）：选一个新文件夹，按相对导入根文件夹的路径、再按唯一文件名一次找回；预览后应用 */
+export function RelocateDialog(props: { req: { ids: string[]; folder: string } | null; rows: SourceRow[]; onClose: () => void; onDone: () => void }) {
+  const toast = useApp((st) => st.toast);
+  const [plan, setPlan] = useState<RelocateItem[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setPlan(null);
+    if (props.req)
+      void call("sources.relocatePlan", { ids: props.req.ids, folder: props.req.folder }).then(setPlan, (e) =>
+        toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" }),
+      );
+  }, [props.req, toast]);
+  const found = (plan ?? []).filter((x) => x.path);
+  const apply = async () => {
+    setBusy(true);
+    try {
+      const r = await call("sources.relocateMany", { items: found });
+      const changed = r.filter((x) => x.streamsChanged).length;
+      toast({ text: t(changed ? "relocate.doneChanged" : "relocate.done", { n: r.length, c: changed }), tone: changed ? "error" : "info" });
+      props.onDone();
+      props.onClose();
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const nameOf = (id: string) => {
+    const r = props.rows.find((x) => x.id === id);
+    return r ? displayName(r) : id;
+  };
+  return (
+    <ConfirmDialog
+      isOpen={!!props.req}
+      title={t("relocate.title", { n: props.req?.ids.length ?? 0 })}
+      confirmLabel={t("relocate.apply", { n: found.length })}
+      confirmDisabled={busy || !found.length}
+      onConfirm={() => void apply()}
+      onClose={props.onClose}
+      testId="relocate-dialog"
+    >
+      <div className={s.muted}>{t("relocate.say", { folder: props.req?.folder ?? "" })}</div>
+      {plan ? (
+        <PagedTable<RelocateItem & { id: string }>
+          label={t("relocate.title", { n: plan.length })}
+          rows={plan.map((x) => ({ ...x, id: x.sourceId }))}
+          pageSize={8}
+          columns={[
+            { id: "src", label: t("relocate.col.source"), width: "34%", isRowHeader: true, render: (r) => <span data-user-data="">{nameOf(r.sourceId)}</span> },
+            { id: "how", label: t("relocate.col.result"), render: (r) => (r.path ? <span data-user-data="">{basename(r.path)}</span> : <span className={s.warn}>{t(`relocate.how.${r.how}`)}</span>) },
+            { id: "via", label: "", width: "110px", render: (r) => (r.path ? <span className={s.muted}>{t(`relocate.how.${r.how}`)}</span> : null) },
+          ]}
+        />
       ) : (
         <div>{t("common.loading")}</div>
       )}

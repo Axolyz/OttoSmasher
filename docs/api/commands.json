@@ -1245,6 +1245,34 @@
    }
   },
   {
+   "name": "sources.relocateMany",
+   "effect": "write",
+   "summary": "Apply a batch relocate plan (location only; stream changes reported).",
+   "params": {
+    "$ref": "#/$defs/RelocateManyParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SourceRelocated"
+    }
+   }
+  },
+  {
+   "name": "sources.relocatePlan",
+   "effect": "read",
+   "summary": "Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name.",
+   "params": {
+    "$ref": "#/$defs/RelocatePlanParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/RelocateItem"
+    }
+   }
+  },
+  {
    "name": "sources.rescan",
    "effect": "job",
    "summary": "Scan all source folders for new, moved or missing files.",
@@ -7716,6 +7744,73 @@
     "start"
    ]
   },
+  "RelocateItem": {
+   "title": "RelocateItem",
+   "type": "object",
+   "properties": {
+    "candidates": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "how": {
+     "anyOf": [
+      {
+       "enum": [
+        "ambiguous",
+        "in-root",
+        "missing",
+        "name",
+        "relative",
+        "released"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "oldPath": {
+     "type": "string"
+    },
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "candidates",
+    "how",
+    "oldPath",
+    "path",
+    "sourceId"
+   ]
+  },
+  "RelocateManyParams": {
+   "title": "RelocateManyParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RelocateItem"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
   "RelocateParams": {
    "title": "RelocateParams",
    "type": "object",
@@ -7730,6 +7825,25 @@
    "required": [
     "id",
     "path"
+   ]
+  },
+  "RelocatePlanParams": {
+   "title": "RelocatePlanParams",
+   "type": "object",
+   "properties": {
+    "folder": {
+     "type": "string"
+    },
+    "ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "folder",
+    "ids"
    ]
   },
   "RenderKeyParams": {
