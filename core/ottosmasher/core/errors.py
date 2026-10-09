@@ -105,6 +105,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "visual-changed": (("path",), "The bound picture file has changed since it was bound."),
     "video-probe-failed": (("detail", "path"), "Cannot read the video stream."),
     "video-export-failed": (("detail",), "Video clip export failed."),
+    "video-export-invalid": (("reason",), "Video export request is invalid."),
     "visual-none": (("id",), "This sample has no picture (bind one first)."),
     "spectrum-invalid": (("max", "reason"), "Spectrum request is invalid (scale, or longer than 30 s)."),
     "tag-expr-invalid": (("position", "reason", "where"), "Tag expression cannot be parsed (1-based character position)."),

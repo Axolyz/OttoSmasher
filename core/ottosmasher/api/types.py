@@ -2503,3 +2503,39 @@ class HitExportParams(HitRefParams):
     version: Literal["original", "stretched"]
     words: NotRequired[dict[str, str]]
 
+
+class VideoExportParams(TypedDict):
+    id: str
+    version: Literal["original", "stretched"]
+    # 卡拍版的画面：synced = 同映射变速（音画同步）；original = 原速画面（带原声，另存卡拍 WAV 与映射清单）
+    picture: NotRequired[Literal["synced", "original"]]
+    audio: NotRequired[bool]
+    words: NotRequired[dict[str, str]]
+    plan: NotRequired[RhythmPlan]
+    mora: NotRequired[bool]
+    longVowel: NotRequired[bool]
+
+
+class VideoRangeParams(TypedDict):
+    assetId: str
+    start: float
+    end: float
+    audio: NotRequired[bool]
+    words: NotRequired[dict[str, str]]
+
+
+class HitVideoParams(TypedDict):
+    resultId: str
+    rank: int
+    index: int
+    audio: NotRequired[bool]
+    words: NotRequired[dict[str, str]]
+
+
+class VideoExportStarted(TypedDict):
+    """已导出过（reused = true，path）或排队的任务（job）；完成后发 exports.videoDone。"""
+
+    reused: bool
+    path: str | None
+    job: JobSummary | None
+    stretchedWav: NotRequired[str]

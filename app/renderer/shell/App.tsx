@@ -74,6 +74,22 @@ export function App() {
     return () => window.removeEventListener("otto:refresh-lists", on);
   }, [st]);
 
+  // 视频片段导出完成（任务）：播放条显示文件，提示里写补了几帧黑帧（规格 12 §12.5）
+  useEffect(
+    () =>
+      window.otto.core.onEvent((ev) => {
+        if (ev.e !== "exports.videoDone") return;
+        const d = ev.d as { path: string; black: number };
+        const name = d.path.split(/[\\/]/).pop() ?? d.path;
+        st.setLastExport([d.path]);
+        st.toast({
+          text: d.black ? t("video.doneBlack", { name, n: d.black }) : t("video.done", { name }),
+          action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(d.path) },
+        });
+      }),
+    [st],
+  );
+
   // 资料变化只提示，不自动刷新（P8）
   useEffect(
     () =>

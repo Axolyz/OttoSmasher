@@ -17,6 +17,7 @@ KINDS: dict[str, str] = {
     "search.index": "light",
     "f0.measure": "model",
     "acoustic.measure": "model",
+    "export.video": "light",
 }
 
 # 开发与测试用的自检任务（只在开发模式下可提交）

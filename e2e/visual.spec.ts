@@ -57,5 +57,15 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
   await page.keyboard.press("Meta+z");
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "image");
+
+  // 导出视频片段（S7.1）：交接 ▾ → 导出视频片段… → 任务 → 播放条出现 .mp4
+  await page.keyboard.press("Meta+z"); // 再撤销一次：回到原片自带的视频
+  await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
+  await page.getByTestId("stage-handoff").click();
+  await page.getByTestId("menu-video").click();
+  await expect(page.getByTestId("video-dialog")).toContainText("同步视频");
+  await page.screenshot({ path: `${SHOTS}/04-video-dialog.png` });
+  await page.getByTestId("video-go").click();
+  await expect(page.getByTestId("dock-export")).toContainText(".mp4", { timeout: 60000 });
   await app.close();
 });

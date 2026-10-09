@@ -202,6 +202,28 @@
    }
   },
   {
+   "name": "exports.video",
+   "effect": "write",
+   "summary": "Export a whole sample as a video clip (original, or stretched with synced or original-speed picture); queued as a job, reuses identical exports.",
+   "params": {
+    "$ref": "#/$defs/VideoExportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/VideoExportStarted"
+   }
+  },
+  {
+   "name": "exports.videoRange",
+   "effect": "write",
+   "summary": "Export an asset range as a video clip (original speed; source picture).",
+   "params": {
+    "$ref": "#/$defs/VideoRangeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/VideoExportStarted"
+   }
+  },
+  {
    "name": "exports.wav",
    "effect": "write",
    "summary": "Export an asset range as a WAV file (reuses an identical export).",
@@ -337,6 +359,17 @@
    },
    "result": {
     "$ref": "#/$defs/HitInfo"
+   }
+  },
+  {
+   "name": "hits.video",
+   "effect": "write",
+   "summary": "Export a hit as a video clip (original version; the sample's picture).",
+   "params": {
+    "$ref": "#/$defs/HitVideoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/VideoExportStarted"
    }
   },
   {
@@ -2739,6 +2772,13 @@
    "summary": "Video clip export failed."
   },
   {
+   "code": "video-export-invalid",
+   "args": [
+    "reason"
+   ],
+   "summary": "Video export request is invalid."
+  },
+  {
    "code": "video-probe-failed",
    "args": [
     "detail",
@@ -5117,6 +5157,35 @@
     "resultId",
     "sound",
     "version"
+   ]
+  },
+  "HitVideoParams": {
+   "title": "HitVideoParams",
+   "type": "object",
+   "properties": {
+    "audio": {
+     "type": "boolean"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "rank": {
+     "type": "integer"
+    },
+    "resultId": {
+     "type": "string"
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "index",
+    "rank",
+    "resultId"
    ]
   },
   "IdParams": {
@@ -13856,6 +13925,120 @@
    "required": [
     "edit_id",
     "label"
+   ]
+  },
+  "VideoExportParams": {
+   "title": "VideoExportParams",
+   "type": "object",
+   "properties": {
+    "audio": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "longVowel": {
+     "type": "boolean"
+    },
+    "mora": {
+     "type": "boolean"
+    },
+    "picture": {
+     "enum": [
+      "original",
+      "synced"
+     ]
+    },
+    "plan": {
+     "enum": [
+      "double",
+      "near_fast",
+      "near_slow"
+     ]
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "id",
+    "version"
+   ]
+  },
+  "VideoExportStarted": {
+   "title": "VideoExportStarted",
+   "description": "已导出过（reused = true，path）或排队的任务（job）；完成后发 exports.videoDone。",
+   "type": "object",
+   "properties": {
+    "job": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobSummary"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "reused": {
+     "type": "boolean"
+    },
+    "stretchedWav": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "job",
+    "path",
+    "reused"
+   ]
+  },
+  "VideoRangeParams": {
+   "title": "VideoRangeParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "audio": {
+     "type": "boolean"
+    },
+    "end": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "words": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "assetId",
+    "end",
+    "start"
    ]
   },
   "VisualBinding": {

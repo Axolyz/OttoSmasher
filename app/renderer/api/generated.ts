@@ -500,6 +500,14 @@ export interface HitRenderParams {
   version: "original" | "stretched";
 }
 
+export interface HitVideoParams {
+  audio?: boolean;
+  index: number;
+  rank: number;
+  resultId: string;
+  words?: Record<string, string>;
+}
+
 export interface IdParams {
   id: string;
 }
@@ -2272,6 +2280,33 @@ export interface UndoPeek {
   label: EditLabel;
 }
 
+export interface VideoExportParams {
+  audio?: boolean;
+  id: string;
+  longVowel?: boolean;
+  mora?: boolean;
+  picture?: "original" | "synced";
+  plan?: "double" | "near_fast" | "near_slow";
+  version: "original" | "stretched";
+  words?: Record<string, string>;
+}
+
+/** 已导出过（reused = true，path）或排队的任务（job）；完成后发 exports.videoDone。 */
+export interface VideoExportStarted {
+  job: JobSummary | null;
+  path: string | null;
+  reused: boolean;
+  stretchedWav?: string;
+}
+
+export interface VideoRangeParams {
+  assetId: string;
+  audio?: boolean;
+  end: number;
+  start: number;
+  words?: Record<string, string>;
+}
+
 /** 有效画面（规格 12 §12.4）。origin：sample = 采样自己的绑定，source = 原片的默认画面，stream = 原片自带的视频流。 */
 export interface VisualBinding {
   bindingId: string | null;
@@ -2360,6 +2395,10 @@ export interface Commands {
   "exports.samples": { params: ExportSamplesParams; result: string[]; effect: "write" };
   /** Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping). */
   "exports.stretched": { params: StretchedExportParams; result: ExportedWav; effect: "write" };
+  /** Export a whole sample as a video clip (original, or stretched with synced or original-speed picture); queued as a job, reuses identical exports. */
+  "exports.video": { params: VideoExportParams; result: VideoExportStarted; effect: "write" };
+  /** Export an asset range as a video clip (original speed; source picture). */
+  "exports.videoRange": { params: VideoRangeParams; result: VideoExportStarted; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */
   "exports.wav": { params: ExportWavParams; result: ExportedWav; effect: "write" };
   /** Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply. */
@@ -2384,6 +2423,8 @@ export interface Commands {
   "hits.render": { params: HitRenderParams; result: RhythmRendered; effect: "write" };
   /** Check that a hit is still valid and return its range and evidence scheme (09 §9.7). */
   "hits.resolve": { params: HitRefParams; result: HitInfo; effect: "read" };
+  /** Export a hit as a video clip (original version; the sample's picture). */
+  "hits.video": { params: HitVideoParams; result: VideoExportStarted; effect: "write" };
   /** Register the scanned files (optionally with full-length samples). */
   "imports.commit": { params: ImportCommitParams; result: ImportResult; effect: "write" };
   /** Preview of a finished import scan. */
@@ -2751,6 +2792,7 @@ export type ErrorCode =
   | "undo-nothing-safe"
   | "unknown-method"
   | "video-export-failed"
+  | "video-export-invalid"
   | "video-probe-failed"
   | "visual-changed"
   | "visual-invalid"

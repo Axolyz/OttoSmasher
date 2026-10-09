@@ -17,6 +17,7 @@ import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
+import { exportWords } from "../exportWords";
 import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
@@ -434,6 +435,21 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     }
   };
 
+  /** 「导出 ▾ → 选区视频片段」（规格 12 §12.5）：原声版，画面按原片的有效画面；编码在任务里做 */
+  const exportVideo = async () => {
+    if (!sel || !asset) return;
+    if (!selLocal) return outOfCover();
+    try {
+      const r = await call("exports.videoRange", { assetId: asset.id, start: selLocal.a, end: selLocal.b, words: exportWords() });
+      if (r.reused && r.path) {
+        useApp.getState().setLastExport([r.path]);
+        toast({ text: t("video.reused"), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(r.path!) } });
+      } else toast({ text: t("video.queuedN", { n: 1 }) });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (isTyping(document.activeElement)) return;
     const k = e.key;
@@ -807,6 +823,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
                 { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
                 { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
                 { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
+                { id: "video", label: t("video.selection"), disabled: !sel || !asset, run: () => void exportVideo() },
                 "-",
                 { id: "add-seg", label: t("seg.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-segment", sourceId: row.id, start: sel.a, end: sel.b }) },
                 { id: "add-hint", label: t("hint.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-hint", sourceId: row.id, start: sel.a, end: sel.b }) },
@@ -898,7 +915,10 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             </Button>
             <Menu
               head={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}
-              items={[{ id: "wav", label: t("sources.exportWav"), run: () => void exportWav() }]}
+              items={[
+                { id: "wav", label: t("sources.exportWav"), run: () => void exportWav() },
+                { id: "video", label: t("video.selection"), run: () => void exportVideo() },
+              ]}
               placement="top start"
               trigger={
                 <Button variant="flat" icon={<Download />} isDisabled={!sel || !asset || exporting} data-testid="export-menu">

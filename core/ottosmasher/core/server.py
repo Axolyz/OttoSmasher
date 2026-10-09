@@ -347,6 +347,14 @@ class Core:
           lambda p: self.hits.render(p["resultId"], int(p["rank"]), int(p["index"]), p["version"], p["sound"]))
         r("hits.export", "write", T.HitExportParams, T.ExportedWav, "Export a hit as WAV (original, or stretched with its evidence scheme).",
           lambda p: self.hits.export(p["resultId"], int(p["rank"]), int(p["index"]), p["version"], dict(p.get("words", {}))))
+        r("exports.video", "write", T.VideoExportParams, T.VideoExportStarted,
+          "Export a whole sample as a video clip (original, or stretched with synced or original-speed picture); queued as a job, reuses identical exports.",
+          lambda p: self.video_export.sample(p["id"], version=p["version"], picture=p.get("picture") or "synced", audio=p.get("audio", True),
+                                             words=dict(p.get("words", {})), plan=p.get("plan") or "near_fast", mora=bool(p.get("mora")), long_vowel=bool(p.get("longVowel"))))
+        r("exports.videoRange", "write", T.VideoRangeParams, T.VideoExportStarted, "Export an asset range as a video clip (original speed; source picture).",
+          self._video_range)
+        r("hits.video", "write", T.HitVideoParams, T.VideoExportStarted, "Export a hit as a video clip (original version; the sample's picture).",
+          self._hit_video)
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
           lambda p: self.search.results())
         r("results.page", "read", T.ResultPageParams, T.ResultPage,
@@ -422,6 +430,9 @@ class Core:
 
         self.hits = HitService(self.conn, self.search, self.rhythm, self.handoff, self.exports)
         self.handoff.hits = self.hits
+        from .video_export import VideoExportService
+
+        self.video_export = VideoExportService(self.conn, self.ws, self.exports, self.handoff, self.jobs, emit=self.emit)
         from .search_auto import AutoPrepare
 
         self.auto = AutoPrepare(self.conn, self.search, self.jobs, self.post, speech=self.speech)
@@ -590,6 +601,17 @@ class Core:
         return self.jobs.submit("models.verify", {"paths": paths})
 
     # ---------- 用户辞典（08 §8.2.4）
+
+    def _video_range(self, p: dict[str, Any]) -> dict[str, Any]:
+        words = dict(p.get("words", {}))
+        name = self.samples.suggest(p["assetId"], float(p["start"]), float(p["end"]), local_marker=words.get("local", ""))["name"]
+        return self.video_export.range(p["assetId"], float(p["start"]), float(p["end"]), name + words.get("fragment", ""), audio=p.get("audio", True), words=words)
+
+    def _hit_video(self, p: dict[str, Any]) -> dict[str, Any]:
+        words = dict(p.get("words", {}))
+        h = self.hits.resolve(p["resultId"], int(p["rank"]), int(p["index"]))
+        name = (h["name"] or self.samples.suggest(h["assetId"], h["start"], h["end"])["name"]) + words.get("fragment", "")
+        return self.video_export.range(h["assetId"], float(h["start"]), float(h["end"]), name, audio=p.get("audio", True), words=words, sample_id=h["sampleId"])
 
     def _visual_prepare(self, p: dict[str, Any]) -> dict[str, Any]:
         with transaction(self.conn):

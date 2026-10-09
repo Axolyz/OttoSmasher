@@ -11,5 +11,7 @@ export function exportWords(): Record<string, string> {
     fragment: t("export.fragment"),
     local: t("naming.local"),
     stretch: t("export.stretch"),
+    video: t("export.video"),
+    originalSpeed: t("export.originalSpeed"),
   };
 }

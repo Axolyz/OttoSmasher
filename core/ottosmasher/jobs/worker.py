@@ -378,7 +378,15 @@ def _acoustic_measure(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return acoustic(params, ctx)
 
 
+def _export_video(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """视频片段（12 §12.5）：逐帧取最近的源帧并编码；发布与登记由 Core 做。"""
+    from ..core.video_export import run_job
+
+    return run_job(params, ctx)
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "export.video": _export_video,
     "acoustic.measure": _acoustic_measure,
     "search.index": _search_index,
     "f0.measure": _f0_measure,

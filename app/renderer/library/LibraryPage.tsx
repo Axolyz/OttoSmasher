@@ -37,6 +37,7 @@ import { StageRhythm } from "./StageRhythm";
 import { StageSpeech } from "./StageSpeech";
 import { StageInfo } from "./StageInfo";
 import { StagePicture } from "./StagePicture";
+import { VideoDialog, type VideoRequest } from "./VideoDialog";
 import { VisualDialog, type VisualTarget } from "../sources/VisualDialog";
 import { Composer, type ComposerMode } from "./search/Composer";
 import { HitChips, HitLine } from "./search/HitLine";
@@ -156,6 +157,7 @@ export function LibraryPage() {
   const [filterDialog, setFilterDialog] = useState<"save" | "manage" | "expr" | null>(null);
   const [batch, setBatch] = useState<{ kind: BatchKind; ids: string[] } | null>(null);
   const [visualFor, setVisualFor] = useState<VisualTarget | null>(null);
+  const [videoFor, setVideoFor] = useState<VideoRequest | null>(null);
   const [picWide, setPicWide] = useState(false);
   const plusRef = useRef<HTMLInputElement>(null);
   const listBox = useRef<HTMLDivElement>(null);
@@ -504,6 +506,19 @@ export function LibraryPage() {
       toast({ text: t("library.exportedN", { n: done.length }), action: { label: t("sources.reveal"), run: () => void window.otto.files.reveal(done[0]!) } });
     }
   };
+  /** 批量导出视频片段：原声版，每个一个任务；没有画面的列出来（Q8） */
+  const exportVideos = async (ids: string[]) => {
+    let queued = 0;
+    for (const id of ids) {
+      try {
+        const r = await call("exports.video", { id, version: "original", words: trackWords() });
+        if (r.job) queued++;
+      } catch (e) {
+        fail(e);
+      }
+    }
+    if (queued) toast({ text: t("video.queuedN", { n: queued }) });
+  };
   /** ``baked``：卡好拍的声音 + 起音拉伸标记；false = 未烘焙原声 + 卡拍拉伸标记（12 §12.3）；不给 = 按设置（⌘C） */
   const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked?: boolean) => {
     const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked });
@@ -521,10 +536,14 @@ export function LibraryPage() {
   /** 「交接 ▾」与右键里的导出项：整个采样（单音只有原声） */
   const handoffItems = (r: SampleRow, opts: AuditionOpts = {}): MenuItems =>
     isSingle(r.nature)
-      ? [{ id: "wav", label: t("handoff.wav"), run: () => void exportOriginal([r.id]) }]
+      ? [
+          { id: "wav", label: t("handoff.wav"), run: () => void exportOriginal([r.id]) },
+          { id: "video", label: t("video.menu"), run: () => setVideoFor({ sample: r, ...opts }) },
+        ]
       : [
           { id: "wav", label: t("handoff.wav"), run: () => void exportOriginal([r.id]) },
           { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportStretched([r.id], opts) },
+          { id: "video", label: t("video.menu"), run: () => setVideoFor({ sample: r, ...opts }) },
           "-",
           { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void copyReaper([r.id], opts, true) },
           { id: "reaper", label: t("handoff.reaper"), run: () => void copyReaper([r.id], opts, false) },
@@ -739,6 +758,16 @@ export function LibraryPage() {
       fail(e);
     }
   };
+  /** 命中导出视频片段（L30；原声版，画面按命中所在采样的有效画面） */
+  const videoHit = async (r: ResultRow, i: number) => {
+    try {
+      const x = await call("hits.video", { ...hitRef(r, i), words: trackWords() });
+      if (x.reused && x.path) reveal(x.path, true);
+      else toast({ text: t("video.queuedN", { n: 1 }) });
+    } catch (e) {
+      fail(e);
+    }
+  };
   const reaperHit = async (r: ResultRow, i: number, baked: boolean) => {
     const x = await window.otto.reaper.copy({ ids: [], hits: [hitRef(r, i)], words: trackWords(), baked });
     if (!x.ok) return toast({ text: errorText(x.e), tone: "error" });
@@ -772,7 +801,8 @@ export function LibraryPage() {
             { id: "reaper", label: t("handoff.reaper"), run: () => void reaperHit(r, i, false) },
           ]
         : [];
-    hitMenu.open(e, { head: t("search.hit.menuHead", { a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2), name: it.name }), items: [...common, ...speechOnly] });
+    const videoItem: MenuItems = r.sample ? [{ id: "video", label: t("video.menuHit"), run: () => void videoHit(r, i) }] : [];
+    hitMenu.open(e, { head: t("search.hit.menuHead", { a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2), name: it.name }), items: [...common, ...speechOnly, ...videoItem] });
   };
   const focusItem = items.find((x) => x.id === focus) ?? null;
   const stageHit = focusHit && focusRow && focusHit.id === focusRow.id && focusItem?._res ? focusItem._res.hits[focusHit.index] ?? null : null;
@@ -819,6 +849,7 @@ export function LibraryPage() {
       items: [
         { id: "wav", label: t("handoff.wavN", { n: ids.length }), run: () => void exportOriginal(ids) },
         { id: "stretched", label: t("handoff.stretchedWavN", { n: ids.length }), run: () => void exportStretched(ids) },
+        { id: "video", label: t("video.menuN", { n: ids.length }), run: () => void exportVideos(ids) },
       ],
     },
     {
@@ -1345,6 +1376,14 @@ export function LibraryPage() {
         />
       </TopSlot>
       <VisualDialog target={visualFor} onClose={() => setVisualFor(null)} />
+      <VideoDialog
+        req={videoFor}
+        onClose={() => setVideoFor(null)}
+        onBind={(r) => {
+          setVideoFor(null);
+          setVisualFor({ ownerType: "sample", id: r.id, name: r.name });
+        }}
+      />
       <BatchDialog
         kind={batch?.kind ?? null}
         ids={batch?.ids ?? []}

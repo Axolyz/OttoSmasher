@@ -193,3 +193,32 @@ def test_reaper_default_kind_follows_setting(core):  # noqa: F811
     assert "_stretch-" in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]  # 默认：卡好拍＋起音标记
     set_setting(core, "export.reaper_kind", "unbaked")
     assert "_stretch-" not in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]
+
+
+@need_rb
+def test_stretched_video_synced_and_original_speed(core, tmp_path):  # noqa: F811
+    """S7.2：卡拍版两种画面——同映射变速（时长 = 卡拍音频）/ 原速画面（时长 = 原声，另存卡拍 WAV）。"""
+    import subprocess
+
+    from ottosmasher.core import visuals
+    from ottosmasher.core.video_export import run_job
+
+    s = sample(core)
+    align(core, s)
+    core.rhythm.set_bpm(120)
+    png = tmp_path / "pic.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=64x36:d=0.1", "-frames:v", "1", str(png)], check=True)
+    vb = visuals.prepare(core.conn, "sample", s, str(png))
+    core.edits.apply({"ops": [{"entity": "sample", "id": s, "version": core.samples.get(s)["version"], "fields": {"visual_binding_id": vb}}]})
+    out = core.video_export.sample(s, version="stretched", picture="synced", words=WORDS)
+    job = core.conn.execute("SELECT params FROM job WHERE id = ?", (out["job"]["id"],)).fetchone()[0]
+    params = json.loads(job)
+    v = core.rhythm.view(s)
+    assert params["duration"] == pytest.approx(v["schemes"]["near_fast"]["outSeconds"], abs=1e-3)
+    assert params["frames"] == round(params["duration"] * 30)  # 图片：30 fps
+    res = run_job(params, type("C", (), {"progress": lambda *a, **k: None})())
+    core.video_export._adopt({"params": job}, res)
+    assert "卡拍-120BPM" in params["target"] and params["target"].endswith(".mp4")
+    orig = core.video_export.sample(s, version="stretched", picture="original", words=WORDS)
+    p2 = json.loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (orig["job"]["id"],)).fetchone()[0])
+    assert p2["duration"] == pytest.approx(3.6) and orig["stretchedWav"].endswith(".wav")
