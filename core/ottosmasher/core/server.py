@@ -168,9 +168,11 @@ class Core:
           lambda p: self.samples.list(
               offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), natures=p.get("natures"),
               starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"), sort=p.get("sort", "created"),
+              metrics=p.get("metrics"),
           ))
         r("samples.ids", "read", T.SampleFilter, list[str], "IDs of all samples matching the filter (select all across pages).",
-          lambda p: self.samples.ids(natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId")))
+          lambda p: self.samples.ids(natures=p.get("natures"), starred=bool(p.get("starred", False)), text=p.get("text", ""), source_id=p.get("sourceId"),
+                                     metrics=p.get("metrics")))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
@@ -263,6 +265,12 @@ class Core:
         r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
           "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
           lambda p: self.search.prepare(p["mode"], p.get("scope")))
+        r("metrics.status", "read", T.MetricsStatusParams, T.MetricsStatus,
+          "Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
+          lambda p: self.acoustic.status(p.get("scope"), list(p.get("metrics") or [])))
+        r("metrics.prepare", "job", T.MetricsPrepareParams, T.JobSummary,
+          "Queue a job that measures missing F0 and computes the single-sound metrics for the current scope.",
+          lambda p: self.acoustic.prepare(p.get("scope")))
         r("search.speech", "write", T.SearchSpeechParams, T.SearchStarted,
           "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
           lambda p: self.search.run_speech(p["query"], p.get("scope")))
@@ -339,7 +347,10 @@ class Core:
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)
+        from .acoustic import AcousticService
+
         self.search = SearchService(self.conn, self.ws, self.jobs, self.samples, self.speech, self.support_dir, emit=self.emit, rhythm=self.rhythm, post=self.post)
+        self.acoustic = AcousticService(self.conn, self.ws, self.jobs, self.search, self.speech, self.support_dir, emit=self.emit)
         self.roots = RootService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change, emit=self.emit)
         self.interrupted_on_start = self.jobs.recover()
         self.roots.rescan()  # 启动时扫一次原片文件夹（阶段 3.13；不实时监视）

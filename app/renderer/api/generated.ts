@@ -538,6 +538,34 @@ export interface ManualPhone {
   start: number;
 }
 
+export interface MetricCond {
+  max?: number | null;
+  metric: string;
+  min?: number | null;
+}
+
+/** 单音 · 音色 / 瞬态的即时筛选（10 §10.3）：缺少所选指标的采样不命中。 */
+export interface MetricFilter {
+  conditions: MetricCond[];
+  mode: "timbre" | "transient";
+}
+
+export interface MetricsPrepareParams {
+  scope?: SampleFilter | null;
+}
+
+export interface MetricsStatus {
+  missing: Record<string, number>;
+  ready: number;
+  stale: number;
+  total: number;
+}
+
+export interface MetricsStatusParams {
+  metrics?: string[] | null;
+  scope?: SampleFilter | null;
+}
+
 export interface ModelFileStatus {
   path: string;
   role: "support" | "weight";
@@ -1084,6 +1112,7 @@ export interface SampleCreateParams {
 }
 
 export interface SampleFilter {
+  metrics?: MetricFilter | null;
   natures?: string[] | null;
   sourceId?: string | null;
   starred?: boolean | null;
@@ -1140,6 +1169,7 @@ export interface SampleSuggestion {
 
 export interface SamplesListParams {
   limit?: number;
+  metrics?: MetricFilter | null;
   natures?: string[] | null;
   offset?: number;
   sort?: "created" | "duration" | "name" | "source";
@@ -1890,6 +1920,10 @@ export interface Commands {
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
   /** FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN). */
   "measure.f0": { params: AssetRangeParams; result: F0Frames; effect: "read" };
+  /** Queue a job that measures missing F0 and computes the single-sound metrics for the current scope. */
+  "metrics.prepare": { params: MetricsPrepareParams; result: JobSummary; effect: "job" };
+  /** Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match). */
+  "metrics.status": { params: MetricsStatusParams; result: MetricsStatus; effect: "read" };
   /** Submit a job that runs one minimal inference per model under the current device setting. */
   "models.probe": { params: NoParams; result: JobSummary; effect: "job" };
   /** Model files, ONNX Runtime and inference probe status. */

@@ -94,3 +94,55 @@ def f0(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     sessions: list[Any] = []
     done, errors = _measure_f0(params["plan"], ctx, Path(params["models_dir"]), Path(params["support_dir"]), Device.of(ctx.device), sessions)
     return {"f0": done, "f0Errors": errors, "probes": [s.probe for s in sessions if s.probe]}
+
+
+def acoustic(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
+    """单音声学指标（10 §10.3）：先补测范围里缺的 F0（与语音分析同一段代码），再逐条解码采样音频、读 F0、算指标。"""
+    import json
+
+    import numpy as np
+
+    from ..algo import acoustic as ac
+    from ..core.errors import CoreError
+    from ..media import decode as dec
+    from ..models import f0store
+    from ..models.onnx import Device
+    from .worker import _measure_f0
+
+    sessions: list[Any] = []
+    done, errors = _measure_f0(params["plan"], ctx, Path(params["models_dir"]), Path(params["support_dir"]), Device.of(ctx.device), sessions)
+    root = Path(params["f0root"])
+    rows: list[dict[str, Any]] = []
+    items = params["items"]
+    for n, it in enumerate(items):
+        ctx.progress("metrics", n, len(items), "acoustic-measuring")
+        try:
+            f = it["file"]
+            ref = dec.StreamRef(f["path"], int(f["ordinal"]), int(f["sample_rate"]), int(f["channels"]), f.get("codec"), f.get("format"))
+            local_start, _local_end, file_start = it["storage"]
+            sr = ref.sample_rate
+            a = round((file_start + it["start"] - local_start) * sr)
+            b = round((file_start + it["end"] - local_start) * sr)
+            pcm = dec.decode_frames(ref, a, b, cache=ctx.job_dir / "cache")
+            if it["identity"] is None:
+                i0, frames = int(it["start"] // 0.01), np.full((0, 3), np.nan)
+            else:
+                i0, frames, have = f0store.read(root, it["asset"], it["identity"], it["start"], it["end"], it["duration"])
+                for k in f0store.chunks_for(it["start"], it["end"], it["duration"]):  # 这个任务刚测的段
+                    p = ctx.job_dir / "f0" / it["asset"] / f"{k}.npy"
+                    if p.exists():
+                        arr = np.load(p)
+                        c0 = k * f0store.CHUNK_FRAMES
+                        lo, hi = max(i0, c0), min(i0 + len(frames), c0 + len(arr))
+                        if hi > lo:
+                            frames[lo - i0 : hi - i0] = arr[lo - c0 : hi - c0]
+            measured = np.isfinite(frames).all(axis=1) if len(frames) else np.zeros(0, dtype=bool)
+            m = ac.metrics(pcm, sr, frames[:, 0] if len(frames) else np.zeros(0), frames[:, 1] if len(frames) else np.zeros(0),
+                           frames[:, 2] if len(frames) else np.zeros(0), measured, f0_start=i0 * 0.01 - it["start"])
+            rows.append({"sample": it["sample"], "asset": it["asset"], "start": it["start"], "end": it["end"], "sig": it["sig"], "algo": params["algo"], "metrics": m})
+        except CoreError as exc:
+            errors.append({"sample": it["sample"], "error": exc.to_wire()})
+    ctx.progress("metrics", len(items), len(items), "acoustic-measuring")
+    (ctx.job_dir / "rows.json").write_text(json.dumps(rows), encoding="utf-8")
+    return {"f0": done, "rows": "rows.json", "errors": errors[:50], "probes": [s.probe for s in sessions if s.probe]}
+

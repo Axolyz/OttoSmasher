@@ -16,6 +16,7 @@ KINDS: dict[str, str] = {
     "sources.scan": "light",
     "search.index": "light",
     "f0.measure": "model",
+    "acoustic.measure": "model",
 }
 
 # 开发与测试用的自检任务（只在开发模式下可提交）

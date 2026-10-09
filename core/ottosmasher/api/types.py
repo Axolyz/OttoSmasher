@@ -775,11 +775,25 @@ class SamplePage(TypedDict):
     rows: list[SampleRow]
 
 
+class MetricCond(TypedDict):
+    metric: str  # 指标名（algo/acoustic.ALL）
+    min: NotRequired[float | None]
+    max: NotRequired[float | None]
+
+
+class MetricFilter(TypedDict):
+    """单音 · 音色 / 瞬态的即时筛选（10 §10.3）：缺少所选指标的采样不命中。"""
+
+    mode: Literal["timbre", "transient"]
+    conditions: list[MetricCond]
+
+
 class SampleFilter(TypedDict):
     natures: NotRequired[list[str] | None]
     starred: NotRequired[bool | None]
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
+    metrics: NotRequired[MetricFilter | None]
 
 
 class SamplesListParams(SampleFilter):
@@ -1954,4 +1968,20 @@ class ResultPage(TypedDict):
 class ResultUiParams(TypedDict):
     id: str
     uiState: Any
+
+
+class MetricsStatusParams(TypedDict):
+    scope: NotRequired[SampleFilter | None]
+    metrics: NotRequired[list[str] | None]
+
+
+class MetricsStatus(TypedDict):
+    total: int
+    ready: int  # 已准备（有有效指标）
+    stale: int  # 未准备（「后台准备当前范围指标」）
+    missing: dict[str, int]  # 每个指标：缺失（未准备或未知）的采样数
+
+
+class MetricsPrepareParams(TypedDict):
+    scope: NotRequired[SampleFilter | None]
 

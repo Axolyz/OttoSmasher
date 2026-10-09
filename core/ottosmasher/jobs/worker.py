@@ -371,7 +371,15 @@ def _f0_measure(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return f0(params, ctx)
 
 
+def _acoustic_measure(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    """单音声学指标（10 §10.3）。"""
+    from .search import acoustic
+
+    return acoustic(params, ctx)
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "acoustic.measure": _acoustic_measure,
     "search.index": _search_index,
     "f0.measure": _f0_measure,
     "speech.analyze": _speech_analyze,

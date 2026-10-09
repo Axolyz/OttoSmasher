@@ -384,6 +384,28 @@
    }
   },
   {
+   "name": "metrics.prepare",
+   "effect": "job",
+   "summary": "Queue a job that measures missing F0 and computes the single-sound metrics for the current scope.",
+   "params": {
+    "$ref": "#/$defs/MetricsPrepareParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "metrics.status",
+   "effect": "read",
+   "summary": "Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
+   "params": {
+    "$ref": "#/$defs/MetricsStatusParams"
+   },
+   "result": {
+    "$ref": "#/$defs/MetricsStatus"
+   }
+  },
+  {
    "name": "models.probe",
    "effect": "job",
    "summary": "Submit a job that runs one minimal inference per model under the current device setting.",
@@ -5004,6 +5026,135 @@
     "start"
    ]
   },
+  "MetricCond": {
+   "title": "MetricCond",
+   "type": "object",
+   "properties": {
+    "max": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "metric": {
+     "type": "string"
+    },
+    "min": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "metric"
+   ]
+  },
+  "MetricFilter": {
+   "title": "MetricFilter",
+   "description": "单音 · 音色 / 瞬态的即时筛选（10 §10.3）：缺少所选指标的采样不命中。",
+   "type": "object",
+   "properties": {
+    "conditions": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/MetricCond"
+     }
+    },
+    "mode": {
+     "enum": [
+      "timbre",
+      "transient"
+     ]
+    }
+   },
+   "required": [
+    "conditions",
+    "mode"
+   ]
+  },
+  "MetricsPrepareParams": {
+   "title": "MetricsPrepareParams",
+   "type": "object",
+   "properties": {
+    "scope": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
+  "MetricsStatus": {
+   "title": "MetricsStatus",
+   "type": "object",
+   "properties": {
+    "missing": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer"
+     }
+    },
+    "ready": {
+     "type": "integer"
+    },
+    "stale": {
+     "type": "integer"
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "missing",
+    "ready",
+    "stale",
+    "total"
+   ]
+  },
+  "MetricsStatusParams": {
+   "title": "MetricsStatusParams",
+   "type": "object",
+   "properties": {
+    "metrics": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scope": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SampleFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
   "ModelFileStatus": {
    "title": "ModelFileStatus",
    "type": "object",
@@ -7636,6 +7787,16 @@
    "title": "SampleFilter",
    "type": "object",
    "properties": {
+    "metrics": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/MetricFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "natures": {
      "anyOf": [
       {
@@ -7931,6 +8092,16 @@
    "properties": {
     "limit": {
      "type": "integer"
+    },
+    "metrics": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/MetricFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "natures": {
      "anyOf": [

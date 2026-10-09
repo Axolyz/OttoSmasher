@@ -31,6 +31,12 @@ from .edits import loads
 from .errors import CoreError
 
 KEY_VERSION = "speech-index-1"
+
+# 资产存储的签名（范围、种类、文件快照；按固定顺序拼接）：文件被替换、存储变了 → 签名变（只用数据库，不探测文件）
+STORAGE_SIG_SQL = (
+    "(SELECT group_concat(v, '|') FROM (SELECT st.range_start || ':' || st.range_end || ':' || st.kind || ':' || COALESCE(mf.file_snapshot, '') AS v"
+    " FROM asset_storage st JOIN media_file mf ON mf.id = st.media_file_id WHERE st.asset_id = {asset} ORDER BY st.kind, st.range_start, st.range_end, mf.id))"
+)
 _CHUNK = 900  # SQLite 参数个数上限以内
 
 
@@ -53,8 +59,7 @@ SELECT s.id, s.asset_id, s.start, s."end", s.rhythm,
     WHERE h2.kind = 'alignment' AND r2.kind = 'alignment' AND r2.status = 'ok' AND r2.asset_id = s.asset_id
       AND r2.range_start <= s.start + 1e-6 AND r2.range_end >= s."end" - 1e-6
   ) END AS proj,
-  (SELECT group_concat(st.range_start || ':' || st.range_end || ':' || st.kind || ':' || COALESCE(m.file_snapshot, ''), '|')
-     FROM asset_storage st JOIN media_file m ON m.id = st.media_file_id WHERE st.asset_id = s.asset_id) AS storage,
+  {storage} AS storage,
   src.file_snapshot AS src_snap,
   fh.run_id AS f0run, fh.version AS f0ver,
   a.source_id, src.current_subtitle_version_id AS subver, ann.n AS ann_n, ann.t AS ann_t,
@@ -78,7 +83,7 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
     versions = [KEY_VERSION, rh.ALGO_VERSION, st.ALGO_VERSION, ss.ALGO_VERSION, ss.INDEX_VERSION, penalty]
     out: dict[str, tuple[str, bool]] = {}
     for part in _chunks(list(dict.fromkeys(sample_ids))):
-        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part))), part):
+        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id")), part):
             has = (r["run_id"] is not None and r["status"] == "ok") or (r["run_id"] is None and bool(r["proj"]))
             raw = [versions, *[r[k] for k in r.keys()]]
             out[r["id"]] = (hashlib.sha1(json.dumps(raw, default=str, ensure_ascii=False).encode("utf-8")).hexdigest(), has)

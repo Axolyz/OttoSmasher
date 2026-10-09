@@ -177,8 +177,18 @@ class SampleService:
         return out
 
     @staticmethod
-    def _where(natures: list[str] | None, starred: bool, text: str, source_id: str | None) -> tuple[str, list[Any]]:
+    def _where(natures: list[str] | None, starred: bool, text: str, source_id: str | None, metrics: dict[str, Any] | None = None) -> tuple[str, list[Any]]:
         where, args = ["1=1"], []
+        if metrics:
+            # 单音 · 音色 / 瞬态的即时筛选（10 §10.3）：缺少所选指标的不命中
+            from ..algo import acoustic as ac
+            from .acoustic import filter_sql
+
+            conds = ac.check_conditions(metrics.get("conditions") or [], str(metrics.get("mode")))
+            if conds:
+                clause, extra = filter_sql(conds)
+                where.append(clause)
+                args += extra
         if natures:
             if any(n not in NATURES for n in natures):
                 raise CoreError("sample-invalid", reason="not-an-option", field="nature")
@@ -205,9 +215,10 @@ class SampleService:
         text: str = "",
         source_id: str | None = None,
         sort: str = "created",
+        metrics: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """一页摘要（不含分析资料，R8.9）+ 总数。性质多选取并集；星标、文字、原片取交集。"""
-        cond, args = self._where(natures, starred, text, source_id)
+        """一页摘要（不含分析资料，R8.9）+ 总数。性质多选取并集；星标、文字、原片、单音指标取交集。"""
+        cond, args = self._where(natures, starred, text, source_id, metrics)
         order = SORTS.get(sort)
         if order is None:
             raise CoreError("sample-invalid", reason="not-an-option", field="sort")
@@ -222,9 +233,10 @@ class SampleService:
             r["people"] = ppl.get(r["id"], [])
         return {"total": total, "offset": offset, "rows": out}
 
-    def ids(self, *, natures: list[str] | None = None, starred: bool = False, text: str = "", source_id: str | None = None) -> list[str]:
+    def ids(self, *, natures: list[str] | None = None, starred: bool = False, text: str = "", source_id: str | None = None,
+            metrics: dict[str, Any] | None = None) -> list[str]:
         """“全选全部匹配”（跨页）：返回全部 ID（R8.9）。"""
-        cond, args = self._where(natures, starred, text, source_id)
+        cond, args = self._where(natures, starred, text, source_id, metrics)
         return [r[0] for r in self.conn.execute(f"SELECT s.id{self._FROM}{cond} ORDER BY s.created_at DESC, s.rowid DESC", args)]
 
     # ------------------------------------------------------------ 删除
