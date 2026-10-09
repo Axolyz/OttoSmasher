@@ -195,3 +195,16 @@ def test_render_edge_onset_is_sample_exact():
     s = st.scheme(p, 2, 150)
     out = render.render(pcm, s.map)
     assert np.array_equal(out[: round(st.CORE_MAX * SR)], pcm[: round(st.CORE_MAX * SR)])
+
+
+def test_candidates_memo_equals_fresh_schemes():
+    """阶段 7 提速：同一次求解里记住建好的方案、只要近快近慢时不建倍快——结果与逐个新建完全相同。"""
+    for plan, bpm in [(even(), 120.0), (even(n=5, d=0.37), 180.0), (irregular(0.6), 97.0), (even(n=4, d=0.015), 120.0)]:
+        full = st.candidates(plan, bpm)
+        part = st.candidates(plan, bpm, ("near_fast", "near_slow"))
+        for name in ("near_fast", "near_slow"):
+            fresh = st.scheme(plan, full[name].density, full[name].bpm)
+            for s in (full[name], part[name]):
+                assert (s.density, s.bpm, s.speed, s.ratio) == (fresh.density, fresh.bpm, fresh.speed, fresh.ratio)
+                assert s.map.pieces == fresh.map.pieces and s.map.knots == fresh.map.knots and s.map.onsets == fresh.map.onsets
+        assert set(part) == {"near_fast", "near_slow"}

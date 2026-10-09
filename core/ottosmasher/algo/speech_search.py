@@ -689,7 +689,7 @@ def schemes_for(row: SampleIndex, plan: PlanData, bpm: float, cache: SchemeCache
     if cache is not None and key in cache:
         return cache[key]
     try:
-        cand = st.candidates(plan.plan, bpm)
+        cand = st.candidates(plan.plan, bpm, ("near_fast", "near_slow"))
         out: dict[str, _SchemeView] | None = {k: scheme_view(cand[k]) for k in ("near_fast", "near_slow")}
     except CoreError:
         out = None

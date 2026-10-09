@@ -271,11 +271,11 @@ def check_bpm(bpm: float | None) -> float | None:
     return float(bpm)
 
 
-def _near_fast_k(plan: Plan, bpm: float) -> int:
+def _near_fast_k(plan: Plan, bpm: float, memo: dict[tuple[float, float], Scheme] | None = None) -> int:
     total_cells = sum(plan.cells)
     k = math.ceil(math.log2(total_cells * (60.0 / bpm) / plan.dur.total))
     k = max(-MAX_K, min(MAX_K, k))
-    fast = lambda k: scheme(plan, 2.0**k, bpm).speed >= 1 - SPEED_EPS  # noqa: E731
+    fast = lambda k: _scheme_memo(plan, 2.0**k, bpm, memo).speed >= 1 - SPEED_EPS  # noqa: E731
     if fast(k):
         for _ in range(MAX_STEPS):
             if k - 1 < -MAX_K or not fast(k - 1):
@@ -291,15 +291,28 @@ def _near_fast_k(plan: Plan, bpm: float) -> int:
     return k
 
 
-def candidates(plan: Plan, bpm: float | None) -> dict[str, Scheme]:
-    """近快（near_fast）、近慢（near_slow）、倍快（double）。``bpm=None`` = 原速卡拍。"""
+def _scheme_memo(plan: Plan, density: float, bpm: float, memo: dict[tuple[float, float], Scheme] | None) -> Scheme:
+    """同一次求解里同一个（密度, BPM）只建一次映射（纯函数，结果相同；检索时省掉重复的建图，阶段 7 提速）。"""
+    if memo is None:
+        return scheme(plan, density, bpm)
+    key = (density, bpm)
+    hit = memo.get(key)
+    if hit is None:
+        hit = memo[key] = scheme(plan, density, bpm)
+    return hit
+
+
+def candidates(plan: Plan, bpm: float | None, which: tuple[str, ...] = ("near_fast", "near_slow", "double")) -> dict[str, Scheme]:
+    """近快（near_fast）、近慢（near_slow）、倍快（double）。``bpm=None`` = 原速卡拍。``which`` 只要其中几个（检索只要近快、近慢）。"""
     bpm = check_bpm(bpm)
+    memo: dict[tuple[float, float], Scheme] = {}
     if bpm is None:
-        k = _near_fast_k(plan, ORIGINAL_PROBE_BPM)
+        k = _near_fast_k(plan, ORIGINAL_PROBE_BPM, memo)
         bpm = original_bpm(plan, 2.0**k)
     else:
-        k = _near_fast_k(plan, bpm)
-    return {"near_fast": scheme(plan, 2.0**k, bpm), "near_slow": scheme(plan, 2.0 ** (k - 1), bpm), "double": scheme(plan, 2.0 ** (k + 1), bpm)}
+        k = _near_fast_k(plan, bpm, memo)
+    dens = {"near_fast": 2.0**k, "near_slow": 2.0 ** (k - 1), "double": 2.0 ** (k + 1)}
+    return {name: _scheme_memo(plan, dens[name], bpm, memo) for name in which}
 
 
 def original_bpm(plan: Plan, density: float) -> float:
