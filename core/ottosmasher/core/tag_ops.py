@@ -122,7 +122,9 @@ class TagOps:
                     f["local_tags"] = nxt
             if f:
                 ops.append({"entity": "sample", "id": r["id"], "version": r["version"], "fields": f})
-        batch = {"label": label or {"code": "samples-edit", "args": {"n": len(rows)}}, "ops": ops}
+        if label is None:
+            label = {"code": "samples-edit", "args": {"n": len(rows)}}
+        batch = {"label": label, "ops": ops}
         if not ops:
             return {"batch": batch, "preview": {"changes": []}, "samples": len(rows), "unchanged": len(rows), "names": {}}
         preview = self.edits.preview(batch)
