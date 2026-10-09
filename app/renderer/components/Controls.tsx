@@ -298,3 +298,33 @@ export function Disclosure(props: { title: string; children: ReactNode; defaultO
   );
 }
 
+export interface TabItem {
+  id: string;
+  label: ReactNode;
+  /** 淡色的数字（条数） */
+  count?: number | string;
+  closable?: boolean;
+  testId?: string;
+}
+
+/** 可关闭的标签条（采样库结果标签：「浏览」+ 每次检索一个，UI_PLAN §2.1）：单击切换，× 关闭；窄时横向滚动。 */
+export function ClosableTabs(props: { items: TabItem[]; value: string; onChange: (id: string) => void; onClose?: (id: string) => void; label: string; closeLabel?: string }) {
+  return (
+    <div className={s.tabs} role="tablist" aria-label={props.label}>
+      {props.items.map((it) => (
+        <span key={it.id} className={s.tabItem} data-on={props.value === it.id || undefined} data-testid={it.testId}>
+          <RacButton className={s.tabBtn} onPress={() => props.onChange(it.id)} aria-pressed={props.value === it.id}>
+            {it.label}
+            {it.count != null ? <span className={`${s.tabCount} num`}>{it.count}</span> : null}
+          </RacButton>
+          {it.closable && props.onClose ? (
+            <RacButton className={s.tabClose} onPress={() => props.onClose?.(it.id)} aria-label={props.closeLabel} data-testid="tab-close">
+              <X size={12} />
+            </RacButton>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+

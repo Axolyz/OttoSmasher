@@ -2,6 +2,7 @@
 // 行下一条命中时间线（绿 = 严格、琥珀 = 近似；悬停看证据；单击 = 定位）；当前行展开命中小卡：▶ 左键原声、右键卡拍（该命中证据所选的方案）+「前后 0.3 s」。
 import { Play, Square } from "lucide-react";
 import type { ResultHit } from "../../api/types";
+import { Button } from "../../components/Button";
 import { Checkbox } from "../../components/Controls";
 import { t } from "../../i18n";
 import s from "./Search.module.css";
@@ -107,24 +108,22 @@ export function HitChips(props: {
           }}
           data-testid="hit-chip"
         >
-          <button
-            type="button"
-            className={s.hplay}
-            title={props.kind === "pitch" ? t("search.hit.playPitch") : t("search.hit.play")}
-            aria-label={props.kind === "pitch" ? t("search.hit.playPitch") : t("search.hit.play")}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onPlay(i, "original");
-            }}
+          <span
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
               if (props.kind === "speech") props.onPlay(i, "stretched");
             }}
-            data-testid="hit-play"
           >
-            {props.playing === i ? <Square size={11} /> : <Play size={11} />}
-          </button>
+            <Button
+              size="sm"
+              variant="flat"
+              icon={props.playing === i ? <Square /> : <Play />}
+              title={props.kind === "pitch" ? t("search.hit.playPitch") : t("search.hit.play")}
+              onPress={() => props.onPlay(i, "original")}
+              data-testid="hit-play"
+            />
+          </span>
           <span className="num">{t("search.hit.range", { a: (h.start - props.start).toFixed(2), b: (h.end - props.start).toFixed(2) })}</span>
           <span className={s.ev} data-approx={(props.kind === "speech" && h.evidence && !h.evidence.strict) || undefined} title={evidenceDetail(h, props.kind)}>
             {evidenceText(h, props.kind)}

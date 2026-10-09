@@ -1632,5 +1632,9 @@
   "metric.tailFlatness.def": "尾部段的谱平坦度",
   "metric.tailFlatness.unit": "",
   "search.hit.range": "{a}–{b} 秒",
-  "search.coverage.tracks": "已测音轨 {ready}/{total}"
+  "search.coverage.tracks": "已测音轨 {ready}/{total}",
+  "specimen.tabs": "可关闭的标签条",
+  "specimen.tabClose": "关闭",
+  "specimen.tabBrowse": "浏览",
+  "specimen.tabResult": "结果 {n}"
 }

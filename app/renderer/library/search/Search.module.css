@@ -44,12 +44,7 @@
 .pblabel { font-size: 10px; fill: #1b1206; pointer-events: none; }
 
 /* 结果标签与状态行 */
-.tab { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: var(--r-md); padding: 3px 8px; background: transparent; color: var(--sub);
   font-size: var(--fs-sm); cursor: default; white-space: nowrap; }
-.tab[data-on] { background: var(--s3); color: var(--text); border-color: var(--line); }
-.tabs { display: flex; gap: 4px; min-width: 0; overflow-x: auto; flex: 1 1 auto; }
-.close { border: none; background: transparent; color: var(--muted); padding: 0 2px; cursor: default; }
-.close:hover { color: var(--text); }
 .approx { color: var(--warn); font-size: var(--fs-sm); }
 
 /* 命中时间线与小卡 */
@@ -66,7 +61,5 @@
 .ev[data-approx] { color: var(--warn); }
 .dead { color: var(--bad); font-size: var(--fs-xs); }
 .assetRow { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 0; }
-.hplay { border: none; background: var(--s3); color: var(--text); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; cursor: default; }
-.hplay:hover { background: var(--accent); color: #fff; }
 .hunt { display: inline-flex; gap: 1px; }
 .kbd { font: inherit; font-size: var(--fs-xs); opacity: 0.75; margin-left: 4px; }

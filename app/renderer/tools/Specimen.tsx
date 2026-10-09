@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList, type CollectionRow } from "../components/CollectionList";
-import { Checkbox, Chips, type ChipItem, Disclosure, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
+import { Checkbox, Chips, type ChipItem, ClosableTabs, Disclosure, EmptyState, ProgressBar, RadioList, Segmented, StepsBar, Token } from "../components/Controls";
 import { NumberField, OptionalNumber, Select, Switch, TextArea, TextField, TimeField } from "../components/Fields";
 import { Menu, useContextMenu } from "../components/Menu";
 import { NatureDot, NaturePicker } from "../components/NaturePicker";
@@ -39,6 +39,8 @@ export function Specimen() {
   const [on, setOn] = useState(true);
   const [thumbPlaying, setThumbPlaying] = useState(false);
   const [opt, setOpt] = useState<number | null>(null);
+  const [tab, setTab] = useState("browse");
+  const [tabs, setTabs] = useState(["1", "2"]);
   const [num, setNum] = useState(0.65);
   const [sel, setSel] = useState("speech");
   const [area, setArea] = useState("");
@@ -119,6 +121,17 @@ export function Specimen() {
             options={NATURES.map((n) => ({ id: n, label: t(`nature.${n}`) }))}
           />
         </div>
+      </section>
+      <section>
+        <h4>{t("specimen.tabs")}</h4>
+        <ClosableTabs
+          label={t("specimen.tabs")}
+          closeLabel={t("specimen.tabClose")}
+          value={tab}
+          onChange={setTab}
+          onClose={(id) => setTabs((xs) => xs.filter((x) => x !== id))}
+          items={[{ id: "browse", label: t("specimen.tabBrowse"), count: 51 }, ...tabs.map((x) => ({ id: x, label: t("specimen.tabResult", { n: x }), closable: true }))]}
+        />
       </section>
       <section>
         <h4>{t("specimen.disclosure")}</h4>

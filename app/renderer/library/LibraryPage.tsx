@@ -11,7 +11,7 @@ import type { EffectiveTag, Nature, ResultPage, ResultRow, RhythmPlan, RhythmSou
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
-import { type ChipItem, Chips, EmptyState, Segmented } from "../components/Controls";
+import { type ChipItem, Chips, ClosableTabs, EmptyState, Segmented } from "../components/Controls";
 import { TextField } from "../components/Fields";
 import { Menu, type MenuItems, type MenuSpec, useContextMenu } from "../components/Menu";
 import { NATURES, NATURE_KEYS, NatureDot, NaturePicker } from "../components/NaturePicker";
@@ -723,21 +723,17 @@ export function LibraryPage() {
         />
       </div>
       <div className={s.resultHead}>
-        <div className={ss.tabs} role="tablist" aria-label={t("search.results")}>
-          <button type="button" role="tab" aria-selected={!inResult} className={ss.tab} data-on={!inResult || undefined} onClick={() => results.setActive(BROWSE)} data-testid="tab-browse">
-            {t("library.browse")} <span className="num">{inResult ? "" : total}</span>
-          </button>
-          {results.tabs.map((h) => (
-            <span key={h.id} className={ss.tab} data-on={results.active === h.id || undefined} data-testid="result-tab">
-              <button type="button" role="tab" aria-selected={results.active === h.id} className={ss.close} onClick={() => results.setActive(h.id)}>
-                {resultTitle(h)}
-              </button>
-              <button type="button" className={ss.close} onClick={() => void results.close(h.id)} aria-label={t("search.closeResult")} title={t("search.closeResult")} data-testid="result-close">
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
+        <ClosableTabs
+          label={t("search.results")}
+          closeLabel={t("search.closeResult")}
+          value={results.active}
+          onChange={results.setActive}
+          onClose={(id) => void results.close(id)}
+          items={[
+            { id: BROWSE, label: t("library.browse"), count: inResult ? undefined : total, testId: "tab-browse" },
+            ...results.tabs.map((h) => ({ id: h.id, label: resultTitle(h), closable: true, testId: "result-tab" })),
+          ]}
+        />
         <Button size="sm" variant="flat" icon={<Plus />} onPress={() => void pickImport()} data-testid="library-import">
           {t("import.button")}
         </Button>

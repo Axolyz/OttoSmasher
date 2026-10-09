@@ -113,3 +113,13 @@
 .disclosureIcon { transition: transform var(--t-fast); }
 .disclosure[data-expanded] .disclosureIcon { transform: rotate(90deg); }
 .disclosurePanel { padding-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+
+/* 可关闭的标签条 */
+.tabs { display: flex; gap: 4px; min-width: 0; overflow-x: auto; flex: 1 1 auto; }
+.tabItem { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: var(--r-md); color: var(--sub); white-space: nowrap; }
+.tabItem[data-on] { background: var(--s3); color: var(--text); border-color: var(--line); }
+.tabBtn { border: none; background: transparent; color: inherit; font-size: var(--fs-sm); padding: 3px 8px; display: inline-flex; gap: 6px; cursor: default; outline: none; }
+.tabBtn[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-md); }
+.tabCount { color: var(--muted); }
+.tabClose { border: none; background: transparent; color: var(--muted); padding: 2px 6px 2px 0; display: inline-flex; cursor: default; outline: none; }
+.tabClose[data-hovered] { color: var(--text); }

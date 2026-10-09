@@ -140,6 +140,6 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   await composer.getByTestId("composer-close").click();
 
   // ---- 关闭结果：只删结果集合
-  await page.getByTestId("result-close").first().click();
+  await page.getByTestId("result-tab").first().getByTestId("tab-close").click();
   await expect(page.getByTestId("result-tab")).toHaveCount(2);
 });
