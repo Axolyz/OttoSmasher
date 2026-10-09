@@ -67,5 +67,12 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await page.screenshot({ path: `${SHOTS}/04-video-dialog.png` });
   await page.getByTestId("video-go").click();
   await expect(page.getByTestId("dock-export")).toContainText(".mp4", { timeout: 60000 });
+
+  // 回导（S8）：动作条「回导」→ 弹窗写明起点 = 选区起点（选文件是系统对话框，Core 的流程见 test_reimport）
+  await page.getByTestId("stage-reimport").click();
+  await expect(page.getByTestId("reimport-dialog")).toContainText("起点 = 当前选区起点 1.000 秒");
+  await expect(page.getByTestId("reimport-save")).toBeDisabled();
+  await page.screenshot({ path: `${SHOTS}/05-reimport.png` });
+  await page.keyboard.press("Escape");
   await app.close();
 });

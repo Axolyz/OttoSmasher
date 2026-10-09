@@ -39,6 +39,7 @@ from . import visuals as visuals_mod
 from .exports import ExportService, export_range
 from .samples import SampleService
 from .tag_ops import TagOps
+from .reimport import ReimportService
 from .glyphs import Glyphs
 from .oped import OpedService
 from .subtitle_import import SubtitleImporter
@@ -355,6 +356,12 @@ class Core:
           self._video_range)
         r("hits.video", "write", T.HitVideoParams, T.VideoExportStarted, "Export a hit as a video clip (original version; the sample's picture).",
           self._hit_video)
+        r("reimport.preview", "read", T.ReimportParams, T.ReimportPreview, "Reimport preview: file duration and the end it would land on (start fixed, end by file length).",
+          lambda p: self.reimport.preview(p["assetId"], float(p["start"]), p["path"]))
+        r("reimport.commit", "write", T.ReimportCommitParams, T.SampleRow,
+          "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
+          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified",
+                                         parent_sample_id=p.get("parentSampleId")))
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
           lambda p: self.search.results())
         r("results.page", "read", T.ResultPageParams, T.ResultPage,
@@ -400,6 +407,7 @@ class Core:
         self.oped = OpedService(self.conn, self.edits, on_change=self._on_change)
         self.text = TextLayer(self.conn, self.edits, on_change=self._on_change)
         self.tag_ops = TagOps(self.conn, self.edits)
+        self.reimport = ReimportService(self.conn, self.ws, self.samples, on_change=self._on_change)
         self.sample_plan = SamplePlanner(self.conn, self.samples, on_change=self._on_change)
         self.waveforms = WaveformService(self.conn, self.ws, post=self.post, emit=self.emit)
         self.thumbs = ThumbnailService(self.conn, self.ws, post=self.post, emit=self.emit)

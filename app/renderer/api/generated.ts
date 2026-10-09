@@ -975,6 +975,33 @@ export interface RegisterStemParams {
   sourceId: string;
 }
 
+export interface ReimportCommitParams {
+  assetId: string;
+  name?: string | null;
+  nature?: "pitched" | "speech" | "unclassified" | "unpitched";
+  parentSampleId?: string | null;
+  path: string;
+  start: number;
+}
+
+export interface ReimportParams {
+  assetId: string;
+  path: string;
+  start: number;
+}
+
+export interface ReimportPreview {
+  assetDuration: number;
+  duration: number;
+  end: number;
+  ok: boolean;
+  reason: string | null;
+  sampleRate: number;
+  sourceEnd: number | null;
+  sourceStart: number;
+  start: number;
+}
+
 export interface RelocateParams {
   id: string;
   path: string;
@@ -2473,6 +2500,10 @@ export interface Commands {
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
   /** Write the same items as an .RTrackTemplate file (experimental). */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };
+  /** Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample. */
+  "reimport.commit": { params: ReimportCommitParams; result: SampleRow; effect: "write" };
+  /** Reimport preview: file duration and the end it would land on (start fixed, end by file length). */
+  "reimport.preview": { params: ReimportParams; result: ReimportPreview; effect: "read" };
   /** Close a fixed result (deletes the result set only, never samples). */
   "results.close": { params: IdParams; result: IdParams; effect: "write" };
   /** Open fixed results (restored without searching again). */
@@ -2716,6 +2747,8 @@ export type ErrorCode =
   | "reaper-markers-not-monotonic"
   | "reaper-path-invalid"
   | "reaper-too-large"
+  | "reimport-invalid"
+  | "reimport-out-of-bounds"
   | "result-mismatch"
   | "result-not-found"
   | "rhythm-cells-invalid"

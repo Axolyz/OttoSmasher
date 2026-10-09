@@ -80,7 +80,8 @@ def test_full_separation_registers_stems_and_reuses(db, ws, env):
     mf = db.execute("SELECT path, location, format, frames, sample_rate FROM media_file WHERE id=?", (v["media_file_id"],)).fetchone()
     assert (mf["location"], mf["format"], mf["frames"], mf["sample_rate"]) == ("library", "mp3", 144000, 48000)
     path = ws.root / mf["path"]
-    assert path.is_file() and mf["path"].startswith(f"Library/Tracks/{sid}/")
+    # L23：Library/Tracks/<作品 集数> [id8]/Separation/
+    assert path.is_file() and mf["path"].startswith("Library/Tracks/") and f"[{sid[:8]}]/Separation/" in mf["path"]
     assert 0 <= mp3.decoded_frames(path, 2) - 144000 <= 1152  # 无缝
     # 复用：同一输入 + 同一模型 + 所需声部都在 → 不重跑
     r = svc.submit(aid, None, None, "fake_vocals", ["Vocals"])

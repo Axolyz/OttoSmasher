@@ -25,6 +25,7 @@ from ottosmasher.store.workspace import Workspace
 from ottosmasher.studio import discovery, protocol
 
 from . import assets as assets_mod
+from . import libdirs
 from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
@@ -164,8 +165,7 @@ class SeparationService:
         inp = params["input"]
         asset = assets_mod.get(self.conn, inp["assetId"])
         mapping = Mapping.of(asset["mapping"]).crop(inp["start"], inp["end"])
-        tracks_dir = self.ws.library / "Tracks" / asset["source_id"]
-        tracks_dir.mkdir(parents=True, exist_ok=True)
+        tracks_dir = libdirs.track_dir(self.ws, self.conn, asset["source_id"], "Separation")  # L23：Library/Tracks/<作品 集数> [id8]/Separation/
         aliases = settings_mod.values(self.conn)["separation.role_aliases"]
         moved: list[Path] = []
         created: list[str] = []

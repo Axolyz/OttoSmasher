@@ -32,6 +32,7 @@ from ..models import fcpe, hifigan, registry
 from ..store.db import transaction
 from ..store.workspace import Workspace
 from . import assets as assets_mod
+from . import libdirs
 from . import effective_tags
 from . import settings as settings_mod
 from . import units
@@ -399,8 +400,7 @@ class FlattenService:
                         device: Any, moved: list[Path]) -> str:  # fmt: skip
         inp = assets_mod.get(self.conn, it["asset"])
         mid, aid = new_id(), new_id()
-        target_dir = self.ws.library / "Tracks" / inp["source_id"] / "Flatten"
-        target_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = libdirs.track_dir(self.ws, self.conn, inp["source_id"], "Flatten")  # L23
         target = target_dir / f"{aid}.mp3"
         shutil.move(res["mp3"], target)
         moved.append(target)

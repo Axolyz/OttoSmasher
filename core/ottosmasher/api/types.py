@@ -2539,3 +2539,28 @@ class VideoExportStarted(TypedDict):
     path: str | None
     job: JobSummary | None
     stretchedWav: NotRequired[str]
+
+
+class ReimportParams(TypedDict):
+    assetId: str
+    # 选区起点（资产局部秒）；终点按文件时长
+    start: float
+    path: str
+
+
+class ReimportPreview(TypedDict):
+    duration: float
+    sampleRate: int
+    start: float
+    end: float
+    ok: bool
+    reason: str | None
+    sourceStart: float
+    sourceEnd: float | None
+    assetDuration: float
+
+
+class ReimportCommitParams(ReimportParams):
+    name: NotRequired[str | None]
+    nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
+    parentSampleId: NotRequired[str | None]

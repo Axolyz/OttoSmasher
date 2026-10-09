@@ -6,7 +6,7 @@
 //   判定区间可见可改（这里的时间框 + 波形上的带子；必须在采样范围内）。修音素时间、切换版本、编辑文本都作用于所选的那一段，
 //   所有读这段的采样和原片页音素层同时生效（P13：面板上写明）。「添加台词…」= 在文本层加一段（与已有段重叠时选替换 / 切开 / 取消）。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
-import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square } from "lucide-react";
+import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetRecord, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
@@ -23,6 +23,7 @@ import { clock, seconds } from "../format";
 import { errorText, t, type TArgs } from "../i18n";
 import { useApp } from "../state/store";
 import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
+import { ReimportDialog, type ReimportRequest } from "../sources/ReimportDialog";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
 import s from "./Library.module.css";
@@ -119,6 +120,7 @@ export function StageSpeech(props: {
   const [draft, setDraft] = useState("");
   const tl = useRef<TimelineHandle>(null);
   const [spectrum, setSpectrum] = useState<SpectrumScale>(null);
+  const [reimport, setReimport] = useState<ReimportRequest | null>(null);
 
   const loadSpeech = () => void call("speech.sample", { id: smp.id }).then(setView, () => setView(null));
   useEffect(() => {
@@ -474,6 +476,9 @@ export function StageSpeech(props: {
             <Button variant="flat" icon={<Split />} onPress={separate} isDisabled={!asset || editing} data-testid="stage-separate">
               {t("sep.action")}
             </Button>
+            <Button variant="flat" icon={<Undo2 />} onPress={() => setReimport({ assetId: smp.asset_id, start: range.a, parentSampleId: smp.id, defaultName: smp.name })} isDisabled={editing} data-testid="stage-reimport">
+              {t("reimport.action")}
+            </Button>
             <Menu
               head={t("stage.exportHead", { a: seconds(range.a), b: seconds(range.b) })}
               items={[{ id: "wav", label: t("stage.exportWav"), run: () => void exportRange() }]}
@@ -488,6 +493,7 @@ export function StageSpeech(props: {
           </div>
         </div>
       </section>
+      <ReimportDialog req={reimport} onClose={() => setReimport(null)} onSaved={(id) => setOpenSample(id)} />
       <section className={s.card} data-testid="speech-panel">
         <div className={s.waveHead}>
           <h3 className={s.cardTitle}>{t("speech.panel")}</h3>

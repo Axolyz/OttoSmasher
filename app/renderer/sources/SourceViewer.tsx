@@ -2,7 +2,7 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, AudioWaveform, ChevronDown, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, AudioWaveform, ChevronDown, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Undo2, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
@@ -19,6 +19,7 @@ import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { exportWords } from "../exportWords";
 import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
+import { ReimportDialog, type ReimportRequest } from "./ReimportDialog";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
 import type { SeparationRequest as SeparationInput } from "../state/store";
@@ -70,6 +71,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   const [muted, setMuted] = useState(false);
   const stamp = useRef({ time: null as number | null, at: 0, playing: false, gen: -1 });
   const tl = useRef<TimelineHandle>(null);
+  const [reimport, setReimport] = useState<ReimportRequest | null>(null);
   const [spectrum, setSpectrum] = useState<SpectrumScale>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -822,6 +824,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
                 "-",
                 { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
                 { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
+                { id: "reimport", label: t("reimport.action"), disabled: !selLocal || !asset, run: () => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a }) },
                 { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
                 { id: "video", label: t("video.selection"), disabled: !sel || !asset, run: () => void exportVideo() },
                 "-",
@@ -867,6 +870,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
         />
         {pick.node}
         {tlMenu.node}
+        <ReimportDialog req={reimport} onClose={() => setReimport(null)} />
         {segMenu.node}
         <div className={s.actions}>
           <div className={s.group}>
@@ -912,6 +916,9 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
               data-testid="separate"
             >
               {t("sep.action")}
+            </Button>
+            <Button variant="flat" icon={<Undo2 />} isDisabled={!sel || !selLocal || !asset} onPress={() => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a })} data-testid="reimport">
+              {t("reimport.action")}
             </Button>
             <Menu
               head={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}

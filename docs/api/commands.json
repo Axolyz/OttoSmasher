@@ -646,6 +646,28 @@
    }
   },
   {
+   "name": "reimport.commit",
+   "effect": "write",
+   "summary": "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
+   "params": {
+    "$ref": "#/$defs/ReimportCommitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SampleRow"
+   }
+  },
+  {
+   "name": "reimport.preview",
+   "effect": "read",
+   "summary": "Reimport preview: file duration and the end it would land on (start fixed, end by file length).",
+   "params": {
+    "$ref": "#/$defs/ReimportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/ReimportPreview"
+   }
+  },
+  {
    "name": "results.close",
    "effect": "write",
    "summary": "Close a fixed result (deletes the result set only, never samples).",
@@ -2180,6 +2202,23 @@
     "max"
    ],
    "summary": "REAPER clipboard content is larger than about 2 MB."
+  },
+  {
+   "code": "reimport-invalid",
+   "args": [
+    "path",
+    "reason"
+   ],
+   "summary": "The file cannot be reimported."
+  },
+  {
+   "code": "reimport-out-of-bounds",
+   "args": [
+    "duration",
+    "end",
+    "start"
+   ],
+   "summary": "From the selection start the reimported file runs past the current asset."
   },
   {
    "code": "result-mismatch",
@@ -7404,6 +7443,132 @@
    "required": [
     "path",
     "sourceId"
+   ]
+  },
+  "ReimportCommitParams": {
+   "title": "ReimportCommitParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "nature": {
+     "enum": [
+      "pitched",
+      "speech",
+      "unclassified",
+      "unpitched"
+     ]
+    },
+    "parentSampleId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "path": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "path",
+    "start"
+   ]
+  },
+  "ReimportParams": {
+   "title": "ReimportParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetId",
+    "path",
+    "start"
+   ]
+  },
+  "ReimportPreview": {
+   "title": "ReimportPreview",
+   "type": "object",
+   "properties": {
+    "assetDuration": {
+     "type": "number"
+    },
+    "duration": {
+     "type": "number"
+    },
+    "end": {
+     "type": "number"
+    },
+    "ok": {
+     "type": "boolean"
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sampleRate": {
+     "type": "integer"
+    },
+    "sourceEnd": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceStart": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "assetDuration",
+    "duration",
+    "end",
+    "ok",
+    "reason",
+    "sampleRate",
+    "sourceEnd",
+    "sourceStart",
+    "start"
    ]
   },
   "RelocateParams": {
