@@ -949,6 +949,8 @@
   "error.visual-changed": "画面文件已改变（{path}）：请重新绑定",
   "error.video-probe-failed": "读不了视频流：{detail}",
   "error.video-export-failed": "视频片段导出失败：{detail}",
+  "error.video-export-invalid": "视频片段导出的请求不对：{reason}",
+  "reason.stretched-needs-sample": "卡拍版只能导出整个采样",
   "error.visual-none": "此采样没有画面：先「画面绑定…」",
   "reason.not-picture": "不是视频、动图或图片",
   "reason.no-video": "文件里没有画面",
