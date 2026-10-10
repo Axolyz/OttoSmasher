@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { JobSummary } from "../api/types";
 import { Button } from "../components/Button";
-import { ProgressBar } from "../components/Controls";
+import { Callout, ProgressBar } from "../components/Controls";
 import { SeparationResults } from "./SeparationResults";
 import { SpeechResults } from "./SpeechResults";
 import { FlattenResults, useOpenProduct } from "./FlattenResults";
@@ -29,6 +29,17 @@ export function useJobs(): JobSummary[] {
     });
   });
   return jobs;
+}
+
+/** 任务成功了但有一部分没做成（P6：不静默降级），例如语音分析里音高没测成。码登记在 Core 的错误码表；``cause`` 是原因（错误码 + 参数） */
+interface JobWarning {
+  code: string;
+  args?: Record<string, unknown>;
+  cause?: { code: string; args?: Record<string, unknown> };
+}
+
+function warningText(w: JobWarning): string {
+  return errorText({ code: w.code, args: { ...w.args, cause: w.cause ? errorText(w.cause) : "" } });
 }
 
 function kindLabel(kind: string): string {
@@ -81,6 +92,11 @@ function JobRow({ job }: { job: JobSummary }) {
           {t(job.kind === "speech.analyze" ? "speech.jobSummary" : "tasks.itemSummary", { ok: job.items.ok ?? 0, failed: job.items.failed ?? 0 })}
         </div>
       ) : null}
+      {((job.result as { warnings?: JobWarning[] } | null)?.warnings ?? []).map((w, i) => (
+        <Callout key={i} tone="warn" testId="job-warning">
+          {warningText(w)}
+        </Callout>
+      ))}
       {job.error ? (
         <div className={s.err}>
           <div>{errorText(job.error)}</div>

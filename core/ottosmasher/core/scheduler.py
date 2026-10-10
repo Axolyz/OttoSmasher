@@ -299,7 +299,10 @@ class Scheduler:
 def _small(result: dict[str, Any]) -> dict[str, Any]:
     """任务摘要里只留小结果（规格 16 R19.4）；大的结果由登记函数写进对应的表或文件。"""
     enc = dumps(result)
-    return result if len(enc) <= 4096 else {"truncated": True, "bytes": len(enc)}
+    if len(enc) <= 4096:
+        return result
+    # 任务级提醒（如语音分析里音高没测成）不能因为结果大就丢掉（P6）
+    return {"truncated": True, "bytes": len(enc)} | ({"warnings": result["warnings"]} if result.get("warnings") else {})
 
 
 def _summary(row: sqlite3.Row) -> dict[str, Any]:

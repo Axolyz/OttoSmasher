@@ -309,13 +309,30 @@ def _speech_analyze(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
             failed += 1
         except Exception as exc:  # noqa: BLE001 — 一条出错不拖垮整批；原因写明
             traceback.print_exc()
-            ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": {"code": "job-exception", "args": {"type": type(exc).__name__, "message": str(exc)}}})
+            ctx.emit({"type": "item", "idx": it["idx"], "status": "failed", "error": _wire(exc)})
             failed += 1
     ctx.progress("align", len(items), len(items), "speech-aligning")
     sessions = [rt.session, aligner.session]
-    f0_done, f0_errors = _measure_f0(params.get("f0") or [], ctx, models, support, device, sessions)
+    plan = params.get("f0") or []
+    try:
+        f0_done, f0_errors = _measure_f0(plan, ctx, models, support, device, sessions)
+    except Exception as exc:  # noqa: BLE001 — 音高失败（缺 FCPE、会话建不起来……）不影响已经算好的对齐结果；原因写进结果（P6）
+        traceback.print_exc()
+        f0_done, f0_errors = [], [{"asset": None, "chunk": None, "error": _wire(exc)}]
     probes = [s.probe for s in sessions if s.probe]
-    return {"ok": ok, "failed": failed, "probes": probes, "f0": f0_done, "f0Errors": f0_errors}
+    out = {"ok": ok, "failed": failed, "probes": probes, "f0": f0_done, "f0Errors": f0_errors}
+    if f0_errors:
+        total = sum(len(e["chunks"]) for e in plan)
+        measured = sum(len(e["chunks"]) for e in f0_done)
+        # 任务级提醒（码登记在错误码表，任务抽屉里显示；第一条原因代表全部）
+        out["warnings"] = [{"code": "speech-f0-failed", "args": {"failed": total - measured, "total": total}, "cause": f0_errors[0]["error"]}]
+    return out
+
+
+def _wire(exc: BaseException) -> dict[str, Any]:
+    if isinstance(exc, CoreError):
+        return exc.to_wire()
+    return {"code": "job-exception", "args": {"type": type(exc).__name__, "message": str(exc)}}
 
 
 def _measure_f0(plan: list[dict[str, Any]], ctx: Ctx, models: Path, support: Path, device: Any, sessions: list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

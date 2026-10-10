@@ -2929,6 +2929,7 @@ export type ErrorCode =
   | "speech-blocked"
   | "speech-edit-conflict"
   | "speech-edit-invalid"
+  | "speech-f0-failed"
   | "speech-invalid"
   | "speech-nothing-to-do"
   | "speech-query-invalid"

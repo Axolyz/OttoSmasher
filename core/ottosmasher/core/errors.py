@@ -147,6 +147,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "speech-blocked": (("reason",), "This line or sample cannot be analyzed (reason given)."),
     "speech-invalid": (("field", "reason"), "Speech analysis request rejected."),
     "speech-nothing-to-do": (("blocked", "fresh"), "Nothing to analyze: everything is up to date or blocked."),
+    "speech-f0-failed": (("failed", "total"), "Job warning, not a failure: pitch (F0) chunks were not measured in a speech analysis; alignments are adopted anyway (cause attached)."),
     "speech-edit-invalid": (("expected", "got", "line", "reason"), "Phoneme time edit rejected (only times may change; line given)."),
     "speech-edit-conflict": (("actual", "expected"), "The analysis changed since it was loaded; reload and edit again."),
     # ---- 拉平（规格 11）

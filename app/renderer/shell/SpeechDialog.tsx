@@ -31,9 +31,11 @@ export function SpeechDialog() {
   useEffect(() => {
     if (req) void call("models.status").then(setModels, () => setModels(null));
   }, [req]);
-  // 语音分析要用的模型：对齐、读音预测、音高
-  const needed = ["pydomino", "tsqyomi", "fcpe"];
-  const missing = (models?.files ?? []).filter((m) => needed.includes(m.model) && m.state === "missing").map((m) => t(`models.name.${m.model}`));
+  // 语音分析要用的模型：对齐、读音预测（缺了任务会失败）；音高 FCPE 缺了只是这次不测 F0，对齐照常（任务里提醒）
+  const needed = ["pydomino", "tsqyomi"];
+  const absent = (models?.files ?? []).filter((m) => m.state === "missing").map((m) => m.model);
+  const missing = [...new Set(absent.filter((m) => needed.includes(m)))].map((m) => t(`models.name.${m}`));
+  const noF0 = absent.includes("fcpe");
 
   useEffect(() => {
     if (!req) {
@@ -135,9 +137,9 @@ export function SpeechDialog() {
           {src && pv.mixBound ? <Callout tone="warn">{t("speech.mixBound", { n: pv.mixBound })}</Callout> : null}
           {missing.length ? (
             <Callout tone="bad">{t("speech.envMissing", { models: missing.join(t("settings.subtitle.speakerSep")) })}</Callout>
-          ) : models ? (
-            <div className={s.faint}>{t("speech.envOk")}</div>
           ) : null}
+          {noF0 ? <Callout tone="warn" testId="speech-no-f0">{t("speech.envNoF0", { model: t("models.name.fcpe") })}</Callout> : null}
+          {models && !missing.length && !noF0 ? <div className={s.faint}>{t("speech.envOk")}</div> : null}
           {pv.freshAll ? (
             <Checkbox isSelected={rerun} onChange={setRerun} label={t("speech.rerunFresh", { n: pv.freshAll })} testId="speech-rerun">
               {t("speech.rerunFresh", { n: pv.freshAll })}

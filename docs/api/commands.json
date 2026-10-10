@@ -2792,6 +2792,14 @@
    "summary": "Phoneme time edit rejected (only times may change; line given)."
   },
   {
+   "code": "speech-f0-failed",
+   "args": [
+    "failed",
+    "total"
+   ],
+   "summary": "Job warning, not a failure: pitch (F0) chunks were not measured in a speech analysis; alignments are adopted anyway (cause attached)."
+  },
+  {
    "code": "speech-invalid",
    "args": [
     "field",

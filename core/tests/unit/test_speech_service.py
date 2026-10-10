@@ -268,6 +268,58 @@ def test_results_table_counts_and_rerun_by_unit(core):
     assert prep["ok"] and prep["r"]["speech"] == {"ok": False, "speech": 2, "analyzed": 1}
 
 
+def test_missing_fcpe_keeps_alignments_and_reports_f0(core, monkeypatch, capsys):
+    """只放了 pydomino + tsqyomi、没有 FCPE（2026-10-10 起模型可以逐个下载）：工作进程照样交出对齐结果，
+    音高没测成写成任务级提醒（P6，不静默）；Core 照常采纳对齐，任务记为成功，提醒留在任务摘要里（结果再大也不丢）。"""
+    from types import SimpleNamespace
+
+    from ottosmasher.core.scheduler import _Running, _small
+    from ottosmasher.jobs import speech as speech_job
+    from ottosmasher.jobs import worker
+    from ottosmasher.lang.ja import runtime
+    from ottosmasher.models import domino, onnx
+
+    a = seg(core, 1.0, 2.0, "あ")
+    job = core.speech.submit("segments", [a], False)
+    jid = job["id"]
+    row = core.conn.execute("SELECT params, device FROM job WHERE id=?", (jid,)).fetchone()
+    params = json.loads(row["params"])
+    core.jobs.cancel(jid)  # 不让真的工作进程跑起来；下面在本进程里跑工作进程的同一段代码
+    assert params["f0"] and not (Path(params["models_dir"]) / "features" / "fcpe.onnx").exists()
+
+    # 对齐这一侧换成假的（不需要真模型）；FCPE 走真实的定位与建会话 → 文件不在
+    fake = SimpleNamespace(probe=None)
+    real_create = onnx.create_session
+    monkeypatch.setattr(runtime, "JaRuntime", lambda *a, **k: SimpleNamespace(session=fake, analyze=lambda text: object()))
+    monkeypatch.setattr(onnx, "create_session", lambda model, *a, **k: fake if model == domino.MODEL_ID else real_create(model, *a, **k))
+    monkeypatch.setattr(domino, "Aligner", lambda session: SimpleNamespace(session=session))
+    phones = lambda it: [{"label": "a", "start": it["target"][0], "end": it["target"][1], "mora": 0, "word": 0}]  # noqa: E731
+    monkeypatch.setattr(speech_job, "align_item", lambda it, front, aligner, cache: {"phones": phones(it), "morae": ["ア"], "words": [], "frontend": {}})
+
+    job_dir = core.jobs.jobs_dir / jid
+    job_dir.mkdir(parents=True, exist_ok=True)
+    capsys.readouterr()
+    result = worker._speech_analyze(params, worker.Ctx(job_dir, json.loads(row["device"])))
+    events = [json.loads(x) for x in capsys.readouterr().out.splitlines()]
+    total = sum(len(e["chunks"]) for e in params["f0"])
+    assert (result["ok"], result["failed"], result["f0"]) == (1, 0, [])
+    assert result["warnings"] == [{"code": "speech-f0-failed", "args": {"failed": total, "total": total}, "cause": result["f0Errors"][0]["error"]}]
+    assert result["f0Errors"][0]["error"]["code"] == "model-file-missing"
+
+    # 交给调度器的收尾（与真的任务进程退出时同一条路）
+    for ev in events:
+        if ev["type"] == "item":
+            core.jobs._item(jid, ev)
+    core.jobs._exited(jid, _Running(tree=None, result=result), 0)  # type: ignore[arg-type]
+    summary = core.jobs.summary(jid)
+    assert summary["status"] == "succeeded" and summary["items"] == {"total": 1, "ok": 1, "failed": 0}
+    assert summary["result"]["warnings"] == result["warnings"]
+    assert heads(core, unit(core, a))[1] == [("ok", 0)] and heads(core, unit(core, a))[0] is not None  # 对齐已采纳为当前头
+    assert core.conn.execute("SELECT COUNT(*) FROM measure_run WHERE kind='f0'").fetchone()[0] == 0
+    big = _small({"warnings": result["warnings"], "f0": ["x" * 5000]})
+    assert big["truncated"] and big["warnings"] == result["warnings"]
+
+
 def test_auto_rerun_after_segment_edits_is_a_setting(core):
     a = seg(core, 1.0, 2.0, "あ")
     _run(core, [a], entry="segments")

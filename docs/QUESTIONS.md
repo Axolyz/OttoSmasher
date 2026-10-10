@@ -456,6 +456,7 @@
 | 6 | PyMSS Studio 指引 | 设置 → PyMSS Studio 没找到时写明要另外安装、各平台选哪个包、装好后在 Studio 里装环境和下载分离模型，并有「打开 PyMSS Studio 发布页」（github.com/pymss-project/pymss-studio/releases） |
 | 7 | 许可证 | GPL-3.0-or-later（与旧版一致；随包的 Rubber Band、带 libx264 的 ffmpeg 都是 GPL）。仓库根目录 LICENSE = GPL v3 全文；README 写版权声明（“OttoSmasher contributors”，所有者要署名的话改这一处）；docs/THIRD_PARTY.md 列出各组件与模型的许可 |
 | 8 | 文档 | README.md 改成面向用户（是什么、系统要求、安装、第一次使用、带与不带、许可）；docs/USER_GUIDE.md 用户使用说明（概念、各页面、各功能、快捷键、常见问题）；原来 README 里的开发内容移到 docs/DEVELOPMENT.md。README 的安装一节是发布版的做法，开头写明发布包还没出 |
+| 9 | 只下了对齐的模型、没下 FCPE 时做语音分析（模型可以逐个下载后，这种情况会真的出现） | 原来缺 FCPE 会让整个语音分析任务在**对齐全部算完之后**失败，一段都不登记。改为：对齐照常登记；这次不测音高（F0），任务成功但在任务抽屉里显示黄色提醒「音高（F0）有 n / n 段没测成……原因：模型文件不在应放的位置……」（P6，不静默）。确认框**不拦**提交：缺 pydomino / tsqyomi 仍是红字「任务会失败」，只缺 FCPE 改为黄字「对齐照常，只是这次不测音高」。放好 FCPE 后，「自动准备检索」会补测采样范围和每个原素材默认人声轨上缺的音高（关了自动准备就用音高检索里的「准备」）。想改成“缺 FCPE 就不让分析”请说 |
 
 ### 术语、快速开始、README 亮点（所有者 2026-10-10，第二轮）
 
