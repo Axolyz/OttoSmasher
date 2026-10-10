@@ -134,6 +134,19 @@ export function SourcesPage() {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
     }
   };
+  /** 批量「原混音设为人声与默认人声轨」：已有默认人声轨的不动；整批一次修改、可撤销 */
+  const originalAsVocal = async (ids: string[]) => {
+    try {
+      const r = await call("tracks.originalAsVocal", { sourceIds: ids });
+      toast({
+        text: t("tracks.originalVocalDone", { n: r.applied, m: r.skipped }),
+        action: r.edit_id ? { label: t("common.undo"), run: () => void undo() } : undefined,
+      });
+      await reload();
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    }
+  };
   // 组头（作品）菜单：原片文件夹的作品 → 作品设置、在 Finder 中显示；所有组 → 整组导入字幕标记、建立全长采样；不在原片文件夹的 → 整组设作品与类型
   const groupMenu = (work: string): MenuSpec | null => {
     const members = (rows ?? []).filter((r) => r.work === work);
@@ -146,6 +159,7 @@ export function SourcesPage() {
         ...(folder ? [{ id: "work-settings", label: t("workSettings.menu"), run: () => setWorkSettingsFor(folder) }] : []),
         { id: "subimport", label: t("roots.groupSubimport", { n: members.length }), run: () => setBatchImport(members) },
         { id: "whole", label: t("roots.groupWhole", { n: members.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: members.map((m) => m.id) }) },
+        { id: "original-vocal", label: t("tracks.originalVocalN", { n: members.length }), run: () => void originalAsVocal(members.map((m) => m.id)) },
         ...(loose.length ? [{ id: "work-type", label: t("workType.menuN", { n: loose.length }), run: () => setWorkTypeFor(loose) }] : []),
         { id: "check", label: t("roots.groupCheck"), run: () => setChecked(new Set(members.map((m) => m.id))) },
         ...(folder ? (["-", { id: "reveal", label: t("roots.reveal"), run: () => void window.otto.files.reveal(folder.path) }] as const) : []),
@@ -250,6 +264,7 @@ export function SourcesPage() {
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
             { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: ids }) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
+            { id: "original-vocal", label: t("tracks.originalVocalN", { n: ids.length }), run: () => void originalAsVocal(ids) },
             { id: "work-type", label: t("workType.menuN", { n: ids.length }), run: () => setWorkTypeFor((rows ?? []).filter((x) => ids.includes(x.id))) },
             { id: "match-pictures", label: t("visual.matchMenu", { n: ids.length }), run: () => setMatchFor(ids) },
             {

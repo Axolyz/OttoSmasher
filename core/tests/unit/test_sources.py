@@ -146,8 +146,8 @@ def test_cover_art_is_not_video_and_first_stream_default(svc, media):
     video = [s for s in src["streams"] if s["kind"] == "video"]
     assert len(video) == 1 and video[0]["is_attached_pic"] is True
     assert src["default_audio_stream"] == 0  # 没有日语 → 第一条
-    assert (r["work"], r["episode"]) == (None, None)  # 推断不出 → 未知
-    assert src["work"] == "" and src["episode"] == ""
+    assert (r["work"], r["episode"]) == (None, "cover ♯")  # 作品推断不出 → 未知；素材标识 = 文件名（所有者 2026-10-10）
+    assert src["work"] == "" and src["episode"] == "cover ♯"
 
 
 # R1.5 文件名含空格、方括号、日文、中文、♪、♯ 均可登记

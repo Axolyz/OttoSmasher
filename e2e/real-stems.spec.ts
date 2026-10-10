@@ -37,7 +37,7 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   const lp = await req<Plan>("samples.plan", { from: segFrom });
   const akkarin = lp.items.find((l) => l.name === "アッカリ～ン")!;
   expect([akkarin.status, akkarin.speakers]).toEqual(["pending", ["京子(きょうこ)たち"]]);
-  expect(akkarin.start).toBeCloseTo(akkarin.sourceStart! - 0.1, 6); // 整轨声部：局部秒 = 原片秒
+  expect(akkarin.start).toBeCloseTo(akkarin.sourceStart! - 0.1, 6); // 整轨声部：局部秒 = 原素材秒
   const made = await req<{ ids: string[] }>("samples.createPlanned", { from: segFrom, token: lp.token, keys: [akkarin.key] });
   const smp = await req<{ name: string; nature: string; asset_id: string; people: string[] }>("samples.get", { id: made.ids[0] });
   expect([smp.name, smp.nature, smp.asset_id, smp.people]).toEqual(["アッカリ～ン", "speech", vocals.assetId, ["京子(きょうこ)たち"]]);

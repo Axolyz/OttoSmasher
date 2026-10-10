@@ -64,7 +64,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
   await expect(page.getByTestId("edit-bar")).toHaveCount(0);
   expect((await anns(page, sid))[1]!.end).toBeCloseTo(3);
 
-  // 3) 选区 4–5 秒 → 右键「新增区段标签…」→ effect:door，作用于整个原片
+  // 3) 选区 4–5 秒 → 右键「新增区段标签…」→ effect:door，作用于整个原素材
   await page.mouse.move(await xOf(4), y);
   await page.mouse.down();
   await page.mouse.move(await xOf(5), y, { steps: 6 });

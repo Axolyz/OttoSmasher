@@ -5,7 +5,7 @@ import type { PlayerState } from "../app/shared/protocol";
 import { launch } from "./helpers";
 
 // 阶段 2 真实素材（只读引用交接包 fixtures，不复制）：OTTO_FIXTURES=<交接包>/fixtures 时运行。
-// YY2-07 整集（HEVC 10bit + 两条日语 FLAC）：登记耗时、两条音轨、波形就绪、原片播放器在真实素材上的范围截停、导出样本数。
+// YY2-07 整集（HEVC 10bit + 两条日语 FLAC）：登记耗时、两条音轨、波形就绪、原素材播放器在真实素材上的范围截停、导出样本数。
 const FIX = process.env.OTTO_FIXTURES;
 test.skip(!FIX, "需要 OTTO_FIXTURES 指向交接包的 fixtures 目录");
 
@@ -28,7 +28,7 @@ test("真实素材 YY2-07：登记、波形、范围截停、导出", async () =
   await expect(page.getByTestId("source-row").first()).toContainText("2 条音轨");
   await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 20000 });
 
-  // 原片播放器：真实 HEVC 上的范围截停（静音输出）
+  // 原素材播放器：真实 HEVC 上的范围截停（静音输出）
   await page.evaluate(() => {
     (window as unknown as { __st: PlayerState[] }).__st = [];
     window.otto.player.onState((s) => (window as unknown as { __st: PlayerState[] }).__st.push(s));

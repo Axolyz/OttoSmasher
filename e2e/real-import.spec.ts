@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
 // 真实外部音频的采样库导入（只读引用交接包 fixtures/external_audio，原地登记、不复制）：
-// 封面图不能当画面；整段采样用确切时长；单独选的 MP4（视频从 0.125 秒开始）按原片导入并有缩略图
+// 封面图不能当画面；整段采样用确切时长；单独选的 MP4（视频从 0.125 秒开始）按原素材导入并有缩略图
 const FIX = process.env.OTTO_FIXTURES;
 test.skip(!FIX, "需要 OTTO_FIXTURES 指向交接包的 fixtures 目录");
 
@@ -32,7 +32,7 @@ test("真实外部音频：文件夹导入与单个 MP4", async () => {
   expect(byName["仕事してP MEIKO KAITO - 番凩-2019-"]).toBeCloseTo(222, 0);
   expect(byName["歳納京子！ · G♯5__8ca511050f35"]).toBeCloseTo(0.627, 3);
   expect(byName["千鹤吉他__cf6947c5be6a"]).toBeCloseTo(0.956, 3);
-  // 封面图不是画面：MP3 原片没有缩略图
+  // 封面图不是画面：MP3 原素材没有缩略图
   const srcs = await req<Array<{ id: string; path: string; has_video: boolean; has_picture: boolean }>>("sources.list", {});
   const mp3 = srcs.r.find((x) => x.path.endsWith(".mp3"))!;
   expect([mp3.has_video, mp3.has_picture]).toEqual([false, false]);

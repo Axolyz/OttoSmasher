@@ -35,10 +35,10 @@ SORTS = {
 
 
 def source_display_name(work: str, episode: str, path: str) -> str:
-    """原片名：作品 + 集数；没有就用文件名（不含扩展名）。界面用同一规则。"""
+    """原素材名：作品 + 素材标识；没有作品就用素材标识（默认就是文件名），再没有用文件名（不含扩展名）。界面用同一规则。"""
     if work and episode:
         return f"{work} {episode}"
-    return work or Path(path).stem
+    return work or episode or Path(path).stem
 
 
 class SampleService:

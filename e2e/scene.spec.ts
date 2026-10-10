@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
-// 场景 F（所有者 2026-10-09）：开着原片、挂上字幕，看到哪句好就直接从这句建采样（台本行、画内字幕、波形上的段右键都可以），
-// 音效提示对应的位置也能直接建；逐句建与批量建是同一个动作，产物完全相同。建完留在原片页。
+// 场景 F（所有者 2026-10-09）：开着原素材、挂上字幕，看到哪句好就直接从这句建采样（台本行、画内字幕、波形上的段右键都可以），
+// 音效提示对应的位置也能直接建；逐句建与批量建是同一个动作，产物完全相同。建完留在原素材页。
 test("看片逐句建采样：台本行、画内字幕、音效提示；逐句与批量产物相同", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-scene-"));
   const mkv = join(dir, "[Group] Scene Show [01].mkv");
@@ -52,7 +52,7 @@ test("看片逐句建采样：台本行、画内字幕、音效提示；逐句�
   await page.screenshot({ path: ".cache/playwright-results/scene-clip.png" });
   await panel.getByTestId("clip-save").click();
   await expect(page.getByText("已建立采样「こんにちは」")).toBeVisible();
-  await expect(page.getByTestId("source-viewer")).toBeVisible(); // 留在原片页
+  await expect(page.getByTestId("source-viewer")).toBeVisible(); // 留在原素材页
 
   // 2) 画内字幕右键：同一个菜单（单击台本行 = 跳到这段开头，画面里显示这段文字）
   await row.click();

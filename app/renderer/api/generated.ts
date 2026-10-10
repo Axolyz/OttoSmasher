@@ -817,6 +817,13 @@ export interface OpedRuleError {
   refs: string[];
 }
 
+/** 原混音设为人声与默认人声轨：改了几个原素材、跳过几个（已有默认人声轨 / 媒体已释放 / 没有原混音）。 */
+export interface OriginalAsVocal {
+  applied: number;
+  edit_id: string | null;
+  skipped: number;
+}
+
 export interface PathError {
   error: ErrorWire;
   path: string;
@@ -2761,6 +2768,8 @@ export interface Commands {
   "textLayer.list": { params: TextLayerParams; result: TextLayerList; effect: "read" };
   /** List thumbnails (pending while generated). */
   "thumbs.get": { params: ThumbsParams; result: ThumbResult[]; effect: "read" };
+  /** For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit). */
+  "tracks.originalAsVocal": { params: SourceIdsParams; result: OriginalAsVocal; effect: "write" };
   /** Restore UI state of one page. */
   "ui.get": { params: UiGetParams; result: Record<string, unknown>; effect: "ui" };
   /** Save one UI state value (not user data, no undo). */

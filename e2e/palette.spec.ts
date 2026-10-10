@@ -81,13 +81,13 @@ test("命令面板：对象命令、过滤、BPM、设置分组、最近用过",
   await page.keyboard.press("Escape");
   await expect(pal).toHaveCount(0);
 
-  // 原片页：作用于当前原片 / 添加原片；切页命令
+  // 原素材页：作用于当前原素材 / 添加原素材；切页命令
   await page.keyboard.press("Meta+k");
-  await page.getByTestId("palette-input").fill("前往原片");
+  await page.getByTestId("palette-input").fill("前往原素材");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("page-sources")).toBeVisible();
   await page.keyboard.press("Meta+k");
-  await expect(pal).toContainText("添加原片…");
+  await expect(pal).toContainText("添加原素材…");
   await page.keyboard.press("Escape");
   await app.close();
 });

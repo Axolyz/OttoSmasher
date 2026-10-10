@@ -70,7 +70,7 @@ test("播放：范围截停、代次、一个声音、试听", async () => {
   });
   await expect.poll(async () => (await states()).filter((s) => s.player === "source").at(-1)!.time!, { timeout: 5000 }).toBeGreaterThan(3.8);
 
-  // 全应用一个声音：试听开始 → 原片暂停；试听时钟为区间本地秒
+  // 全应用一个声音：试听开始 → 原素材暂停；试听时钟为区间本地秒
   gen = await page.evaluate((id) => window.otto.player.audition(id, 0.2, 0.5), assetId);
   await expect.poll(async () => (await states()).filter((s) => s.player === "source").at(-1)!.playing).toBe(false);
   end = await waitEnded("audition", gen);

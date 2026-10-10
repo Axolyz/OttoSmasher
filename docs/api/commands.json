@@ -1626,6 +1626,17 @@
    }
   },
   {
+   "name": "tracks.originalAsVocal",
+   "effect": "write",
+   "summary": "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/OriginalAsVocal"
+   }
+  },
+  {
    "name": "ui.get",
    "effect": "ui",
    "summary": "Restore UI state of one page.",
@@ -6810,6 +6821,34 @@
    "required": [
     "code",
     "refs"
+   ]
+  },
+  "OriginalAsVocal": {
+   "title": "OriginalAsVocal",
+   "description": "原混音设为人声与默认人声轨：改了几个原素材、跳过几个（已有默认人声轨 / 媒体已释放 / 没有原混音）。",
+   "type": "object",
+   "properties": {
+    "applied": {
+     "type": "integer"
+    },
+    "edit_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "skipped": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "applied",
+    "edit_id",
+    "skipped"
    ]
   },
   "PathError": {

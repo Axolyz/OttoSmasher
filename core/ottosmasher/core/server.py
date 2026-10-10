@@ -169,6 +169,9 @@ class Core:
         r("assets.listForSource", "read", T.SourceIdParams, list[T.AssetInfo], "All sound assets of a source, full tracks first.",
           lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]))
         r("assets.get", "read", T.IdParams, T.AssetRecord, "One sound asset.", lambda p: assets_mod.get(self.conn, p["id"]))
+        r("tracks.originalAsVocal", "write", T.SourceIdsParams, T.OriginalAsVocal,
+          "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
+          self._tracks_original_as_vocal)
         r("assets.tracks", "read", T.SourceIdParams, T.Tracks, "Tracks that can be default tracks, with roles and current defaults.",
           lambda p: assets_mod.tracks(self.conn, p["sourceId"]))
         r("playback.resolveSource", "read", T.ResolveSourceParams, T.SourceHandle, "Playback handle for the source player (file, audio track, external stem).",
@@ -706,6 +709,32 @@ class Core:
         with transaction(self.conn):
             vid = visuals_mod.prepare(self.conn, p["ownerType"], p["ownerId"], p["path"], p.get("mode"), float(p.get("offset") or 0.0))
         return {"bindingId": vid}
+
+    def _tracks_original_as_vocal(self, p: dict[str, Any]) -> dict[str, Any]:
+        """批量「原混音设为人声与默认人声轨」（所有者 2026-10-10：游戏语音、已经是干声的素材一次上千个，逐个开「人声 / 音效与默认轨」做不完）。
+        已经有默认人声轨的不动（例如分离出的人声）；媒体已释放的跳过；整批一个编辑、可撤销。"""
+        ops: list[dict[str, Any]] = []
+        skipped = 0
+        for sid in dict.fromkeys(p["sourceIds"]):
+            src = self.conn.execute("SELECT version, default_audio_stream, media_state FROM source WHERE id=?", (sid,)).fetchone()
+            if src is None:
+                raise CoreError("source-not-found", id=sid)
+            has = self.conn.execute("SELECT 1 FROM default_track WHERE source_id=? AND role='vocal'", (sid,)).fetchone()
+            a = self.conn.execute(
+                "SELECT id, version FROM sound_asset WHERE source_id=? AND origin='stream' AND stream_ordinal IS ?", (sid, src["default_audio_stream"])
+            ).fetchone()
+            if has or a is None or src["media_state"] != "available":
+                skipped += 1
+                continue
+            roles = [r[0] for r in self.conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (a["id"],))]
+            if "vocal" not in roles:
+                ops.append({"entity": "asset", "id": a["id"], "version": a["version"], "fields": {"roles": sorted({*roles, "vocal"})}})
+            ops.append({"entity": "source", "id": sid, "version": src["version"], "fields": {"default_vocal": a["id"]}})
+        n = sum(1 for o in ops if o["entity"] == "source")
+        if not n:
+            return {"edit_id": None, "applied": 0, "skipped": skipped}
+        res = self.edits.apply({"label": {"code": "tracks-original-vocal", "args": {"n": n}}, "ops": ops})
+        return {"edit_id": res["edit_id"], "applied": n, "skipped": skipped}
 
     def _visual_match_apply(self, p: dict[str, Any]) -> dict[str, Any]:
         """匹配同名画面：登记画面文件并在一次编辑里挂到原片上（可撤销；撤销只摘下绑定，登记的记录留着无害）。"""

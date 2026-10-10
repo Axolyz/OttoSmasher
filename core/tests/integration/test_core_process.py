@@ -150,3 +150,37 @@ def test_sources_over_rpc(tmp_path):
     assert c.call("sources.list")["r"] == []
     c.p.stdin.close()
     c.p.wait(timeout=10)
+
+
+def test_original_mix_as_vocal_in_bulk(tmp_path):
+    """批量「原混音设为人声与默认人声轨」（所有者 2026-10-10）：没有默认人声轨的设上；已有的不动；一次编辑、可撤销；
+    推断不到素材标识时用文件名（所有者 2026-10-10）。"""
+    media = tmp_path / "game"
+    media.mkdir()
+    files = []
+    for name in ("voice_001", "voice_002"):
+        f = media / f"{name}.wav"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=duration=1", str(f)], check=True)
+        files.append(str(f))
+    c = CoreProc(tmp_path / "ws")
+    r = c.call("sources.add", paths=files)["r"]
+    ids = [x["sourceId"] for x in r]
+    assert [x["episode"] for x in r] == ["voice_001", "voice_002"]
+    # 第二个先手动设好（模拟分离后的人声）：批量时跳过
+    tk = c.call("assets.tracks", sourceId=ids[1])["r"]
+    aid = tk["tracks"][0]["id"]
+    assert c.call("edits.apply", batch={"ops": [
+        {"entity": "asset", "id": aid, "version": tk["tracks"][0]["version"], "fields": {"roles": ["vocal"]}},
+        {"entity": "source", "id": ids[1], "version": tk["sourceVersion"], "fields": {"default_vocal": aid}},
+    ]})["ok"]
+    out = c.call("tracks.originalAsVocal", sourceIds=ids)["r"]
+    assert (out["applied"], out["skipped"]) == (1, 1) and out["edit_id"]
+    t0 = c.call("assets.tracks", sourceId=ids[0])["r"]
+    assert t0["defaults"].get("vocal") == t0["tracks"][0]["id"] and "vocal" in t0["tracks"][0]["roles"]
+    assert c.call("edits.undo")["ok"]
+    t0 = c.call("assets.tracks", sourceId=ids[0])["r"]
+    assert "vocal" not in t0["defaults"] and "vocal" not in t0["tracks"][0]["roles"]
+    again = c.call("tracks.originalAsVocal", sourceIds=[ids[1]])["r"]
+    assert (again["applied"], again["skipped"], again["edit_id"]) == (0, 1, None)
+    c.p.stdin.close()
+    c.p.wait(timeout=10)

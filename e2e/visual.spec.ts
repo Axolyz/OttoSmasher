@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch, refreshLists } from "./helpers";
 
-// 画面绑定与舞台画面（规格 12 §12.4、16 S7.3；UI_PLAN §3）：原片自带视频 → 舞台同步视频；采样绑定图片 → 静态图片；撤销回到原片的画面。
+// 画面绑定与舞台画面（规格 12 §12.4、16 S7.3；UI_PLAN §3）：原素材自带视频 → 舞台同步视频；采样绑定图片 → 静态图片；撤销回到原素材的画面。
 const SHOTS = ".cache/compare/shots/stage9";
 
 test("舞台画面：同步视频、绑定图片、撤销", async () => {
@@ -37,7 +37,7 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await page.screenshot({ path: `${SHOTS}/02-stage-wide.png` });
   await page.getByTestId("stage-pic-wide").click();
 
-  // 绑定图片（编辑通道）→ 舞台显示静态图片；撤销 → 回到原片的视频
+  // 绑定图片（编辑通道）→ 舞台显示静态图片；撤销 → 回到原素材的视频
   await page.evaluate(
     async ({ id, p }) => {
       const req = window.otto.core.request;
@@ -59,7 +59,7 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "image");
 
   // 导出视频片段（S7.1）：交接 ▾ → 导出视频片段… → 任务 → 播放条出现 .mp4
-  await page.keyboard.press("Meta+z"); // 再撤销一次：回到原片自带的视频
+  await page.keyboard.press("Meta+z"); // 再撤销一次：回到原素材自带的视频
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
   await page.getByTestId("stage-handoff").click();
   await page.getByTestId("menu-video").click();

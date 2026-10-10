@@ -27,14 +27,14 @@ from ottosmasher.domain.naming import default_rules, infer_work_episode, validat
         ("Dr. Stone - 11.mkv", "Dr. Stone", "11"),
         ("Title (2019) - 04.mkv", "Title (2019)", "04"),
         ("/some/dir with space/[Kemono Friends][01].mkv", "Kemono Friends", "01"),
-        # 没有集数：第一个括号块视为发布组；4 位 19xx/20xx 不当集数（所有者 2026-10-07 同意）
-        ("[Group] Title [2019][1080p].mkv", "Title", None),
-        ("[Group] Title [1080p].mkv", "Title", None),
-        ("[Group][Title][1080p].mkv", "Title", None),
-        # 推断不出来就是未知，不拿文件名充当（所有者 2026-10-07 同意）
-        ("Love Live 2.mp4", None, None),
-        ("song ♪ ♯ remix.flac", None, None),
-        ("[1080p].mkv", None, None),
+        # 没有集数：第一个括号块视为发布组；4 位 19xx/20xx 不当集数（所有者 2026-10-07 同意）；素材标识用文件名（所有者 2026-10-10）
+        ("[Group] Title [2019][1080p].mkv", "Title", "[Group] Title [2019][1080p]"),
+        ("[Group] Title [1080p].mkv", "Title", "[Group] Title [1080p]"),
+        ("[Group][Title][1080p].mkv", "Title", "[Group][Title][1080p]"),
+        # 作品推断不出来就是未知，不拿文件名充当（所有者 2026-10-07）；素材标识用文件名（所有者 2026-10-10）
+        ("Love Live 2.mp4", None, "Love Live 2"),
+        ("song ♪ ♯ remix.flac", None, "song ♪ ♯ remix"),
+        ("[1080p].mkv", None, "[1080p]"),
     ],
 )
 def test_default_rules(name, work, episode):
@@ -52,9 +52,9 @@ def test_first_matching_rule_wins_and_reports_index():
     r = infer_work_episode("Show_07.mkv", rules)
     assert (r.work, r.episode, r.rule) == ("Show", "07", 1)
     r = infer_work_episode("Other.mkv", rules)
-    assert (r.work, r.episode, r.rule) == ("Other", None, 2)
+    assert (r.work, r.episode, r.rule) == ("Other", "Other", 2)
     r = infer_work_episode("x.mkv", [])
-    assert (r.work, r.episode, r.rule) == (None, None, None)
+    assert (r.work, r.episode, r.rule) == (None, "x", None)
 
 
 def test_rule_with_only_episode_group():

@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch, refreshLists } from "./helpers";
 
-// 删除原片（含独立化）（规格 04 §4.5、§4.8、16 S12；原型 delSrcModal）：勾一个采样独立化 → 任务 → 原片“媒体已释放”留在组里；
-// 留下的采样仍可试听、有画面片段、不能返回原片；另一个采样删掉；磁盘上的原片文件不动。
+// 删除原素材（含独立化）（规格 04 §4.5、§4.8、16 S12；原型 delSrcModal）：勾一个采样独立化 → 任务 → 原素材“媒体已释放”留在组里；
+// 留下的采样仍可试听、有画面片段、不能返回原素材；另一个采样删掉；磁盘上的原素材文件不动。
 const SHOTS = ".cache/compare/shots/stage9";
 
-test("删除原片：先独立化要保留的采样", async () => {
+test("删除原素材：先独立化要保留的采样", async () => {
   test.setTimeout(120_000);
   mkdirSync(SHOTS, { recursive: true });
   const dir = mkdtempSync(join(tmpdir(), "otto-indep-"));

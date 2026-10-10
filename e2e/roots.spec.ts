@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
-// 原片文件夹（阶段 3.13，所有者 2026-10-07）：第一层子文件夹 = 作品；扫描登记、自动关联字幕、扫描后一键全长采样；
+// 原素材文件夹（阶段 3.13，所有者 2026-10-07）：第一层子文件夹 = 作品；扫描登记、自动关联字幕、扫描后一键全长采样；
 // 作品设置改名 = 改磁盘上的文件夹名；Finder 里改名后重新扫描认出移动
 type R<T> = { r: T };
-test("原片文件夹：扫描、作品设置改名、Finder 改名后重新扫描", async () => {
+test("原素材文件夹：扫描、作品设置改名、Finder 改名后重新扫描", async () => {
   const base = mkdtempSync(join(tmpdir(), "otto-roots-"));
-  const root = join(base, "原片库");
+  const root = join(base, "原素材库");
   const kf = join(root, "Kemono Friends");
   mkdirSync(kf, { recursive: true });
   mkdirSync(join(root, "Game", "se"), { recursive: true });
@@ -27,23 +27,23 @@ test("原片文件夹：扫描、作品设置改名、Finder 改名后重新扫�
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
   }, root);
 
-  // 设置「原片」组：添加原片文件夹 → 扫描登记
+  // 设置「原素材」组：添加原素材文件夹 → 扫描登记
   await page.keyboard.press("Meta+2");
-  await expect(page.getByTestId("sources-rescan")).toBeDisabled(); // 还没有原片文件夹
+  await expect(page.getByTestId("sources-rescan")).toBeDisabled(); // 还没有原素材文件夹
   await page.keyboard.press("Meta+,");
   await page.getByTestId("settings-group-source").click();
   await page.getByTestId("roots-add").click();
-  await expect(page.getByTestId("root-row")).toContainText("2 个作品 · 2 个原片", { timeout: 30000 });
+  await expect(page.getByTestId("root-row")).toContainText("2 个作品 · 2 个原素材", { timeout: 30000 });
   await page.keyboard.press("Escape");
 
-  // 原片页：两个作品组；字幕（.ja.srt）已自动关联；扫描提示里「为新原片建立全长采样…」
+  // 原素材页：两个作品组；字幕（.ja.srt）已自动关联；扫描提示里「为新原素材建立全长采样…」
   await expect(page.getByTestId("source-group").filter({ hasText: "Kemono Friends" })).toBeVisible();
   await expect(page.getByTestId("source-group").filter({ hasText: "Game" })).toBeVisible();
   const list = await req<Array<{ id: string; path: string; work: string; episode: string; subtitle_path: string | null; root_id: string | null }>>("sources.list");
   const ep = list.find((x) => x.path.endsWith(".mkv"))!;
   expect([ep.work, ep.episode, !!ep.root_id]).toEqual(["Kemono Friends", "01", true]);
   expect(ep.subtitle_path).toMatch(/\[01\]\.ja\.srt$/);
-  await page.getByRole("button", { name: "为新原片建立全长采样…" }).click();
+  await page.getByRole("button", { name: "为新原素材建立全长采样…" }).click();
   await page.getByTestId("new-samples").getByTestId("newsamples-run").click();
   await expect.poll(async () => (await req<{ total: number }>("samples.list", { offset: 0, limit: 1 })).total).toBe(2);
 
@@ -61,9 +61,9 @@ test("原片文件夹：扫描、作品设置改名、Finder 改名后重新扫�
   const hit = (await req<Array<{ path: string; work: string; source_type: string }>>("sources.list")).find((x) => x.path.endsWith("hit.wav"))!;
   expect([hit.work, hit.source_type, existsSync(hit.path)]).toEqual(["ゲーム", "游戏", true]);
 
-  // 「作品与输入设置」：原片文件夹里的原片，作品只读、跟随文件夹
+  // 「作品与输入设置」：原素材文件夹里的原素材，作品只读、跟随文件夹
   await page.getByTestId("source-group").filter({ hasText: "Kemono Friends" }).click().catch(() => {});
-  await page.getByTestId("source-row").filter({ hasText: "第 01 集" }).click({ button: "right" });
+  await page.getByTestId("source-row").filter({ hasText: "01" }).click({ button: "right" });
   await page.getByRole("menuitem", { name: /作品、字幕与音轨|作品与输入设置/ }).click();
   await expect(page.getByTestId("field-work-follows")).toContainText("跟随文件夹「Kemono Friends」");
   await page.keyboard.press("Escape");

@@ -40,7 +40,7 @@ test("OP/ED：识别、删除与撤销、逐对确认、导入预览", async () 
   // 手动标记与 ED 交叠 → 报错
   await dlg.getByTestId("oped-start").fill("0:17.000");
   await dlg.getByTestId("oped-start").press("Enter");
-  await expect(dlg.getByTestId("oped-add")).toBeDisabled(); // 默认长度 90 秒超出原片
+  await expect(dlg.getByTestId("oped-add")).toBeDisabled(); // 默认长度 90 秒超出原素材
   await dlg.getByRole("textbox", { name: "长度（秒）" }).fill("2");
   await dlg.getByRole("textbox", { name: "长度（秒）" }).press("Tab");
   await dlg.getByTestId("oped-add").click();

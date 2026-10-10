@@ -2675,3 +2675,12 @@ class RelocateItem(TypedDict):
 
 class RelocateManyParams(TypedDict):
     items: list[RelocateItem]
+
+
+class OriginalAsVocal(TypedDict):
+    """原混音设为人声与默认人声轨：改了几个原素材、跳过几个（已有默认人声轨 / 媒体已释放 / 没有原混音）。"""
+
+    edit_id: str | None
+    applied: int
+    skipped: int
+

@@ -179,15 +179,15 @@ def test_work_modes_and_grouping_preview(db, ws, media):  # noqa: F811
     imp._adopt_scan({"id": "b"}, scan([str(d)], ws.root / "Jobs" / "b" / "cache", lambda *_: None))
     pv = imp.preview("b")
     assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 2], ["", 1]], "番剧 文件夹")  # 不一致 → 文件夹名
-    # 按文件名推断（work=None）：两组；集数照样推断
+    # 按文件名推断（work=None）：两组；素材标识照样推断，推断不到用文件名（所有者 2026-10-10）
     imp.commit("b", work=None, source_type="", whole_sample=False, nature="unclassified", bind_pictures=True)
     got = sorted((r[0], r[1]) for r in db.execute("SELECT work, episode FROM source"))
-    assert got == [("", ""), ("Show X", "01"), ("Show X", "02")]
-    # 统一设为空 = 未指定作品（不再推断作品），集数仍推断
+    assert got == [("", "extra"), ("Show X", "01"), ("Show X", "02")]
+    # 统一设为空 = 未指定作品（不再推断作品），素材标识仍推断
     db.execute("DELETE FROM sample")
     for t in ("default_track", "asset_storage", "asset_role", "sound_asset", "source_stream", "source"):
         db.execute(f"DELETE FROM {t}")
     imp._adopt_scan({"id": "c"}, scan([str(d)], ws.root / "Jobs" / "c" / "cache", lambda *_: None))
     imp.commit("c", work="", source_type="", whole_sample=False, nature="unclassified", bind_pictures=True)
     got = sorted((r[0], r[1]) for r in db.execute("SELECT work, episode FROM source"))
-    assert got == [("", ""), ("", "01"), ("", "02")]
+    assert got == [("", "01"), ("", "02"), ("", "extra")]

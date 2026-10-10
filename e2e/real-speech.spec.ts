@@ -5,14 +5,14 @@ import { expect, test } from "@playwright/test";
 import { launch, refreshLists } from "./helpers";
 
 // S1.7（规格 16）：YY1-01 + 人声整轨（开发期钩子，S1.2）→ 默认人声轨 → 导入到文本层（含 OP/ED）→
-// 原片页「语音分析…」：分析默认人声轨上的台词段，不需要先建采样（所有者 2026-10-09：分析属于“段 + 那条轨”）；不触发分离、确认框 M/N/K；
+// 原素材页「语音分析…」：分析默认人声轨上的台词段，不需要先建采样（所有者 2026-10-09：分析属于“段 + 那条轨”）；不触发分离、确认框 M/N/K；
 // 任务完成后再发起一次全部跳过；之后再从台词段批量建采样，采样直接读到这段的分析；截一个音节 = 只读到一部分（◐）；舞台显示音素。
 const FIX = process.env.OTTO_FIXTURES;
 const MODELS = resolve("dev-workspace/Models");
 test.skip(!FIX || !existsSync(join(MODELS, "pydomino", "phoneme_transition_model.onnx")), "需要 OTTO_FIXTURES 与 dev 模型");
 
 type R<T> = { ok: boolean; r: T; e?: unknown };
-test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台音素", async () => {
+test("真实素材 YY1-01：原素材入口语音分析、再发起跳过、舞台音素", async () => {
   test.setTimeout(900_000);
   const base = mkdtempSync(join(tmpdir(), "otto-real-speech-"));
   const workspace = join(base, "工作区 real");
@@ -33,7 +33,7 @@ test("真实素材 YY1-01：原片入口语音分析、再发起跳过、舞台�
   console.log("source entry lines", first.run);
   expect(first.run).toBeGreaterThan(250);
 
-  // 原片页 → 准备 ▾ → 语音分析（还没有任何采样）
+  // 原素材页 → 准备 ▾ → 语音分析（还没有任何采样）
   await page.keyboard.press("Meta+2");
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();

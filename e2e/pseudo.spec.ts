@@ -41,7 +41,7 @@ test("伪语言下没有写死的界面文字", async () => {
   }
   await page.keyboard.press("Escape");
 
-  // 有资料时的原片页（查看器、截取面板、设置框）与采样库（列表、舞台）
+  // 有资料时的原素材页（查看器、截取面板、设置框）与采样库（列表、舞台）
   const wav = join(mkdtempSync(join(tmpdir(), "otto-pseudo-")), "a.wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=duration=3", wav]);
   const sid = await page.evaluate(async (p) => {
@@ -54,7 +54,7 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.getByTestId("source-group").first().click();
   await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).click();
   await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
-  // 命令面板：作用于当前原片的命令、本页与全局；有输入时每条右边写分组；没有匹配
+  // 命令面板：作用于当前原素材的命令、本页与全局；有输入时每条右边写分组；没有匹配
   await page.keyboard.press("Meta+k");
   await expect(page.getByTestId("palette")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
@@ -276,7 +276,7 @@ test("伪语言：三大搜索", async () => {
   await app.close();
 });
 
-test("伪语言：阶段 8 / 9 的界面（范围行、批量、管理标签、画面绑定、视频、独立化、回导、存储、删除原片）", async () => {
+test("伪语言：阶段 8 / 9 的界面（范围行、批量、管理标签、画面绑定、视频、独立化、回导、存储、删除原素材）", async () => {
   test.setTimeout(120_000);
   const { app, page } = await launch({ locale: "pseudo" });
   const dir = mkdtempSync(join(tmpdir(), "otto-pseudo89-"));

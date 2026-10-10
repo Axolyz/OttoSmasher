@@ -6,8 +6,8 @@ import { expect, test } from "@playwright/test";
 import type { PlayerState } from "../app/shared/protocol";
 import { launch } from "./helpers";
 
-// 原片页（UI_PLAN §4、§6.1、§6.2）：分组折叠、打开、时间线选区与缩放、播放选区（引擎截停）、导出 WAV、作品与输入设置、删除。
-test("原片页：列表、时间线、导出、设置、删除", async () => {
+// 原素材页（UI_PLAN §4、§6.1、§6.2）：分组折叠、打开、时间线选区与缩放、播放选区（引擎截停）、导出 WAV、作品与输入设置、删除。
+test("原素材页：列表、时间线、导出、设置、删除", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-src-"));
   const mkv = join(dir, "[Group] Test Show [01].mkv");
   const wav = join(dir, "效果音 ♪.wav");
@@ -91,13 +91,13 @@ test("原片页：列表、时间线、导出、设置、删除", async () => {
   await expect(groups.nth(0)).toContainText("Renamed Show");
   await expect(page.getByTestId("top-sources")).toContainText("Renamed Show · 01");
 
-  // 删除纯音频原片：确认框写清删什么、不删什么；文件保留
+  // 删除纯音频原素材：确认框写清删什么、不删什么；文件保留
   await groups.nth(1).click();
   const wavRow = page.getByTestId("source-row").filter({ hasText: "效果音" });
   await wavRow.click({ button: "right" });
-  await page.getByRole("menuitem", { name: "删除原片…" }).click();
+  await page.getByRole("menuitem", { name: "删除原素材…" }).click();
   const del = page.getByTestId("source-delete");
-  await expect(del).toContainText("不会删除：磁盘上的原片文件");
+  await expect(del).toContainText("不会删除：磁盘上的原素材文件");
   await del.getByTestId("confirm-ok").click();
   await expect(page.getByTestId("source-row").filter({ hasText: "效果音" })).toHaveCount(0);
   expect(existsSync(wav)).toBe(true);

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch, refreshLists } from "./helpers";
 
-// 导入到文本层（所有者 2026-10-09「原片上的四类对象」B 节）：同名字幕自动关联 → 四类预览（台词段 / 音效提示 / 说话人 / OP/ED）→
+// 导入到文本层（所有者 2026-10-09「原素材上的四类对象」B 节）：同名字幕自动关联 → 四类预览（台词段 / 音效提示 / 说话人 / OP/ED）→
 // 取消勾选一行 → 导入 → 再导入只剩“新增 1 / 无变化 2” → 改过的段受保护：再导入跳过，逐行强制替换要二次确认 → 撤销
 test("导入到文本层：预览、部分导入、再导入、受保护跳过与强制替换、撤销", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-sub-"));
@@ -44,7 +44,7 @@ test("导入到文本层：预览、部分导入、再导入、受保护跳过�
   await expect(rows.nth(0)).toContainText("こんにちは");
   await expect(rows.nth(0)).toContainText("京子");
   await expect(rows.nth(2)).toContainText("结束不晚于开始");
-  await expect(rows.nth(3)).toContainText("超出原片时长");
+  await expect(rows.nth(3)).toContainText("超出原素材时长");
   await expect(rows.nth(2).getByRole("checkbox")).toBeDisabled();
   await sheet.getByTestId("subimport-tab").getByRole("radio", { name: /音效提示/ }).click();
   await expect(rows).toHaveCount(1);
@@ -98,7 +98,7 @@ test("导入到文本层：预览、部分导入、再导入、受保护跳过�
   await app.close();
 });
 
-// 有效标签（04 §4.2.9、R5.2–R5.4）：字幕说话人 → 人声角色的资产上截取的采样继承“人物”；原片作品实时继承
+// 有效标签（04 §4.2.9、R5.2–R5.4）：字幕说话人 → 人声角色的资产上截取的采样继承“人物”；原素材作品实时继承
 test("有效标签：说话人只给人声资产、列表显示人物、舞台显示分面", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-tag-"));
   const mkv = join(dir, "[Group] Tag Show [01].mkv");

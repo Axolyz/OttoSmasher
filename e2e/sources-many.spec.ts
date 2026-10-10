@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { launch, refreshLists } from "./helpers";
 
-// 原片列表虚拟化（L15）：上千个短音频展开成一组时只渲染看得见的行；滚动、单击照常。
+// 原素材列表虚拟化（L15）：上千个短音频展开成一组时只渲染看得见的行；滚动、单击照常。
 function wav(path: string): void {
   const n = 800;
   const b = Buffer.alloc(44 + n * 2);
@@ -23,7 +23,7 @@ function wav(path: string): void {
   writeFileSync(path, b);
 }
 
-test("原片列表：1500 个短音频的组只渲染看得见的行", async () => {
+test("原素材列表：1500 个短音频的组只渲染看得见的行", async () => {
   test.setTimeout(300_000);
   const dir = mkdtempSync(join(tmpdir(), "otto-many-"));
   const folder = join(dir, "游戏 A");
@@ -51,6 +51,6 @@ test("原片列表：1500 个短音频的组只渲染看得见的行", async () 
   // 滚到底：最后一行可见、可以打开
   await page.getByTestId("source-row").first().hover();
   await page.mouse.wheel(0, 200000);
-  await expect(page.getByTestId("source-row").filter({ hasText: "se_0000.wav" })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByTestId("source-row").filter({ hasText: "se_0000" })).toBeVisible({ timeout: 10000 });
   await app.close();
 });

@@ -10,9 +10,9 @@ test("推断规则：试算、校验、保存与撤销", async () => {
   const result = row.getByTestId("rules-result");
 
   // 默认规则试算默认样例
-  await expect(result).toHaveText("第 1 条匹配：作品「Yuru Yuri」· 集数「01」");
+  await expect(result).toHaveText("第 1 条匹配：作品「Yuru Yuri」· 素材标识「01」");
   await row.getByTestId("rules-sample").fill("[DBD-Raws][Kemono Friends][02][1080P].mkv");
-  await expect(result).toHaveText("第 2 条匹配：作品「Kemono Friends」· 集数「02」");
+  await expect(result).toHaveText("第 2 条匹配：作品「Kemono Friends」· 素材标识「02」");
   await row.getByTestId("rules-sample").fill("no pattern here.mkv");
   await expect(result).toHaveAttribute("data-state", "none");
 
@@ -27,7 +27,7 @@ test("推断规则：试算、校验、保存与撤销", async () => {
 
   // 改对：新规则命中，保存
   await last.fill("^(?P<work>no pattern) (?P<episode>here)$");
-  await expect(result).toHaveText("第 8 条匹配：作品「no pattern」· 集数「here」");
+  await expect(result).toHaveText("第 8 条匹配：作品「no pattern」· 素材标识「here」");
   await row.getByTestId("rules-save").click();
   await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: string[] }>>("settings.list");

@@ -1,9 +1,10 @@
-"""命名：登记原片时从文件名推断作品与集数（规格 05 §5.1、16 R1.2）。
+"""命名：登记原素材时从文件名推断作品与素材标识（规格 05 §5.1、16 R1.2；所有者 2026-10-10：“原片 / 集数”改叫“原素材 / 素材标识”）。
 
 规则是用户可编辑的有序正则列表（设置 ``source.infer_rules``，原则 P10；所有者 2026-10-07 选定）：
 对文件名（不含目录与扩展名，Unicode NFC）从上到下 ``search``，第一条匹配的规则生效，
-命名组 ``work`` / ``episode`` 给出作品与集数（去首尾空白，空串视为未知）。
-都不匹配时作品、集数都是未知（None），不拿文件名充当（所有者 2026-10-07 同意）。
+命名组 ``work`` / ``episode`` 给出作品与素材标识（去首尾空白，空串视为未知；内部名仍是 episode）。
+素材标识在一个作品里区分和排序原素材（集数、编号或名称，不一定是数字）：**没有给出时用文件名（不含扩展名）**（所有者 2026-10-10）；
+作品推断不出就是未知（None），不拿文件名充当（所有者 2026-10-07）。
 只在首次登记时推断，之后以用户修改为准。默认规则见 ``default_rules.json``。
 """
 
@@ -55,8 +56,8 @@ def infer_work_episode(filename: str, rules: Sequence[str] | None = None) -> Wor
         if m is None:
             continue
         found = {g: (m.groupdict().get(g) or "").strip() or None for g in GROUPS}
-        return WorkEpisode(found["work"], found["episode"], i, tuple(timed_out))
-    return WorkEpisode(None, None, None, tuple(timed_out))
+        return WorkEpisode(found["work"], found["episode"] or text, i, tuple(timed_out))
+    return WorkEpisode(None, text, None, tuple(timed_out))
 
 
 # ---------------------------------------------------------------- 采样建议名（规格 04 §4.7）

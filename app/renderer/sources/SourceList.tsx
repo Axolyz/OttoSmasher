@@ -17,20 +17,21 @@ import { t } from "../i18n";
 import { durationText, relDir } from "./rowInfo";
 import s from "./Sources.module.css";
 
-/** 原片的名字（用在导出文件名、菜单头等）：“作品 集数”，没有作品时用文件名。 */
+/** 原素材的名字（用在导出文件名、菜单头等）：“作品 素材标识”，没有作品时用素材标识（默认就是文件名）。 */
 export function displayName(r: Pick<SourceRow, "work" | "episode" | "path">): string {
   if (r.work && r.episode) return `${r.work} ${r.episode}`;
-  return r.work || stem(r.path);
+  return r.work || r.episode || stem(r.path);
 }
 
-/** 顶栏里的原片标题：“作品 · 集数”（原型）。 */
+/** 顶栏里的原素材标题：“作品 · 素材标识”（原型）。 */
 export function displayTitle(r: Pick<SourceRow, "work" | "episode" | "path">): string {
   if (r.work && r.episode) return `${r.work} · ${r.episode}`;
   return basename(r.path); // 没有集数（短音频、单个视频）：文件名，同一作品下的才分得清（原型 hit_01.ogg）
 }
 
+/** 列表行：素材标识（所有者 2026-10-10：不一定是数字，不写“第…集”）；没有就用文件名 */
 function rowTitle(r: SourceRow): string {
-  return r.episode ? t("sources.episode", { n: r.episode }) : basename(r.path);
+  return r.episode || basename(r.path);
 }
 
 type Item = { id: string; kind: "group"; work: string; n: number } | { id: string; kind: "item"; row: SourceRow };
@@ -136,7 +137,7 @@ export function SourceList(props: {
             <>
               <SourceThumb id={r.id} hasVideo={r.has_video || r.has_picture} />
               <div className={s.rowMain}>
-                <div className={s.rowTitle} title={basename(r.path)} data-user-data={r.episode ? undefined : ""}>
+                <div className={s.rowTitle} title={basename(r.path)} data-user-data="">
                   {rowTitle(r)}
                 </div>
                 {/* 只按内容显示（所有者 2026-10-07：原片只有一种）；05 §5.8：句数 = 当前字幕版本中不在 OP/ED 的台词数 */}
