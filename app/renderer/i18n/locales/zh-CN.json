@@ -2080,7 +2080,7 @@
   "video.done": "已导出视频片段：{name}",
   "video.doneBlack": "已导出视频片段：{name}（画面超出视频流的 {n} 帧补了黑帧）",
   "video.selection": "选区视频片段",
-  "video.menuHit": "导出视频片段（原声）",
+  "video.hitLabel": "{name} 的命中 {a}–{b} 秒",
   "reimport.action": "回导",
   "reimport.title": "回导",
   "reimport.sub": "起点 = 当前选区起点 {start} 秒",

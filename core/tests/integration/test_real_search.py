@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -125,6 +126,14 @@ def test_real_three_searches(tmp_path):
         assert ren["plan"] == r0["hits"][0]["evidence"]["plan"] and ren["bpm"] == 180.0 and ren["duration"] > 0
         ex = c.call("hits.export", resultId=rid, rank=r0["rank"], index=0, version="stretched", words={"stretch": "stretch"})
         assert ex["ok"], ex
+        # 命中的卡拍视频（L36）：画面按同一映射变速 → 视频时长 = 命中卡拍试听的时长
+        hv = c.call("hits.video", resultId=rid, rank=r0["rank"], index=0, version="stretched", picture="synced", words={"stretch": "stretch", "video": "video"})
+        assert hv["ok"] and hv["r"]["job"], hv
+        ev = c.wait_event(lambda e: e.get("t") == "evt" and e.get("e") == "exports.videoDone", timeout=300)
+        probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", ev["d"]["path"]], capture_output=True, check=True).stdout)
+        dur = float(probe["format"]["duration"])
+        report["hitVideo"] = {"stretched": ren["duration"], "video": dur, "black": ev["d"]["black"], "codecs": sorted(x["codec_name"] for x in probe["streams"])}
+        assert abs(dur - ren["duration"]) < 0.06 and ev["d"]["black"] == 0 and "stretch-180BPM" in ev["d"]["path"]
 
         # ---- S4.5：音高检索（采样模式）——「歳納京子！」附近约 MIDI 79.5（G5/G♯5 之间）
         cov = c.call("search.coverage", mode="pitch", scope={})["r"]

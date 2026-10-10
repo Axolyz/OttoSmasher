@@ -505,8 +505,10 @@ export interface HitRenderParams {
 export interface HitVideoParams {
   audio?: boolean;
   index: number;
+  picture?: "original" | "synced";
   rank: number;
   resultId: string;
+  version?: "original" | "stretched";
   words?: Record<string, string>;
 }
 
@@ -2519,7 +2521,7 @@ export interface Commands {
   "hits.render": { params: HitRenderParams; result: RhythmRendered; effect: "write" };
   /** Check that a hit is still valid and return its range and evidence scheme (09 §9.7). */
   "hits.resolve": { params: HitRefParams; result: HitInfo; effect: "read" };
-  /** Export a hit as a video clip (original version; the sample's picture). */
+  /** Export a hit as a video clip: original, or stretched by the scheme the hit's evidence chose (picture synced to the same mapping, or at original speed). */
   "hits.video": { params: HitVideoParams; result: VideoExportStarted; effect: "write" };
   /** Register the scanned files (optionally with full-length samples). */
   "imports.commit": { params: ImportCommitParams; result: ImportResult; effect: "write" };

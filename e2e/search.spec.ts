@@ -106,6 +106,16 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   const r2 = page.getByTestId("sample-row").filter({ hasText: "かかかかかか" });
   await r2.click();
   await expect(r2.getByTestId("hit-chip").first()).toContainText(/(严格|近似) · \d\.\d\d× · (近快|近慢)/);
+  // 命中导出视频片段：和采样同一个对话框，语音命中可选卡拍版（L36）；这个采样没有画面 → 就地报错并给「画面绑定…」
+  await r2.getByTestId("hit").first().click({ button: "right" });
+  await page.getByTestId("menu-video").click();
+  const vd = page.getByTestId("video-dialog");
+  await expect(vd).toContainText("的命中");
+  await vd.getByText("卡拍", { exact: true }).click();
+  await expect(vd).toContainText("按同一映射变速");
+  await expect(vd.getByTestId("video-error")).toBeVisible();
+  await expect(vd.getByTestId("video-bind")).toBeVisible();
+  await vd.getByRole("button", { name: "取消" }).click();
 
   // ---- 音高检索（采样模式）：0.15 秒 A3（220 Hz）→ 命中；画布与就地提示
   await page.getByTestId("hunt-open").click();

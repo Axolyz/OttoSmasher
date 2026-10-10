@@ -760,15 +760,13 @@ export function LibraryPage() {
       fail(e);
     }
   };
-  /** 命中导出视频片段（L30；原声版，画面按命中所在采样的有效画面） */
-  const videoHit = async (r: ResultRow, i: number) => {
-    try {
-      const x = await call("hits.video", { ...hitRef(r, i), words: trackWords() });
-      if (x.reused && x.path) reveal(x.path, true);
-      else toast({ text: t("video.queuedN", { n: 1 }) });
-    } catch (e) {
-      fail(e);
-    }
+  /** 命中导出视频片段（L30、L36）：同一个对话框；语音命中可选卡拍版（命中证据的方案），画面按命中所在采样的有效画面 */
+  const videoHit = (it: Item, r: ResultRow, i: number) => {
+    if (!r.sample) return;
+    const h = r.hits[i]!;
+    const base = r.sample.start;
+    const label = t("video.hitLabel", { name: it.name, a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2) });
+    setVideoFor({ sample: r.sample, hit: { ...hitRef(r, i), label, stretch: (resPage?.result.kind ?? "speech") === "speech" } });
   };
   const reaperHit = async (r: ResultRow, i: number, baked: boolean) => {
     const x = await window.otto.reaper.copy({ ids: [], hits: [hitRef(r, i)], words: trackWords(), baked });
@@ -803,7 +801,7 @@ export function LibraryPage() {
             { id: "reaper", label: t("handoff.reaper"), run: () => void reaperHit(r, i, false) },
           ]
         : [];
-    const videoItem: MenuItems = r.sample ? [{ id: "video", label: t("video.menuHit"), run: () => void videoHit(r, i) }] : [];
+    const videoItem: MenuItems = r.sample ? [{ id: "video", label: t("video.menu"), run: () => videoHit(it, r, i) }] : [];
     hitMenu.open(e, { head: t("search.hit.menuHead", { a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2), name: it.name }), items: [...common, ...speechOnly, ...videoItem] });
   };
   const focusItem = items.find((x) => x.id === focus) ?? null;

@@ -365,7 +365,7 @@ class Core:
                                              words=dict(p.get("words", {})), plan=p.get("plan") or "near_fast", mora=bool(p.get("mora")), long_vowel=bool(p.get("longVowel"))))
         r("exports.videoRange", "write", T.VideoRangeParams, T.VideoExportStarted, "Export an asset range as a video clip (original speed; source picture).",
           self._video_range)
-        r("hits.video", "write", T.HitVideoParams, T.VideoExportStarted, "Export a hit as a video clip (original version; the sample's picture).",
+        r("hits.video", "write", T.HitVideoParams, T.VideoExportStarted, "Export a hit as a video clip: original, or stretched by the scheme the hit's evidence chose (picture synced to the same mapping, or at original speed).",
           self._hit_video)
         r("reimport.preview", "read", T.ReimportParams, T.ReimportPreview, "Reimport preview: file duration and the end it would land on (start fixed, end by file length).",
           lambda p: self.reimport.preview(p["assetId"], float(p["start"]), p["path"]))
@@ -658,9 +658,14 @@ class Core:
 
     def _hit_video(self, p: dict[str, Any]) -> dict[str, Any]:
         words = dict(p.get("words", {}))
-        h = self.hits.resolve(p["resultId"], int(p["rank"]), int(p["index"]))
+        version, picture = p.get("version", "original"), p.get("picture", "synced")
+        if version == "stretched":
+            h, stretched = self.hits.stretched_video(p["resultId"], int(p["rank"]), int(p["index"]), words)
+        else:
+            h, stretched = self.hits.resolve(p["resultId"], int(p["rank"]), int(p["index"])), None
         name = (h["name"] or self.samples.suggest(h["assetId"], h["start"], h["end"])["name"]) + words.get("fragment", "")
-        return self.video_export.range(h["assetId"], float(h["start"]), float(h["end"]), name, audio=p.get("audio", True), words=words, sample_id=h["sampleId"])
+        return self.video_export.range(h["assetId"], float(h["start"]), float(h["end"]), name, audio=p.get("audio", True), words=words, sample_id=h["sampleId"],
+                                       version=version, picture=picture, stretched=stretched)
 
     def _visual_prepare(self, p: dict[str, Any]) -> dict[str, Any]:
         with transaction(self.conn):

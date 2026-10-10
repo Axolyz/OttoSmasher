@@ -81,3 +81,38 @@ def test_slice_knots_strictly_increasing():
         pts = _slice_knots(knots, a, b)
         assert pts[0][1] == a and pts[-1][1] == b or len(pts) >= 2
         assert all(q[0] > p[0] and q[1] > p[1] for p, q in zip(pts, pts[1:]))
+
+
+@need_rb
+def test_hit_stretched_video_uses_the_hit_scheme(core, tmp_path):
+    """命中的卡拍视频（12 §12.5“卡拍版只能导出完整采样或命中”）：同映射变速 = 时长与命中卡拍试听相同、首帧取命中起点、帧时刻单调；
+    原速画面 = 命中原长，另存命中卡拍 WAV。"""
+    import json
+    import subprocess
+
+    from ottosmasher.core import visuals
+
+    s, rid, row = speech_hit(core, tmp_path, {"blocks": [{"note": [0, 0.5]}, {"note": [1, 1.5]}], "strategy": "rank"})
+    h = row["hits"][0]
+    mp4 = tmp_path / "pic.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x36:rate=25:duration=12", "-c:v", "libx264", str(mp4)], check=True)
+    vb = visuals.prepare(core.conn, "sample", s, str(mp4), mode="sync")
+    core.edits.apply({"ops": [{"entity": "sample", "id": s, "version": core.samples.get(s)["version"], "fields": {"visual_binding_id": vb}}]})
+    r, bundle = core.hits.stretched_video(rid, row["rank"], 0, WORDS)
+    out = core.video_export.range(r["assetId"], h["start"], h["end"], "台词", words=WORDS, sample_id=s, version="stretched", picture="synced", stretched=bundle)
+    params = json.loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (out["job"]["id"],)).fetchone()[0])
+    heard = core.hits.render(rid, row["rank"], 0, "stretched", "voice")["duration"]
+    assert params["duration"] == pytest.approx(heard, abs=1e-3)
+    assert params["frames"] == pytest.approx(heard * 25, abs=1)
+    times = params["times"]
+    assert times[0] == pytest.approx(h["start"], abs=0.02)  # 合成素材：资产局部秒 = 原片秒
+    assert all(b >= a for a, b in zip(times, times[1:])) and times[-1] <= h["end"] + 1e-6
+    assert "stretch-180BPM" in params["target"]
+    # 再要一次：同一个稳定键（还没完成 → 新任务，但目标文件名相同）
+    r2, b2 = core.hits.stretched_video(rid, row["rank"], 0, WORDS)
+    assert b2["key"] == bundle["key"]
+    orig = core.video_export.range(r["assetId"], h["start"], h["end"], "台词", words=WORDS, sample_id=s, version="stretched", picture="original", stretched=b2)
+    p2 = json.loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (orig["job"]["id"],)).fetchone()[0])
+    assert p2["duration"] == pytest.approx(h["end"] - h["start"]) and orig["stretchedWav"].endswith(".wav") and "stretch-180BPM" in orig["stretchedWav"]
+    with pytest.raises(CoreError):
+        core.video_export.range(r["assetId"], h["start"], h["end"], "台词", version="stretched")  # 卡拍版要命中方案

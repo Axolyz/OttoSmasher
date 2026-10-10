@@ -375,7 +375,7 @@
   {
    "name": "hits.video",
    "effect": "write",
-   "summary": "Export a hit as a video clip (original version; the sample's picture).",
+   "summary": "Export a hit as a video clip: original, or stretched by the scheme the hit's evidence chose (picture synced to the same mapping, or at original speed).",
    "params": {
     "$ref": "#/$defs/HitVideoParams"
    },
@@ -5324,11 +5324,23 @@
     "index": {
      "type": "integer"
     },
+    "picture": {
+     "enum": [
+      "original",
+      "synced"
+     ]
+    },
     "rank": {
      "type": "integer"
     },
     "resultId": {
      "type": "string"
+    },
+    "version": {
+     "enum": [
+      "original",
+      "stretched"
+     ]
     },
     "words": {
      "type": "object",

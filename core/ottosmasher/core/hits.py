@@ -192,6 +192,20 @@ class HitService:
             make=make, content=content, track=track_label(asset, words), processing=processing, manifest=manifest,
         )
 
+    def stretched_video(self, result_id: str, rank: int, index: int, words: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """命中的卡拍视频要的东西（``VideoExportService.range`` 的 ``stretched``）：与命中卡拍试听 / WAV 同一个方案、同一段渲染结果，
+        映射 = 命中段输出秒 → 资产局部秒（与卡拍 WAV 清单里的同一条）。"""
+        r = self.resolve(result_id, rank, index)
+        an, plan, s, name, out, sr, (a, b) = self._stretched(r)
+        w0 = plan.window[0]
+        inner = Mapping.of([[(t - a) / s.map.sr, w0 + src / s.map.sr] for src, t in _slice_knots(s.map.knots, a, b)])
+        bundle = {
+            "pcm": out, "sr": sr, "bpm": s.bpm, "inner": inner,
+            "key": ["hit", an.identity, plan.window, name, s.density, s.bpm, sorted(s.beats.rest_cells), r["start"], r["end"]],
+            "wav": lambda: self.export(result_id, rank, index, "stretched", words)["path"],
+        }
+        return r, bundle
+
     # ------------------------------------------------------------ REAPER
 
     def reaper_items(self, refs: list[dict[str, Any]], words: dict[str, str], baked: bool) -> tuple[list[reaper.Item], list[dict[str, Any]]]:

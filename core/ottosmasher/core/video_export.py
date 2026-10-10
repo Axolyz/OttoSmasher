@@ -78,22 +78,36 @@ class VideoExportService:
         b = visuals.resolve(self.conn, sample_id=sample_id, root=self.ws.root)
         if b is None:
             raise CoreError("visual-none", id=sample_id)  # Q8：不生成黑屏，界面给「画面绑定…」
+        stretched = None
+        if version == "stretched":
+            start = float(row["start"])
+            an, s, cells, pcm, sr = self.handoff.rhythm.stretched_pcm(sample_id, plan, mora, long_vowel)
+            m = s.map
+            stretched = {
+                "pcm": pcm, "sr": sr, "bpm": s.bpm, "key": [an.identity, plan, s.density, s.bpm, cells],
+                "inner": Mapping.of([[0.0, start]] + [[t / m.sr, start + src / m.sr] for src, t in m.knots[1:]]),
+                "wav": lambda: self.handoff.export_stretched(sample_id, words, plan, mora, long_vowel)["path"],
+            }
         return self._plan(row["asset_id"], float(row["start"]), float(row["end"]), b, content=row["name"], version=version, picture=picture,
-                          audio=audio, words=words, sample_id=sample_id, plan=plan, mora=mora, long_vowel=long_vowel)
+                          audio=audio, words=words, sample_id=sample_id, stretched=stretched)
 
     def range(self, asset_id: str, start: float, end: float, content: str, *, audio: bool = True, words: dict[str, str] | None = None,
-              sample_id: str | None = None) -> dict[str, Any]:
-        """资产的一段（原片页选区、检索命中，原声版）：画面按有效画面（命中所在的采样 > 原片绑定 > 原片视频流）。"""
+              sample_id: str | None = None, version: str = "original", picture: str = "synced", stretched: dict[str, Any] | None = None) -> dict[str, Any]:
+        """资产的一段（原片页选区、检索命中）：画面按有效画面（命中所在的采样 > 原片绑定 > 原片视频流）。
+        卡拍版只有命中有（``stretched`` = 命中证据所选方案的渲染与映射，见 ``HitService.stretched_video``）。"""
+        if version not in VERSIONS or picture not in PICTURES or (version == "stretched") != (stretched is not None):
+            raise CoreError("video-export-invalid", reason="not-an-option")
         asset = assets_mod.get(self.conn, asset_id)
         b = visuals.resolve(self.conn, sample_id=sample_id, root=self.ws.root) if sample_id else visuals.resolve(self.conn, source_id=asset["source_id"], root=self.ws.root)
         if b is None:
             raise CoreError("visual-none", id=sample_id or asset["source_id"])
-        return self._plan(asset_id, start, end, b, content=content, version="original", picture="synced", audio=audio, words=words or {},
-                          range_sample=sample_id)
+        return self._plan(asset_id, start, end, b, content=content, version=version, picture=picture, audio=audio, words=words or {},
+                          range_sample=sample_id, stretched=stretched)
 
     def _plan(self, asset_id: str, start: float, end: float, b: dict[str, Any], *, content: str, version: str, picture: str, audio: bool,
-              words: dict[str, str], sample_id: str | None = None, plan: str = "near_fast", mora: bool = False, long_vowel: bool = False,
-              range_sample: str | None = None) -> dict[str, Any]:
+              words: dict[str, str], sample_id: str | None = None, range_sample: str | None = None, stretched: dict[str, Any] | None = None) -> dict[str, Any]:
+        """``stretched``（卡拍版）：``pcm``/``sr`` 卡拍音频、``inner`` 输出秒 → 资产局部秒的映射、``bpm``、``key`` 稳定键里的方案部分、
+        ``wav()`` 另存卡拍 WAV（原速画面用）。"""
         asset = assets_mod.get(self.conn, asset_id)
         mapping = Mapping.of(asset["mapping"])
         pic, fps, size = self._picture(b)
@@ -103,25 +117,22 @@ class VideoExportService:
         extra: dict[str, Any] = {}
         # 输出秒 → 原片秒（帧取哪一刻）与输出秒 → 采样本地秒（循环动画）
         if version == "stretched":
-            if sample_id is None:
+            if stretched is None:
                 raise CoreError("video-export-invalid", reason="stretched-needs-sample")
-            an, s, cells, pcm, sr = self.handoff.rhythm.stretched_pcm(sample_id, plan, mora, long_vowel)
-            m = s.map
-            inner = Mapping.of([[0.0, start]] + [[t / m.sr, start + src / m.sr] for src, t in m.knots[1:]])
-            stretch = f"{words.get('stretch', 'stretch')}-{_bpm(s.bpm)}BPM"
+            stretch = f"{words.get('stretch', 'stretch')}-{_bpm(stretched['bpm'])}BPM"
             processing = "_".join(x for x in (processing, stretch) if x)
-            ver_key: list[Any] = ["stretched", an.identity, plan, s.density, s.bpm, cells, picture]
+            ver_key: list[Any] = ["stretched", *stretched["key"], picture]
             if picture == "synced":
-                duration = len(pcm) / sr
-                to_local = inner.to_source  # 输出秒 → 资产局部秒
-                audio_pcm, audio_sr = pcm, sr
+                duration = len(stretched["pcm"]) / stretched["sr"]
+                to_local = stretched["inner"].to_source  # 输出秒 → 资产局部秒
+                audio_pcm, audio_sr = stretched["pcm"], stretched["sr"]
             else:
                 # 原速画面：画面与原声同长，默认带原声；卡拍 WAV 与映射清单另存（12 §12.5）
                 duration = end - start
                 to_local = lambda t: start + t  # noqa: E731
                 audio_pcm, audio_sr = None, None
                 processing = "_".join(x for x in (processing, words.get("originalSpeed", "orig-speed")) if x)
-                extra["stretchedWav"] = self.handoff.export_stretched(sample_id, words, plan, mora, long_vowel)["path"]
+                extra["stretchedWav"] = stretched["wav"]()
         else:
             duration = end - start
             to_local = lambda t: start + t  # noqa: E731

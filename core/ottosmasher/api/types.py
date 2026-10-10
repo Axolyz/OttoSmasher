@@ -2535,6 +2535,8 @@ class HitVideoParams(TypedDict):
     resultId: str
     rank: int
     index: int
+    version: NotRequired[Literal["original", "stretched"]]
+    picture: NotRequired[Literal["synced", "original"]]
     audio: NotRequired[bool]
     words: NotRequired[dict[str, str]]
 
