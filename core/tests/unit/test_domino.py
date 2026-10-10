@@ -67,8 +67,14 @@ def test_min_frames_shrinks_and_errors():
     mod = _native()
     seq = ["pau", "a", "i", "u", "e", "pau"]
     ids = mod.tokenize(" ".join(seq))
-    al = domino.Aligner(FakeSession(4, 557, {}), mod).align(np.zeros(640, dtype=np.float32), seq, min_frames=3)  # type: ignore[arg-type]
-    assert al.min_frames == (4 - 1) // (len(ids) - 1)
+    al = domino.Aligner(FakeSession(8, 557, {}), mod).align(np.zeros(1280, dtype=np.float32), seq, min_frames=3)  # type: ignore[arg-type]
+    assert al.min_frames == (8 - 1) // (len(ids) - 1) == 1
+    # 降到 0（帧数 < 转移数）：报太短，不把 0 交给上游解码（它会写到缓冲区之前、损坏堆）
+    with pytest.raises(CoreError) as e:
+        domino.Aligner(FakeSession(4, 557, {}), mod).align(np.zeros(640, dtype=np.float32), seq, min_frames=3)  # type: ignore[arg-type]
+    assert e.value.code == "align-audio-too-short"
+    with pytest.raises(ValueError, match="bad viterbi arguments"):
+        mod.solve(np.zeros((4, 557), np.float32).tobytes(), np.zeros(4, np.float32).tobytes(), 4, 557, 0, ids)
     with pytest.raises(CoreError) as e:
         domino.Aligner(FakeSession(1, 557, {}), mod).align(np.zeros(160, dtype=np.float32), seq)  # type: ignore[arg-type]
     assert e.value.code == "align-audio-too-short"

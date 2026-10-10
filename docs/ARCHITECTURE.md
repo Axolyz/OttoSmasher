@@ -21,7 +21,7 @@
 | 进程间通信 | 渲染进程 ⇄ 主进程：Electron IPC；主进程 ⇄ Core：stdio 上的长度前缀 **msgpack** 帧 | 无端口、无 HTTP、无跨站风险（规格 15 §15.6）；Core 的命令用 msgspec 定义，自动导出 JSON Schema → 生成 TypeScript 类型 |
 | 数据库 | **SQLite（WAL）**，Core 单写多读 | 本地单用户；事务原子；检索 worker 只读并发打开 |
 | 数值与特征 | numpy；F0 帧与音高索引用 `.npy`（内存映射） | 逐帧无损、按声音内容共享 |
-| 模型推理 | ONNX Runtime（Windows 用 onnxruntime-directml），统一会话工厂 | 规格 14 §14.7 |
+| 模型推理 | ONNX Runtime（Windows 用 onnxruntime-directml），统一会话工厂 | 规格 14 §14.7；包入口 `ottosmasher/__init__.py` 在导入 onnxruntime 前设 `ORT_DISABLE_TELEMETRY=1`：1.30 在 macOS 自带遥测上传，退出时与静态析构竞争偶发 SIGABRT（134），也违背“不上传任何东西” |
 | 媒体工具 | ffmpeg/ffprobe、Rubber Band CLI（R3） | 规格 14 建议项 |
 | 界面国际化 | **只翻译文字**：自写的小型 `t(key, 参数)` + 每种语言一个 JSON 文案文件；伪语言测试；后端只返回“错误码 + 参数” | 所有者 2026-10-06：只要翻译文字，不需要按语言格式化日期数字；不引入国际化框架（§7） |
 | 打包 | electron-builder（目录产物 → ZIP）+ 随包的 Python 运行时（uv 托管的 python-build-standalone + 项目依赖） | 不用 conda-pack |

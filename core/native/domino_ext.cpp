@@ -90,7 +90,8 @@ PyObject* py_solve(PyObject*, PyObject* args) {
   PyObject* result = nullptr;
   std::vector<int> ids;
   if (!to_int_vector(seq, ids)) goto done;
-  if (frames < 2 || vocab < 1 || ids.empty() || min_frames < 0) {
+  // 最少帧数 0 时上游 viterbi_forward 在 t = 0 处写 (t - 1) 行，越界到缓冲区之前（堆损坏），所以至少 1
+  if (frames < 2 || vocab < 1 || ids.empty() || min_frames < 1) {
     PyErr_SetString(PyExc_ValueError, "bad viterbi arguments");
     goto done;
   }
@@ -107,10 +108,22 @@ PyObject* py_solve(PyObject*, PyObject* args) {
   }
   try {
     std::vector<int> times(ids.size(), 0);
+    // 解码时释放 GIL；它的异常在区间里接住，拿回 GIL 后再报（不能带着异常跳过 Py_END_ALLOW_THREADS）
+    bool failed = false;
+    std::string error;
     Py_BEGIN_ALLOW_THREADS
-    solve_viterbi(frames, vocab, static_cast<const float*>(trans.buf), static_cast<const float*>(blank.buf), min_frames, ids, times);
+    try {
+      solve_viterbi(frames, vocab, static_cast<const float*>(trans.buf), static_cast<const float*>(blank.buf), min_frames, ids, times);
+    } catch (const std::exception& e) {
+      failed = true;
+      error = e.what();
+    }
     Py_END_ALLOW_THREADS
-    result = int_list(times);
+    if (failed) {
+      PyErr_SetString(PyExc_RuntimeError, error.c_str());
+    } else {
+      result = int_list(times);
+    }
   } catch (const std::exception& e) {
     PyErr_SetString(PyExc_RuntimeError, e.what());
   }

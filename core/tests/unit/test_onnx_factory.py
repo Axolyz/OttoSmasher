@@ -158,3 +158,15 @@ def test_probe_records_are_kept_per_device_and_listed_for_the_current_one(tmp_pa
         assert res["r"]["probes"][0]["nodes"] == {COREML: 3, CPU: 4}
     finally:
         srv.close()
+
+
+def test_ort_telemetry_is_off_before_onnxruntime_loads():
+    # ORT 1.30 的遥测在退出时偶发 SIGABRT（134），只能在 import onnxruntime 之前用环境变量关（ottosmasher/__init__.py）
+    import os
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in os.environ.items() if k != "ORT_DISABLE_TELEMETRY"}
+    code = "import os, sys\nimport ottosmasher.jobs.worker\nassert 'onnxruntime' not in sys.modules\nprint(os.environ.get('ORT_DISABLE_TELEMETRY'))\n"
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=60, check=True).stdout
+    assert out.strip() == "1"

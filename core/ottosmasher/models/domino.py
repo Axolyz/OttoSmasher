@@ -3,6 +3,7 @@
 - 输入音频：16 kHz、单声道、float32（调用方从资产解码并多相重采样）；
 - 模型：输入 ``input_waveform`` [1, N]，输出 ``transition_logprobs`` [1, T, K] 与 ``blank_logprobs`` [1, T]，T 为 10 ms 帧数；
 - 每个音素最少帧数默认 1；``最少帧数 × (转移数 − 1) + 1 > 帧数`` 时自动降到 ``(帧数 − 1) / (转移数 − 1)``（与上游同一判断）；
+  降到 0（帧数 < 转移数）就报 ``align-audio-too-short``——上游解码在最少帧数 0 时越界写；
 - 输出相邻接续的区间：第 i 个的结束 = ``帧号 / 100`` 秒，最后一个持续到 ``采样数 / 16000``。
 """
 
@@ -114,6 +115,9 @@ class Aligner:
         mf = int(min_frames)
         if n > 1 and mf * (n - 1) + 1 > frames:
             mf = (frames - 1) // (n - 1)
+        if mf < 1:
+            # 帧数不够每个音素占一帧：上游 Viterbi 在最少帧数 0 时会写到缓冲区之前（堆损坏），所以报太短
+            raise CoreError("align-audio-too-short", frames=frames)
         times: list[int] = self.mod.solve(trans.tobytes(), blank.tobytes(), frames, vocab, mf, ids)
         labels: list[str] = self.mod.to_phonemes(ids)
         out: list[tuple[float, float, str]] = []

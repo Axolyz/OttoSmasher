@@ -32,7 +32,7 @@ OttoSmasher 本身以 **GPL-3.0-or-later** 发布（见 [LICENSE](../LICENSE)）
 | Python（python-build-standalone） | 3.12 | PSF-2.0 |
 | NumPy | 2.5.3 | BSD-3-Clause 等 |
 | SciPy | 1.18.1 | BSD-3-Clause |
-| ONNX Runtime（Windows 用 onnxruntime-directml 1.24.4） | 1.30.0 | MIT |
+| ONNX Runtime（Windows 用 onnxruntime-directml 1.24.4；它自带的遥测上传由本应用关掉：`ORT_DISABLE_TELEMETRY=1`） | 1.30.0 | MIT |
 | pyopenjtalk-plus（含 OpenJTalk、HTS Engine 与系统辞典） | 0.4.1.post9 | MIT；OpenJTalk / HTS Engine / 辞典为修改版 BSD |
 | SudachiPy / SudachiDict-core（tsqyomi 的分词） | 0.7.0 / 20260723.1 | Apache-2.0 |
 | tokenizers | 0.22.2 | Apache-2.0 |
