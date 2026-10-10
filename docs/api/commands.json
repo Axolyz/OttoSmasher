@@ -497,6 +497,45 @@
    }
   },
   {
+   "name": "models.download",
+   "effect": "job",
+   "summary": "Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing).",
+   "params": {
+    "$ref": "#/$defs/ModelsDownloadParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/ModelDownloadStarted"
+    }
+   }
+  },
+  {
+   "name": "models.downloadPlan",
+   "effect": "read",
+   "summary": "Model weights that a download would fetch (missing or mismatching; unverified files are not replaced).",
+   "params": {
+    "$ref": "#/$defs/ModelsDownloadParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/ModelDownloadItem"
+    }
+   }
+  },
+  {
+   "name": "models.import",
+   "effect": "job",
+   "summary": "Copy model weights the user obtained elsewhere into place, recognised by SHA-256 (files or folders).",
+   "params": {
+    "$ref": "#/$defs/ModelsImportParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "models.probe",
    "effect": "job",
    "summary": "Submit a job that runs one minimal inference per model under the current device setting.",
@@ -2137,6 +2176,17 @@
    "summary": "The source media was released; only the independent slices can be read."
   },
   {
+   "code": "model-download-failed",
+   "args": [
+    "model",
+    "url",
+    "path",
+    "reason",
+    "detail"
+   ],
+   "summary": "Downloading a model weight failed; nothing was placed."
+  },
+  {
    "code": "model-file-missing",
    "args": [
     "model",
@@ -2153,6 +2203,11 @@
     "path"
    ],
    "summary": "Model file does not match the pinned SHA-256."
+  },
+  {
+   "code": "models-nothing-to-download",
+   "args": [],
+   "summary": "Every model weight is already in place (or waiting to be checked)."
   },
   {
    "code": "mp3-encode-failed",
@@ -6284,6 +6339,65 @@
    },
    "required": []
   },
+  "ModelDownloadItem": {
+   "title": "ModelDownloadItem",
+   "type": "object",
+   "properties": {
+    "license": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "replace": {
+     "type": "boolean"
+    },
+    "sha256": {
+     "type": "string"
+    },
+    "size": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "url": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "license",
+    "model",
+    "path",
+    "replace",
+    "sha256",
+    "size",
+    "url"
+   ]
+  },
+  "ModelDownloadStarted": {
+   "title": "ModelDownloadStarted",
+   "type": "object",
+   "properties": {
+    "job": {
+     "$ref": "#/$defs/JobSummary"
+    },
+    "model": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "job",
+    "model"
+   ]
+  },
   "ModelFileStatus": {
    "title": "ModelFileStatus",
    "type": "object",
@@ -6370,11 +6484,17 @@
    "title": "ModelStatus",
    "type": "object",
    "properties": {
+    "bytes": {
+     "type": "integer"
+    },
     "files": {
      "type": "array",
      "items": {
       "$ref": "#/$defs/ModelFileStatus"
      }
+    },
+    "license": {
+     "type": "string"
     },
     "model": {
      "type": "string"
@@ -6392,10 +6512,40 @@
     }
    },
    "required": [
+    "bytes",
     "files",
+    "license",
     "model",
     "state",
     "url"
+   ]
+  },
+  "ModelsDownloadParams": {
+   "title": "ModelsDownloadParams",
+   "type": "object",
+   "properties": {
+    "models": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": []
+  },
+  "ModelsImportParams": {
+   "title": "ModelsImportParams",
+   "type": "object",
+   "properties": {
+    "paths": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "paths"
    ]
   },
   "ModelsStatus": {
@@ -6404,6 +6554,12 @@
    "properties": {
     "device": {
      "$ref": "#/$defs/JobDevice"
+    },
+    "downloading": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
     },
     "files": {
      "type": "array",
@@ -6429,6 +6585,7 @@
    },
    "required": [
     "device",
+    "downloading",
     "files",
     "models_dir",
     "probes",

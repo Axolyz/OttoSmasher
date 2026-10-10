@@ -22,7 +22,24 @@ export function StudioPanel(props: { vocalModel: string; onVocalModel: (name: st
     if ((d as Record<string, string[]>).setting) void load();
   });
   if (!st) return null;
-  if (!st.ok) return <Callout tone="bad" testId="studio-status">{st.error ? errorText(st.error) : ""}</Callout>;
+  // 没找到 Studio（或没有活动环境）：说明它要另外安装、去哪里下载（所有者 2026-10-10：发布包不带 PyMSS Studio）
+  if (!st.ok)
+    return (
+      <div className={s.itemWide}>
+        <Callout tone="bad" testId="studio-status">
+          {st.error ? errorText(st.error) : ""}
+        </Callout>
+        <div className={s.hint}>{t("studio.getSay")}</div>
+        <div className={s.btnRow}>
+          <Button variant="secondary" onPress={() => void window.otto.links.open("pymss-studio")} data-testid="studio-get">
+            {t("studio.getIt")}
+          </Button>
+          <Button variant="flat" onPress={() => void load()} data-testid="studio-refresh">
+            {t("studio.refresh")}
+          </Button>
+        </div>
+      </div>
+    );
   return (
     <div className={s.itemWide} data-testid="studio-status">
       <div className={s.label}>{t("studio.found", { version: st.env?.version ?? t("studio.versionUnknown") })}</div>

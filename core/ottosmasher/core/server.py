@@ -25,7 +25,7 @@ from ..models import registry
 from ..store.db import connect, current_version, migrate, transaction
 from ..store.workspace import Workspace, WorkspaceLock
 from . import settings as settings_mod
-from .clock import now_iso
+from .clock import new_id, now_iso
 from .edits import ChangeSet, EditService, dumps, loads
 from .errors import CoreError
 from .rpc import FrameWriter, read_frame
@@ -95,6 +95,12 @@ class Core:
         r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test)
         r("models.status", "read", T.NoParams, T.ModelsStatus, "Model files, ONNX Runtime and inference probe status.", self._models_status)
         r("models.verify", "job", T.NoParams, T.JobSummary, "Submit a job that hashes the model files.", self._models_verify)
+        r("models.downloadPlan", "read", T.ModelsDownloadParams, list[T.ModelDownloadItem],
+          "Model weights that a download would fetch (missing or mismatching; unverified files are not replaced).", self._models_download_plan)
+        r("models.download", "job", T.ModelsDownloadParams, list[T.ModelDownloadStarted],
+          "Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing).", self._models_download)
+        r("models.import", "job", T.ModelsImportParams, T.JobSummary,
+          "Copy model weights the user obtained elsewhere into place, recognised by SHA-256 (files or folders).", self._models_import)
         r("dictionary.check", "read", T.DictionaryTextParams, T.DictionaryCheck, "Validate user dictionary text line by line (no compiling).", self._dictionary_check)
         r("dictionary.save", "job", T.DictionarySaveParams, T.JobSummary,
           "Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile).", self._dictionary_save)
@@ -439,6 +445,8 @@ class Core:
             dev=self.dev,
         )
         self.jobs.adopters["models.verify"] = self._adopt_hashes
+        self.jobs.adopters["models.download"] = self._adopt_hashes
+        self.jobs.adopters["models.import"] = self._adopt_hashes
         self.jobs.adopters["models.probe"] = self._adopt_probes
         self.jobs.adopters["dictionary.compile"] = self._adopt_dictionary
         self.jobs.adopters["dictionary.preview"] = self._adopt_probes
@@ -643,7 +651,34 @@ class Core:
             "runtime": registry.runtime_status(),
             "device": device,
             "probes": probes,
+            "downloading": self._downloading(),
         }
+
+    def _models_download_plan(self, p: dict[str, Any]) -> list[dict[str, Any]]:
+        from ..models import download
+
+        return download.plan(self.ws.models, self.support_dir, self._cached_hashes(), p.get("models"))
+
+    def _models_download(self, p: dict[str, Any]) -> list[dict[str, Any]]:
+        """显式下载（14 §14.1：模型准备是显式动作）：每个模型一个任务；同一个模型已经在下载就不重复提交。"""
+        items = self._models_download_plan(p)
+        busy = self._downloading()
+        items = [it for it in items if it["model"] not in busy]
+        if not items:
+            raise CoreError("models-nothing-to-download")
+        return [{"model": it["model"], "job": self.jobs.submit("models.download", {"item": it, "tag": new_id()[:8]})} for it in items]
+
+    def _downloading(self) -> dict[str, str]:
+        """正在下载（排队或运行）的模型 → 任务 ID。"""
+        out = {}
+        for jid, params in self.conn.execute("SELECT id, params FROM job WHERE kind='models.download' AND status IN ('queued', 'running')"):
+            m = (loads(params).get("item") or {}).get("model")
+            if m:
+                out[m] = jid
+        return out
+
+    def _models_import(self, p: dict[str, Any]) -> dict[str, Any]:
+        return self.jobs.submit("models.import", {"paths": [str(x) for x in p["paths"]], "models_dir": str(self.ws.models), "support_dir": str(self.support_dir)})
 
     def _models_verify(self, p: dict[str, Any]) -> dict[str, Any]:
         paths = [str(x) for x in registry.all_files(self.ws.models, self.support_dir) if x.exists()]

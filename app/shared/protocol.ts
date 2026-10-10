@@ -77,13 +77,17 @@ export interface OttoApi {
   player: PlayerApi;
   files: {
     /** 系统对话框选文件：media 可多选；取消返回空数组 */
-    pick(kind: "media" | "media-one" | "subtitle" | "import" | "folder" | "picture" | "reimport"): Promise<string[]>;
+    pick(kind: "media" | "media-one" | "subtitle" | "import" | "folder" | "picture" | "reimport" | "models"): Promise<string[]>;
     /** 在 Finder / 资源管理器中显示（文件不存在时什么也不做） */
     reveal(path: string): Promise<void>;
     /** 拖进窗口的文件的真实路径（只用于“拖文件进原片页”） */
     pathOf(file: File): string;
     /** 拖出：文件已生成且鼠标仍按着时，交给系统拖拽（主进程 webContents.startDrag） */
     startDrag(files: string[]): void;
+  };
+  links: {
+    /** 在系统浏览器里打开一个固定的外部网页（只认主进程里列出的 id，例如 "pymss-studio"） */
+    open(id: "pymss-studio"): Promise<void>;
   };
   reaper: {
     /** 复制 REAPER 交接（规格 12 §12.3）：主进程向 Core 要条目文本（Core 命令 reaper.handoff），写入剪贴板类型 REAPERMedia 并回读校验 */

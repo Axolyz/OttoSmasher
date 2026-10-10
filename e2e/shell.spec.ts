@@ -62,6 +62,13 @@ test("模型检测：文件、运行库、实测分开显示", async () => {
     return r.ok ? r.r.find((j) => j.kind === "models.probe")?.status : null;
   })).toBe("succeeded");
   await expect(page.getByTestId("probe-fcpe")).toContainText("未实测");
+  // 模型权重不随应用分发（所有者 2026-10-10）：显式下载（不在测试里真的下载）、单个下载、从文件导入、打开目录；
+  // 缺的模型写明许可（声码器是非商业许可）、直链与放置路径
+  await expect(page.getByTestId("models-download")).toHaveText("下载缺少的模型（4 个，约 186.9 MB）");
+  await expect(page.getByTestId("model-download-fcpe")).toBeVisible();
+  await expect(page.getByTestId("models-import")).toBeEnabled();
+  await expect(page.getByTestId("model-pc_nsf_hifigan")).toContainText("CC BY-NC-SA 4.0");
+  await expect(page.getByTestId("model-fcpe")).toContainText("https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687");
   await page.screenshot({ path: ".cache/playwright-results/settings-models.png" });
   await app.close();
 });

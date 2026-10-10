@@ -705,6 +705,21 @@ export interface MetricsStatusParams {
   scope?: SampleFilter | null;
 }
 
+export interface ModelDownloadItem {
+  license: string;
+  model: string;
+  path: string;
+  replace: boolean;
+  sha256: string;
+  size: number | null;
+  url: string;
+}
+
+export interface ModelDownloadStarted {
+  job: JobSummary;
+  model: string;
+}
+
 export interface ModelFileStatus {
   path: string;
   role: "support" | "weight";
@@ -722,14 +737,25 @@ export interface ModelProbe {
 }
 
 export interface ModelStatus {
+  bytes: number;
   files: ModelFileStatus[];
+  license: string;
   model: string;
   state: "mismatch" | "missing" | "ready" | "unverified";
   url: string;
 }
 
+export interface ModelsDownloadParams {
+  models?: string[];
+}
+
+export interface ModelsImportParams {
+  paths: string[];
+}
+
 export interface ModelsStatus {
   device: JobDevice;
+  downloading: Record<string, string>;
   files: ModelStatus[];
   models_dir: string;
   probes: ModelProbe[];
@@ -2543,6 +2569,12 @@ export interface Commands {
   "metrics.prepare": { params: MetricsPrepareParams; result: JobSummary; effect: "job" };
   /** Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match). */
   "metrics.status": { params: MetricsStatusParams; result: MetricsStatus; effect: "read" };
+  /** Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing). */
+  "models.download": { params: ModelsDownloadParams; result: ModelDownloadStarted[]; effect: "job" };
+  /** Model weights that a download would fetch (missing or mismatching; unverified files are not replaced). */
+  "models.downloadPlan": { params: ModelsDownloadParams; result: ModelDownloadItem[]; effect: "read" };
+  /** Copy model weights the user obtained elsewhere into place, recognised by SHA-256 (files or folders). */
+  "models.import": { params: ModelsImportParams; result: JobSummary; effect: "job" };
   /** Submit a job that runs one minimal inference per model under the current device setting. */
   "models.probe": { params: NoParams; result: JobSummary; effect: "job" };
   /** Model files, ONNX Runtime and inference probe status. */
@@ -2811,8 +2843,10 @@ export type ErrorCode =
   | "mapping-invalid"
   | "media-probe-failed"
   | "media-released"
+  | "model-download-failed"
   | "model-file-missing"
   | "model-sha-mismatch"
+  | "models-nothing-to-download"
   | "mp3-encode-failed"
   | "native-missing"
   | "onnx-ep-missing"

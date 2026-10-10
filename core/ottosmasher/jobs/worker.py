@@ -55,6 +55,18 @@ def _models_verify(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return {"hashes": out}
 
 
+def _models_download(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    from ..models.download import run_download
+
+    return run_download(params, ctx)
+
+
+def _models_import(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+    from ..models.download import run_import
+
+    return run_import(params, ctx)
+
+
 def _selftest_sleep(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     """睡一会儿；可以起若干子进程（同一进程组），用来验证取消会结束整棵树。"""
     children = []
@@ -408,6 +420,8 @@ HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
     "import.scan": _import_scan,
     "sources.scan": _sources_scan,
     "models.verify": _models_verify,
+    "models.download": _models_download,
+    "models.import": _models_import,
     "selftest.sleep": _selftest_sleep,
     "selftest.sleep_model": _selftest_sleep,
     "selftest.fail": _selftest_fail,

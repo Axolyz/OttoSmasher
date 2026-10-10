@@ -103,6 +103,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 | L34 | 字幕里本来就重叠的两行（例如两人同时说话）不自动处理：读到它们的采样“不可用 + 原因”，用户自己缩判定区间（所有者 2026-10-09）。以后要不要给出“一键缩到不重叠”的建议，等用一段时间再定 | 原片上的四类对象 | — | 挂起 |
 | L35 | ~~命令面板（⌘K）还没有实现（阶段 1 外壳留下的空位；管理标签等入口暂放顶栏 ⋯）~~ | UI_PLAN §1、§8 | 阶段 9 补 | 已完成（所有者 2026-10-10 选简单版；UI_PLAN §22） |
 | L36 | ~~命中导出卡拍视频（同映射变速）~~：规格 12 §12.5 本来就要，当初误挂起；映射在命中卡拍 WAV 清单里已有 | 阶段 9.3 | 阶段 9 补 | 已完成（9b68716） |
+| L37 | 发布包带什么、不带什么；应用内下载模型；README、用户使用说明、许可证（所有者 2026-10-10） | 15 §15.8–§15.9、14 §14.1 | 阶段 9 后补 | 已完成（模型下载 / 导入、Studio 指引、README、docs/USER_GUIDE.md、docs/THIRD_PARTY.md、docs/DEVELOPMENT.md、LICENSE = GPL-3.0 全文）；打包时收集各组件许可全文、选定带 libx264 的 ffmpeg 构建、复核 libmpv 变体许可仍在阶段 10 |
 | L12 | 本机命令行工具里有 MacOSX27.0 测试版 SDK，`tools/build-native.mjs` 自动改用 26.x | 阶段 1 | 长期；Xcode 更新后复查 | 已处理 |
 
 ## 4. 各阶段
@@ -229,6 +230,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
   - 素材库目录名按 `<作品 集数> [id8]`（`core/libdirs.py`）；Windows 长路径与非法字符已经过 `filename.portable`，仍要实测。
   - L17（导入扫描并行）所有者 2026-10-10 定：暂时单线程就够，不做。
   - 仓库推送与 GitHub Actions 持续集成（macOS arm64 + Windows x64）按 [PUSH_AND_BUILD.md](PUSH_AND_BUILD.md) 由另一个会话执行（所有者 2026-10-10 授权推送）；CI 第一次在 Windows 上暴露的问题记在 STATUS，就是本阶段 L9 的待办。打包发布（L8、§14）仍在本阶段做。
+  - 模型权重不随包、应用内下载（L37）：发布包要带 `third_party/model-support/` 的三个支持文件（tokenizer、metadata、声码器 config），打包时把各组件许可全文收进 `licenses/`（清单在 docs/THIRD_PARTY.md）；README 的“安装”一节写的是发布版的做法，发布包出来后核对一遍（未公证的打开方式、SHA-256、工作区默认位置）。SudachiDict-core 193 MB 是 tsqyomi 的依赖，看能否只带用得到的部分。
   - 命令面板的命令来自各页登记的来源（`state/commands.ts` 的 `useCommands`，打开时现取）；新页面或新菜单要进面板，就在那一页登记，不要另写一份动作。
 
 ### 阶段 11 附加（P2）

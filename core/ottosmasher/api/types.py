@@ -144,6 +144,35 @@ class ModelStatus(TypedDict):
     state: Literal["ready", "missing", "mismatch", "unverified"]
     files: list[ModelFileStatus]
     url: str
+    # 权重的上游许可（SPDX 写法）与权重总字节数
+    license: str
+    bytes: int
+
+
+class ModelsDownloadParams(TypedDict):
+    # 只下载这几个模型；不给 = 全部缺少或不符的
+    models: NotRequired[list[str]]
+
+
+class ModelDownloadItem(TypedDict):
+    model: str
+    url: str
+    path: str
+    sha256: str
+    size: int | None
+    # 现在那个位置有一个大小或 SHA 不符的文件，下载会替换它
+    replace: bool
+    license: str
+
+
+class ModelDownloadStarted(TypedDict):
+    model: str
+    job: "JobSummary"
+
+
+class ModelsImportParams(TypedDict):
+    # 用户选的文件或文件夹（文件夹里递归找）
+    paths: list[str]
 
 
 class OnnxRuntimeStatus(TypedDict):
@@ -165,6 +194,8 @@ class ModelsStatus(TypedDict):
     # 当前设备设置（实测只列这个设置下的记录）
     device: "JobDevice"
     probes: list["ModelProbe"]
+    # 正在下载（排队或运行）的模型 → 任务 ID
+    downloading: dict[str, str]
 
 
 class UiGetParams(TypedDict):

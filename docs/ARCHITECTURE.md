@@ -601,7 +601,14 @@ class LanguageProfile(Protocol):
   G2P 辞典与 tokenizer、模型配置等非权重支持文件。不包含：模型权重、PyTorch、PyMSS Studio、用户素材。
 - 程序目录只读；工作区与程序分离；不需要首次启动“释放运行库”。
 - 冒烟检查：含中文与空格的隔离路径、清空 Python/Conda 环境变量、空工作区、运行库探测、原生播放截停一段短区间、媒体工具可用。
-- 许可证：GPL-3.0-or-later（Rubber Band 为 GPL）；随包附第三方声明。
+- 许可证：GPL-3.0-or-later（Rubber Band 为 GPL）；随包附第三方声明（清单 [THIRD_PARTY.md](THIRD_PARTY.md)；全文在打包时收集到程序目录 `licenses/`）。
+- **模型权重的准备**（所有者 2026-10-10）：权重不随包，应用内显式下载——设置 → 环境与模型「下载缺少的模型」（`models.download`：每个模型一个轻量任务，
+  固定修订的直链、边下边算 SHA-256、一致才原子放进工作区 `Models/`，失败报 `model-download-failed` 带网址与放置路径）、
+  「从文件导入…」（`models.import`：别处下好的文件按 SHA-256 认，文件名不对也认）；新工作区第一次打开、缺模型时提醒一次（不自动下载）。
+  `models/download.py`；下载用标准库 urllib（系统证书；跟随 Hugging Face 的跨域重定向）。
+- **PyMSS Studio 不随包**：设置 → PyMSS Studio 没找到时说明要另外安装，并给发布页（主进程 `links:open` 只开固定列表里的网址）。
+- 随包 / 不随包的理由与清单见 [README](../README.md)「发布包里有什么、没有什么」与 [THIRD_PARTY.md](THIRD_PARTY.md)。体积估算：Electron 约 300 MB、
+  Python 与 Core 依赖约 500 MB（最大的是 SudachiDict-core 193 MB 与 pyopenjtalk 123 MB）、ffmpeg 约 80 MB、libmpv 24 MB，解压后约 1 GB，ZIP 远小于 2 GB。
 
 ---
 

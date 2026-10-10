@@ -7,6 +7,7 @@ import { Toasts } from "../components/Toasts";
 import { LibraryPage } from "../library/LibraryPage";
 import { t } from "../i18n";
 import { SourcesPage } from "../sources/SourcesPage";
+import { fileSize } from "../format";
 import { type Page, useApp } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
@@ -56,6 +57,17 @@ export function App() {
       if (typeof v.page === "string" && PAGES.includes(v.page as Page)) st.setPage(v.page as Page);
       if (v.theme === "light" || v.theme === "dark") st.setTheme(v.theme);
       restored.current = true;
+      // 新工作区第一次打开、缺模型权重：提醒一次去哪里下载（所有者 2026-10-10：发布包不带模型；只提醒，不自动下载）
+      if (!v.modelsReminded) {
+        void call("models.downloadPlan", {}).then((items) => {
+          if (!items.length) return;
+          void call("ui.set", { page: "shell", key: "modelsReminded", value: true });
+          st.toast({
+            text: t("models.startupMissing", { n: items.length, size: fileSize(items.reduce((a, x) => a + (x.size ?? 0), 0)) }),
+            action: { label: t("models.goDownload"), run: () => st.openSettings("models") },
+          });
+        }, () => {});
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st.core.state]);

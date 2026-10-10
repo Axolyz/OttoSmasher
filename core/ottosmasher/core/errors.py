@@ -129,6 +129,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     # ---- 模型与推理（14 §14.1、§14.7）
     "model-file-missing": (("model", "path"), "Model file is not where it should be."),
     "model-sha-mismatch": (("expected", "got", "model", "path"), "Model file does not match the pinned SHA-256."),
+    "model-download-failed": (("model", "url", "path", "reason", "detail"), "Downloading a model weight failed; nothing was placed."),
+    "models-nothing-to-download": ((), "Every model weight is already in place (or waiting to be checked)."),
     "onnx-runtime-missing": (("detail",), "ONNX Runtime cannot be loaded."),
     "onnx-ep-missing": (("active", "model", "provider"), "The requested acceleration provider did not enter the session (no silent CPU fallback)."),
     "onnx-session-failed": (("detail", "model", "provider"), "Creating the ONNX session failed."),

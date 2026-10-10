@@ -29,7 +29,8 @@ class ModelFile:
 class ModelSpec:
     id: str
     files: tuple[ModelFile, ...]
-    url_hint: str
+    url_hint: str  # 权重的下载直链（固定到规格 14 §14.1 的修订；每个模型只有一个权重文件）
+    license: str = ""  # 权重的上游许可（用户下载前在界面上看到；权重不随应用分发，规格 15 §15.9）
 
 
 MODELS: tuple[ModelSpec, ...] = (
@@ -44,28 +45,32 @@ MODELS: tuple[ModelSpec, ...] = (
             ),
         ),
         "https://raw.githubusercontent.com/DwangoMediaVillage/pydomino/4930396642fdd85618884c7a209218a628fd3c34/onnx_model/phoneme_transition_model.onnx",
+        "MIT",
     ),
     ModelSpec(
         "tsqyomi",
         (
-            ModelFile("tsqyomi/model.onnx", "weight", "ea7e4f229a4ccb8e6bc0f7037b4dba1452ca794808eabc88b421aa7d62d5b9c8"),
+            ModelFile("tsqyomi/model.onnx", "weight", "ea7e4f229a4ccb8e6bc0f7037b4dba1452ca794808eabc88b421aa7d62d5b9c8", 74_154_263),
             ModelFile("tsqyomi/tokenizer.json", "support", "6a0734cf21c802169defaffe719bc2ef12bb9d0be37e54b61ed27aa89394723d"),
             ModelFile("tsqyomi/metadata.json", "support", "829c60584ba33ca6a10fe3697ab62b0210398c93266f743e79b32d85497c9cd6"),
         ),
         "https://huggingface.co/tsukumijima/tsqyomi-models/resolve/680596dd2ad2bad59ee5db3741e197cfce79f9b4/v4/model.onnx",
+        "MIT",
     ),
     ModelSpec(
         "fcpe",
-        (ModelFile("features/fcpe.onnx", "weight", "013b507acd406de122b61ee497300ac6be082511101bc2136b886e48d9737e5d"),),
+        (ModelFile("features/fcpe.onnx", "weight", "013b507acd406de122b61ee497300ac6be082511101bc2136b886e48d9737e5d", 43_340_548),),
         "https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687173ae343ef0f2f824695650e877739ee0/backend/src-tauri/resources/models/fcpe/fcpe.onnx",
+        "MIT",
     ),
     ModelSpec(
         "pc_nsf_hifigan",
         (
-            ModelFile("flatten/pc_nsf_hifigan.onnx", "weight", "c0d5d05b6cfe12e254c82adeed6e52a31449a2d1398e05e1d7234f7dbfd720bb"),
+            ModelFile("flatten/pc_nsf_hifigan.onnx", "weight", "c0d5d05b6cfe12e254c82adeed6e52a31449a2d1398e05e1d7234f7dbfd720bb", 56_589_442),
             ModelFile("flatten/config.json", "support", "c3c56efaa5abdf1862224ae8396b17680c78d0b95ab009a31ef5d2f873cf07c2"),
         ),
         "https://raw.githubusercontent.com/ARounder-183/HiFiShifter/6432687173ae343ef0f2f824695650e877739ee0/backend/src-tauri/resources/models/nsf_hifigan/pc_nsf_hifigan.onnx",
+        "CC-BY-NC-SA-4.0",  # OpenVPI 预训练声码器：署名、非商业、相同方式共享
     ),
 )
 
@@ -133,7 +138,8 @@ def file_status(
             overall = "mismatch"
         else:
             overall = "unverified"
-        out.append({"model": m.id, "state": overall, "files": files, "url": m.url_hint})
+        out.append({"model": m.id, "state": overall, "files": files, "url": m.url_hint, "license": m.license,
+                    "bytes": sum(f.size or 0 for f in m.files if f.role == "weight")})
     return out
 
 
