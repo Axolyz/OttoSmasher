@@ -9,7 +9,9 @@ import { EmptyState } from "../components/Controls";
 import { Menu, type MenuSpec } from "../components/Menu";
 import { TopSlot } from "../shell/TopSlot";
 import { errorText, t } from "../i18n";
+import { useCommands } from "../state/commands";
 import { useApp } from "../state/store";
+import { type PaletteSection, fromMenu } from "../components/CommandPalette";
 import { DeleteDialog, InputSettingsDialog, RelocateDialog } from "./SourceDialogs";
 import { SourceList, displayName, displayTitle } from "./SourceList";
 import { SourceViewer } from "./SourceViewer";
@@ -287,6 +289,22 @@ export function SourcesPage() {
             { id: "delete", label: t("sources.delete"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
           ],
         };
+
+  // 命令面板（⌘K）：作用对象 = 已勾选的原片，没有勾选就是当前原片（菜单与右键同一份）；再加“添加原片…”
+  useCommands("sources", "sources", () => {
+    const out: PaletteSection[] = [];
+    if (checked.size) {
+      const ids = [...checked];
+      const spec = sourceMenu(currentRow ?? (rows ?? []).find((x) => x.id === ids[0])!, ids, true);
+      out.push({ id: "sources-target", title: spec.head ?? "", items: fromMenu("sources-target", spec.head ?? "", spec.items) });
+    } else if (currentRow) {
+      const title = t("cmd.currentSource", { name: displayName(currentRow) });
+      out.push({ id: "sources-target", title, items: fromMenu("sources-target", title, sourceMenu(currentRow, [currentRow.id], false).items) });
+    }
+    const g = t("nav.sources");
+    out.push({ id: "sources", title: g, items: [{ key: "sources/add", label: t("cmd.addSources"), group: g, run: () => void pickAndAdd() }] });
+    return out;
+  });
 
   return (
     <div

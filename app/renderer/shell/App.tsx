@@ -17,6 +17,7 @@ import { SettingsSheet } from "../workbenches/SettingsSheet";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
 import { ManageTags } from "./ManageTags";
+import { Palette } from "./Palette";
 import { Rail } from "./Rail";
 import s from "./Shell.module.css";
 import { TaskDrawer, useJobs } from "./TaskDrawer";
@@ -122,7 +123,11 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && ["1", "2", "3"].includes(e.key)) {
+      // ⌘K 命令面板：输入框里也生效（03 §3 快捷键表）
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        st.setPaletteOpen(!useApp.getState().paletteOpen);
+      } else if (mod && ["1", "2", "3"].includes(e.key)) {
         e.preventDefault();
         st.setSettingsOpen(false);
         st.setPage(PAGES[Number(e.key) - 1]!);
@@ -171,10 +176,12 @@ export function App() {
       <FlattenSheet />
       <NewSamplesSheet />
       <ManageTags />
+      <Palette />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>
           <tbody>
             {[
+              ["⌘K", t("top.command")],
               ["⌘1 / ⌘2 / ⌘3", t("shortcuts.pages")],
               ["⌘,", t("shortcuts.settings")],
               ["⌘J", t("shortcuts.tasks")],

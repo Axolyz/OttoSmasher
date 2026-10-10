@@ -18,7 +18,8 @@ import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-const GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "export", "studio", "jobs", "storage", "models"] as const;
+export const SETTINGS_GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "export", "studio", "jobs", "storage", "models"] as const;
+const GROUPS = SETTINGS_GROUPS;
 type Group = (typeof GROUPS)[number];
 
 interface NumSpec {
@@ -136,6 +137,13 @@ export function SettingsSheet() {
   useEffect(() => {
     if (open) reload();
   }, [open, reload]);
+  // 从命令面板「设置 › 某组」打开：先切到那一组
+  const wantGroup = useApp((st) => st.settingsGroup);
+  useEffect(() => {
+    if (!open || !wantGroup) return;
+    if ((GROUPS as readonly string[]).includes(wantGroup)) setGroup(wantGroup as Group);
+    useApp.setState({ settingsGroup: null });
+  }, [open, wantGroup]);
   useCoreEvent("data.changed", (d) => {
     if ((d as Record<string, string[]>).setting) reload();
   });

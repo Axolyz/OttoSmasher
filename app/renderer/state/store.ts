@@ -121,6 +121,12 @@ interface AppState {
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
   setSettingsOpen(v: boolean): void;
+  /** 打开设置时先切到的分组（命令面板「设置 › …」用；设置工作台读到后清空） */
+  settingsGroup: string | null;
+  openSettings(group?: string): void;
+  /** 命令面板（⌘K） */
+  paletteOpen: boolean;
+  setPaletteOpen(v: boolean): void;
   setShortcutsOpen(v: boolean): void;
   setTheme(v: "dark" | "light"): void;
   setCore(s: CoreStatus): void;
@@ -181,6 +187,10 @@ export const useApp = create<AppState>((set) => ({
   setPage: (page) => set({ page }),
   setTasksOpen: (tasksOpen) => set({ tasksOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  settingsGroup: null,
+  openSettings: (group) => set({ settingsOpen: true, settingsGroup: group ?? null }),
+  paletteOpen: false,
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setTheme: (theme) => set({ theme }),
   setCore: (core) => set({ core }),

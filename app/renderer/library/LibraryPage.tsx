@@ -24,6 +24,8 @@ import { beginDragOut } from "../dragout";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { ImportDialog } from "../shell/ImportDialog";
+import { useCommands } from "../state/commands";
+import { type PaletteCommand, type PaletteSection, fromMenu } from "../components/CommandPalette";
 import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { exportWords } from "../exportWords";
@@ -894,6 +896,39 @@ export function LibraryPage() {
             { id: "delete", label: t("library.deleteDots"), danger: true, shortcut: "⌫", run: () => setDeleteIds([r.id]) },
           ],
         };
+
+  // 命令面板（⌘K）：作用对象 = 已勾选集，没有勾选就是当前查看的采样（菜单与右键同一份）；再加本页的检索、用途视图、筛选器、导入
+  useCommands("library", "library", () => {
+    const out: PaletteSection[] = [];
+    if (checked.size) {
+      const title = t("menu.checkedN", { n: checked.size });
+      out.push({ id: "library-target", title, items: fromMenu("library-target", title, groupItems([...checked])) });
+    } else if (focusRow) {
+      const title = t("cmd.currentSample", { name: focusRow.name });
+      out.push({ id: "library-target", title, items: fromMenu("library-target", title, sampleMenu(focusRow, [focusRow.id], false, "detail").items) });
+    }
+    const g = t("nav.library");
+    const items: PaletteCommand[] = [
+      ...(["speech", "pitch", "timbre", "transient"] as const).map((k) => ({
+        key: `library/search-${k}`, label: t("cmd.search", { kind: t(`search.kind.${k}`) }), group: g, run: () => setComposer(k),
+      })),
+      ...PURPOSES.map((x) => ({
+        key: `library/purpose-${x}`, label: t("cmd.purpose", { name: x === "all" ? t("library.all") : t(`nature.${x}`) }), group: g, disabled: purpose === x, run: () => setPurpose(x),
+      })),
+      { key: "library/starred", label: find.starred ? t("cmd.starredOff") : t("library.starredOnly"), group: g, run: () => setFind((f) => ({ ...f, starred: !f.starred })) },
+      ...filters.map((f) => ({
+        key: `library/filter-${f.id}`, label: t("cmd.filter", { name: f.name }), group: g, disabled: find.preset === f.id,
+        run: () => setFind((x) => ({ ...x, preset: f.id, tags: normScope(f.conditions) })),
+      })),
+      { key: "library/scope-clear", label: t("scope.clear"), group: g, disabled: !scopeSize(find.tags), run: () => setFind((f) => ({ ...f, preset: null, tags: EMPTY_FIND.tags })) },
+      { key: "library/scope-expr", label: t("cmd.scopeExpr"), group: g, run: () => setFilterDialog("expr") },
+      { key: "library/scope-save", label: t("scope.saveAsDots"), group: g, disabled: !scopeSize(find.tags), run: () => setFilterDialog("save") },
+      { key: "library/scope-manage", label: t("scope.manageDots"), group: g, disabled: !filters.length, run: () => setFilterDialog("manage") },
+      { key: "library/import", label: t("cmd.import"), group: g, run: () => void pickImport() },
+    ];
+    out.push({ id: "library", title: g, items });
+    return out;
+  });
 
   // ⌘C（所有者 2026-10-08 选丙）：采样库里复制 REAPER 交接——勾选集，没有勾选就是当前采样；哪种按设置「导出」。
   // macOS 上应用菜单的「拷贝」先接走按键、变成页面的 copy 事件；按键直接到页面时（Windows 或没有菜单时）听 keydown。两路去重。
