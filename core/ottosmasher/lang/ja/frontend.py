@@ -1,6 +1,7 @@
 """日语文本前端（规格 08 §8.2；ARCHITECTURE §8 的 ja 插拔点）。基线规则，按规格逐条实现，不顺手优化。
 
-- 规范化：逐码位替换、保持字符位置（三种波浪号 → 长音符；空白、标点、符号 → 停顿「、」）；
+- 规范化：三种波浪号 → 长音符；表示停顿的标点（kana.json 的 pause_chars）与空白 → 停顿「、」；其余标点、符号、控制与格式字符
+  直接去掉、不读也不算停顿（所有者 2026-10-12【基线变更：08 §8.2.2 原为“标点、符号一律视为停顿”】）；去掉的字符记下位置对照，词的字符范围换回原文；
 - 音素：pyopenjtalk-plus（tsqyomi 读音）的逐词结果拼接；停顿类标签统一为 ``pau``、连续的只留一个；重复元音、清音 I/U、N、cl 原样保留；
 - mora：读音（片假名，去掉重音记号）切成 mora，小写的 ァィゥェォャュョヮ 并入前一个字、「ー」单独成拍；
   每个词只有“核心音素数 = 该词 mora 数 = 切出的 mora 数”时才建立音素 → mora 映射（辅音归它后面的核心音素所在的 mora），否则未知（不硬凑）；
@@ -21,7 +22,7 @@ from typing import Any
 
 from ...core.errors import CoreError
 
-FRONTEND_VERSION = "ja-frontend-1"
+FRONTEND_VERSION = "ja-frontend-2"
 PAUSES = frozenset({"pau", "sil", "sp", "SP"})
 # 核心音素：音块与 mora 的核（规格 08 §8.2.3；cl 也占一拍）
 CORE = frozenset({"a", "i", "u", "e", "o", "A", "I", "U", "E", "O", "N", "cl"})
@@ -30,6 +31,7 @@ _K = json.loads((Path(__file__).with_name("kana.json")).read_text(encoding="utf-
 TILDES = frozenset(_K["tildes"])
 LONG = _K["long_vowel"]
 PAUSE = _K["pause"]
+PAUSE_CHARS = frozenset(_K["pause_chars"])
 ACCENTS = frozenset(_K["accent_marks"])
 SMALL = frozenset(_K["small_merge"])
 VOWEL_OF = {ch: v for v, chars in _K["rows"].items() for ch in chars}
@@ -41,19 +43,28 @@ G2P = Callable[[str], Sequence[dict[str, Any]]]
 # ---------------------------------------------------------------- 规范化
 
 
-def normalize(text: str) -> str:
-    """逐码位替换，长度不变。"""
-    out = []
-    for ch in text:
+def normalize_map(text: str) -> tuple[str, list[int]]:
+    """规范化文本与“规范化后下标 → 原文下标”的对照（去掉的字符不进规范化文本）。"""
+    out: list[str] = []
+    pos: list[int] = []
+    for i, ch in enumerate(text):
         if ch in TILDES:
-            out.append(LONG)
-            continue
-        cat = unicodedata.category(ch)
-        if ch != LONG and (ch.isspace() or cat[0] in "PSZ" or cat in ("Cc", "Cf")):
-            out.append(PAUSE)
+            rep = LONG
+        elif ch == LONG:
+            rep = ch
+        elif ch in PAUSE_CHARS or ch.isspace() or unicodedata.category(ch)[0] == "Z":
+            rep = PAUSE
+        elif unicodedata.category(ch)[0] in "PS" or unicodedata.category(ch) in ("Cc", "Cf"):
+            continue  # 不表示停顿的标点、符号（♪ ☆ 「」 ・ …）：直接忽略
         else:
-            out.append(ch)
-    return "".join(out)
+            rep = ch
+        out.append(rep)
+        pos.append(i)
+    return "".join(out), pos
+
+
+def normalize(text: str) -> str:
+    return normalize_map(text)[0]
 
 
 # ---------------------------------------------------------------- mora
@@ -127,7 +138,7 @@ class FrontendResult:
 
 
 def analyze(text: str, g2p: G2P, versions: dict[str, str] | None = None) -> FrontendResult:
-    norm = normalize(text)
+    norm, pos = normalize_map(text)
     if not norm.replace(PAUSE, "").strip():
         raise CoreError("frontend-failed", reason="empty-text")
     try:
@@ -181,8 +192,10 @@ def analyze(text: str, g2p: G2P, versions: dict[str, str] | None = None) -> Fron
                     pending.append(k)
         for k, p in enumerate(ph):
             push(p, assigned[k], None if p == "pau" else widx)
-        a, b = (e.get("char_span") or (0, 0))
-        located = (a, b) != (0, 0) and 0 <= a < b <= len(text)
+        na, nb = (e.get("char_span") or (0, 0))
+        located = (na, nb) != (0, 0) and 0 <= na < nb <= len(norm)
+        # 规范化文本的范围 → 原文范围（中间被忽略的字符算在词里，例如「吉川・ちなつ」的「・」）
+        a, b = (pos[na], pos[nb - 1] + 1) if located else (0, 0)
         words.append(
             Word(
                 text=text[a:b] if located else str(e.get("surface") or ""),

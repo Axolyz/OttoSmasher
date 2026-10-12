@@ -3,6 +3,7 @@
   "tildes": ["～", "〜", "~"],
   "long_vowel": "ー",
   "pause": "、",
+  "pause_chars": "、。，．,.！？!?…‥―—",
   "accent_marks": ["’", "'"],
   "small_merge": "ァィゥェォャュョヮ",
   "rows": {

@@ -18,7 +18,7 @@ DEFAULT_LANGUAGE = "ja"
 @dataclass(frozen=True)
 class LanguageProfile:
     code: str
-    normalize: Callable[[str], str]  # 逐码位替换，保持字符位置
+    normalize: Callable[[str], str]  # 规范化（停顿标点 → 停顿、其余标点符号去掉；位置对照见各语言前端）
     analyze: Callable[..., Any]  # (文本, g2p, versions) -> FrontendResult
     split_syllables: Callable[[str], list[str]]  # mora / 音节切分
     core_phonemes: frozenset[str]  # 音块核心（也是 mora 的核）

@@ -11,14 +11,36 @@ from ottosmasher.core.errors import CoreError
 from ottosmasher.lang.ja import frontend as fe
 
 
-def test_normalize_keeps_positions():
+def test_normalize_pause_and_ignored_punctuation():
+    # 所有者 2026-10-12【基线变更 08 §8.2.2】：只有表示停顿的标点与空白变成停顿；其余标点、符号直接去掉
     assert fe.normalize("〜~～！\t。") == "ーーー、、、"
     assert fe.normalize("あ～, ええ") == "あー、、ええ"
-    # 符号类字符按停顿处理（♪、☆）；长音符、踊り字保留
-    assert fe.normalize("♪ラ☆ー々") == "、ラ、ー々"
+    assert fe.normalize("♪ラ☆ー々") == "ラー々"
     assert fe.normalize("全角　空白\n") == "全角、空白、"
-    for s in ("〜~～！\t。", "あ～, ええ", "♪ラ☆"):
-        assert len(fe.normalize(s)) == len(s)
+    assert fe.normalize("「吉川」・ちなつ…です―よ") == "吉川ちなつ、です、よ"
+    assert fe.normalize("（笑）“ね”") == "笑ね"
+    # 位置对照：规范化后的每个字符都指回原文同一个字符（长音、停顿替换的除外）
+    text = "「吉川・ちなつ」！"
+    norm, pos = fe.normalize_map(text)
+    assert norm == "吉川ちなつ、"
+    assert [text[i] for i in pos] == ["吉", "川", "ち", "な", "つ", "！"]
+
+
+def test_ignored_punctuation_maps_words_back_to_the_original():
+    seen = []
+
+    def g2p(norm):
+        seen.append(norm)
+        return [entry("吉川", ["y", "o", "sh", "i", "k", "a", "w", "a"], (0, 2), "ヨシカワ", 4), entry("ちなつ", ["ch", "i", "n", "a", "ts", "u"], (2, 5), "チナツ", 3)]
+
+    r = fe.analyze("「吉川・ちなつ」", g2p)
+    assert seen == ["吉川ちなつ"]
+    assert "pau" not in r.phonemes
+    assert (r.words[0].text, r.words[0].start, r.words[0].end) == ("吉川", 1, 3)
+    assert (r.words[1].text, r.words[1].start, r.words[1].end) == ("ちなつ", 4, 7)
+    with pytest.raises(CoreError) as e:
+        fe.analyze("♪「」", lambda s: [])
+    assert e.value.args_["reason"] == "empty-text"
 
 
 def test_split_mora():
@@ -131,7 +153,10 @@ def test_r10_1_real(g2p):
 
 def test_r10_3_symbols_and_spaces_are_not_read(g2p):
     assert "キゴー" not in reading(fe.analyze("ねえ 何か言ってよ！", g2p))
-    assert "キゴ" not in reading(fe.analyze("♪ラララ♪", g2p))
+    r = fe.analyze("♪ラララ♪", g2p)
+    assert "キゴ" not in reading(r) and "pau" not in r.phonemes  # 符号直接忽略，不算停顿（所有者 2026-10-12）
+    r = fe.analyze("「吉川」・ちなつです", g2p)
+    assert "pau" not in r.phonemes and "".join(w.text for w in r.words).startswith("吉川")
     r = fe.analyze("どうしたの？　ボス\n早く進めよう", g2p)
     assert reading(r).count("ボス") == 1
     assert r.phonemes.count("pau") >= 2
