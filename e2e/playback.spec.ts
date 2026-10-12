@@ -46,6 +46,9 @@ test("播放：范围截停、代次、一个声音、试听", async () => {
   expect(end.time!).toBeCloseTo(1.4, 2);
   await page.waitForTimeout(300);
   expect((await states()).filter((s) => s.player === "source" && s.gen === gen && s.ended)).toHaveLength(1);
+  // 截停之后播放头不越过终点（所有者 2026-10-12：选区播完播放头往后跳）：每帧位置与迟到的状态都贴在终点
+  expect(await page.evaluate(() => window.otto.player.position("source"))).toBeLessThanOrEqual(1.4 + 1e-9);
+  expect(Math.max(...(await states()).filter((s) => s.player === "source" && s.gen === gen && s.time != null).map((s) => s.time!))).toBeLessThanOrEqual(1.4 + 1e-9);
 
   // 往回的范围：上一次停在 1.4，这次 1.0–1.2，旧位置不能让它立刻“结束”（旧版 mpv 桥的教训：跳转完成前丢弃位置）
   gen = await page.evaluate(() => window.otto.player.playRange(1.0, 1.2));

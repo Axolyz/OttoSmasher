@@ -74,12 +74,17 @@ class Engine {
    *  不在这里同步读 mpv 属性——那会等 mpv 内部的锁，打开文件、跳转时会把页面卡住（实测）。跳转未完成时返回目标位置。 */
   position(): number | null {
     if (!this.loaded || this.time == null) return null;
-    if (this.awaitingSeek || !this.playing) return (this.shown = this.time);
+    if (this.awaitingSeek || !this.playing) return (this.shown = this.clampEnd(this.time));
     let t = this.time + (performance.now() - this.timeAt) / 1000;
     // 引擎按视频帧（约 42 ms 一次）报位置，外推偶尔略超前、下一次报告又拉回：正常播放中不小幅后退，原地等真实位置追上
     if (this.shown != null && t < this.shown && this.shown - t < 0.08) t = this.shown;
-    const end = this.range && !this.range.loop ? this.range.b - this.offset : Infinity;
-    return (this.shown = Math.min(t, end));
+    return (this.shown = this.clampEnd(t));
+  }
+
+  /** 单次范围的时钟不越过终点：截停后暂停事件的外推、截停后迟到的 time-pos 都可能超出终点（所有者 2026-10-12：选区播完播放头往后跳） */
+  private clampEnd(t: number): number {
+    const r = this.range;
+    return r && !r.loop ? Math.min(t, r.b - this.offset) : t;
   }
 
   /** 新请求：代次加一，清掉上一个请求挂起的动作。 */
@@ -233,11 +238,11 @@ class Engine {
     } else if (ev.type === "property-change") {
       if (this.awaitingSeek && (ev.name === "time-pos" || ev.name === "eof-reached")) return; // 跳转前的旧值
       if (ev.name === "time-pos") {
-        this.time = typeof ev.value === "number" ? ev.value - this.offset : null;
+        this.time = typeof ev.value === "number" ? this.clampEnd(ev.value - this.offset) : null;
         this.timeAt = performance.now();
         this.push(false);
       } else if (ev.name === "pause") {
-        if (this.playing && ev.value === true && this.time != null) this.time += (performance.now() - this.timeAt) / 1000;
+        if (this.playing && ev.value === true && this.time != null) this.time = this.clampEnd(this.time + (performance.now() - this.timeAt) / 1000);
         this.timeAt = performance.now();
         this.playing = ev.value === false;
         this.push(true);
@@ -266,6 +271,7 @@ class Engine {
       ended = true;
       this.endedGen = this.gen;
       this.time = r.b - this.offset;
+      this.timeAt = performance.now();
     }
     this.emit({
       player: this.name,
