@@ -237,7 +237,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
   - 文字搜索在 Core 里加载 pyopenjtalk-plus（约 0.3 秒，第一次搜索或资料变化后）；发布包要带它的系统辞典。
   - 素材库目录名按 `<作品 集数> [id8]`（`core/libdirs.py`）；Windows 长路径与非法字符已经过 `filename.portable`，仍要实测。
   - L17（导入扫描并行）所有者 2026-10-10 定：暂时单线程就够，不做。
-  - 仓库推送与 GitHub Actions 持续集成（macOS arm64 + Windows x64）按 [PUSH_AND_BUILD.md](PUSH_AND_BUILD.md) 由另一个会话执行（所有者 2026-10-10 授权推送）；CI 第一次在 Windows 上暴露的问题记在 STATUS，就是本阶段 L9 的待办。打包发布（L8、§14）仍在本阶段做。
+  - 仓库推送与 GitHub Actions 持续集成（macOS arm64 + Windows x64）由另一个会话执行（原说明 docs/PUSH_AND_BUILD.md 已于 2026-10-12 删除，见 git 历史 d134ccf）（所有者 2026-10-10 授权推送）；CI 第一次在 Windows 上暴露的问题记在 STATUS，就是本阶段 L9 的待办。打包发布（L8、§14）仍在本阶段做。
   - 模型权重不随包、应用内下载（L37）：发布包要带 `third_party/model-support/` 的三个支持文件（tokenizer、metadata、声码器 config），打包时把各组件许可全文收进 `licenses/`（清单在 docs/THIRD_PARTY.md）；README 的“安装”一节写的是发布版的做法，发布包出来后核对一遍（未公证的打开方式、SHA-256、工作区默认位置）。SudachiDict-core 193 MB 是 tsqyomi 的依赖，看能否只带用得到的部分。
   - 命令面板的命令来自各页登记的来源（`state/commands.ts` 的 `useCommands`，打开时现取）；新页面或新菜单要进面板，就在那一页登记，不要另写一份动作。
 
