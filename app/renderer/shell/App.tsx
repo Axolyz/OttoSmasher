@@ -203,6 +203,10 @@ export function App() {
               ["Space / B", t("shortcuts.audition")],
               ["⌥ / ⌥⇧", t("shortcuts.dragOut")],
               ["⌘C", t("shortcuts.reaper")],
+              ["Space · ⇧Space · L", t("shortcuts.wavePlay")],
+              ["I / O", t("shortcuts.waveMark")],
+              ["F · Z", t("shortcuts.waveZoom")],
+              ["← → · ⇧ · ⌥", t("shortcuts.waveStep")],
             ].map(([k, v]) => (
               <tr key={k}>
                 <td className="mono">{k}</td>

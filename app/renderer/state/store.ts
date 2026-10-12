@@ -120,6 +120,9 @@ interface AppState {
   setNowPlaying(v: NowPlaying | null): void;
   stageRhythm: StageRhythm;
   setStageRhythm(patch: Partial<StageRhythm>): void;
+  /** 详情区波形是否显示“判定区间”车道（默认隐藏，会话内记住；所有者 2026-10-12） */
+  stageJudgeLane: boolean;
+  setStageJudgeLane(v: boolean): void;
   setPage(p: Page): void;
   setTasksOpen(v: boolean): void;
   setSettingsOpen(v: boolean): void;
@@ -186,6 +189,8 @@ export const useApp = create<AppState>((set) => ({
       const base = patch.sampleId && patch.sampleId !== st.stageRhythm.sampleId ? { sampleId: patch.sampleId, plan: "near_fast" as const, mora: false, longVowel: false, sound: "voice" as const } : st.stageRhythm;
       return { stageRhythm: { ...base, ...patch } };
     }),
+  stageJudgeLane: false,
+  setStageJudgeLane: (stageJudgeLane) => set({ stageJudgeLane }),
   setPage: (page) => set({ page }),
   setTasksOpen: (tasksOpen) => set({ tasksOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),

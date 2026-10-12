@@ -113,5 +113,26 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
     return r.ok ? r.r.filter((j) => j.kind === "speech.analyze" && j.status === "succeeded").length : 0;
   }), { timeout: 60000 }).toBe(2);
   await expect(page.getByTestId("speech-status")).toHaveText("人工版本");
+
+  // 选区与音素块同步（所有者 2026-10-12）：先把两个音素放进采样范围（合成正弦的对齐落在采样外），
+  // 单击音素 = 选中它；Shift+单击 = 扩展到它；中点在选区里的都高亮；单击假名 = 选中整个 mora
+  await page.getByTestId("speech-times").click();
+  await times.fill("1.100\t1.500\ta\n1.500\t1.900\ta");
+  await page.getByTestId("speech-times-save").click();
+  const phones = page.getByTestId("speech-phone");
+  await expect(phones).toHaveCount(2);
+  const readout = page.getByTestId("stage-readout");
+  await phones.nth(0).click();
+  await expect.poll(async () => Number(await readout.getAttribute("data-b"))).toBeCloseTo(1.5, 3);
+  await expect(phones.nth(1)).not.toHaveAttribute("data-selected", "true");
+  await phones.nth(1).click({ modifiers: ["Shift"] });
+  await expect.poll(async () => Number(await readout.getAttribute("data-b"))).toBeCloseTo(1.9, 3);
+  expect(Number(await readout.getAttribute("data-a"))).toBeCloseTo(1.1, 3);
+  for (const i of [0, 1]) await expect(phones.nth(i)).toHaveAttribute("data-selected", "true");
+  const morae = page.getByTestId("speech-mora");
+  await morae.nth(1).click();
+  await expect.poll(async () => Number(await readout.getAttribute("data-a"))).toBeCloseTo(1.5, 3);
+  await expect(morae.nth(1)).toHaveAttribute("data-selected", "true");
+  await expect(morae.nth(0)).not.toHaveAttribute("data-selected", "true");
   await app.close();
 });

@@ -2,7 +2,7 @@
 // 统一列表（CollectionList：UI_PLAN §6.1 的全部集合规则）、批量条、可拖动的分栏、右侧舞台。
 // 本页自己的键（集合区）：Space 试听焦点的原声 · B 试听默认卡拍（近快；单音没有）· 1/2/3/0 设性质（勾选集或焦点，可撤销；改完留在原位，刷新后归位）·
 // S 星标 · ⌘F 聚焦查找栏的文字。条件变化清空勾选并提示；翻页保留勾选。
-import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Crosshair, MoreHorizontal, Play, Plus, Square, SquareStack, Star } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Crosshair, MoreHorizontal, Plus, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
@@ -367,34 +367,45 @@ export function LibraryPage() {
     void call("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
   }, [focus, data]);
 
-  // 试听状态；舞台波形的播放头 = 试听区间起点 + 区间本地秒（资产局部秒）
+  // 试听状态；舞台波形的播放头 = 试听区间起点 + 区间本地秒（资产局部秒）。
+  // 每帧读引擎位置（与原素材页一样插值、截停后贴终点）；这次试听真正开始播放之前不画（引擎里可能还是上一次的位置）
   const auditionFrom = useRef(0);
-  const auditionAt = useRef<number | null>(null);
+  const auditionLive = useRef(false);
   useEffect(
     () =>
       window.otto.player.onState((st: PlayerState) => {
         if (st.player !== "audition" || st.gen !== auditionGen.current) return;
-        auditionAt.current = st.time == null ? null : auditionFrom.current + st.time;
-        if (st.ended || st.error) {
-          setPlaying(null);
-          auditionAt.current = null;
-        }
+        if (st.playing && !st.loading && st.time != null) auditionLive.current = true;
+        if (st.ended || st.error) setPlaying(null);
       }),
     [],
   );
-  /** 在舞台波形上播放资产的一段（双击处、选区） */
-  const playRange = async (r: SampleRow, a: number, b: number) => {
+  /** 这次试听最后播到的位置（播完贴在终点、停止时停在停下处）：详情区用它放光标 */
+  const stagePlayhead = (): number | null => {
+    if (!auditionLive.current) return null;
+    const p = window.otto.player.position("audition");
+    return p == null ? null : auditionFrom.current + p;
+  };
+  /** 在舞台波形上播放资产的一段（光标处、选区、循环） */
+  const playRange = async (r: SampleRow, a: number, b: number, loop = false) => {
     try {
       setPlaying(r.id);
       setPlayingVer("original:voice");
       auditionFrom.current = a;
-      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b, false, r.id);
+      auditionLive.current = false;
+      auditionGen.current = -1;
+      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b, loop, r.id);
       setNowPlaying({ sampleId: r.id, name: r.name, version: "original", sound: "voice", plan: null, bpm: null, originalSpeed: false, duration: b - a });
     } catch (e) {
       setPlaying(null);
       setNowPlaying(null);
       toast({ text: errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
     }
+  };
+  const stopAudition = () => {
+    window.otto.player.stopAudition();
+    setPlaying(null);
+    setNowPlaying(null);
   };
 
   // 固定结果（04 §4.2.10）：恢复不重搜；翻页只读；检索完成 → 新标签并激活、收起浮层
@@ -455,6 +466,8 @@ export function LibraryPage() {
     try {
       setPlaying(r.id);
       setPlayingVer(key);
+      auditionLive.current = false;
+      auditionGen.current = -1;
       if (version === "original" && sound === "voice") {
         auditionFrom.current = r.start;
         auditionGen.current = await window.otto.player.audition(r.asset_id, r.start, r.end, false, r.id);
@@ -1336,23 +1349,22 @@ export function LibraryPage() {
           </div>
           </div>
           </div>
-          <div className={s.stageActions}>
-            <Button variant="secondary" icon={playing === focusRow.id ? <Square /> : <Play />} onPress={() => void audition(focusRow)} data-testid="stage-play">
-              {playing === focusRow.id ? t("library.stop") : t("library.auditionOriginal")}
-            </Button>
-            {focusItem?._res && focusHit?.id === focusRow.id ? (
+          {focusItem?._res && focusHit?.id === focusRow.id ? (
+            <div className={s.stageActions}>
               <span className={s.hitNav} data-testid="hit-nav">
                 <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={focusHit.index <= 0} onPress={() => locate(focusItem, focusHit.index - 1)} aria-label={t("search.hit.prev")} />
                 <span className="num">{t("search.hit.nav", { i: focusHit.index + 1, n: focusItem._res.hits.length })}</span>
                 <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={focusHit.index >= focusItem._res.hits.length - 1} onPress={() => locate(focusItem, focusHit.index + 1)} aria-label={t("search.hit.next")} />
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           <StageSpeech
             sample={focusRow}
-            playhead={() => (playing === focusRow.id && playingVer?.startsWith("original:") ? auditionAt.current : null)}
+            playhead={() => (playing === focusRow.id && playingVer?.startsWith("original:") ? stagePlayhead() : null)}
             playing={playing === focusRow.id && !!playingVer?.startsWith("original:")}
-            onPlayRange={(a, b) => void playRange(focusRow, a, b)}
+            onPlayRange={(a, b, loop) => void playRange(focusRow, a, b, loop)}
+            onStop={stopAudition}
+            lastPlayed={stagePlayhead}
             onStretched={isSingle(focusRow.nature) ? undefined : () => void audition(focusRow, "stretched", stageOpts(focusRow.id))}
             stretchedPlaying={playing === focusRow.id && playingVer === "stretched:voice"}
             hit={stageHit ? { a: stageHit.start, b: stageHit.end, approx: !!stageHit.evidence && !stageHit.evidence.strict, key: `${results.active}:${focusHit?.index}` } : null}

@@ -29,6 +29,7 @@ import s from "./Sources.module.css";
 import { AnnotationDialog, type AnnTarget } from "./AnnotationDialog";
 import { boundaries, limits, moveBoundary } from "./bounds";
 import { type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "./Timeline";
+import { isTyping, waveKey } from "./waveKeys";
 import { type Oped as OpedRange, Transcript } from "./Transcript";
 
 // 图层（所有者 2026-10-09）：sub = 文本层的段；hint = 音效提示（可开关，所有轨可见）；seg = 区段标签与 OP/ED；ph = 音素；derived = 派生采样
@@ -45,10 +46,6 @@ const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
   else n.delete(v);
   return n;
 };
-
-function isTyping(el: Element | null): boolean {
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable);
-}
 
 export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void; onSeparate: (input: SeparationInput) => void }) {
   const { row } = props;
@@ -458,51 +455,29 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
 
   const onKey = (e: React.KeyboardEvent) => {
     if (isTyping(document.activeElement)) return;
-    const k = e.key;
-    const handled = () => {
+    if (editing && e.key === "Escape") {
+      // Esc = 放弃（UI_PLAN §3.1）
       e.preventDefault();
       e.stopPropagation();
-    };
-    if (editing && k === "Escape") {
-      // Esc = 放弃（UI_PLAN §3.1）
-      handled();
       stopEdit();
       toast({ text: t("edit.boundsDiscarded") });
       return;
     }
-    if (k === " " && e.shiftKey) {
-      handled();
-      playSel(false);
-    } else if (k === " ") {
-      handled();
-      playPause();
-    } else if (k === "l" || k === "L") {
-      handled();
-      playSel(true);
-    } else if (k === "i" || k === "I" || k === "o" || k === "O") {
-      handled();
-      const p = playhead();
-      if (p == null) return;
-      const isIn = k.toLowerCase() === "i";
-      const a = isIn ? p : sel?.a ?? 0;
-      const b = isIn ? sel?.b ?? duration : p;
-      if (b > a) setSel({ a, b });
-    } else if (k === "f" || k === "F") {
-      handled();
-      tl.current?.fit();
-    } else if ((k === "z" || k === "Z") && !e.metaKey && !e.ctrlKey) {
-      handled();
-      if (sel) tl.current?.zoomTo(sel.a, sel.b);
-    } else if (k === "ArrowLeft" || k === "ArrowRight") {
-      handled();
-      const dir = k === "ArrowRight" ? 1 : -1;
-      if (e.altKey) seekBy(dir * 5);
-      else if (e.shiftKey) seekBy(dir * 0.001);
-      else window.otto.player.step(dir as 1 | -1);
-    } else if (k === "Escape" && sel) {
-      handled();
-      setSel(null);
-    }
+    waveKey(e, {
+      playPause,
+      playSel,
+      mark: (isIn) => {
+        const p = playhead();
+        if (p == null) return;
+        const a = isIn ? p : (sel?.a ?? 0);
+        const b = isIn ? (sel?.b ?? duration) : p;
+        if (b > a) setSel({ a, b });
+      },
+      fit: () => tl.current?.fit(),
+      zoomSel: () => sel && tl.current?.zoomTo(sel.a, sel.b),
+      step: (dir, unit) => (unit === "far" ? seekBy(dir * 5) : unit === "ms" ? seekBy(dir * 0.001) : window.otto.player.step(dir)),
+      clearSel: () => (sel ? (setSel(null), true) : false),
+    });
   };
 
   const trackLabel = (o: number) => {

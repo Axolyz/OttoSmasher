@@ -20,6 +20,7 @@ const player: PlayerApi = {
   playRange: (a, b, loop) => playback.sourcePlayRange(a, b, loop),
   audition: (assetId, start, end, loop, sampleId) => playback.audition(assetId, start, end, loop, sampleId),
   showPicture: (sampleId) => playback.picture.show(sampleId),
+  pictureAt: (sampleId, local) => playback.picture.at(sampleId, local),
   auditionRender: (key, loop) => playback.auditionRender(key, loop),
   stopAudition: () => playback.stopAudition(),
   position: (p) => playback.position(p),

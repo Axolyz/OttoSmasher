@@ -320,6 +320,7 @@ export function Specimen() {
           {["k", "a", "N", "pau"].map((x, i) => (
             <Token key={x} label={x} strong={x === "a" || x === "N"} selected={i === 1} />
           ))}
+          <Token label="ka" plain selected />
         </div>
       </section>
       <section>

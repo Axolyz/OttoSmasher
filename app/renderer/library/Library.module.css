@@ -67,6 +67,9 @@
 /* 舞台的声音与语音（阶段 4.6；UI_PLAN §3、§3.1） */
 .waveHead { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .grow { flex: 1; }
+/* 详情区波形卡是波形焦点区（UI_PLAN §7）：单击波形即获得焦点，边框提示 */
+.waveCard { outline: none; }
+.waveCard:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--line2)); }
 .waveBox { height: 200px; min-width: 0; display: flex; }
 .waveBox > * { flex: 1; min-width: 0; }
 /* 舞台动作条（UI_PLAN §3：与原片时间线的动作条同构；窄时换行） */

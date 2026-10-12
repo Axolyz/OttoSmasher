@@ -108,6 +108,13 @@ export class StagePicture {
     this.player.command(["seek", String(Math.max(0, t)), "absolute+exact"]);
   }
 
+  /** 不在试听时把画面停到资产局部秒 local 那一帧（舞台波形上单击放光标） */
+  at(sampleId: string, local: number): void {
+    const b = this.plan?.binding;
+    if (this.following || sampleId !== this.plan?.sampleId || !b || b.mode === "image" || b.state !== "ok") return;
+    this.seekTo(this.timeAt(local));
+  }
+
   /** 试听开始：这次试听是不是舞台这个采样的原声（资产局部秒 a 起） */
   follow(sampleId: string | undefined, a: number): void {
     const b = this.plan?.binding;

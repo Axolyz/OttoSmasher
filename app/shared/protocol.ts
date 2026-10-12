@@ -54,6 +54,8 @@ export interface PlayerApi {
   audition(assetId: string, start: number, end: number, loop?: boolean, sampleId?: string): Promise<number>;
   /** 舞台画面换成这个采样的有效画面（null = 没有舞台） */
   showPicture(sampleId: string | null): Promise<void>;
+  /** 舞台画面停在资产局部秒 local 那一帧（没在跟着试听时；详情区单击放光标，所有者 2026-10-12） */
+  pictureAt(sampleId: string, local: number): void;
   /** 试听渲染结果（Core rhythm.render 的键）：卡拍、咔哒声 */
   auditionRender(key: string, loop?: boolean): Promise<number>;
   stopAudition(): void;

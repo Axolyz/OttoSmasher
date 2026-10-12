@@ -6,12 +6,12 @@
 //   判定区间可见可改（这里的时间框 + 波形上的带子；必须在采样范围内）。修音素时间、切换版本、编辑文本都作用于所选的那一段，
 //   所有读这段的采样和原片页音素层同时生效（P13：面板上写明）。「添加台词…」= 在文本层加一段（与已有段重叠时选替换 / 切开 / 取消）。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
-import { AudioWaveform, ChevronDown, Download, Music2, Play, Split, Square, Undo2 } from "lucide-react";
+import { AudioWaveform, ChevronDown, Download, Music2, Play, Repeat, Split, Square, SquarePlay, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetRecord, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
 import { Button } from "../components/Button";
-import { Callout, Segmented, Token } from "../components/Controls";
+import { Callout, Checkbox, Segmented, Token } from "../components/Controls";
 import { Select, TextArea, TextField, TimeField } from "../components/Fields";
 import { AnnotationDialog, type AnnTarget } from "../sources/AnnotationDialog";
 import { hangOffset } from "../sources/hang";
@@ -26,12 +26,15 @@ import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
 import { ReimportDialog, type ReimportRequest } from "../sources/ReimportDialog";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
+import { waveKey } from "../sources/waveKeys";
 import s from "./Library.module.css";
 import { GroupingPanel } from "./StageRhythm";
 
 type LayerId = "ph" | "mora" | "none";
 const VOWELS = new Set(["a", "i", "u", "e", "o", "N", "cl"]);
 const F0_PAD = 2;
+/** ← → 的“一帧”（详情区没有画面帧率可用时按 30 帧） */
+const FRAME = 1 / 30;
 
 function toFloats(b: Uint8Array): Float32Array {
   const copy = new Uint8Array(b.byteLength);
@@ -84,7 +87,10 @@ export function StageSpeech(props: {
   sample: SampleRow;
   playhead: () => number | null;
   playing: boolean;
-  onPlayRange: (a: number, b: number) => void;
+  onPlayRange: (a: number, b: number, loop?: boolean) => void;
+  onStop: () => void;
+  /** 刚结束的这次原声试听最后播到的资产局部秒（没有则 null） */
+  lastPlayed: () => number | null;
   /** 「♩ 卡拍」（UI_PLAN §3：单音没有，不给）：整个采样按舞台上的方案卡拍试听 */
   onStretched?: () => void;
   stretchedPlaying?: boolean;
@@ -121,6 +127,19 @@ export function StageSpeech(props: {
   const tl = useRef<TimelineHandle>(null);
   const [spectrum, setSpectrum] = useState<SpectrumScale>(null);
   const [reimport, setReimport] = useState<ReimportRequest | null>(null);
+  // 光标（资产局部秒；所有者 2026-10-12：单击放光标、画面跳到这一帧，播完停在播到的位置）
+  const [cursor, setCursorState] = useState(smp.start);
+  const cursorRef = useRef(smp.start);
+  const setCursor = (v: number) => {
+    cursorRef.current = v;
+    setCursorState(v);
+  };
+  const lastPh = useRef<number | null>(null);
+  const wasPlaying = useRef(false);
+  const [mode, setMode] = useState<"play" | "sel" | "loop" | null>(null);
+  const card = useRef<HTMLElement>(null);
+  const judgeOn = useApp((st) => st.stageJudgeLane);
+  const setJudgeOn = useApp((st) => st.setStageJudgeLane);
 
   const loadSpeech = () => void call("speech.sample", { id: smp.id }).then(setView, () => setView(null));
   useEffect(() => {
@@ -128,6 +147,7 @@ export function StageSpeech(props: {
     setUnitSel(null);
     setCurve(null);
     setSel(null);
+    setCursor(smp.start);
     loadSpeech();
     void call("assets.get", { id: smp.asset_id }).then(setAsset, () => setAsset(null));
   }, [smp.id, smp.asset_id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -194,8 +214,8 @@ export function StageSpeech(props: {
   const overlay = editing ? { ...phoneBands(res?.phones ?? []), bands: editBands } : layer === "none" ? null : layers[layer];
   // 判定区间（资产局部秒）：一条车道上的带子
   const judge = view?.judgeLocal && view.judgeLocal.length === 2 ? { a: view.judgeLocal[0]!, b: view.judgeLocal[1]! } : null;
-  const judgeLane: Layer | null = judge ? { id: "judge", label: t("judge.lane"), bands: [{ a: judge.a, b: judge.b, label: t("judge.lane"), tone: "seg" }] } : null;
-  const lanes = [...(["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!), ...(judgeLane ? [judgeLane] : [])];
+  const judgeLane: Layer | null = judge ? { id: "judge", label: t("judge.lane"), bands: [{ a: judge.a, b: judge.b, label: "", tone: "seg" }] } : null;
+  const lanes = [...(["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!), ...(judgeLane && judgeOn ? [judgeLane] : [])];
 
   const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
   const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
@@ -315,6 +335,72 @@ export function StageSpeech(props: {
     setSel({ a, b });
     return true;
   };
+  // 播放（与原素材页同构，所有者 2026-10-12）：▶ 播放 = 从光标播到采样末尾（光标在余量里就播到余量末尾）；选区 / 循环 = 选区
+  const clampT = (v: number) => Math.min(bounds[1], Math.max(bounds[0], v));
+  const endFrom = (v: number) => (v < smp.end - 1e-3 ? smp.end : bounds[1]);
+  const play = () => {
+    if (props.playing) return props.onStop();
+    let from = cursorRef.current;
+    if (Math.abs(from - smp.end) < 1e-3 || from >= bounds[1] - 1e-3) from = smp.start; // 停在末尾：从头播
+    setMode("play");
+    props.onPlayRange(from, endFrom(from));
+  };
+  const playSel = (loop: boolean) => {
+    if (!sel) return;
+    if (props.playing && mode === (loop ? "loop" : "sel")) return props.onStop();
+    setMode(loop ? "loop" : "sel");
+    props.onPlayRange(sel.a, sel.b, loop);
+  };
+  const seek = (v: number) => {
+    const at = clampT(v);
+    setCursor(at);
+    if (props.playing) {
+      setMode("play");
+      props.onPlayRange(at, endFrom(at));
+    } else window.otto.player.pictureAt(smp.id, at);
+  };
+  // 播放头：播放时取引擎位置；停下后画光标。播完（或停止）光标停在最后播到的位置
+  const playhead = () => {
+    const p = props.playhead();
+    if (p != null) {
+      lastPh.current = p;
+      return p;
+    }
+    return props.playing ? (lastPh.current ?? cursorRef.current) : cursorRef.current;
+  };
+  useEffect(() => {
+    const last = wasPlaying.current && !props.playing ? (props.lastPlayed() ?? lastPh.current) : null;
+    if (last != null) setCursor(clampT(last));
+    if (!props.playing) {
+      lastPh.current = null;
+      setMode(null);
+    }
+    wasPlaying.current = props.playing;
+  }, [props.playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onWaveKey = (e: React.KeyboardEvent) => {
+    if (editing) return;
+    waveKey(e, {
+      playPause: play,
+      playSel,
+      mark: (isIn) => {
+        const p = props.playing ? (lastPh.current ?? cursor) : cursor;
+        const a = isIn ? p : (sel?.a ?? smp.start);
+        const b = isIn ? (sel?.b ?? smp.end) : p;
+        if (b - a > 1e-3) setSel({ a, b });
+      },
+      fit: () => tl.current?.zoomTo(smp.start, smp.end),
+      zoomSel: () => sel && tl.current?.zoomTo(sel.a, sel.b),
+      step: (dir, unit) => {
+        const base = props.playing ? (lastPh.current ?? cursor) : cursor;
+        if (props.playing) props.onStop();
+        const at = clampT(base + dir * (unit === "far" ? 5 : unit === "ms" ? 0.001 : FRAME));
+        setCursor(at);
+        window.otto.player.pictureAt(smp.id, at);
+      },
+      clearSel: () => (sel ? (setSel(null), true) : false),
+    });
+  };
+
   const flatten = () =>
     requestFlatten({ kind: "single", assetId: smp.asset_id, start: range.a, end: range.b, entry: "detail", sampleId: smp.id });
   const separate = () =>
@@ -369,9 +455,13 @@ export function StageSpeech(props: {
     return out;
   }, [res]);
 
+  // 选区与音素块同步（所有者 2026-10-12）：中点落在选区里的音素（和假名）都高亮；单击 = 选中它，Shift+单击 = 把选区扩展到它
+  const inSel = (a: number, b: number) => sel !== null && (a + b) / 2 >= sel.a - 1e-6 && (a + b) / 2 <= sel.b + 1e-6;
+  const pickRange = (a: number, b: number, extend: boolean) => setSel(extend && sel ? { a: Math.min(sel.a, a), b: Math.max(sel.b, b) } : { a, b });
+
   return (
     <>
-      <section className={s.card} data-testid="stage-wave">
+      <section className={`${s.card} ${s.waveCard}`} ref={card} tabIndex={0} onKeyDown={onWaveKey} data-testid="stage-wave" data-cursor={cursor.toFixed(3)} data-mode={props.playing ? (mode ?? "play") : undefined} aria-label={t("speech.sound", { name: assetLabel(asset) })}>
         <div className={s.waveHead}>
           <span className={s.cardTitle}>{t("speech.sound", { name: assetLabel(asset) })}</span>
           <div className={s.grow} />
@@ -387,6 +477,11 @@ export function StageSpeech(props: {
             ]}
             testId="stage-layer"
           />
+          {judgeLane ? (
+            <Checkbox isSelected={judgeOn} onChange={setJudgeOn} label={t("judge.lane")} testId="stage-judge-lane">
+              {t("judge.lane")}
+            </Checkbox>
+          ) : null}
           <Button size="sm" variant="flat" onPress={() => tl.current?.zoomTo(smp.start, smp.end)}>
             {t("speech.fit")}
           </Button>
@@ -408,7 +503,7 @@ export function StageSpeech(props: {
             </Button>
           </div>
         ) : null}
-        <div className={s.waveBox}>
+        <div className={s.waveBox} onPointerDownCapture={() => card.current?.focus({ preventScroll: true })}>
           {asset ? (
             <Timeline
               spectrum={spectrum}
@@ -417,13 +512,17 @@ export function StageSpeech(props: {
               duration={asset.duration}
               bounds={bounds}
               focus={{ a: smp.start, b: smp.end }}
-              playhead={props.playhead}
+              playhead={playhead}
               playing={props.playing}
               selection={sel}
               onSelection={setSel}
               hitBox={props.hit ?? null}
-              onSeek={() => {}}
-              onPlayFrom={(at) => props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : smp.end))}
+              onSeek={seek}
+              onPlayFrom={(at) => {
+                setCursor(at);
+                setMode("play");
+                props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : endFrom(at)));
+              }}
               overlay={overlay}
               lanes={lanes}
               onLaneDoubleClick={(id) => !editing && setLayer(id as LayerId)}
@@ -437,14 +536,21 @@ export function StageSpeech(props: {
         </div>
         <div className={s.stageActions} data-testid="stage-actions">
           <div className={s.actGroup}>
+            <Button variant="flat" icon={props.playing && mode === "play" ? <Square /> : <Play />} onPress={play} data-testid="stage-play">
+              {props.playing && mode === "play" ? t("library.stop") : t("player.play")}
+            </Button>
+            <Button variant="flat" icon={props.playing && mode === "sel" ? <Square /> : <SquarePlay />} onPress={() => playSel(false)} isDisabled={!sel} data-testid="stage-play-range">
+              {props.playing && mode === "sel" ? t("library.stop") : t("player.selection")}
+            </Button>
             <Button
               variant="flat"
-              icon={props.playing ? <Square /> : <Play />}
-              onPress={() => (props.playing ? window.otto.player.stopAudition() : props.onPlayRange(range.a, range.b))}
-              data-testid="stage-play-range"
-            >
-              {props.playing ? t("library.stop") : t("stage.original")}
-            </Button>
+              icon={props.playing && mode === "loop" ? <Square /> : <Repeat />}
+              onPress={() => playSel(true)}
+              isDisabled={!sel}
+              aria-label={t("player.loop")}
+              title={t("player.loop")}
+              data-testid="stage-loop"
+            />
             {props.onStretched ? (
               <Button variant="flat" icon={props.stretchedPlaying ? <Square /> : <Music2 />} onPress={props.onStretched} isDisabled={editing} data-testid="stage-stretched">
                 {props.stretchedPlaying ? t("library.stop") : t("stage.stretched")}
@@ -537,26 +643,40 @@ export function StageSpeech(props: {
         </div>
         {res ? (
           <div className={s.moras} data-testid="speech-moras">
-            {groups.map((g, gi) => (
-              <div key={gi} className={s.mora}>
-                <span className={s.kana} lang="ja" data-user-data="">
-                  {g.kana}
-                </span>
-                <div className={s.phs}>
-                  {g.items.map(({ p, i }) => (
+            {groups.map((g, gi) => {
+              const ga = g.items[0]!.p.start;
+              const gb = g.items[g.items.length - 1]!.p.end;
+              return (
+                <div key={gi} className={s.mora}>
+                  {g.kana ? (
                     <Token
-                      key={i}
-                      label={p.clipped ? `${p.label}◐` : p.label}
-                      strong={VOWELS.has(p.label)}
-                      selected={sel !== null && Math.abs(sel.a - p.start) < 1e-6 && Math.abs(sel.b - p.end) < 1e-6}
-                      title={`${seconds(p.start)}–${seconds(p.end)}${p.clipped ? ` · ${t("speech.clipped")}` : ""}`}
-                      onPress={() => setSel({ a: p.start, b: p.end })}
-                      testId="speech-phone"
+                      label={g.kana}
+                      plain
+                      lang="ja"
+                      selected={inSel(ga, gb)}
+                      title={`${seconds(ga)}–${seconds(gb)}`}
+                      onPress={(e) => pickRange(ga, gb, e.shiftKey)}
+                      testId="speech-mora"
                     />
-                  ))}
+                  ) : (
+                    <span className={s.kana} />
+                  )}
+                  <div className={s.phs}>
+                    {g.items.map(({ p, i }) => (
+                      <Token
+                        key={i}
+                        label={p.clipped ? `${p.label}◐` : p.label}
+                        strong={VOWELS.has(p.label)}
+                        selected={inSel(p.start, p.end)}
+                        title={`${seconds(p.start)}–${seconds(p.end)}${p.clipped ? ` · ${t("speech.clipped")}` : ""}`}
+                        onPress={(e) => pickRange(p.start, p.end, e.shiftKey)}
+                        testId="speech-phone"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         {view && !view.text ? (

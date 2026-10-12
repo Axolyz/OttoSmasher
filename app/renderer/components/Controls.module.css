@@ -103,6 +103,9 @@
 .token[data-strong] { color: var(--nat-speech); border-color: color-mix(in srgb, var(--nat-speech) 40%, transparent); }
 .token[data-hovered] { background: var(--s3); }
 .token[data-selected] { background: var(--sel); border-color: var(--accent); color: var(--text); }
+.token[data-plain] { font: var(--fs-md) var(--font-ja); border-color: transparent; background: none; color: var(--text); padding: 0 3px; }
+.token[data-plain][data-hovered] { background: var(--s3); }
+.token[data-plain][data-selected] { background: var(--sel); border-color: transparent; }
 .token[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* 可折叠的条件块 */

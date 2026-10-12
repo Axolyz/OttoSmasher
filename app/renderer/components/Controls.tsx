@@ -271,13 +271,24 @@ export function RadioList(props: { value: string | null; onChange: (v: string) =
 }
 
 /** 小记号按钮（音素、音块等一串可单击的短标签；UI_PLAN §3 语音面板）。``strong`` = 强调色（元音、核心） */
-export function Token(props: { label: string; onPress?: () => void; strong?: boolean; selected?: boolean; title?: string; lang?: string; testId?: string }) {
+/** 音素块（也用于 mora 的假名头：plain = 无边框文字样式）。onPress 带 shiftKey（Shift 单击 = 扩展选区） */
+export function Token(props: {
+  label: string;
+  onPress?: (e: { shiftKey: boolean }) => void;
+  strong?: boolean;
+  selected?: boolean;
+  plain?: boolean;
+  title?: string;
+  lang?: string;
+  testId?: string;
+}) {
   return (
     <RacButton
       className={s.token}
       data-strong={props.strong || undefined}
+      data-plain={props.plain || undefined}
       data-selected={props.selected || undefined}
-      onPress={props.onPress}
+      onPress={props.onPress ? (e) => props.onPress!({ shiftKey: e.shiftKey }) : undefined}
       aria-label={props.title ? `${props.label} ${props.title}` : props.label}
       data-testid={props.testId}
     >
