@@ -3,8 +3,8 @@
 - 打开拉平台时冻结音源（声音资产）与外选区 [a, b) 和存放它的文件快照；提交时核对，变了就报“声音资产已改变，请重新打开”。
 - 处理范围与定音方式都由用户选，默认值按入口（设置「拉平」组：采样详情 / 其他单个入口 / 批量）给出；改范围不自动改定音（Q6）。
   批量只有段内自动 / 交界自动（Q10【基线变更】：没有手动、没有内部拉平）。
-- 仅元音 / 首元音起需要覆盖外选区、属于同一物理声音（文件快照一致）的对齐结果：采样自己的当前头优先，否则取同一资产上覆盖它的最小测量；
-  没有就拒绝并说明（批量里该项单独失败）。
+- 仅元音 / 首元音起需要覆盖外选区的音素（所有者 2026-10-12：音素属于原素材时间线，拉平成品、局部声部上也读得到，所以拉平后还能再拉平）：
+  从采样打开 = 采样读到的结果，否则 = 与选区交叠的段的音素换到这条轨上；没有就拒绝并说明（批量里该项单独失败）。
 - 预估只读已缓存的测量（不跑模型）：输入资产的 F0 帧与对齐结果里存的有效范围；没有就“任务中分析确定”。
 - 登记（任务成功后在主线程，一个事务）：每个成功条目一个新资产（origin=flatten，MP3 V0 放 Library/Tracks/<原片>/Flatten/，映射 = 输入映射裁到外选区，
   继承输入资产的角色，production 记目标音、范围、实际处理区间、定音方式与参考、内区与过渡、算法与模型身份、输入指纹）+ 成品 F0 测量 +
@@ -91,12 +91,20 @@ class FlattenService:
             raise CoreError("flatten-asset-changed")
         return asset, ref, win, media | {"snap": snap}
 
-    # ------------------------------------------------------------ 对齐（同一物理声音、覆盖外选区）
+    # ------------------------------------------------------------ 对齐（音素属于原素材时间线）
 
     def _alignment(self, asset_id: str, start: float, end: float, snap: dict[str, Any], sample_id: str | None) -> dict[str, Any] | None:
-        """选区上的对齐（所有者 2026-10-09：分析属于“段 + 资产”，采样按判定区间读）。从采样打开、选区就是这个采样 → 采样读到的结果；
-        否则 → 与选区（换算成原片秒）正长度交叠的段在这条资产上的可用分析。只取同一物理声音（文件快照一致）的；
-        读到的段的对齐窗口要连起来覆盖整个选区（覆盖不全 = 不可用，不静默少算元音）；任何一段不可用或两段音素冲突 → 不可用。"""
+        """选区上的音素（所有者 2026-10-12：音素属于原素材时间线，拉平成品、局部声部也读得到）。从采样打开、选区就是这个采样 → 采样读到的结果；
+        否则 → 与选区（换算成原片秒）正长度交叠的段的音素，换到这条轨上。读到的段的对齐窗口要连起来覆盖整个选区
+        （覆盖不全 = 不可用，不静默少算元音）；这条轨不含人声、任何一段不可用或两段音素冲突 → 不可用。``snap`` 不再参与（音素不按文件指纹拦）。"""
+        asset = assets_mod.get(self.conn, asset_id)
+        if not units.voiced(asset):
+            return None
+        try:
+            m = Mapping.of(asset["mapping"])
+            a, b = m.to_source(start), m.to_source(end)
+        except CoreError:
+            return None
         if sample_id:
             s = self.conn.execute(f"SELECT {self.speech._SAMPLE_COLS} FROM sample WHERE id=?", (sample_id,)).fetchone()
             if s is not None and s["asset_id"] == asset_id and abs(s["start"] - start) < 1e-6 and abs(s["end"] - end) < 1e-6:
@@ -104,35 +112,29 @@ class FlattenService:
                 head = rd["head"]
                 if head is None:
                     return None
-                windows = [v["head"].get("window") or v["target"] for v in rd["units"] if v["head"]]
-                if not self._covers(windows, start, end):
+                if not self._covers([v.get("windowSource") for v in rd["units"] if v["head"]], a, b):
                     return None
                 phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in head["result"]["phones"]]
                 return {"runId": head["runId"], "manual": bool(head["manual"]), "owner": ",".join(head.get("units") or []), "phones": phones}
-        asset = assets_mod.get(self.conn, asset_id)
-        try:
-            m = Mapping.of(asset["mapping"])
-            a, b = m.to_source(start), m.to_source(end)
-        except CoreError:
-            return None
         segs = self.speech.read_segments(asset["source_id"], a, b)
         if not segs:
             return None
         ords = self.speech.ordinals(asset["source_id"], [t["id"] for t in segs])
+        base = units.base_of(asset)
         parts = []
         for t in segs:
-            uid = units.unit_id(t["id"], asset_id)
+            uid = units.unit_id(t["id"], base)
             r = self.speech.usable_run(uid, t)
-            if r is None or (loads(r["inputs"]).get("audio") or {}).get("snapshot") != snap:
+            if r is None:
                 return None
-            parts.append((uid, r))
-        if not self._covers([loads(r["inputs"]).get("window") or [r["range_start"], r["range_end"]] for _, r in parts], start, end):
+            parts.append((uid, t["id"], r, loads(r["result"])))
+        if not self._covers([res.get("window") or [r["range_start"], r["range_end"]] for _, _, r, res in parts], a, b):
             return None
-        merged = units.merge([{"unitId": uid, "ordinal": ords.get(uid[4:].split("@", 1)[0], 0), "result": loads(r["result"])} for uid, r in parts], start, end)
+        merged = units.merge([{"unitId": uid, "ordinal": ords.get(sid, 0), "result": self.speech._local_result(res, m)} for uid, sid, _, res in parts], start, end)
         if "conflict" in merged:
             return None
         phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in merged["phones"]]
-        return {"runId": "+".join(r["id"] for _, r in parts), "manual": any(bool(r["manual"]) for _, r in parts), "owner": ",".join(u for u, _ in parts),
+        return {"runId": "+".join(r["id"] for _, _, r, _ in parts), "manual": any(bool(r["manual"]) for _, _, r, _ in parts), "owner": ",".join(u for u, _, _, _ in parts),
                 "phones": phones}
 
     @staticmethod
@@ -436,7 +438,7 @@ class FlattenService:
     def _register_sample(self, job_id: str, it: dict[str, Any], aid: str, ts: str) -> str:
         a = assets_mod.get(self.conn, aid)
         sid = new_id()
-        origin = {"kind": "flatten", "job": job_id, "idx": it["idx"], "from": it.get("sample")}
+        origin = {"kind": "flatten", "job": job_id, "idx": it["idx"]}
         self.conn.execute(
             'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, origin, created_at, updated_at)'
             " VALUES (?, ?, 0, ?, ?, 'pitched', ?, 'processed', ?, ?, ?)",

@@ -4,8 +4,10 @@
 - 建议名：对齐结果（阶段 4）→ 与选区正长度交叠的文本层的段与音效提示的文字（未删除，原片时间；A23）→ 原片名 起–止。
 - 判定区间（所有者 2026-10-09）：没给的 = 选区（数据库触发器按资产映射补上）；从段 / 音效提示建的 = 段 / 提示的区间。
 - 性质：调用方显式给的生效；没给就按资产角色预填（R2.6）。
-- 删除：采样本身、本地标签、画面覆盖、以它为归属的测量采用；子采样保留“已删除的父采样”来源（parent_label 在创建时就记下）；
-  固定结果里的成员保留采样 ID，界面据此显示“已删除”；资产、分析（属于段 + 资产）、文本层、原片、导出文件都不动（P9）。
+- 采样之间没有父子关系（所有者 2026-10-12）：只记创建方式；同一原素材上原素材时间交叠的采样是“相关采样”（跨所有音轨），
+  声音怎么做出来的看音轨的加工链（core/lineage.py）。
+- 删除：采样本身、本地标签、画面覆盖、以它为归属的测量采用；固定结果里的成员保留采样 ID，界面据此显示“已删除”；
+  交叠的采样、资产、音素（属于原素材时间线）、文本层、原片、导出文件都不动（P9）。
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from ottosmasher.domain.mapping import EPS, Mapping, check_range
 from ottosmasher.store.db import transaction
 
 from . import assets as assets_mod
-from . import effective_tags, sample_filter, units
+from . import effective_tags, lineage, sample_filter, units
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
@@ -29,7 +31,7 @@ CREATED_VIA = ("manual", "segment", "hint", "hit", "processed", "import", "reimp
 SORTS = {
     "created": "s.created_at DESC, s.rowid DESC",
     "name": "s.name COLLATE NOCASE, s.rowid",
-    "source": "src.work COLLATE NOCASE, src.episode COLLATE NOCASE, s.start, s.rowid",
+    "source": "src.work COLLATE NOCASE, src.episode COLLATE NOCASE, s.src_start, s.rowid",
     "duration": '(s."end" - s.start), s.rowid',
 }
 
@@ -46,6 +48,7 @@ class SampleService:
         self.conn = conn
         self.on_change = on_change
         self.reader = reader  # 文字搜索的读音（text_search.Reader）；没有 = 只按名称、备注与段原文
+        self._memo: dict[Any, Any] = {}  # 一次查询里「返回原素材」的整轨（lineage.back_track）按资产记住
 
     # ------------------------------------------------------------ 建议
 
@@ -60,18 +63,23 @@ class SampleService:
         src = self._source_of(asset)
         mapping = Mapping.of(asset["mapping"]) if asset["mapping"] else None
         texts: list[str] = []
+        partial = None
         if mapping is not None:
             s0, s1 = mapping.to_source(start), mapping.to_source(end)
             # 正长度交叠（端点相接不算，04 §4.3.3）；文本层的段与音效提示的文字（A23：不受角色限制；名称里的换行用空格连接）
             rows = self.conn.execute(
-                'SELECT text FROM (SELECT start, "end", text, 0 AS k FROM text_segment WHERE source_id=? AND deleted=0'
-                ' UNION ALL SELECT start, "end", text, 1 AS k FROM sfx_hint WHERE source_id=? AND deleted=0)'
+                'SELECT id, text, k FROM (SELECT id, start, "end", text, 0 AS k FROM text_segment WHERE source_id=? AND deleted=0'
+                ' UNION ALL SELECT id, start, "end", text, 1 AS k FROM sfx_hint WHERE source_id=? AND deleted=0)'
                 ' WHERE start < ? AND "end" > ? ORDER BY start, "end", k',
                 (src["id"], src["id"], s1 - EPS, s0 + EPS),
             ).fetchall()
-            texts = [str(r[0]).replace("\n", " ") for r in rows]
+            texts = [str(r[1]).replace("\n", " ") for r in rows]
+            if len(rows) == 1 and rows[0]["k"] == 0 and units.voiced(asset):
+                partial = self._partial_name(rows[0]["id"], units.base_of(asset), s0, s1)
         else:
             s0, s1 = start, end
+        if partial:
+            return {"name": partial, "nature": naming.nature_for_roles(asset["roles"]), "roles": asset["roles"], "start": start, "end": end}
         name = naming.suggest_sample_name(
             source_name=source_display_name(src["work"], src["episode"], src["path"]),
             start=s0,
@@ -81,6 +89,22 @@ class SampleService:
             overlapping_texts=texts,
         )
         return {"name": name, "nature": naming.nature_for_roles(asset["roles"]), "roles": asset["roles"], "start": start, "end": end}
+
+    def _partial_name(self, segment_id: str, base: str, s0: float, s1: float) -> str | None:
+        """局部命名（所有者 2026-10-12）：选区只落在一个台词段里、且只覆盖它 ≤ 一半的音素 → “选中部分（整句）”；
+        这句还没有可用的音素就不用（照旧整句）。音素与选区都是原素材秒。"""
+        seg = self.conn.execute('SELECT id, start, "end", text FROM text_segment WHERE id=?', (segment_id,)).fetchone()
+        uid = units.unit_id(segment_id, base)
+        runs = self.conn.execute(
+            "SELECT * FROM measure_run WHERE owner_type=? AND owner_id=? AND kind='alignment' ORDER BY created_at DESC, rowid DESC", (units.OWNER, uid)
+        ).fetchall()
+        head = self.conn.execute("SELECT run_id FROM measure_head WHERE owner_type=? AND owner_id=? AND kind='alignment'", (units.OWNER, uid)).fetchone()
+        use = units.pick_usable(runs, seg, head[0] if head else None) if seg is not None else None
+        if use is None:
+            return None
+        res = loads(use["result"]) or {}
+        frag = naming.partial_fragment(res.get("phones") or [], res.get("words") or [], s0, s1)
+        return naming.partial_name(frag, str(seg["text"] or "")) if frag else None
 
     # ------------------------------------------------------------ 新建
 
@@ -93,16 +117,15 @@ class SampleService:
         name: str,
         nature: str | None = None,
         created_via: str = "manual",
-        parent_sample_id: str | None = None,
     ) -> dict[str, Any]:
         with transaction(self.conn):
-            sid = self.insert_checked(asset_id, start, end, name=name, nature=nature, created_via=created_via, parent_sample_id=parent_sample_id)
+            sid = self.insert_checked(asset_id, start, end, name=name, nature=nature, created_via=created_via)
         self._changed("sample", [sid])
         return self.get(sid)
 
     def insert_checked(
         self, asset_id: str, start: float, end: float, *, name: str, nature: str | None = None, created_via: str = "manual",
-        parent_sample_id: str | None = None, origin: dict[str, Any] | None = None, snapshot: dict[str, Any] | None = None,
+        origin: dict[str, Any] | None = None, snapshot: dict[str, Any] | None = None,
         judge: tuple[float, float] | None = None,
     ) -> str:
         """校验并新建一个采样，在调用方的写事务里（批量新建整批原子）。判定区间没给 = 选区。"""
@@ -119,18 +142,12 @@ class SampleService:
             raise CoreError("sample-invalid", reason="not-an-option", field="nature")
         if created_via not in CREATED_VIA:
             raise CoreError("sample-invalid", reason="not-an-option", field="created_via")
-        parent_label = None
-        if parent_sample_id is not None:
-            p = self.conn.execute("SELECT name FROM sample WHERE id=?", (parent_sample_id,)).fetchone()
-            if p is None:
-                raise CoreError("sample-not-found", id=parent_sample_id)
-            parent_label = p[0]
         sid, ts = new_id(), now_iso()
         js, je = (round(judge[0], 6), round(judge[1], 6)) if judge else (None, None)
         self.conn.execute(
-            'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via, parent_sample_id, parent_label,'
-            " origin, text_snapshot, tag_judge_start, tag_judge_end, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (sid, asset_id, start, end, name, nature, asset["language"], created_via, parent_sample_id, parent_label,
+            'INSERT INTO sample(id, asset_id, start, "end", name, nature, language, created_via,'
+            " origin, text_snapshot, tag_judge_start, tag_judge_end, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (sid, asset_id, start, end, name, nature, asset["language"], created_via,
              dumps(origin) if origin else None, dumps(snapshot) if snapshot else None, js, je, ts, ts),
         )
         effective_tags.refresh(self.conn, [sid])
@@ -140,21 +157,20 @@ class SampleService:
 
     _COLUMNS = (
         's.id, s.asset_id, s.start, s."end", s.name, s.nature, s.starred, s.rating, s.language, s.created_via,'
-        " s.parent_sample_id, s.parent_label, s.created_at, s.version, s.independent,"
+        " s.src_start AS source_start, s.src_end AS source_end, s.created_at, s.version, s.independent,"
         " a.source_id, a.mapping, a.origin AS asset_origin, a.stream_ordinal,"
         " src.work, src.episode, src.path AS source_path, src.media_state,"
         # 语音分析状态（所有者 2026-10-08：分析属于文本单元，采样按规则读取）：manual / ok / partial（◐）/ failed / none
-        f" {units.state_sql('s')} AS analysis"
+        f" {units.state_sql('s', 'a')} AS analysis"
     )
     _FROM = " FROM sample s JOIN sound_asset a ON a.id = s.asset_id JOIN source src ON src.id = a.source_id"
 
     def _row(self, r: sqlite3.Row) -> dict[str, Any]:
-        d = dict(r)
-        mapping = d.pop("mapping")
-        try:
-            d["source_start"] = Mapping.of(loads(mapping)).to_source(d["start"]) if mapping else None
-        except CoreError:
-            d["source_start"] = None
+        return self._row_dict(dict(r))
+
+    def _row_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        d.pop("mapping")
+        d["back_asset_id"] = lineage.back_track(self.conn, d["asset_id"], self._memo)
         d["duration"] = d["end"] - d["start"]
         d["starred"] = bool(d["starred"])
         d["independent"] = bool(d["independent"])
@@ -162,6 +178,7 @@ class SampleService:
         return d
 
     def get(self, sample_id: str) -> dict[str, Any]:
+        self._memo = {}
         r = self.conn.execute(f"SELECT {self._COLUMNS}{self._FROM} WHERE s.id=?", (sample_id,)).fetchone()
         if r is None:
             raise CoreError("sample-not-found", id=sample_id)
@@ -172,30 +189,55 @@ class SampleService:
         return d
 
     def detail(self, sample_id: str) -> dict[str, Any]:
-        """舞台「资料与来源」（UI_PLAN §3）：备注、来源（父采样、建立方式）、派生采样、技术详情。"""
+        """详情区「资料与来源」（UI_PLAN §3）：备注、建立方式、加工链、技术详情。"""
         r = self.conn.execute(
-            "SELECT s.note, s.parent_sample_id, s.origin, s.independent, s.tag_judge_start, s.tag_judge_end, s.updated_at,"
-            " a.stem_name, a.origin AS asset_origin, (SELECT name FROM sample p WHERE p.id = s.parent_sample_id) AS parent_name"
+            "SELECT s.note, s.asset_id, s.origin, s.independent, s.tag_judge_start, s.tag_judge_end, s.updated_at, a.stem_name"
             " FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE s.id = ?",
             (sample_id,),
         ).fetchone()
-        children = [
-            {"id": c[0], "name": c[1], "createdVia": c[2]}
-            for c in self.conn.execute("SELECT id, name, created_via FROM sample WHERE parent_sample_id = ? ORDER BY created_at, rowid", (sample_id,))
-        ]
         return {
             "note": r["note"],
-            "parent": {"id": r["parent_sample_id"], "name": r["parent_name"]} if r["parent_sample_id"] else None,
             "origin": loads(r["origin"]) if r["origin"] else None,
             "independent": bool(r["independent"]),
             "judge": [r["tag_judge_start"], r["tag_judge_end"]] if r["tag_judge_start"] is not None else None,
             "stemName": r["stem_name"],
             "updatedAt": r["updated_at"],
-            "children": children,
+            "chain": lineage.chain(self.conn, r["asset_id"]),
         }
+
+    def related(self, sample_id: str, limit: int = 12) -> dict[str, Any]:
+        """相关采样（所有者 2026-10-12）：同一原素材上、原素材时间正长度交叠（端点相接不算）的其他采样，跨所有音轨；
+        按交叠长度从长到短，最多 ``limit`` 个 + 总数。"""
+        self._memo = {}
+        s = self.conn.execute(
+            "SELECT s.src_start, s.src_end, a.source_id FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE s.id=?", (sample_id,)
+        ).fetchone()
+        if s is None:
+            raise CoreError("sample-not-found", id=sample_id)
+        lo, hi = float(s["src_start"]), float(s["src_end"])
+        cond = (" WHERE a.source_id = ? AND s.id <> ? AND s.src_start < ? - 1e-6 AND s.src_end > ? + 1e-6")
+        args = [s["source_id"], sample_id, hi, lo]
+        total = self.conn.execute(f"SELECT COUNT(*){self._FROM}{cond}", args).fetchone()[0]
+        limit = max(1, min(int(limit), 200))
+        rows = self.conn.execute(
+            f"SELECT {self._COLUMNS}, (MIN(s.src_end, ?) - MAX(s.src_start, ?)) AS ov, a.stem_name, a.production{self._FROM}{cond}"
+            " ORDER BY ov DESC, s.src_start, s.rowid LIMIT ?",
+            [hi, lo, *args, limit],
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            ov, stem, prod = d.pop("ov"), d.pop("stem_name"), d.pop("production")
+            out.append({"sample": self._row_dict(d), "overlap": round(float(ov), 6), "stemName": stem,
+                        "model": (loads(prod) or {}).get("model") if prod else None})
+        ppl = effective_tags.people(self.conn, [x["sample"]["id"] for x in out])
+        for x in out:
+            x["sample"]["people"] = ppl.get(x["sample"]["id"], [])
+        return {"total": int(total), "rows": out}
 
     def rows(self, ids: list[str]) -> dict[str, dict[str, Any]]:
         """现有采样的列表行（固定结果翻页用；已删除的不在里面）。"""
+        self._memo = {}
         out: dict[str, dict[str, Any]] = {}
         for i in range(0, len(ids), 900):
             part = ids[i : i + 900]
@@ -212,6 +254,7 @@ class SampleService:
 
     def list(self, *, offset: int = 0, limit: int = 100, sort: str = "created", **f: Any) -> dict[str, Any]:
         """一页摘要（不含分析资料，R8.9）+ 总数。条件见 ``sample_filter``：性质多选取并集，其余取交集。"""
+        self._memo = {}
         cond, args = self._where(f)
         order = SORTS.get(sort)
         if order is None:
@@ -252,7 +295,7 @@ class SampleService:
             x = self.conn.execute
             # 语音分析属于文本单元（所有者 2026-10-08），删采样不删分析（P9）
             x(f"DELETE FROM visual_binding WHERE owner_type='sample' AND owner_id IN ({marks})", ids)
-            x(f"DELETE FROM sample WHERE id IN ({marks})", ids)  # 本地标签、有效标签级联；子采样 parent_sample_id 置空，parent_label 保留
+            x(f"DELETE FROM sample WHERE id IN ({marks})", ids)  # 本地标签、有效标签级联
         self._changed("sample", ids)
         return {"deleted": len(ids)}
 

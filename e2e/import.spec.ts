@@ -61,7 +61,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await page.getByTestId("source-row").filter({ hasText: "clip" }).click();
   await expect(page.locator("canvas[data-otto-video]")).toBeVisible();
   await expect(page.getByTestId("source-viewer")).not.toHaveAttribute("data-compact", "true");
-  // 它的采样：时间线头「派生采样 n」点开
+  // 它的采样：时间线头「采样 n」点开
   await page.getByTestId("source-row").filter({ hasText: "hit_01" }).click();
   await page.getByTestId("derived-button").click();
   await page.getByTestId("derived-menu").getByRole("menuitem", { name: /hit_01/ }).click();

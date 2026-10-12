@@ -3,7 +3,8 @@
 - 只用当前选区的**起点**；终点 = 起点 + 回导文件自身的时长（手选终点被忽略）；终点超出当前资产（超过一帧）→ 拒绝，不保存；
 - 沿用该段的时间映射；不补静音、不裁切、不变速、不推断成品内部的剪辑；采样率可以与原音频不同（时长按文件自身算）；
 - 文件**复制进素材库、保持原格式（无损）**：``Library/Tracks/<作品 集数> [id8]/Reimport/``，之后用户的原文件可以随意处置；
-- 结果：新的“外部回导”资产（不能借用来源测量；继承输入资产的角色）+ 一个新采样（整段；名称可改、性质默认未分类；父采样 = 发起回导的采样）。
+- 结果：新的“外部回导”资产（音素另算一份：读“段 + 这个回导成品”，所有者 2026-10-12；继承输入资产的角色）+ 一个新采样
+  （整段；名称默认 = 它落到的那段的建议名、可改；性质默认未分类；与原选区上的采样互为相关采样，不记父采样）。
 时钟：起点是输入资产的局部秒；新资产的局部秒 0 = 起点。
 """
 
@@ -57,13 +58,15 @@ class ReimportService:
         except CoreError:
             ok, reason = False, "out-of-bounds"
         src_end = None
+        suggested = None
         if ok:
             src_end = mapping.to_source(min(end, mapping.duration))
+            # 回导成品的建议名 = 它落到的那段的建议名（局部命名同截取；所有者 2026-10-12：回导框不再预填当前采样名）
+            suggested = self.samples.suggest(asset_id, start, min(end, float(asset["duration"])))["name"]
         return {"duration": dur, "sampleRate": rate, "start": start, "end": end, "ok": ok, "reason": reason,
-                "sourceStart": mapping.to_source(start), "sourceEnd": src_end, "assetDuration": float(asset["duration"])}
+                "sourceStart": mapping.to_source(start), "sourceEnd": src_end, "assetDuration": float(asset["duration"]), "suggestedName": suggested}
 
-    def commit(self, asset_id: str, start: float, path: str, *, name: str | None = None, nature: str = "unclassified",
-               parent_sample_id: str | None = None) -> dict[str, Any]:
+    def commit(self, asset_id: str, start: float, path: str, *, name: str | None = None, nature: str = "unclassified") -> dict[str, Any]:
         asset = assets_mod.get(self.conn, asset_id)
         dur, rate, pr = _file_audio(path)
         mapping = Mapping.of(asset["mapping"])
@@ -101,7 +104,7 @@ class ReimportService:
                 for role, state in self.conn.execute("SELECT role, state FROM asset_role WHERE asset_id = ?", (asset_id,)).fetchall():
                     self.conn.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, ?, ?)", (aid, role, state))
                 label = (name or "").strip() or self.samples.suggest(asset_id, start, min(start + dur, float(asset["duration"])))["name"]
-                sid = self.samples.insert_checked(aid, 0.0, dur, name=label, nature=nature, created_via="reimport", parent_sample_id=parent_sample_id,
+                sid = self.samples.insert_checked(aid, 0.0, dur, name=label, nature=nature, created_via="reimport",
                                                   origin={"kind": "reimport", "inputAsset": asset_id, "inputStart": start, "file": src.name})
                 effective_tags.refresh(self.conn, [sid])
         except Exception:

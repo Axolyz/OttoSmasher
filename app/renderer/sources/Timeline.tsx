@@ -17,10 +17,12 @@ export interface LayerBand {
   a: number;
   b: number;
   label: string;
-  /** 颜色：台词 / 音效 / OP·ED / 区段 / 派生采样 */
+  /** 颜色：台词 / 音效 / OP·ED / 区段 / 采样 */
   tone: "line" | "sfx" | "oped" | "seg" | "derived" | "vowel" | "consonant" | "pause";
-  /** 派生轨：采样 ID */
+  /** 采样车道：采样 ID */
   id?: string;
+  /** 突出显示（「返回原素材」带来的那个采样） */
+  strong?: boolean;
 }
 export interface Layer {
   id: string;
@@ -141,6 +143,10 @@ export const Timeline = forwardRef<
     onEditFocus?: (id: string | null) => void;
     /** 频谱细看（规格 05 §5.3.2、L19）：视口 ≤ 30 秒时把波形换成所选音频的频谱（固定 −90–0 dB）；null = 波形 */
     spectrum?: "log" | "linear" | "mel" | null;
+    /** 可视范围（默认 [0, duration]）：缩放、平移、总览条、选区都只在这里面（详情区 = 采样范围 + 余量，所有者 2026-10-12） */
+    bounds?: [number, number];
+    /** 焦点区间：之外的部分淡色遮住（详情区里采样自己的范围；余量里照常能框选） */
+    focus?: Sel | null;
     /** 右键：光标处的时间、覆盖层上的区间、车道（若在车道上）与其区间 */
     onContextMenu?: (t: number, hits: { overlay: LayerBand[]; lane: { id: string; bands: LayerBand[] } | null }, at: { clientX: number; clientY: number }) => void;
   }
@@ -149,13 +155,16 @@ export const Timeline = forwardRef<
   const offset = props.offset ?? 0;
   const assetDur = props.assetDuration ?? duration;
   const covered: [number, number] = [offset, offset + assetDur];
+  const lo = Math.max(0, props.bounds?.[0] ?? 0);
+  const hi = Math.min(duration, props.bounds?.[1] ?? duration);
+  const extent = Math.max(hi - lo, MIN_SPAN);
   // 峰值按资产局部秒取，起点平移到原片秒
   const shifted = (p: Peaks): Peaks => ({ ...p, start: p.start + offset });
   const wrap = useRef<HTMLDivElement>(null);
   const base = useRef<HTMLCanvasElement>(null);
   const over = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [view, setView] = useState<[number, number]>([0, Math.max(duration, MIN_SPAN)]);
+  const [view, setView] = useState<[number, number]>([lo, lo + extent]);
   const [whole, setWhole] = useState<Peaks | null>(null);
   const [detail, setDetail] = useState<Peaks | null>(null);
   const [status, setStatus] = useState<"ok" | "pending" | string>("ok");
@@ -166,35 +175,34 @@ export const Timeline = forwardRef<
 
   const clampView = useCallback(
     (a: number, b: number): [number, number] => {
-      const total = Math.max(duration, MIN_SPAN);
-      let span = Math.min(Math.max(b - a, MIN_SPAN), total);
-      let v0 = Math.max(0, Math.min(a, total - span));
-      if (!Number.isFinite(v0)) v0 = 0;
-      span = Math.min(span, total - v0);
+      let span = Math.min(Math.max(b - a, MIN_SPAN), extent);
+      let v0 = Math.max(lo, Math.min(a, lo + extent - span));
+      if (!Number.isFinite(v0)) v0 = lo;
+      span = Math.min(span, lo + extent - v0);
       return [v0, v0 + span];
     },
-    [duration],
+    [lo, extent],
   );
 
   useImperativeHandle(
     ref,
     () => ({
-      fit: () => setView(clampView(0, duration)),
+      fit: () => setView(clampView(lo, hi)),
       zoomTo: (a, b) => {
         const pad = (b - a) * 0.08;
         setView(clampView(a - pad, b + pad));
       },
       view: () => viewRef.current,
     }),
-    [clampView, duration],
+    [clampView, lo, hi],
   );
 
-  // 换资产 / 时长：回到整段
+  // 换资产 / 时长：回到整段（有可视范围时 = 整个范围）
   useEffect(() => {
-    setView(clampView(0, duration));
+    setView(clampView(lo, hi));
     setWhole(null);
     setDetail(null);
-  }, [assetId, duration, clampView]);
+  }, [assetId, duration, clampView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 尺寸
   useEffect(() => {
@@ -485,9 +493,13 @@ export const Timeline = forwardRef<
         const xa = Math.max(0, X(band.a));
         const xb = Math.min(size.w, X(band.b));
         ctx.fillStyle = toneColor(band.tone);
-        ctx.globalAlpha = 0.35;
+        ctx.globalAlpha = band.strong ? 0.8 : 0.35;
         ctx.fillRect(xa, y + 2, Math.max(2, xb - xa - 1), LANE_H - 4);
         ctx.globalAlpha = 1;
+        if (band.strong) {
+          ctx.strokeStyle = cssVar("--text");
+          ctx.strokeRect(xa + 0.5, y + 1.5, Math.max(2, xb - xa - 1) - 1, LANE_H - 3);
+        }
         if (xb - xa > 24) {
           ctx.save();
           ctx.beginPath();
@@ -514,18 +526,27 @@ export const Timeline = forwardRef<
       if (covered[1] < v1) ctx.fillRect(((Math.max(covered[1], v0) - v0) / span) * size.w, waveTop, size.w, waveH);
       ctx.globalAlpha = 1;
     }
-    // 总览条
+    // 焦点之外（详情区：采样范围之外的余量）：淡色遮罩，照常能框选
+    const fc = props.focus;
+    if (fc && (fc.a > v0 || fc.b < v1)) {
+      ctx.fillStyle = cssVar("--s2");
+      ctx.globalAlpha = 0.45;
+      if (fc.a > v0) ctx.fillRect(0, waveTop, X(Math.min(fc.a, v1)), waveH);
+      if (fc.b < v1) ctx.fillRect(X(Math.max(fc.b, v0)), waveTop, size.w, waveH);
+      ctx.globalAlpha = 1;
+    }
+    // 总览条（有可视范围时只画这个范围）
     const oy = size.h - OVERVIEW_H;
     ctx.fillStyle = cssVar("--s2");
     ctx.fillRect(0, oy, size.w, OVERVIEW_H);
     if (whole) {
       ctx.fillStyle = cssVar("--wave2");
-      drawPeaks(ctx, whole, 0, duration, size.w, oy + 1, OVERVIEW_H - 2);
+      drawPeaks(ctx, whole, lo, lo + extent, size.w, oy + 1, OVERVIEW_H - 2);
     }
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
-    ctx.strokeRect((v0 / duration) * size.w + 0.5, oy + 0.5, Math.max(3, (span / duration) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum]); // eslint-disable-line react-hooks/exhaustive-deps
+    ctx.strokeRect(((v0 - lo) / extent) * size.w + 0.5, oy + 0.5, Math.max(3, (span / extent) * size.w) - 1, OVERVIEW_H - 1);
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum, props.focus?.a, props.focus?.b, lo, extent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {
@@ -584,7 +605,7 @@ export const Timeline = forwardRef<
           const px = x(ph);
           ctx.fillStyle = cssVar("--text");
           ctx.fillRect(Math.round(px), RULER_H - 4, 1, size.h - RULER_H - OVERVIEW_H + 4);
-          const ox = (ph / duration) * size.w;
+          const ox = ((ph - lo) / extent) * size.w;
           ctx.fillRect(Math.round(ox), size.h - OVERVIEW_H, 1, OVERVIEW_H);
           if (p.playing && (ph > v1 || ph < v0)) {
             const span = v1 - v0;
@@ -596,13 +617,13 @@ export const Timeline = forwardRef<
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [size, duration, waveTop, waveH, clampView]);
+  }, [size, duration, waveTop, waveH, clampView, lo, extent]);
 
   // 手势
   const timeAt = (clientX: number) => {
     const r = wrap.current!.getBoundingClientRect();
     const [v0, v1] = viewRef.current;
-    return Math.max(0, Math.min(duration, v0 + ((clientX - r.left) / r.width) * (v1 - v0)));
+    return Math.max(lo, Math.min(lo + extent, duration, v0 + ((clientX - r.left) / r.width) * (v1 - v0)));
   };
   const drag = useRef<null | { kind: "new" | "a" | "b" | "overview"; x0: number; t0: number; moved: boolean; shift: boolean }>(null);
   const edge = useRef<null | { all: Boundary[]; i: number; lim: [number, number]; bands: EditBand[] }>(null);
@@ -659,7 +680,7 @@ export const Timeline = forwardRef<
     }
     if (y >= r.height - OVERVIEW_H) {
       drag.current = { kind: "overview", x0: e.clientX, t0: 0, moved: true, shift: false };
-      const tt = ((e.clientX - r.left) / r.width) * duration;
+      const tt = lo + ((e.clientX - r.left) / r.width) * extent;
       const [v0, v1] = viewRef.current;
       setView(clampView(tt - (v1 - v0) / 2, tt + (v1 - v0) / 2));
       return;
@@ -715,7 +736,7 @@ export const Timeline = forwardRef<
     }
     if (d.kind === "overview") {
       const r = wrap.current!.getBoundingClientRect();
-      const tt = ((e.clientX - r.left) / r.width) * duration;
+      const tt = lo + ((e.clientX - r.left) / r.width) * extent;
       const [v0, v1] = viewRef.current;
       setView(clampView(tt - (v1 - v0) / 2, tt + (v1 - v0) / 2));
       return;

@@ -1,17 +1,19 @@
 """语音分析（规格 08 §8.1–§8.4、§8.8）：Core 侧——选范围、冻结输入、复用判断、提交任务、采纳结果、读取测量。
 
-- **分析属于“文本层的段 + 具体那条声音资产”**（所有者 2026-10-09【基线变更】，``core/units.py``）：
-  版本、当前头、人工修音素时间都挂在这里；同一段在不同的轨上各有一份。采样不拥有分析，只按判定区间读取。
-- 一个操作、统一复用规则（D45 按“段 + 资产”判断）：输入（段文本、辞典、前端、模型、目标区间、容差、输入音频身份）与这段可用的分析完全相同 → 跳过；
+- **音素属于原素材时间线**（所有者 2026-10-12【基线变更】，``core/units.py``）：一句台词只有一份当前音素，原素材上所有含人声的音轨都读它；
+  回导成品和从它再加工出来的音轨另有一份。版本、当前头、人工修音素时间都挂在“段 + 原素材 / 回导成品”上；在哪条轨上测的只作记录。
+- 一个操作、统一复用规则（D45）：输入（段文本、辞典、前端、模型、测量音轨与目标区间、容差、输入音频身份）与这段可用的音素完全相同 → 跳过；
   任何不同 → 重跑。确认框写清“将分析 M 段；N 段已是最新，跳过；K 条无法处理（原因）”。
-- 入口：原片页 = 所选原片的段（不在 OP/ED 里），在默认人声轨（没有就是原混音）或用户选的当前查看的轨上，不需要先建采样；
-  段右键 = 这几段；采样库 = 各采样判定区间读到的段，在采样所在的资产上；结果表 = 指定的“段 + 资产”。
-- 目标 = 段区间映射到资产（裁到覆盖范围），窗口 = 目标两侧各扩展对齐容差，只在同一物理声音内扩展；只送这段的文本，不带邻句。
+- 在哪条轨上测：只在盖住整句、含人声的轨上（对齐要整句）。原片页 = 用户正在看的那条轨（没有就是默认人声轨或原混音）；
+  段右键同原片页；采样库 = 默认人声轨，没有就是采样所在的轨（盖不住整句时沿加工链往上第一条盖得住的含人声的轨），再没有用原混音
+  （回导来的采样只在它那条加工链里找，最后用回导成品）；结果表重跑 = 当前版本测量用的轨（它不在了用默认）。
+  明确选的轨盖不住整句或不含人声 → 写原因不分析，不偷偷换轨。
+- 目标 = 段区间映射到测量音轨，窗口 = 目标两侧各扩展对齐容差，只送这段的文本，不带邻句。
 - 采纳（按顺序）：任务取消 → 不写；段已删或内容（文本、区间）在任务期间变了、其他输入变了 → 只进历史；
-  当前头是人工版本且内容仍与段一致、或当前头已被更新 → 只进历史；否则成为新的当前头。失败结果只进历史。
-- 段的文本或区间改了之后，旧分析立即停用（读到的采样显示“第 X 段改过，待重新分析”），直到重新分析；人工版本保护也只对内容一致的头生效。
+  当前头是人工版本且内容仍与段一致、或当前头已被更新 → 只进历史；否则成为新的当前头。失败结果只进历史。采纳时把结果从测量音轨局部秒换成原素材秒。
+- 段的文本或区间改了之后，旧音素立即停用（读到的采样显示“第 X 段改过，待重新分析”），直到重新分析；人工版本保护也只对内容一致的头生效。
 - 读取测量没有副作用。
-时钟：测量里的音素时间都是资产局部秒；采样的 start/end 也是资产局部秒；段、判定区间是原片秒。
+时钟：存的音素时间是原素材秒；读出来的（采样、原片页音素层）是读取方那条轨的局部秒；采样的 start/end 是资产局部秒；段、判定区间是原片秒。
 """
 
 from __future__ import annotations
@@ -66,7 +68,7 @@ class SpeechService:
         self.on_change = on_change
         jobs.adopters[JOB_KIND] = self._adopt
 
-    # ------------------------------------------------------------ 段与“段 + 资产”
+    # ------------------------------------------------------------ 段与分析单元（段 + 原素材 / 回导成品）
 
     _SEG_COLS = 'id, source_id, start, "end", text, speakers, deleted'
 
@@ -83,7 +85,8 @@ class SpeechService:
         return self.conn.execute(f"SELECT {self._SEG_COLS} FROM text_segment WHERE id=?", (segment_id,)).fetchone()
 
     def segment_unit(self, seg: Any, asset_id: str, memo: dict[str, Any] | None = None) -> dict[str, Any]:
-        """一段在一条资产上的分析单元；处理不了抛 speech-blocked（no-text / out-of-track / other-source）。"""
+        """一段在一条测量音轨上的分析单元（归属 = 段 + 这条轨的原素材 / 回导成品）；处理不了抛 speech-blocked
+        （no-text / other-source / out-of-track / no-voice 不含人声 / partial-track 盖不住整句）。"""
         text = (seg["text"] or "").strip()
         if not text:
             raise CoreError("speech-blocked", reason="no-text")
@@ -93,19 +96,68 @@ class SpeechService:
         tgt = units.seg_target(float(seg["start"]), float(seg["end"]), asset["mapping"], float(asset["duration"]))
         if tgt is None:
             raise CoreError("speech-blocked", reason="out-of-track")
+        if not units.voiced(asset):
+            raise CoreError("speech-blocked", reason="no-voice")
+        if not units.covers(asset["mapping"], float(seg["start"]), float(seg["end"])):
+            raise CoreError("speech-blocked", reason="partial-track")
         return {
-            "unitId": units.unit_id(seg["id"], asset_id), "segment": seg["id"], "asset": asset_id, "target": tgt,
+            "unitId": units.unit_id(seg["id"], units.base_of(asset)), "segment": seg["id"], "asset": asset_id, "target": tgt,
             "name": text.replace("\n", " "), "txt": _txt(text), "seg": {"start": float(seg["start"]), "end": float(seg["end"]), "text": seg["text"]},
         }
 
+    def default_track(self, base: str, source_id: str) -> str | None:
+        """一个归属默认在哪条轨上测：原素材 → 分析音轨（默认人声轨，没有就是原混音）；回导成品 → 它自己。"""
+        return units.analysis_track(self.conn, source_id) if base == source_id else base
+
+    def sample_track(self, own: dict[str, Any], seg: Any, memo: dict[str, Any] | None = None) -> str | None:
+        """采样入口在哪条轨上测这句：默认人声轨（原素材那一份才有）；没有就沿采样所在的轨往上（只在同一归属里），
+        第一条含人声、盖住整句的轨；再没有用默认（原混音 / 回导成品）。"""
+        base = units.base_of(own)
+        if base == own["source_id"]:
+            r = self.conn.execute("SELECT asset_id FROM default_track WHERE source_id=? AND role='vocal'", (own["source_id"],)).fetchone()
+            if r is not None:
+                return r[0]
+        cur: str | None = own["id"]
+        seen: set[str] = set()
+        while cur and cur not in seen:
+            seen.add(cur)
+            try:
+                a = self._asset(cur, memo)
+            except CoreError:
+                break
+            if units.base_of(a) != base:
+                break
+            if units.voiced(a) and units.covers(a["mapping"], float(seg["start"]), float(seg["end"])):
+                return a["id"]
+            cur = a["input_asset_id"]
+        return self.default_track(base, own["source_id"])
+
     def unit_by_id(self, unit_id: str, memo: dict[str, Any] | None = None) -> dict[str, Any]:
-        seg_id, asset_id = units.parse(unit_id)
+        """``seg:<段>@<音轨>`` = 给这条轨上的读取方测（选轨同采样入口：默认人声轨 → 这条轨或它往上盖得住整句的人声轨 → 默认）；
+        ``seg:<段>@<归属>`` = 在当前版本测量用的轨上（它不在了、换了覆盖用默认）重测。"""
+        seg_id, x = units.parse(unit_id)
         seg = self._segment(seg_id)
         if seg is None or seg["deleted"]:
             raise CoreError("speech-blocked", reason="segment-deleted")
-        if self.conn.execute("SELECT 1 FROM sound_asset WHERE id=?", (asset_id,)).fetchone() is None:
-            raise CoreError("speech-blocked", reason="out-of-track")
-        return self.segment_unit(seg, asset_id, memo)
+        row = self.conn.execute("SELECT source_id, reimport_id FROM sound_asset WHERE id=?", (x,)).fetchone()
+        if row is not None and units.base_of(row) != x:
+            track = self.sample_track(self._asset(x, memo), seg, memo)  # 一条轨（不是归属本身）上的读取方
+            if track is None:
+                raise CoreError("speech-blocked", reason="no-track")
+            return self.segment_unit(seg, track, memo)
+        unit_id = units.unit_id(seg_id, x)
+        head = self.conn.execute(
+            "SELECT r.asset_id FROM measure_head h JOIN measure_run r ON r.id = h.run_id WHERE h.owner_type=? AND h.owner_id=? AND h.kind=?", (OWNER, unit_id, KIND)
+        ).fetchone()
+        if head is not None:
+            try:
+                return self.segment_unit(seg, head[0], memo)
+            except CoreError:
+                pass
+        track = self.default_track(x, seg["source_id"])
+        if track is None:
+            raise CoreError("speech-blocked", reason="no-track")
+        return self.segment_unit(seg, track, memo)
 
     def judge_of(self, s: Any, memo: dict[str, Any] | None = None) -> tuple[float, float] | None:
         """采样的判定区间（原片秒）；没有记录的 = 选区经映射换算。"""
@@ -213,9 +265,9 @@ class SpeechService:
 
 
 
-    # ------------------------------------------------------------ 范围与计划（08 §8.4，按“段 + 资产”）
+    # ------------------------------------------------------------ 范围与计划（08 §8.4，单元 = 段 + 原素材 / 回导成品，每项带测量用的轨）
 
-    _SAMPLE_COLS = 'id, asset_id, start, "end", name, nature, origin, text_snapshot, parent_sample_id, tag_judge_start, tag_judge_end'
+    _SAMPLE_COLS = 'id, asset_id, start, "end", src_start, src_end, name, nature, origin, text_snapshot, tag_judge_start, tag_judge_end'
 
     def _samples(self, ids: Iterable[str]) -> list[sqlite3.Row]:
         ids = list(dict.fromkeys(ids))
@@ -280,14 +332,21 @@ class SpeechService:
         elif entry == "samples":
             for s in self._samples(ids):
                 judge = self.judge_of(s, memo)
-                src = self._asset(s["asset_id"], memo)["source_id"]
+                own = self._asset(s["asset_id"], memo)
+                src = own["source_id"]
+                if not units.voiced(own):
+                    blocked.append({"id": s["id"], "name": s["name"], "reason": "no-voice"})
+                    continue
                 segs = self.read_segments(src, *judge) if judge else []
                 if not segs:
                     blocked.append({"id": s["id"], "name": s["name"], "reason": "no-text"})
                     continue
                 for seg in segs:
                     try:
-                        u = self.segment_unit(seg, s["asset_id"], memo)
+                        track = self.sample_track(own, seg, memo)
+                        if track is None:
+                            raise CoreError("speech-blocked", reason="no-track")
+                        u = self.segment_unit(seg, track, memo)
                     except CoreError as e:
                         blocked.append({"id": s["id"], "name": s["name"], "reason": e.args_.get("reason") or e.code})
                         continue
@@ -386,9 +445,12 @@ class SpeechService:
 
 
 
-    def save_manual(self, owner: str, version: int, phones: list[dict[str, Any]] | None, text: str | None) -> dict[str, Any]:
-        """编辑这段在这条轨上的音素时间 → 新的人工版本并成为当前头（之后的自动重跑不覆盖它，除非段改过）。只能改时间：行数、标签、顺序不变；
-        前一个结束 ≤ 本个开始 < 本个结束 ≤ 范围终点（不重叠，允许空隙；句中停顿可以零长度）。版本变了要求重新载入；段改过之后不能在旧头上改。"""
+    def save_manual(self, owner: str, version: int, phones: list[dict[str, Any]] | None, text: str | None, asset_id: str | None = None) -> dict[str, Any]:
+        """编辑这句的音素时间 → 新的人工版本并成为当前头（之后的自动重跑不覆盖它，除非段改过）。只能改时间：行数、标签、顺序不变；
+        前一个结束 ≤ 本个开始 < 本个结束 ≤ 窗口终点（不重叠，允许空隙；句中停顿可以零长度）。版本变了要求重新载入；段改过之后不能在旧头上改。
+        时间是 ``asset_id`` 这条轨（读取方，默认 = 测量用的轨）的局部秒，只含这条轨盖得住的那几个音素；
+        被这条轨的边界裁掉的端点没改就保持原值（所有者 2026-10-12：从拉平成品上也能改）。"""
+        owner = units.normalize(self.conn, owner)
         head, run, seg = self._head_full(owner)
         if int(head["version"]) != int(version):
             raise CoreError("speech-edit-conflict", expected=int(version), actual=int(head["version"]))
@@ -399,39 +461,63 @@ class SpeechService:
         res = loads(run["result"])
         inputs = loads(run["inputs"])
         old = res["phones"]
+        reader = assets_mod.get(self.conn, asset_id or run["asset_id"])
+        m = Mapping.of(reader["mapping"])
+        seen = units.to_reader(old, m)
         new = list(phones or [])
-        if len(new) != len(old):
-            raise CoreError("speech-edit-invalid", reason="count", expected=len(old), got=len(new))
-        w0, w1 = (inputs.get("window") or [run["range_start"], run["range_end"]])
-        prev = float(w0)
-        out = []
-        for i, (o, n) in enumerate(zip(old, new, strict=True), start=1):
-            if str(n.get("label", "")) != o["label"]:
-                raise CoreError("speech-edit-invalid", reason="label", line=i)
+        if len(new) != len(seen):
+            raise CoreError("speech-edit-invalid", reason="count", expected=len(seen), got=len(new))
+        out = [dict(p) for p in old]
+        for k, (v, n) in enumerate(zip(seen, new, strict=True), start=1):
+            if str(n.get("label", "")) != v["label"]:
+                raise CoreError("speech-edit-invalid", reason="label", line=k)
             a, b = n.get("start"), n.get("end")
             if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in (a, b)):
-                raise CoreError("speech-edit-invalid", reason="number", line=i)
-            a, b = round(float(a), 6), round(float(b), 6)
+                raise CoreError("speech-edit-invalid", reason="number", line=k)
+            o = out[v["i"]]
+            try:
+                # 没改的端点保持原值（可能被这条轨的边界裁过）；改了的换回原素材秒
+                sa = float(o["start"]) if abs(float(a) - float(v["start"])) < 1e-6 else m.to_source(float(a))
+                sb = float(o["end"]) if abs(float(b) - float(v["end"])) < 1e-6 else m.to_source(float(b))
+            except CoreError:
+                raise CoreError("speech-edit-invalid", reason="order", line=k) from None
+            out[v["i"]] = o | {"start": round(sa, 6), "end": round(sb, 6), "_edited": True}
+        w0, w1 = (res.get("window") or [run["range_start"], run["range_end"]])
+        prev = float(w0)
+        final = []
+        for i, o in enumerate(out, start=1):
+            a, b = float(o["start"]), float(o["end"])
             if a < prev - 1e-9 or b > float(w1) + 1e-9 or not (a < b or (a == b and o["label"] == "pau")):
                 raise CoreError("speech-edit-invalid", reason="order", line=i)
             prev = b
-            ph = {k: v for k, v in o.items() if k not in ("start", "end", "eff", "strength")} | {"start": a, "end": b}
+            ph = {k: v for k, v in o.items() if k not in ("start", "end", "eff", "strength", "_edited")} | {"start": a, "end": b}
             if o["label"] in derive.EFFECTIVE_LABELS or o.get("orig") in derive.EFFECTIVE_LABELS:
                 ph["eff"] = [a, b]  # 人工版本不收缩
-            out.append(ph)
-        # 起音强度按新时间重算（18 A15）
-        strengths = self._strengths(run["asset_id"], float(w0), float(w1), [(p.get("orig", p["label"]), p["start"], p["end"]) for p in out])
-        for p, st in zip(out, strengths, strict=True):
-            if st is not None:
-                p["strength"] = round(float(st), 6)
+            elif o.get("eff") is not None:
+                ph["eff"] = o["eff"]
+            if o.get("strength") is not None:
+                ph["strength"] = o["strength"]
+            final.append(ph)
+        # 起音强度按新时间重算（18 A15）：在测量用的那条轨上；它的声音已经不在（原素材已释放）就保留原值
+        try:
+            meas = assets_mod.get(self.conn, run["asset_id"])
+            mm = Mapping.of(meas["mapping"])
+            loc = lambda t: mm.to_local(min(max(t, mm.source_start), mm.source_end))  # noqa: E731
+            strengths = self._strengths(run["asset_id"], loc(float(w0)), loc(float(w1)),
+                                        [(p.get("orig", p["label"]), loc(p["start"]), loc(p["end"])) for p in final])
+            for p, st in zip(final, strengths, strict=True):
+                if st is not None:
+                    p["strength"] = round(float(st), 6)
+        except CoreError:
+            pass
         rid = new_id()
-        span = units.span_of({"phones": out})
+        span = units.span_of({"phones": final})
         with transaction(self.conn):
             self.conn.execute(
                 "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at,"
                 " span_start, span_end, seg_start, seg_end, seg_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?, ?, ?, ?, ?, ?)",
-                (rid, KIND, OWNER, owner, run["asset_id"], run["range_start"], run["range_end"], dumps(inputs | {"manualOf": run["id"]}),
-                 dumps(res | {"phones": out}), now_iso(), span[0] if span else None, span[1] if span else None,
+                (rid, KIND, OWNER, owner, run["asset_id"], run["range_start"], run["range_end"], dumps(inputs | {"manualOf": run["id"], "editedOn": reader["id"]}),
+                 dumps(res | {"phones": final}), now_iso(), span[0] if span else None, span[1] if span else None,
                  run["seg_start"], run["seg_end"], run["seg_text"]),
             )
             self.conn.execute("UPDATE measure_head SET run_id=?, version=version+1 WHERE owner_type=? AND owner_id=? AND kind=?", (rid, OWNER, owner, KIND))
@@ -439,7 +525,8 @@ class SpeechService:
         return {"runId": rid, "version": int(head["version"]) + 1}
 
     def switch_head(self, owner: str, run_id: str, version: int) -> dict[str, Any]:
-        """切换版本：在这段这条轨上、内容与段现在一致的成功版本（人工/模型）之间换当前头。"""
+        """切换版本：这句内容与段现在一致的成功版本（人工/模型，可能测在不同的轨上）之间换当前头。"""
+        owner = units.normalize(self.conn, owner)
         head, _cur, seg = self._head_full(owner)
         if int(head["version"]) != int(version):
             raise CoreError("speech-edit-conflict", expected=int(version), actual=int(head["version"]))
@@ -454,22 +541,23 @@ class SpeechService:
         return {"runId": run_id, "version": int(head["version"]) + 1}
 
     def samples_reading(self, owners: Iterable[str]) -> set[str]:
-        """读到这些“段 + 资产”的采样：同一资产上判定区间与段正长度交叠的。"""
+        """读到这些“段 + 归属”的采样：归属相同（原素材上的所有音轨，或这个回导成品及其加工成品）、判定区间与段正长度交叠的。"""
         out: set[str] = set()
         for o in owners:
             try:
-                seg_id, asset_id = units.parse(o)
+                seg_id, base = units.parse(units.normalize(self.conn, o))
             except CoreError:
                 continue
             seg = self._segment(seg_id)
             if seg is None:
                 continue
             out |= {r[0] for r in self.conn.execute(
-                "SELECT id FROM sample WHERE asset_id=? AND tag_judge_start < ? AND tag_judge_end > ?", (asset_id, seg["end"], seg["start"]))}
+                f"SELECT s.id FROM sample s JOIN sound_asset a ON a.id = s.asset_id WHERE a.source_id=? AND {units.base_sql('a')}=?"
+                " AND s.tag_judge_start < ? AND s.tag_judge_end > ?", (seg["source_id"], base, seg["end"], seg["start"]))}
         return out
 
     def _changed(self, owners: Iterable[str]) -> None:
-        """变更事件里 ``measure`` = “段 + 资产”与读到它们的采样，界面据此刷新。"""
+        """变更事件里 ``measure`` = 分析单元与读到它们的采样（所有音轨上的），界面据此刷新。"""
         owners = list(owners)
         if self.on_change and owners:
             cs = ChangeSet()
@@ -605,8 +693,10 @@ class SpeechService:
                                                   "requested", "actual", "truncated", "audio", "fingerprint")}
                 inputs |= {"versions": params["versions"], "device": loads(job["device"]), "job": job["id"]}
                 span = None
+                m = Mapping.of(it["audio"]["mapping"])
                 if r["status"] == "ok":
-                    res = json.loads((item_dir / r["result_ref"]).read_text(encoding="utf-8"))
+                    # 测量音轨局部秒 → 原素材秒（音素属于原素材时间线）
+                    res = units.to_source(json.loads((item_dir / r["result_ref"]).read_text(encoding="utf-8")), m)
                     status = "ok"
                     span = units.span_of(res)
                 else:
@@ -617,7 +707,7 @@ class SpeechService:
                 self.conn.execute(
                     "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at,"
                     " span_start, span_end, seg_start, seg_end, seg_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
-                    (rid, KIND, OWNER, owner, it["asset"], it["target"][0], it["target"][1], dumps(inputs), status, dumps(res), ts,
+                    (rid, KIND, OWNER, owner, it["asset"], round(m.to_source(it["target"][0]), 6), round(m.to_source(it["target"][1]), 6), dumps(inputs), status, dumps(res), ts,
                      span[0] if span else None, span[1] if span else None, seg.get("start"), seg.get("end"), seg.get("text")),
                 )
                 touched.append(owner)
@@ -633,7 +723,7 @@ class SpeechService:
                     if head["manual"] and units.content_matches(head, cur):
                         continue  # 人工版本（且仍与段一致）：只进历史
                 try:
-                    now = self.unit_by_id(owner, memo)
+                    now = self.segment_unit(cur, it["asset"], memo)
                     changed = self._build(OWNER, owner, now["name"], now["asset"], now["target"][0], now["target"][1], now["txt"], ver_now, memo)["fingerprint"] != it["fingerprint"]
                 except CoreError:
                     changed = True
@@ -657,48 +747,56 @@ class SpeechService:
     # ------------------------------------------------------------ 读取（无副作用）
 
     @staticmethod
-    def _run_wire(r: sqlite3.Row, version: int) -> dict[str, Any]:
+    def _local_result(res: dict[str, Any], m: Mapping) -> dict[str, Any]:
+        """存的结果（原素材秒）→ 读取方这条轨的局部秒：越出覆盖范围的音素去掉，被裁掉一部分的标 clipped；窗口裁到覆盖范围。"""
+        out = dict(res) | {"phones": units.to_reader(res.get("phones") or [], m)}
+        w = res.get("window")
+        if w is not None:
+            a, b = max(float(w[0]), m.source_start), min(float(w[1]), m.source_end)
+            out["window"] = [round(m.to_local(a), 6), round(m.to_local(b), 6)] if b > a else None
+            if out["window"] is None:
+                out.pop("window")
+        return out
+
+    def _run_wire(self, r: sqlite3.Row, version: int, m: Mapping) -> dict[str, Any]:
         inp = loads(r["inputs"])
+        res = self._local_result(loads(r["result"]), m) if r["status"] == "ok" else None
         return {
             "runId": r["id"], "version": int(version), "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
-            "text": inp.get("text"), "textSource": inp.get("textSource"), "window": inp.get("window"),
-            "result": loads(r["result"]) if r["status"] == "ok" else None,
+            "text": inp.get("text"), "textSource": inp.get("textSource"), "window": res.get("window") if res else None,
+            "result": res,
         }
 
-    def _snapshot(self, asset_id: str, start: float, end: float) -> dict[str, Any] | None:
+    def _measured_on(self, asset_id: str, memo: dict[str, Any]) -> dict[str, Any] | None:
         try:
-            _, _, win, media = self._locate(asset_id, start, end, None)
+            return self._asset(asset_id, memo)
         except CoreError:
             return None
-        return assets_mod.measured_as(media, win)["snapshot"]
 
-    def _segment_view(self, seg: sqlite3.Row, asset_id: str, ordinal: int, start: float, end: float, snap: dict[str, Any] | None,
-                      memo: dict[str, Any]) -> dict[str, Any]:
-        """一段在采样所在资产上的分析：可用版本、实际的当前头、全部版本、状态（ok / stale 段改过 / failed / none / other-sound 文件变了）。"""
-        uid = units.unit_id(seg["id"], asset_id)
+    def _segment_view(self, seg: sqlite3.Row, asset_id: str, ordinal: int, src: tuple[float, float] | None, memo: dict[str, Any]) -> dict[str, Any]:
+        """一段在读取方这条轨上看到的音素：可用版本、实际的当前头、全部版本、状态（ok / stale 段改过 / failed / none）、测在哪条轨上。
+        ``src`` = 采样的原素材起止（◐ = 没盖住这段）。"""
+        asset = self._asset(asset_id, memo)
+        m = Mapping.of(asset["mapping"])
+        uid = units.unit_id(seg["id"], units.base_of(asset))
         runs = self._runs(uid)
         head = self.conn.execute("SELECT run_id, version FROM measure_head WHERE owner_type=? AND owner_id=? AND kind=?", (OWNER, uid, KIND)).fetchone()
         use = units.pick_usable(runs, seg, head["run_id"] if head else None)
         state = "ok"
-        if use is not None and (snap is None or (loads(use["inputs"]).get("audio") or {}).get("snapshot") != snap):
-            use, state = None, "other-sound"  # 文件内容不同：不读（R11.10）
-        elif use is None:
+        if use is None:
             oks = [r for r in runs if r["status"] == "ok"]
             state = "stale" if oks else ("failed" if runs else "none")
-        try:
-            target = list(units.seg_target(float(seg["start"]), float(seg["end"]), self._asset(asset_id, memo)["mapping"],
-                                           float(self._asset(asset_id, memo)["duration"])) or []) or None
-        except CoreError:
-            target = None
+        target = units.seg_target(float(seg["start"]), float(seg["end"]), m, float(asset["duration"]))
         cur = next((r for r in runs if head is not None and r["id"] == head["run_id"]), None)
-        # ◐ = 只读到这段的一部分：采样范围没有盖住这段的目标区间（与列表状态同一口径，units.state_sql）
-        span = (float(use["range_start"]), float(use["range_end"])) if use is not None else None
+        part = src is not None and (src[0] > float(seg["start"]) + units.EPS or src[1] < float(seg["end"]) - units.EPS)
         return {
             "unitId": uid, "segmentId": seg["id"], "ordinal": ordinal, "name": (seg["text"] or "").replace("\n", " "), "text": seg["text"],
-            "speakers": loads(seg["speakers"]), "target": target, "state": state, "partial": units.partial(span, start, end),
-            "head": self._run_wire(use, head["version"] if head and use["id"] == head["run_id"] else 0) if use is not None else None,
-            "current": self._run_wire(cur, head["version"]) if cur is not None and head is not None else None,
+            "speakers": loads(seg["speakers"]), "target": list(target) if target else None, "state": state, "partial": bool(part and use is not None),
+            "head": self._run_wire(use, head["version"] if head and use["id"] == head["run_id"] else 0, m) if use is not None else None,
+            "current": self._run_wire(cur, head["version"], m) if cur is not None and head is not None else None,
             "headVersion": int(head["version"]) if head else 0,
+            "measuredOn": self._measured_on(use["asset_id"], memo) if use is not None else None,
+            "windowSource": ((loads(use["result"]) or {}).get("window") or [use["range_start"], use["range_end"]]) if use is not None else None,
             "runs": [
                 {
                     "id": r["id"], "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
@@ -710,9 +808,9 @@ class SpeechService:
         }
 
     def reading(self, s: sqlite3.Row) -> dict[str, Any]:
-        """采样读到的段（所有者 2026-10-09）：判定区间正长度交叠的所有段在采样所在资产上的分析。
-        任何一段没有可用分析 → ``blocked``（缺哪段 / 哪段改过），``head`` 为 None；两段的非停顿音素在采样范围内交叠 → ``conflict``；
-        否则 ``head`` = 合成的结果（音素裁到采样范围，被裁掉一部分的非停顿音素标 clipped / ◐）。"""
+        """采样读到的段（所有者 2026-10-12）：判定区间正长度交叠的所有段的音素（原素材上一份、回导来的另一份），换到采样所在的轨上。
+        采样所在的轨不含人声 → reason no-voice，不读音素。任何一段没有可用音素 → ``blocked``（缺哪段 / 哪段改过），``head`` 为 None；
+        两段的非停顿音素在采样范围内交叠 → ``conflict``；否则 ``head`` = 合成的结果（音素裁到采样范围，被裁掉一部分的非停顿音素标 clipped / ◐）。"""
         memo: dict[str, Any] = {}
         start, end = float(s["start"]), float(s["end"])
         asset = self._asset(s["asset_id"], memo)
@@ -728,9 +826,12 @@ class SpeechService:
         base = {"judge": list(judge) if judge else None, "judgeLocal": local, "head": None, "conflict": None, "blocked": None}
         if not segs:
             return base | {"text": None, "textSource": None, "reason": "no-text", "units": []}
+        if not units.voiced(asset):
+            text = " ".join((t["text"] or "").replace("\n", " ") for t in segs)
+            return base | {"text": text, "textSource": "segments", "reason": "no-voice", "units": []}
         ords = self.ordinals(asset["source_id"], [t["id"] for t in segs])
-        snap = self._snapshot(s["asset_id"], start, end)
-        views = [self._segment_view(t, s["asset_id"], ords.get(t["id"], 0), start, end, snap, memo) for t in segs]
+        src = (float(s["src_start"]), float(s["src_end"])) if s["src_start"] is not None else None
+        views = [self._segment_view(t, s["asset_id"], ords.get(t["id"], 0), src, memo) for t in segs]
         text = " ".join(v["name"] for v in views)
         out = base | {"text": text, "textSource": "segments", "reason": None, "units": views}
         bad = [v for v in views if v["head"] is None]
@@ -769,28 +870,33 @@ class SpeechService:
         return {"sampleId": sample_id, **self.reading(s)}
 
     def for_asset(self, asset_id: str, start: float, end: float) -> list[dict[str, Any]]:
-        """原片视口的音素层（08 §8.8）：这条资产上各段的可用分析（同一物理声音）；读取没有副作用。时间：资产局部秒。"""
-        asset = assets_mod.get(self.conn, asset_id)
+        """原片视口的音素层（08 §8.8）：这条轨读到的各段的音素（原素材上一份、回导来的另一份），换到这条轨的局部秒；
+        不含人声的轨没有音素层。读取没有副作用。"""
+        memo: dict[str, Any] = {}
+        asset = self._asset(asset_id, memo)
+        if not units.voiced(asset):
+            return []
         try:
-            _, win, media = assets_mod.locate(self.conn, self.ws.root, asset, max(0.0, start), min(float(asset["duration"]), end))
-            snap = assets_mod.measured_as(media, win)["snapshot"]
             m = Mapping.of(asset["mapping"])
             a, b = m.to_source(max(0.0, start)), m.to_source(min(float(asset["duration"]), end))
         except CoreError:
             return []
         segs = self.read_segments(asset["source_id"], a, b)
         ords = self.ordinals(asset["source_id"], [t["id"] for t in segs])
+        base = units.base_of(asset)
         out = []
         for t in segs:
-            uid = units.unit_id(t["id"], asset_id)
+            uid = units.unit_id(t["id"], base)
             r = self.usable_run(uid, t)
-            if r is None or (loads(r["inputs"]).get("audio") or {}).get("snapshot") != snap:
-                continue  # 没有可用分析或文件指纹不同 → 不显示（R11.10）
-            res = loads(r["result"])
+            if r is None:
+                continue
+            phones = units.to_reader(loads(r["result"])["phones"], m)
+            if not phones:
+                continue
             out.append({
                 "unitId": uid, "segmentId": t["id"], "ordinal": ords.get(t["id"], 0), "name": (t["text"] or "").replace("\n", " "),
-                "runId": r["id"], "manual": bool(r["manual"]),
-                "phones": [{"label": p["label"], "start": p["start"], "end": p["end"]} for p in res["phones"]],
+                "runId": r["id"], "manual": bool(r["manual"]), "measuredOn": r["asset_id"],
+                "phones": [{"label": p["label"], "start": p["start"], "end": p["end"]} for p in phones],
             })
         return out
 
@@ -825,7 +931,7 @@ class SpeechService:
     def analyzed_counts(self, source_id: str | None = None) -> dict[str, dict[str, int]]:
         """每个原片：语音性质采样数与“已分析”（读到的段都有可用分析，含 ◐）数。"""
         q = (
-            f"SELECT a.source_id, COUNT(*), SUM(CASE WHEN {units.state_sql('s', 'a.source_id')} IN ('ok', 'manual', 'partial') THEN 1 ELSE 0 END)"
+            f"SELECT a.source_id, COUNT(*), SUM(CASE WHEN {units.state_sql('s', 'a')} IN ('ok', 'manual', 'partial') THEN 1 ELSE 0 END)"
             " FROM sample s JOIN sound_asset a ON a.id=s.asset_id WHERE s.nature='speech'"
         )
         args: list[Any] = []

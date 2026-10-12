@@ -1,6 +1,6 @@
 """节奏与卡拍（规格 09 §9.2–§9.5、03 §3.3「节奏与卡拍」）：Core 侧——逐采样参数、节奏分析视图、方案按需计算、试听渲染、全局 BPM。
 
-- 分析 = 采样**绑定**的声音上的当前语音测量（自己的，或覆盖它的同一物理声音测量的投影，08 §8.8）+ 采样范围内的音频能量（停顿）+ F0（逐音属性）；
+- 分析 = 采样读到的音素（属于原素材时间线，换到采样绑定的声音上；所有者 2026-10-12）+ 采样范围内的音频能量（停顿）+ F0（逐音属性）；
   不跑模型。结果按“采样 + 范围 + 分析版本 + 参数 + 惩罚度 + 文件快照 + 算法版本”在内存里缓存，任一项变了就重算（方案身份，09 §9.5.3）。
 - 量化只有「原节奏 · 无 mora」（加人工占格）；纯 mora 只作舞台上的临时试听与临时导出（所有者 2026-10-08，``mora=True`` 时临时使用，不保存）。
 - 方案在需要时自动计算（不要求先打开节奏面板）：近快 / 近慢 / 倍快；全局 BPM 为空 = 原速卡拍。
@@ -62,14 +62,14 @@ class Analysis:
     identity: str
     run: str
     run_version: int
-    units: list[str]  # 读到的“段 + 资产”（所有者 2026-10-09）
+    units: list[str]  # 读到的“段 + 原素材 / 回导成品”（所有者 2026-10-12）
     partial: bool  # 有被采样范围裁掉一部分的非停顿音素（◐）
     params: dict[str, Any]
     manual_applied: bool
     manual_stale: bool
     ignored: list[str]
     phones: list[rh.Phone]
-    phone_units: list[str | None]  # 每个音素来自哪个“段 + 资产”（语音检索每块的角色取产生该块的那一段）
+    phone_units: list[str | None]  # 每个音素来自哪一段（语音检索每块的角色取产生该块的那一段）
     morae: list[str]
     blocks: list[rh.Block]
     pauses: list[rh.Pause]

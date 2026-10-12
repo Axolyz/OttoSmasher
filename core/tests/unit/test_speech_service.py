@@ -54,7 +54,8 @@ def sample(c, start, end, name="s"):
 
 
 def unit(c, segment):
-    return units.unit_id(segment, c.aid)
+    """音素的归属 = 段 + 原素材（所有者 2026-10-12）。"""
+    return units.unit_id(segment, c.sid)
 
 
 def _adopt(core, job, *, status="ok", mutate=None, phones=None):
@@ -242,13 +243,22 @@ def test_asset_layer_and_no_side_effects(core):
     layer = core.speech.for_asset(core.aid, 0.0, 20.0)
     assert [x["unitId"] for x in layer] == [unit(core, a)] and layer[0]["phones"][0]["start"] == pytest.approx(1.0)
     assert core.speech.for_asset(core.aid, 5.0, 20.0) == []
-    # 文件指纹不同（记录里的快照对不上）→ 不显示、不读（R11.10）
+    assert layer[0]["measuredOn"] == core.aid and v["units"][0]["measuredOn"]["id"] == core.aid
+    # 音素属于原素材时间线（所有者 2026-10-12）：记录里的文件快照对不上也照读（R11.10 对音素作废）
     rid = v["head"]["runId"]
     inp = json.loads(core.conn.execute("SELECT inputs FROM measure_run WHERE id=?", (rid,)).fetchone()[0])
     inp["audio"]["snapshot"]["size"] = 1
     core.conn.execute("UPDATE measure_run SET inputs=? WHERE id=?", (json.dumps(inp), rid))
+    assert len(core.speech.for_asset(core.aid, 0.0, 20.0)) == 1
+    assert core.speech.sample_view(s1)["units"][0]["state"] == "ok"
+    # 不含人声的轨（只标了音效）：没有音素层，采样不读音素；开回人声角色立即生效
+    core.conn.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, 'sfx', 'on')", (core.aid,))
     assert core.speech.for_asset(core.aid, 0.0, 20.0) == []
-    assert core.speech.sample_view(s1)["units"][0]["state"] == "other-sound"
+    v = core.speech.sample_view(s1)
+    assert v["reason"] == "no-voice" and v["units"] == [] and v["text"] == "あ"
+    assert core.samples.get(s1)["analysis"] == "novoice"
+    core.conn.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, 'vocal', 'on')", (core.aid,))
+    assert len(core.speech.for_asset(core.aid, 0.0, 20.0)) == 1 and core.samples.get(s1)["analysis"] == "ok"
     n = core.conn.total_changes
     core.speech.sample_view(s1)
     core.speech.for_asset(core.aid, 0.0, 20.0)
@@ -423,7 +433,7 @@ def test_migration_0012_builds_the_text_layer(tmp_path: Path):
     assert tuple(x("SELECT tag_judge_start, tag_judge_end FROM sample WHERE id='SM3'").fetchone()) == (15.0, 16.0)
     assert x("SELECT name FROM upgrade_pending").fetchone()[0] == "effective-tags"
     # 0013：删掉旧表与旧列；文本层与分析原样留着，外键完整
-    migrate(conn, tmp_path / "bk")
+    migrate(conn, tmp_path / "bk", base[:13])
     names = {r[0] for r in x("SELECT name FROM sqlite_master WHERE type='table'")}
     assert not names & {"annotation", "annotation_revision", "subtitle_line", "subtitle_version"}
     assert "align_text_manual" not in {r[1] for r in x("PRAGMA table_info(sample)")}

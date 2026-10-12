@@ -1,5 +1,6 @@
 // 回导（规格 06 §6.7、16 S8；UI_PLAN §8 动作条「回导」；原型 reimportModal）：起点 = 当前选区起点，终点按文件时长（手选终点被忽略），
-// 超出资产边界不保存；文件复制进素材库、保持原格式；不补静音、不裁切、不变速；新采样性质默认未分类，名称可改。
+// 超出资产边界不保存；文件复制进素材库、保持原格式；不补静音、不裁切、不变速；新采样性质默认未分类，名称预填它落到的那段的建议名（可改）。
+// 采样之间没有父子关系（所有者 2026-10-12）：回导成品与原选区上的采样互为相关采样（原素材时间交叠）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
 import type { Nature, ReimportPreview } from "../api/types";
@@ -17,9 +18,6 @@ export interface ReimportRequest {
   assetId: string;
   /** 选区起点（资产局部秒） */
   start: number;
-  /** 从舞台发起：新采样的父采样 */
-  parentSampleId?: string;
-  defaultName?: string;
 }
 
 const base = (p: string) => p.split(/[\\/]/).pop() ?? p;
@@ -40,7 +38,7 @@ export function ReimportDialog(props: { req: ReimportRequest | null; onClose: ()
     setPv(null);
     setError(null);
     setNature("unclassified");
-    setName(req?.defaultName ?? "");
+    setName("");
   }, [req?.assetId, req?.start]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!req || !path) return;
@@ -48,6 +46,7 @@ export function ReimportDialog(props: { req: ReimportRequest | null; onClose: ()
       (p) => {
         setPv(p);
         setError(null);
+        if (p.suggestedName) setName((n) => n || p.suggestedName!);
       },
       (e) => setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)),
     );
@@ -56,7 +55,7 @@ export function ReimportDialog(props: { req: ReimportRequest | null; onClose: ()
     if (!req || !path || !pv?.ok) return;
     setBusy(true);
     try {
-      const r = await call("reimport.commit", { assetId: req.assetId, start: req.start, path, name: name.trim() || null, nature, parentSampleId: req.parentSampleId ?? null });
+      const r = await call("reimport.commit", { assetId: req.assetId, start: req.start, path, name: name.trim() || null, nature });
       toast({ text: t("reimport.saved", { name: r.name }) });
       props.onClose();
       if (props.onSaved) props.onSaved(r.id);
@@ -84,7 +83,7 @@ export function ReimportDialog(props: { req: ReimportRequest | null; onClose: ()
             {t("common.cancel")}
           </Button>
           <Button variant="primary" onPress={() => void save()} isDisabled={busy || !pv?.ok} data-testid="reimport-save">
-            {t(req?.parentSampleId ? "reimport.saveChild" : "reimport.save")}
+            {t("reimport.save")}
           </Button>
         </>
       }

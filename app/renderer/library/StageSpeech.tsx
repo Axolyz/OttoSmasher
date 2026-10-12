@@ -201,7 +201,7 @@ export function StageSpeech(props: {
   const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
     if (!ownHead) return false;
     try {
-      await call("speech.saveManual", { unitId: unit!.unitId, version: ownHead.version, ...args });
+      await call("speech.saveManual", { unitId: unit!.unitId, version: ownHead.version, assetId: smp.asset_id, ...args });
       toast({ text: t("speech.manualSaved") });
       loadSpeech();
       return true;
@@ -304,11 +304,14 @@ export function StageSpeech(props: {
   // 动作条（UI_PLAN §3：与原片时间线的动作条同构）：没有选区时作用于整个采样
   const range = sel ?? { a: smp.start, b: smp.end };
   const trackLabel = assetLabel(asset);
+  // 波形窗口（所有者 2026-10-12）：采样范围两边各留 max(1 秒, 采样长度的一半)（不超出音轨），余量灰显、里面也能框选；更远用「返回原素材」
+  const margin = Math.max(1, (smp.end - smp.start) / 2);
+  const bounds: [number, number] = [Math.max(0, smp.start - margin), Math.min(asset?.duration ?? smp.end + margin, smp.end + margin)];
   const commitSel = (side: "a" | "b") => (v: number) => {
     if (!asset) return false;
     const a = side === "a" ? v : range.a;
     const b = side === "b" ? v : range.b;
-    if (!(a >= 0 && b <= asset.duration + 1e-6 && b - a > 1e-3)) return false;
+    if (!(a >= bounds[0] - 1e-6 && b <= bounds[1] + 1e-6 && b - a > 1e-3)) return false;
     setSel({ a, b });
     return true;
   };
@@ -348,7 +351,9 @@ export function StageSpeech(props: {
           ? t("speech.status.failed", { reason: lastFail.error ? errorText(lastFail.error) : "" })
           : blocked
             ? t(`speech.status.${blocked.code}`, blocked.args as TArgs)
-            : t("speech.status.none");
+            : view.reason === "no-voice"
+              ? t("speech.status.noVoice")
+              : t("speech.status.none");
   const unitLabel = (u: SpeechUnit) =>
     `${t("speech.unit.label", { n: u.ordinal, name: u.name })}${u.partial ? ` ${t("speech.unit.partialMark")}` : ""}${u.state !== "ok" ? ` · ${t(`speech.unit.state.${u.state}`)}` : ""}`;
 
@@ -410,6 +415,8 @@ export function StageSpeech(props: {
               ref={tl}
               assetId={smp.asset_id}
               duration={asset.duration}
+              bounds={bounds}
+              focus={{ a: smp.start, b: smp.end }}
               playhead={props.playhead}
               playing={props.playing}
               selection={sel}
@@ -461,7 +468,6 @@ export function StageSpeech(props: {
                 setClipOpen(o);
                 if (!o) setClipVia("manual");
               }}
-              parentSampleId={smp.id}
               via={clipVia}
               formatRange={(a, b) => `${seconds(a)}–${seconds(b)}`}
               afterSave={
@@ -476,7 +482,7 @@ export function StageSpeech(props: {
             <Button variant="flat" icon={<Split />} onPress={separate} isDisabled={!asset || editing} data-testid="stage-separate">
               {t("sep.action")}
             </Button>
-            <Button variant="flat" icon={<Undo2 />} onPress={() => setReimport({ assetId: smp.asset_id, start: range.a, parentSampleId: smp.id, defaultName: smp.name })} isDisabled={editing} data-testid="stage-reimport">
+            <Button variant="flat" icon={<Undo2 />} onPress={() => setReimport({ assetId: smp.asset_id, start: range.a })} isDisabled={editing} data-testid="stage-reimport">
               {t("reimport.action")}
             </Button>
             <Menu
@@ -572,6 +578,11 @@ export function StageSpeech(props: {
             </span>
           </div>
         ) : null}
+        {view?.reason === "no-voice" ? (
+          <Callout tone="info" testId="speech-no-voice">
+            {t("speech.noVoice")}
+          </Callout>
+        ) : null}
         {view?.conflict ? (
           <Callout tone="bad" testId="speech-conflict">
             {t("speech.conflict", { a: view.conflict.a, b: view.conflict.b, start: clock(view.conflict.start), end: clock(view.conflict.end) })}
@@ -585,6 +596,7 @@ export function StageSpeech(props: {
         {unit ? (
           <div className={s.mutedText} data-testid="speech-unit-note">
             {t("speech.unit.reads", { n: unitList.length })}
+            {unit.measuredOn ? ` ${t("speech.unit.measuredOn", { track: assetLabel(unit.measuredOn) })}` : ""}
             {usable ? ` ${t("speech.unit.shared")}` : ""}
           </div>
         ) : null}
@@ -656,7 +668,7 @@ export function StageSpeech(props: {
         target={annTarget}
         duration={Number.POSITIVE_INFINITY}
         onClose={() => setAnnTarget(null)}
-        // 「添加台词…」加完就打开分析确认框（这段在这条轨上）
+        // 「添加台词…」加完就打开分析确认框（给这条轨上的采样测这句：Core 按采样入口的规则选轨）
         onSegmentAdded={(id) => requestSpeech({ entry: "units", ids: [`seg:${id}@${smp.asset_id}`] })}
       />
     </>

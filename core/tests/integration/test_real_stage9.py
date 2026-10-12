@@ -128,12 +128,13 @@ def test_real_stage9(tmp_path):
                               "originalSpeed": float(ffprobe(do["path"])["format"]["duration"]), "stretchedWav": Path(so["stretchedWav"]).name}
             assert abs(report["S7.2"]["synced"] - out_s) < 0.06 and abs(report["S7.2"]["originalSpeed"] - 1.635) < 0.06
 
-        # ---- S12.2 删除父采样 → 子采样仍可播放、来源写“已删除的父采样”
-        child = ok(c.call("samples.create", assetId=mix, start=1302.5, end=1303.0, name="子", parentSampleId=s1))["id"]
+        # ---- S12.2（所有者 2026-10-12 改：采样之间没有父子关系）删除一个采样 → 与它交叠的采样仍可播放，互为相关采样的关系随之消失
+        child = ok(c.call("samples.create", assetId=mix, start=1302.5, end=1303.0, name="子"))["id"]
+        assert s1 in [r["sample"]["id"] for r in ok(c.call("samples.related", id=child))["rows"]]
         wav = ok(c.call("exports.samples", ids=[s1], words=WORDS))[0]
         ok(c.call("samples.delete", ids=[s1]))
         g = ok(c.call("samples.get", id=child))
-        assert g["parent_sample_id"] is None and g["parent_label"] == "としのうきょうこ！"
+        assert g["name"] == "子" and s1 not in [r["sample"]["id"] for r in ok(c.call("samples.related", id=child))["rows"]]
         assert ok(c.call("playback.resolveAsset", assetId=mix, start=1302.5, end=1303.0))["path"] == str(ep)
 
         # ---- S12.4 清理：测量、库内音轨、导出都在；有任务时拒绝

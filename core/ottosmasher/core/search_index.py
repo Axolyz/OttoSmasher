@@ -31,7 +31,7 @@ from .clock import now_iso
 from .edits import loads
 from .errors import CoreError
 
-KEY_VERSION = "speech-index-3"  # 3：分析属于“段 + 资产”，采样按判定区间读（所有者 2026-10-09）
+KEY_VERSION = "speech-index-4"  # 4：音素属于原素材时间线（所有者 2026-10-12），不含人声的轨不读
 
 # 资产存储的签名（范围、种类、文件快照；按固定顺序拼接）：文件被替换、存储变了 → 签名变（只用数据库，不探测文件）
 STORAGE_SIG_SQL = (
@@ -75,7 +75,7 @@ def speech_keys(conn: sqlite3.Connection, sample_ids: Sequence[str]) -> dict[str
     versions = [KEY_VERSION, rh.ALGO_VERSION, st.ALGO_VERSION, ss.ALGO_VERSION, ss.INDEX_VERSION, penalty]
     out: dict[str, tuple[str, bool]] = {}
     for part in _chunks(list(dict.fromkeys(sample_ids))):
-        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id"), reads=units.reads_sql("s", "a.source_id")), part):
+        for r in conn.execute(_KEY_SQL.format(marks=",".join("?" * len(part)), storage=STORAGE_SIG_SQL.format(asset="s.asset_id"), reads=units.reads_sql("s", "a")), part):
             # 读到的段都有可用分析才需要索引（段改过、还没分析的计入“缺少有效分析”）；冲突的建索引时记为 none
             has = bool(r["reads"]) and all(not x.endswith("|-") for x in str(r["reads"]).split(","))
             # F0 只看采样范围所在的段（同一资产别处补测 F0 不让这条失效）

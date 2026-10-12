@@ -997,6 +997,17 @@
    }
   },
   {
+   "name": "samples.related",
+   "effect": "read",
+   "summary": "Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first.",
+   "params": {
+    "$ref": "#/$defs/RelatedParams"
+   },
+   "result": {
+    "$ref": "#/$defs/RelatedSamples"
+   }
+  },
+  {
    "name": "samples.suggest",
    "effect": "read",
    "summary": "Suggested name and nature for a new sample on an asset range.",
@@ -1343,7 +1354,7 @@
   {
    "name": "speech.forAsset",
    "effect": "read",
-   "summary": "Usable alignments of all segments on an asset range (same physical audio only).",
+   "summary": "Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
    },
@@ -1357,7 +1368,7 @@
   {
    "name": "speech.preview",
    "effect": "read",
-   "summary": "What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons.",
+   "summary": "What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons.",
    "params": {
     "$ref": "#/$defs/SpeechPlanParams"
    },
@@ -1382,7 +1393,7 @@
   {
    "name": "speech.sample",
    "effect": "read",
-   "summary": "Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result.",
+   "summary": "Speech analysis a sample reads: the segments overlapping its judge interval (the source timeline's phonemes, seen on its track), each with versions, plus the merged result.",
    "params": {
     "$ref": "#/$defs/IdParams"
    },
@@ -1393,7 +1404,7 @@
   {
    "name": "speech.saveManual",
    "effect": "write",
-   "summary": "Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed).",
+   "summary": "Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed).",
    "params": {
     "$ref": "#/$defs/SpeechManualParams"
    },
@@ -1415,7 +1426,7 @@
   {
    "name": "speech.switchHead",
    "effect": "write",
-   "summary": "Make another successful version of a segment on a track the current one.",
+   "summary": "Make another successful version of a segment's analysis the current one.",
    "params": {
     "$ref": "#/$defs/SpeechSwitchParams"
    },
@@ -3165,6 +3176,9 @@
     "manual": {
      "type": "boolean"
     },
+    "measuredOn": {
+     "type": "string"
+    },
     "name": {
      "type": "string"
     },
@@ -3189,6 +3203,7 @@
    },
    "required": [
     "manual",
+    "measuredOn",
     "name",
     "ordinal",
     "phones",
@@ -3251,6 +3266,9 @@
     },
     "duration": {
      "type": "number"
+    },
+    "from_separation": {
+     "type": "integer"
     },
     "id": {
      "type": "string"
@@ -3335,6 +3353,16 @@
       }
      ]
     },
+    "reimport_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "roles": {
      "type": "array",
      "items": {
@@ -3386,6 +3414,7 @@
     "actor_session",
     "created_at",
     "duration",
+    "from_separation",
     "id",
     "input_asset_id",
     "input_end",
@@ -3396,6 +3425,7 @@
     "media_file_id",
     "origin",
     "production",
+    "reimport_id",
     "roles",
     "source_id",
     "stem_name",
@@ -3446,6 +3476,9 @@
     },
     "duration": {
      "type": "number"
+    },
+    "from_separation": {
+     "type": "integer"
     },
     "id": {
      "type": "string"
@@ -3527,6 +3560,16 @@
       }
      ]
     },
+    "reimport_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "roles": {
      "type": "array",
      "items": {
@@ -3578,6 +3621,7 @@
     "actor_session",
     "created_at",
     "duration",
+    "from_separation",
     "id",
     "input_asset_id",
     "input_end",
@@ -3587,6 +3631,7 @@
     "media_file_id",
     "origin",
     "production",
+    "reimport_id",
     "roles",
     "source_id",
     "stem_name",
@@ -3725,6 +3770,30 @@
    },
    "required": [
     "bpm"
+   ]
+  },
+  "ChainStep": {
+   "title": "ChainStep",
+   "type": "object",
+   "properties": {
+    "asset": {
+     "$ref": "#/$defs/AssetRecord"
+    },
+    "full": {
+     "type": "boolean"
+    },
+    "sourceEnd": {
+     "type": "number"
+    },
+    "sourceStart": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "asset",
+    "full",
+    "sourceEnd",
+    "sourceStart"
    ]
   },
   "Classified": {
@@ -7490,6 +7559,26 @@
     "active"
    ]
   },
+  "ProcessingChain": {
+   "title": "ProcessingChain",
+   "description": "加工链（所有者 2026-10-12）：第一步是采样所在的轨，沿输入往上；complete = 追到了原混音（删除原素材断开时为 false）。",
+   "type": "object",
+   "properties": {
+    "complete": {
+     "type": "boolean"
+    },
+    "steps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ChainStep"
+     }
+    }
+   },
+   "required": [
+    "complete",
+    "steps"
+   ]
+  },
   "PromoteInfo": {
    "title": "PromoteInfo",
    "description": "本地标签提升为区段标签（R5.6）：编辑批次与它的作用域；不写库。",
@@ -7859,16 +7948,6 @@
       "unpitched"
      ]
     },
-    "parentSampleId": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "path": {
      "type": "string"
     },
@@ -7946,6 +8025,16 @@
     },
     "start": {
      "type": "number"
+    },
+    "suggestedName": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     }
    },
    "required": [
@@ -7957,7 +8046,80 @@
     "sampleRate",
     "sourceEnd",
     "sourceStart",
-    "start"
+    "start",
+    "suggestedName"
+   ]
+  },
+  "RelatedParams": {
+   "title": "RelatedParams",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "RelatedSample": {
+   "title": "RelatedSample",
+   "type": "object",
+   "properties": {
+    "model": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "overlap": {
+     "type": "number"
+    },
+    "sample": {
+     "$ref": "#/$defs/SampleRow"
+    },
+    "stemName": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "model",
+    "overlap",
+    "sample",
+    "stemName"
+   ]
+  },
+  "RelatedSamples": {
+   "title": "RelatedSamples",
+   "type": "object",
+   "properties": {
+    "rows": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/RelatedSample"
+     }
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "rows",
+    "total"
    ]
   },
   "RelocateItem": {
@@ -9361,26 +9523,6 @@
     "onnxruntime"
    ]
   },
-  "SampleChild": {
-   "title": "SampleChild",
-   "type": "object",
-   "properties": {
-    "createdVia": {
-     "type": "string"
-    },
-    "id": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "createdVia",
-    "id",
-    "name"
-   ]
-  },
   "SampleCreateParams": {
    "title": "SampleCreateParams",
    "description": "单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。",
@@ -9403,16 +9545,6 @@
      ]
     },
     "nature": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "parentSampleId": {
      "anyOf": [
       {
        "type": "string"
@@ -9488,11 +9620,8 @@
    "title": "SampleDetail",
    "type": "object",
    "properties": {
-    "children": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/SampleChild"
-     }
+    "chain": {
+     "$ref": "#/$defs/ProcessingChain"
     },
     "independent": {
      "type": "boolean"
@@ -9514,16 +9643,6 @@
      "type": "string"
     },
     "origin": {},
-    "parent": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/SampleRef"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "stemName": {
      "anyOf": [
       {
@@ -9539,12 +9658,11 @@
     }
    },
    "required": [
-    "children",
+    "chain",
     "independent",
     "judge",
     "note",
     "origin",
-    "parent",
     "stemName",
     "updatedAt"
    ]
@@ -9883,16 +10001,6 @@
       }
      ]
     },
-    "parentSampleId": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "snapshot": {
      "anyOf": [
       {
@@ -9937,7 +10045,6 @@
     "name",
     "nature",
     "origin",
-    "parentSampleId",
     "snapshot",
     "start",
     "status"
@@ -9957,7 +10064,7 @@
   },
   "SamplePlanSource": {
    "title": "SamplePlanSource",
-   "description": "建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。\n\n    selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；\n    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；\n    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。",
+   "description": "建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。\n\n    selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；\n    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；\n    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。",
    "type": "object",
    "properties": {
     "assetId": {
@@ -10004,16 +10111,6 @@
     },
     "localMarker": {
      "type": "string"
-    },
-    "parentSampleId": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
     },
     "sourceId": {
      "type": "string"
@@ -10073,22 +10170,6 @@
     "roles"
    ]
   },
-  "SampleRef": {
-   "title": "SampleRef",
-   "type": "object",
-   "properties": {
-    "id": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "id",
-    "name"
-   ]
-  },
   "SampleRow": {
    "title": "SampleRow",
    "type": "object",
@@ -10099,6 +10180,7 @@
       "incomplete",
       "manual",
       "none",
+      "novoice",
       "ok",
       "partial",
       "stale"
@@ -10109,6 +10191,16 @@
     },
     "asset_origin": {
      "type": "string"
+    },
+    "back_asset_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "created_at": {
      "type": "string"
@@ -10158,26 +10250,6 @@
       "unpitched"
      ]
     },
-    "parent_label": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
-    "parent_sample_id": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "people": {
      "type": "array",
      "items": {
@@ -10188,6 +10260,16 @@
      "anyOf": [
       {
        "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "source_end": {
+     "anyOf": [
+      {
+       "type": "number"
       },
       {
        "type": "null"
@@ -10246,6 +10328,7 @@
     "analysis",
     "asset_id",
     "asset_origin",
+    "back_asset_id",
     "created_at",
     "created_via",
     "duration",
@@ -10257,10 +10340,9 @@
     "media_state",
     "name",
     "nature",
-    "parent_label",
-    "parent_sample_id",
     "people",
     "rating",
+    "source_end",
     "source_id",
     "source_name",
     "source_path",
@@ -12287,6 +12369,16 @@
    "title": "SpeechManualParams",
    "type": "object",
    "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "phones": {
      "anyOf": [
       {
@@ -12338,6 +12430,9 @@
     },
     "end": {
      "type": "number"
+    },
+    "i": {
+     "type": "integer"
     },
     "label": {
      "type": "string"
@@ -12920,7 +13015,7 @@
   },
   "SpeechUnit": {
    "title": "SpeechUnit",
-   "description": "采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。",
+   "description": "采样读到的一段的音素（原素材时间线上一份、回导来的另一份），换到采样所在的轨上。人工修正改的是这句的那一份，所有读到它的采样同时生效。",
    "type": "object",
    "properties": {
     "current": {
@@ -12945,6 +13040,16 @@
     },
     "headVersion": {
      "type": "integer"
+    },
+    "measuredOn": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/AssetRecord"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "name": {
      "type": "string"
@@ -12975,7 +13080,6 @@
       "failed",
       "none",
       "ok",
-      "other-sound",
       "stale"
      ]
     },
@@ -12997,12 +13101,26 @@
     },
     "unitId": {
      "type": "string"
+    },
+    "windowSource": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
     }
    },
    "required": [
     "current",
     "head",
     "headVersion",
+    "measuredOn",
     "name",
     "ordinal",
     "partial",
@@ -13012,7 +13130,8 @@
     "state",
     "target",
     "text",
-    "unitId"
+    "unitId",
+    "windowSource"
    ]
   },
   "SpeechWord": {

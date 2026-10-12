@@ -23,6 +23,7 @@ export interface AlignedPhone {
 
 export interface AssetAlignment {
   manual: boolean;
+  measuredOn: string;
   name: string;
   ordinal: number;
   phones: AlignedPhone[];
@@ -45,6 +46,7 @@ export interface AssetInfo {
   actor_session: string | null;
   created_at: string;
   duration: number;
+  from_separation: number;
   id: string;
   input_asset_id: string | null;
   input_end: number | null;
@@ -55,6 +57,7 @@ export interface AssetInfo {
   media_file_id: string | null;
   origin: "flatten" | "reimport" | "separation" | "stream";
   production: Record<string, unknown> | null;
+  reimport_id: string | null;
   roles: ("sfx" | "vocal")[];
   source_id: string;
   stem_name: string | null;
@@ -74,6 +77,7 @@ export interface AssetRecord {
   actor_session: string | null;
   created_at: string;
   duration: number;
+  from_separation: number;
   id: string;
   input_asset_id: string | null;
   input_end: number | null;
@@ -83,6 +87,7 @@ export interface AssetRecord {
   media_file_id: string | null;
   origin: "flatten" | "reimport" | "separation" | "stream";
   production: Record<string, unknown> | null;
+  reimport_id: string | null;
   roles: ("sfx" | "vocal")[];
   source_id: string;
   stem_name: string | null;
@@ -120,6 +125,13 @@ export interface Bpm {
 
 export interface BpmParams {
   bpm: number | null;
+}
+
+export interface ChainStep {
+  asset: AssetRecord;
+  full: boolean;
+  sourceEnd: number;
+  sourceStart: number;
 }
 
 export interface Classified {
@@ -954,6 +966,12 @@ export interface PrepareQuit {
   active: number;
 }
 
+/** 加工链（所有者 2026-10-12）：第一步是采样所在的轨，沿输入往上；complete = 追到了原混音（删除原素材断开时为 false）。 */
+export interface ProcessingChain {
+  complete: boolean;
+  steps: ChainStep[];
+}
+
 /** 本地标签提升为区段标签（R5.6）：编辑批次与它的作用域；不写库。 */
 export interface PromoteInfo {
   assetId: string;
@@ -1030,7 +1048,6 @@ export interface ReimportCommitParams {
   assetId: string;
   name?: string | null;
   nature?: "pitched" | "speech" | "unclassified" | "unpitched";
-  parentSampleId?: string | null;
   path: string;
   start: number;
 }
@@ -1051,6 +1068,24 @@ export interface ReimportPreview {
   sourceEnd: number | null;
   sourceStart: number;
   start: number;
+  suggestedName: string | null;
+}
+
+export interface RelatedParams {
+  id: string;
+  limit?: number;
+}
+
+export interface RelatedSample {
+  model: string | null;
+  overlap: number;
+  sample: SampleRow;
+  stemName: string | null;
+}
+
+export interface RelatedSamples {
+  rows: RelatedSample[];
+  total: number;
 }
 
 export interface RelocateItem {
@@ -1331,19 +1366,12 @@ export interface RuntimeStatus {
   onnxruntime: OnnxRuntimeStatus;
 }
 
-export interface SampleChild {
-  createdVia: string;
-  id: string;
-  name: string;
-}
-
 /** 单条选区建采样（与统一建采样动作同一套规则）。时间：资产局部秒。 */
 export interface SampleCreateParams {
   assetId: string;
   end: number;
   name?: string | null;
   nature?: string | null;
-  parentSampleId?: string | null;
   start: number;
   via?: "hit" | "manual";
 }
@@ -1357,12 +1385,11 @@ export interface SampleCreatePlannedParams {
 }
 
 export interface SampleDetail {
-  children: SampleChild[];
+  chain: ProcessingChain;
   independent: boolean;
   judge: number[] | null;
   note: string;
   origin: unknown;
-  parent: SampleRef | null;
   stemName: string | null;
   updatedAt: string;
 }
@@ -1424,7 +1451,6 @@ export interface SamplePlanItem {
   name: string;
   nature: "pitched" | "speech" | "unclassified" | "unpitched";
   origin: Record<string, unknown> | null;
-  parentSampleId: string | null;
   snapshot: Record<string, unknown> | null;
   sourceEnd?: number;
   sourceStart?: number;
@@ -1440,7 +1466,7 @@ export interface SamplePlanParams {
 /**
  * 建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
  *
- *     selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；
+ *     selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；
  *     segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
  *     stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。
  */
@@ -1450,7 +1476,6 @@ export interface SamplePlanSource {
   ids?: string[] | null;
   kind: "hints" | "segments" | "selection" | "stem" | "whole";
   localMarker?: string;
-  parentSampleId?: string | null;
   sourceId?: string;
   sourceIds?: string[];
   start?: number | null;
@@ -1463,15 +1488,11 @@ export interface SamplePlanTrack {
   roles: ("sfx" | "vocal")[];
 }
 
-export interface SampleRef {
-  id: string;
-  name: string;
-}
-
 export interface SampleRow {
-  analysis: "failed" | "incomplete" | "manual" | "none" | "ok" | "partial" | "stale";
+  analysis: "failed" | "incomplete" | "manual" | "none" | "novoice" | "ok" | "partial" | "stale";
   asset_id: string;
   asset_origin: string;
+  back_asset_id: string | null;
   created_at: string;
   created_via: string;
   detail?: SampleDetail;
@@ -1484,10 +1505,9 @@ export interface SampleRow {
   media_state: string;
   name: string;
   nature: "pitched" | "speech" | "unclassified" | "unpitched";
-  parent_label: string | null;
-  parent_sample_id: string | null;
   people: string[];
   rating: number | null;
+  source_end: number | null;
   source_id: string;
   source_name: string;
   source_path: string;
@@ -1896,6 +1916,7 @@ export interface SpeechHeadRef {
 }
 
 export interface SpeechManualParams {
+  assetId?: string | null;
   phones?: ManualPhone[] | null;
   text?: string | null;
   unitId: string;
@@ -1907,6 +1928,7 @@ export interface SpeechPhone {
   clipped?: boolean;
   eff?: number[];
   end: number;
+  i?: number;
   label: string;
   mora: number | null;
   orig?: string;
@@ -2003,21 +2025,23 @@ export interface SpeechSwitchParams {
   version: number;
 }
 
-/** 采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。 */
+/** 采样读到的一段的音素（原素材时间线上一份、回导来的另一份），换到采样所在的轨上。人工修正改的是这句的那一份，所有读到它的采样同时生效。 */
 export interface SpeechUnit {
   current: SpeechHead | null;
   head: SpeechHead | null;
   headVersion: number;
+  measuredOn: AssetRecord | null;
   name: string;
   ordinal: number;
   partial: boolean;
   runs: SpeechRun[];
   segmentId: string;
   speakers: string[];
-  state: "failed" | "none" | "ok" | "other-sound" | "stale";
+  state: "failed" | "none" | "ok" | "stale";
   target: number[] | null;
   text: string;
   unitId: string;
+  windowSource: number[] | null;
 }
 
 export interface SpeechWord {
@@ -2662,6 +2686,8 @@ export interface Commands {
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
   "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };
+  /** Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first. */
+  "samples.related": { params: RelatedParams; result: RelatedSamples; effect: "read" };
   /** Suggested name and nature for a new sample on an asset range. */
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
   /** Cancel a running search (a cancelled search writes no fixed result). */
@@ -2720,19 +2746,19 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */
   "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
-  /** Usable alignments of all segments on an asset range (same physical audio only). */
+  /** Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
-  /** What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons. */
+  /** What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons. */
   "speech.preview": { params: SpeechPlanParams; result: SpeechPreview; effect: "read" };
   /** Per-item results of a speech analysis job. */
   "speech.results": { params: JobIdParams; result: SpeechResultRow[]; effect: "read" };
-  /** Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result. */
+  /** Speech analysis a sample reads: the segments overlapping its judge interval (the source timeline's phonemes, seen on its track), each with versions, plus the merged result. */
   "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
-  /** Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed). */
+  /** Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed). */
   "speech.saveManual": { params: SpeechManualParams; result: SpeechHeadRef; effect: "write" };
   /** Queue a speech analysis job (inputs frozen now; one process for all items). */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
-  /** Make another successful version of a segment on a track the current one. */
+  /** Make another successful version of a segment's analysis the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
   /** Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index. */
   "storage.clean": { params: StorageCleanParams; result: StorageCleaned; effect: "write" };

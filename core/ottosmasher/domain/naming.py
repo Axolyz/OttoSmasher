@@ -107,3 +107,77 @@ def nature_for_roles(roles: list[str] | set[str]) -> str:
     if r == {"sfx"}:
         return "unpitched"
     return "unclassified"
+
+
+# ---------------------------------------------------------------- 局部命名（所有者 2026-10-12）
+
+VOWELS = frozenset("aeiou")
+PARTIAL_MAX = 0.5
+"""选区只覆盖这句 ≤ 一半的音素（按非停顿音素个数）才用局部命名。"""
+NAME_MAX = 500
+OPEN, CLOSE = "\uff08", "\uff09"  # 全角括号
+
+
+def romaji(labels: Sequence[str]) -> str:
+    """几个音素 → 罗马字：清音的大写元音改小写、``N`` → n、促音 ``cl`` → 后一个辅音的首字母（后面没有辅音就省掉）、跳过停顿；
+    长音按音素重复（b o o → boo）。音素名本来就接近训令式 / 平文式（ny u u → nyuu，ch i → chi）。"""
+    seq = [x for x in labels if x != "pau"]
+    out = []
+    for i, x in enumerate(seq):
+        if x == "cl":
+            nxt = seq[i + 1] if i + 1 < len(seq) else ""
+            if nxt and nxt.lower() not in VOWELS and nxt not in ("N", "cl"):
+                out.append(nxt[0].lower())
+            continue
+        out.append("n" if x == "N" else x.lower())
+    return "".join(out)
+
+
+def partial_fragment(phones: Sequence[dict], words: Sequence[dict], start: float, end: float) -> str | None:
+    """选区 [start, end)（与音素同一时钟）在这句里的“选中部分”：音素中点落在选区里的算选中；
+    选中的非停顿音素占这句 ≤ 一半时，完整选中的词写原文、只选中一个词一部分时写这几个音的罗马字，按顺序连起来；否则 None。"""
+    speech = [p for p in phones if p.get("label") != "pau"]
+    if not speech:
+        return None
+    hit = [p for p in speech if start <= (float(p["start"]) + float(p["end"])) / 2 < end]
+    if not hit or len(hit) / len(speech) > PARTIAL_MAX:
+        return None
+    by_word: dict[int, list[dict]] = {}
+    for p in speech:
+        if p.get("word") is not None:
+            by_word.setdefault(int(p["word"]), []).append(p)
+    parts: list[str] = []
+    done: set[int] = set()
+    k = 0
+    while k < len(hit):
+        p = hit[k]
+        w = p.get("word")
+        if w is None:
+            parts.append(romaji([p["label"]]))
+            k += 1
+            continue
+        w = int(w)
+        if w in done:
+            k += 1
+            continue
+        done.add(w)
+        mine = [q for q in hit if q.get("word") is not None and int(q["word"]) == w]
+        whole = by_word.get(w, [])
+        if len(mine) == len(whole) and 0 <= w < len(words) and str(words[w].get("text") or "").strip():
+            parts.append(str(words[w]["text"]).strip())
+        else:
+            parts.append(romaji([q["label"] for q in mine]))
+        k += len(mine)
+    frag = "".join(parts).strip()
+    return frag or None
+
+
+def partial_name(fragment: str, text: str) -> str:
+    """“选中部分（整句）”；太长时截短整句（名称上限 500 字）。"""
+    text = " ".join(text.split())
+    room = NAME_MAX - len(fragment) - 2
+    if room < 1:
+        return fragment[:NAME_MAX]
+    if len(text) > room:
+        text = text[: max(0, room - 1)] + "\u2026"
+    return f"{fragment}{OPEN}{text}{CLOSE}"

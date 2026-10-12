@@ -1,4 +1,4 @@
-"""测试用：在文本层登记一段并给它在某条资产上登记一次成功的分析（所有者 2026-10-09：分析属于“段 + 资产”）。"""
+"""测试用：在文本层登记一段并给它在某条资产上登记一次成功的分析（所有者 2026-10-12：音素属于原素材时间线，归属“段 + 原素材 / 回导成品”）。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ from typing import Any
 
 from ottosmasher.core import units
 from ottosmasher.core.clock import new_id, now_iso
-from ottosmasher.core.edits import dumps
+from ottosmasher.core.edits import dumps, loads
+from ottosmasher.domain.mapping import Mapping
 
 
 def add_segment(c: Any, start: float, end: float, text: str = "か", *, source_id: str | None = None, speakers: list[str] | None = None,
@@ -35,8 +36,14 @@ def add_analysis(c: Any, start: float, end: float, phones: list[dict[str, Any]],
     t = c.conn.execute('SELECT start, "end", text FROM text_segment WHERE id=?', (seg,)).fetchone()
     snap = snapshot if snapshot is not None else c.flatten._freeze(aid, start, end)["_snap"]
     rid = new_id()
+    # 音素属于原素材时间线（所有者 2026-10-12）：给的是这条资产的局部秒，存原素材秒；归属 = 段 + 原素材（回导来的 = 段 + 回导成品）
+    a = c.conn.execute("SELECT source_id, reimport_id, mapping FROM sound_asset WHERE id=?", (aid,)).fetchone()
+    res = units.to_source({"phones": phones}, loads(a["mapping"]))
+    phones = res["phones"]
+    m = Mapping.of(loads(a["mapping"]))
+    start, end = m.to_source(start), m.to_source(end)
     sp = units.span_of({"phones": phones})
-    unit = units.unit_id(seg, aid)
+    unit = units.unit_id(seg, units.base_of(a))
     c.conn.execute(
         "INSERT INTO measure_run(id, kind, owner_type, owner_id, asset_id, range_start, range_end, inputs, status, manual, result, created_at,"
         " span_start, span_end, seg_start, seg_end, seg_text) VALUES (?, 'alignment', 'asset_text', ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?, ?, ?, ?)",

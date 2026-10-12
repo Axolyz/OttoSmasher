@@ -293,7 +293,7 @@ class SearchService:
         for i in range(0, len(ids), 900):
             part = ids[i : i + 900]
             for r in self.conn.execute(
-                f'SELECT s.id, s.asset_id, s.start, s."end", {units.reads_sql("s", "(SELECT source_id FROM sound_asset WHERE id = s.asset_id)")} FROM sample s'
+                f'SELECT s.id, s.asset_id, s.start, s."end", {units.reads_sql("s", "a")} FROM sample s JOIN sound_asset a ON a.id = s.asset_id'
                 f" WHERE s.id IN ({','.join('?' * len(part))})",
                 part,
             ):

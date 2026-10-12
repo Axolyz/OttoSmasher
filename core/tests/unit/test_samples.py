@@ -99,16 +99,22 @@ def test_create_validation(db, svc, src):
         assert ei.value.code == code
 
 
-# R7.4 删除父采样后子采样保留“已删除的父采样”来源记录
-def test_delete_parent_keeps_child_label(db, svc, src):
+# 采样之间没有父子关系（所有者 2026-10-12，覆盖 R7.3、R7.4）：删一个采样不影响与它交叠的采样；相关采样按原素材时间交叠找
+def test_delete_leaves_overlapping_samples_and_related(db, svc, src):
     aid = asset(db, src)
-    parent = svc.create(aid, 1, 3, name="親")
-    child = svc.create(aid, 1.5, 2, name="子", parent_sample_id=parent["id"])
-    svc.delete([parent["id"]])
-    c = svc.get(child["id"])
-    assert c["parent_sample_id"] is None and c["parent_label"] == "親"
+    big = svc.create(aid, 1, 3, name="大")
+    small = svc.create(aid, 1.5, 2, name="小")
+    touch = svc.create(aid, 3, 4, name="相接")  # 端点相接不算交叠
+    rel = svc.related(big["id"])
+    assert rel["total"] == 1 and [r["sample"]["id"] for r in rel["rows"]] == [small["id"]] and rel["rows"][0]["overlap"] == pytest.approx(0.5)
+    assert svc.related(touch["id"])["total"] == 0
+    assert "parent_sample_id" not in small and small["source_start"] == pytest.approx(1.5) and small["source_end"] == pytest.approx(2.0)
+    svc.delete([big["id"]])
+    assert svc.get(small["id"])["name"] == "小" and svc.related(small["id"])["total"] == 0
     with pytest.raises(CoreError):
-        svc.get(parent["id"])
+        svc.get(big["id"])
+    d = svc.get(small["id"])["detail"]
+    assert d["chain"]["complete"] and [s["asset"]["id"] for s in d["chain"]["steps"]] == [aid]
 
 
 def test_delete_refuses_active_jobs(db, svc, src):

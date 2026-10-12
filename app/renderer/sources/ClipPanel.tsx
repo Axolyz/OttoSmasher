@@ -1,5 +1,5 @@
 // 建一个采样（所有者 2026-10-09：建采样是一个动作——单条用这个锚定小面板（原「截取」），批量用整页表格；背后同一个 samples.plan，规则与产物完全相同）。
-// 来源：选区（截取 / 详情里截取子采样 / 命中保存）、文本层的一段、一条音效提示、分离声部。
+// 来源：选区（截取 / 详情区里截取 / 命中保存）、文本层的一段、一条音效提示、分离声部。
 // 面板：标题 + 区间、音源（段 / 提示可选“默认轨”或“当前查看的轨”）；名称（按规则预填，可改）+ 性质（按来源预填，可改）+ 判定区间 + 保存。
 // 显式保存一律新建（R7.1）；保存后跳到采样库打开新采样（命中保存不跳，afterSave 决定）。Enter 保存，Esc 关闭。
 import { Scissors } from "lucide-react";
@@ -24,8 +24,6 @@ export function ClipPanel(props: {
   sel: { a: number; b: number } | null;
   isOpen: boolean;
   onOpenChange: (o: boolean) => void;
-  /** 在采样详情里截取 = 子采样（记下父采样） */
-  parentSampleId?: string;
   /** 命中保存：记为 hit */
   via?: "manual" | "hit";
   /** 区间的显示：原片页用原片时钟；舞台用秒 */
@@ -53,7 +51,7 @@ export function ClipPanel(props: {
   const source = (tr = track): SamplePlanSource | null => {
     if (props.from) return ranged ? { ...props.from, track: tr, assetId: tr === "current" ? (props.currentAsset?.id ?? null) : null } : props.from;
     if (!props.assetId || !props.sel) return null;
-    return { kind: "selection", assetId: props.assetId, start: props.sel.a, end: props.sel.b, parentSampleId: props.parentSampleId ?? null, via: props.via ?? "manual", localMarker: t("naming.local") };
+    return { kind: "selection", assetId: props.assetId, start: props.sel.a, end: props.sel.b, via: props.via ?? "manual", localMarker: t("naming.local") };
   };
 
   const load = (tr = track) => {

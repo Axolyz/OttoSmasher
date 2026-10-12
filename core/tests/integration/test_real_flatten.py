@@ -53,7 +53,7 @@ def test_s4_flatten_references(tmp_path):
             r = c.call("segments.add", sourceId=sid, start=a, end=b, text=text)  # 手输台词 = 在文本层加一段（所有者 2026-10-09）
             assert r["ok"], r
             lines.append(s["id"])
-            subs.append(c.call("samples.create", assetId=vox, start=fa, end=fb, name=text, nature="speech", parentSampleId=s["id"])["r"]["id"])
+            subs.append(c.call("samples.create", assetId=vox, start=fa, end=fb, name=text, nature="speech")["r"]["id"])
         job = c.call("speech.submit", entry="samples", ids=lines)["r"]
         assert wait(c, job["id"])["status"] == "succeeded"
         assert {r["status"] for r in c.call("speech.results", jobId=job["id"])["r"]} == {"ok"}
@@ -62,13 +62,16 @@ def test_s4_flatten_references(tmp_path):
         report = {}
         for (name, _, (fa, fb)), sub in zip(CASES, subs, strict=True):
             op = c.call("flatten.open", assetId=vox, start=fa, end=fb, entry="single", sampleId=sub)["r"]
-            assert op["alignment"] is not None  # 子采样借用覆盖它的整句测量（同一物理声音）
+            assert op["alignment"] is not None  # 局部采样读覆盖它的那句的音素（音素属于原素材时间线）
             fj = c.call("flatten.submit", token=op["token"], name=op["name"], sampleId=sub, options={"range": "vowels", "target": "auto"})["r"]
             j = wait(c, fj["id"])
-            assert j["status"] == "succeeded", j
+            assert j["status"] == "succeeded", (j, c.call("flatten.results", jobId=fj["id"])["r"])
             pid = c.call("flatten.results", jobId=fj["id"])["r"][0]["productId"]
             p = c.call("samples.get", id=pid)["r"]
             a = c.call("assets.get", id=p["asset_id"])["r"]
+            # 拉平成品读得到那句的音素（所有者 2026-10-12：音素属于原素材时间线）；「返回原素材」换到它拉平前的人声轨
+            pv = c.call("speech.sample", id=pid)["r"]
+            assert pv["head"] is not None and pv["head"]["result"]["phones"] and p["back_asset_id"] == vox
             prod = a["production"]
             report[name] = {
                 "target": prod["target"]["name"], "originalMidi": round(prod["target"]["originalMidi"], 4),

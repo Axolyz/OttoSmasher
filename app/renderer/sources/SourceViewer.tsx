@@ -85,16 +85,20 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id]);
 
-  // 「返回原片 ↗」带来的区间：选区 = 该区间，音源 = 该采样的音轨，时间线放大到它并把播放头放到起点
+  // 「返回原素材」带来的区间（所有者 2026-10-12）：选区 = 采样的原素材起止，音源换到采样来自的整轨（永远不是局部成品），
+  // “采样”车道上突出这个采样，时间线放大到它并把播放头放到起点
   const jump = useApp((st) => st.sourceJump);
   const setJump = useApp((st) => st.setSourceJump);
   const pendingZoom = useRef<Sel | null>(null);
   const [zoomNonce, setZoomNonce] = useState(0);
+  const [highlight, setHighlight] = useState<string | null>(null);
   useEffect(() => {
     if (!jump || jump.sourceId !== row.id) return;
     if (!(jump.b > jump.a)) return setJump(null); // 只打开原片（例如“去来源”到原片属性），不设选区
     setSel({ a: jump.a, b: jump.b });
     if (jump.assetId) setAssetSel(jump.assetId);
+    setHighlight(jump.highlight ?? null);
+    if (jump.highlight) setLaneIds((ids) => new Set([...ids, "derived"]));
     pendingZoom.current = { a: jump.a, b: jump.b };
     setZoomNonce((n) => n + 1); // 音轨已经加载时也要放大（资产没变，下面的效果不会因资产重跑）
     setJump(null);
@@ -111,13 +115,13 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
     if (c.segment || c.sfx_hint || c.range_tag || c.oped || c.source || c.sample) setAnnNonce((n) => n + 1);
-    if (c.measure) setPhNonce((n) => n + 1); // 语音分析结果、人工修正（属于“段 + 资产”，不一定有采样）
+    if (c.measure) setPhNonce((n) => n + 1); // 语音分析结果、人工修正（属于原素材时间线，不一定有采样）
   });
   // 只按内容调整（所有者 2026-10-07：原片只有一种）：没有视频又没有字幕时上面一行缩矮
   const compact = !hasVideo && noSubtitles(row);
   const [overlayId, setOverlayId] = useState<LayerId>("sub");
   const [laneIds, setLaneIds] = useState<Set<LaneId>>(new Set(["hint", "seg", "ph", "derived"]));
-  // 音素层（08 §8.8）：当前音源资产上各段的可用分析（分析属于“段 + 资产”，所有者 2026-10-09；多段同时显示）；
+  // 音素层（08 §8.8）：各段的音素换到当前音源上（音素属于原素材时间线，所有者 2026-10-12；不含人声的轨没有音素层；多段同时显示）；
   // 原片页「语音分析」直接分析台词段，不需要先建采样。资产局部秒 + offset = 原片秒
   const [aligned, setAligned] = useState<AssetAlignment[]>([]);
   const phOffset = useRef(0);
@@ -188,9 +192,9 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           })),
         ),
       };
-    // 派生轨（03 §3.9、R7.6）：该原片的所有用户采样，按原片时间；单击打开（跳到采样库），重叠时弹出选择菜单
+    // “采样”车道（03 §3.9、R7.6；2026-10-12 前叫派生轨）：该原素材上的所有采样（所有音轨），按原素材起止；单击打开（跳到采样库），重叠时弹出选择菜单；「返回原素材」带来的那个突出显示
     if (id === "derived")
-      return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id })) };
+      return { id, label: t("layers.derived"), bands: derived.map((d) => ({ a: d.start, b: d.end, label: d.name, tone: "derived", id: d.id, strong: d.id === highlight })) };
     // 文本层的段：标签 = 段文本（说话人在前，R5.5 只显示名字）
     if (id === "sub")
       return {
@@ -605,6 +609,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
       onKeyDown={onKey}
       data-testid="source-viewer"
       data-compact={compact || undefined}
+      data-asset={asset?.id}
+      data-highlight={highlight ?? undefined}
       aria-label={displayName(row)}
     >
       {/* 原片播放器的画布整个窗口只有一个（preload 用 data-otto-video 找到它） */}

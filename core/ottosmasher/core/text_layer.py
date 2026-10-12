@@ -23,6 +23,8 @@ from ottosmasher.store.db import transaction
 
 from . import settings as settings_mod
 from .edits import SEGMENT_MAX, ChangeSet, EditService, loads
+from . import assets as assets_mod
+from . import units
 from .units import content_matches
 from .errors import CoreError
 
@@ -71,12 +73,17 @@ def _opeds(conn: sqlite3.Connection, source_id: str) -> list[dict[str, Any]]:
 
 
 def _analysis_states(conn: sqlite3.Connection, asset_id: str, segs: list[sqlite3.Row]) -> dict[str, str]:
-    """段在这条资产上的分析状态：ok（有可用的）/ stale（段改过）/ failed（只有失败）/ none。"""
+    """段的音素状态（这条轨读的那一份：原素材上一份、回导来的另一份）：ok（有可用的）/ stale（段改过）/ failed（只有失败）/ none。
+    这条轨不含人声 → 不给状态。"""
     out: dict[str, str] = {}
+    a = assets_mod.get(conn, asset_id)
+    if not units.voiced(a):
+        return out
+    base = units.base_of(a)
     for t in segs:
         rows = conn.execute(
             "SELECT status, seg_start, seg_end, seg_text FROM measure_run WHERE owner_type='asset_text' AND kind='alignment' AND owner_id=?",
-            (f"seg:{t['id']}@{asset_id}",),
+            (units.unit_id(t["id"], base),),
         ).fetchall()
         oks = [r for r in rows if r["status"] == "ok"]
         if any(content_matches(r, t) for r in oks):
@@ -152,24 +159,17 @@ def get_segment(conn: sqlite3.Connection, segment_id: str) -> dict[str, Any]:
 
 
 def derived(conn: sqlite3.Connection, source_id: str) -> list[dict[str, Any]]:
-    out = []
+    """原片页“采样”车道：这个原素材上的全部采样（所有音轨），按原素材起止（建采样时算好的原素材秒）。"""
     rows = conn.execute(
-        'SELECT s.id, s.name, s.nature, s.start, s."end", s.asset_id, a.mapping FROM sample s JOIN sound_asset a ON a.id=s.asset_id WHERE a.source_id=?',
+        'SELECT s.id, s.name, s.nature, s.asset_id, s.src_start, s.src_end FROM sample s JOIN sound_asset a ON a.id=s.asset_id'
+        " WHERE a.source_id=? AND s.src_start IS NOT NULL ORDER BY s.src_start, s.src_end, s.rowid",
         (source_id,),
     )
-    for r in rows:
-        try:
-            m = Mapping.of(loads(r["mapping"]))
-            a, b = m.to_source(r["start"]), m.to_source(r["end"])
-        except CoreError:
-            continue  # 映射坏了的不画（采样本身仍在采样库里）
-        out.append({"id": r["id"], "name": r["name"], "nature": r["nature"], "assetId": r["asset_id"], "start": a, "end": b})
-    out.sort(key=lambda d: (d["start"], d["end"]))
-    return out
+    return [{"id": r["id"], "name": r["name"], "nature": r["nature"], "assetId": r["asset_id"], "start": r["src_start"], "end": r["src_end"]} for r in rows]
 
 
 def counts(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
-    """每个原片：句数（不在 OP/ED 里的段）、有没有文本层或音效提示、OP/ED 数、派生采样数。"""
+    """每个原片：句数（不在 OP/ED 里的段）、有没有文本层或音效提示、OP/ED 数、采样数。"""
     opeds: dict[str, list[tuple[float, float]]] = {}
     for sid, a, b in conn.execute('SELECT source_id, start, "end" FROM oped WHERE deleted=0'):
         opeds.setdefault(sid, []).append((a, b))

@@ -125,7 +125,8 @@ class AutoPrepare:
             log.exception("auto prepare failed")
 
     def _rerun_segments(self, ids: set[str]) -> None:
-        """段内容变了之后：在原段（拆分 / 合并的产物看来源段）已有分析的资产上排后台语音分析。"""
+        """段内容变了之后：原段（拆分 / 合并的产物看来源段）已有音素的归属（原素材 / 回导成品）上排后台语音分析，
+        在当前版本测量用的轨上（它不在了用默认，speech.unit_by_id）。"""
         if self.speech is None:
             return
         busy = set().union(*self.pending_units.values()) if self.pending_units else set()
@@ -135,12 +136,12 @@ class AutoPrepare:
             if row is None or row["deleted"]:
                 continue
             origins = [sid] + list((loads(row["provenance"]) or {}).get("from") or []) if row["provenance"] else [sid]
-            assets: set[str] = set()
+            bases: set[str] = set()
             for o in origins:
-                assets |= {r[0] for r in self.conn.execute(
-                    "SELECT DISTINCT asset_id FROM measure_run WHERE owner_type='asset_text' AND kind='alignment' AND owner_id >= ? AND owner_id < ?",
+                bases |= {str(r[0]).split("@", 1)[1] for r in self.conn.execute(
+                    "SELECT DISTINCT owner_id FROM measure_run WHERE owner_type='asset_text' AND kind='alignment' AND owner_id >= ? AND owner_id < ?",
                     (f"seg:{o}@", f"seg:{o}A"))}
-            unit_ids += [f"seg:{sid}@{a}" for a in sorted(assets) if f"seg:{sid}@{a}" not in busy]
+            unit_ids += [f"seg:{sid}@{b}" for b in sorted(bases) if f"seg:{sid}@{b}" not in busy]
         if not unit_ids:
             return
         try:

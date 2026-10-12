@@ -34,23 +34,28 @@ def env(db, ws, tmp_path):
 
 def test_reimport_positive_and_cleanup(env, db, ws, tmp_path) -> None:
     svc, samples, aid, src = env
-    parent = samples.create(aid, 4.0, 5.0, name="親")["id"]
+    first = samples.create(aid, 4.0, 5.0, name="親")["id"]
     f = tmp_path / "歳納京子！ · G♯5__8ca511050f35.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=830:sample_rate=48000:duration=0.627", str(f)], check=True)
     pv = svc.preview(aid, 4.0, str(f))
     assert pv["ok"] and pv["duration"] == pytest.approx(0.627, abs=1e-3) and pv["end"] == pytest.approx(4.627, abs=1e-3)
-    out = svc.commit(aid, 4.0, str(f), name="やったー！", parent_sample_id=parent)
-    assert out["nature"] == "unclassified" and out["created_via"] == "reimport" and out["parent_sample_id"] == parent
+    assert pv["suggestedName"]  # 建议名 = 落到的那段的建议名（没有文本层 → 原素材名 起–止）
+    out = svc.commit(aid, 4.0, str(f), name="やったー！")
+    assert out["nature"] == "unclassified" and out["created_via"] == "reimport" and "parent_sample_id" not in out
     assert out["source_start"] == pytest.approx(4.0) and out["duration"] == pytest.approx(0.627, abs=1e-3)
+    assert out["source_end"] == pytest.approx(4.627, abs=1e-3)
     new = assets_mod.get(db, out["asset_id"])
     assert new["origin"] == "reimport" and new["roles"] == ["vocal"]  # 继承角色
+    assert new["reimport_id"] == new["id"] and new["from_separation"] == 0  # 音素另算一份（所有者 2026-10-12）
+    # 返回原素材换到回导到的整轨；它与原选区上的采样互为相关采样（原素材时间交叠）
+    assert out["back_asset_id"] == aid
+    assert [r["sample"]["id"] for r in samples.related(out["id"])["rows"]] == [first]
     mf = db.execute("SELECT path, location, format FROM media_file WHERE id = ?", (new["media_file_id"],)).fetchone()
     assert mf["location"] == "library" and mf["path"].endswith(".wav") and "/Reimport/" in mf["path"]  # 保持原格式
     f.unlink()  # 删掉用户的原文件：新采样照常可用
     ref, win, media = assets_mod.locate(db, ws.root, new, 0.0, 0.5)
     pcm = dec.decode_frames(ref, 0, 4800, cache=ws.data / "Cache")
     assert ref.sample_rate == 48000 and np.abs(pcm).max() > 0.05
-    # 派生范围里：新采样出现在原选区（原片时间）
     assert ExportService(db, ws).export_wav(out["asset_id"], 0.0, 0.5, content="x", track="回导")["path"].endswith(".wav")
 
 

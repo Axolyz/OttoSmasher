@@ -18,7 +18,7 @@ export function SpeechResults({ jobId }: { jobId: string }) {
   useEffect(load, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   useCoreEvent("job.updated", (d) => (d as { id: string }).id === jobId && load());
   if (!rows) return null;
-  // 再发起按“段 + 资产”；旧格式（归属采样）的任务按采样
+  // 再发起按分析单元（段 + 原素材 / 回导成品）；旧格式（归属采样）的任务按采样
   const target = (r: Row) => r.unitId ?? r.sampleId;
   const failed = rows.filter((r) => r.status === "failed" && !r.deleted && target(r) !== null);
   const tone = (st: Row["status"]) => (st === "ok" ? s.ok : st === "failed" ? s.bad : s.muted);

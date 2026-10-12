@@ -20,12 +20,13 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   // 约 233 Hz（A♯3）带 5 Hz 颤音的谐波音
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "aevalsrc=0.2*sin(2*PI*233*t+3*sin(2*PI*5*t))+0.1*sin(4*PI*233*t+6*sin(2*PI*5*t)):s=44100:d=3", wav]);
   const { app, page } = await launch({ workspace });
-  await page.evaluate(async (p) => {
+  const aid = await page.evaluate(async (p) => {
     const req = window.otto.core.request;
     const add = (await req<Array<{ assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
     const aid = add.r[0]!.assets[0]!.assetId;
     await req("samples.create", { assetId: aid, start: 0.5, end: 2.5, name: "ふぁー", nature: "speech" });
     await req("samples.create", { assetId: aid, start: 1.0, end: 1.6, name: "みー", nature: "speech" });
+    return aid;
   }, wav);
   await page.getByTestId("nav-library").click();
   await refreshLists(page);
@@ -79,6 +80,18 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await expect(stage).toContainText("A♯3");
   await page.waitForTimeout(500);
   await page.screenshot({ path: ".cache/playwright-results/flatten-product.png" });
+  // 「返回原素材」（所有者 2026-10-12）：换到它拉平前的整轨（不是只覆盖 2 秒的拉平成品），选区 = 原素材 0.5–2.5 秒，“采样”车道突出它
+  const product = await page.getByTestId("sample-row").filter({ hasText: "ふぁー" }).first().getAttribute("data-id");
+  await page.getByTestId("back-to-source").click();
+  const viewer = page.getByTestId("source-viewer");
+  await expect(viewer).toHaveAttribute("data-asset", aid);
+  await expect(viewer).toHaveAttribute("data-highlight", /.+/);
+  await expect(page.getByTestId("readout")).toHaveAttribute("data-a", "0.5");
+  expect(product).toBeTruthy();
+  // 加工链与相关采样：成品 ← 原混音；与原采样、みー 交叠
+  await page.keyboard.press("Meta+1");
+  await expect(page.getByTestId("stage-chain").getByTestId("stage-chain-step")).toHaveCount(2);
+  await expect(page.getByTestId("stage-related")).toContainText("みー");
 
   // ---- 列表右键「拉平…」= 其他单个入口：整段 + 段内自动
   await refreshLists(page);

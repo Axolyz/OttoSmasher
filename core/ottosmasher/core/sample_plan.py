@@ -75,16 +75,15 @@ class SamplePlanner:
         ]
 
     def _item(self, asset: dict[str, Any], start: float, end: float, *, name: str, nature: str, via: str, origin: dict[str, Any] | None,
-              judge: tuple[float, float] | None, snapshot: dict[str, Any] | None, status: str = "pending", key: str | None = None,
-              parent: str | None = None) -> dict[str, Any]:
+              judge: tuple[float, float] | None, snapshot: dict[str, Any] | None, status: str = "pending", key: str | None = None) -> dict[str, Any]:
         return {
             "key": key or f"{asset['id']}@{start:.6f}-{end:.6f}", "assetId": asset["id"], "start": start, "end": end,
             "judgeStart": None if judge is None else round(judge[0], 6), "judgeEnd": None if judge is None else round(judge[1], 6),
-            "name": name, "nature": nature, "createdVia": via, "origin": origin, "snapshot": snapshot, "status": status, "parentSampleId": parent,
+            "name": name, "nature": nature, "createdVia": via, "origin": origin, "snapshot": snapshot, "status": status,
         }
 
     def _selection(self, src: dict[str, Any]) -> dict[str, Any]:
-        """选区（截取、命中保存、详情里截取子采样）：命名 A23、性质按角色、判定区间 = 选区。"""
+        """选区（截取、命中保存、详情区里截取）：命名（局部命名 + A23）、性质按角色、判定区间 = 选区。"""
         asset = assets_mod.get(self.conn, src["assetId"])
         start, end = check_range(float(src["start"]), float(src["end"]), float(asset["duration"]), frame=1.0 / assets_mod.rate_of(self.conn, asset))
         sug = self.samples.suggest(asset["id"], start, end, local_marker=src.get("localMarker") or "")
@@ -97,7 +96,7 @@ class SamplePlanner:
         snap = {"text": " / ".join(dict.fromkeys(t["text"].replace("\n", " ") for t in texts)), "segments": [t["id"] for t in texts if t["k"] == "segment"],
                 "hints": [t["id"] for t in texts if t["k"] == "hint"]} if texts else None
         item = self._item(asset, start, end, name=sug["name"], nature=sug["nature"], via=via, origin={"kind": via} if via == "hit" else None,
-                          judge=(a, b), snapshot=snap, parent=src.get("parentSampleId"))
+                          judge=(a, b), snapshot=snap)
         return {"items": [item], "track": {"assetId": asset["id"], "roles": asset["roles"]}, "missingDefault": None, "pads": None}
 
     def _stem(self, src: dict[str, Any]) -> dict[str, Any]:
@@ -209,9 +208,9 @@ class SamplePlanner:
     # ---------- 创建
 
     def create_selection(self, asset_id: str, start: float, end: float, *, name: str | None = None, nature: str | None = None,
-                         parent_sample_id: str | None = None, via: str = "manual") -> str:
+                         via: str = "manual") -> str:
         """单条选区的快捷方式（脚本、agent、测试）：同一个计划、同一套默认规则；名称 / 性质给了就覆盖。"""
-        src = {"kind": "selection", "assetId": asset_id, "start": start, "end": end, "parentSampleId": parent_sample_id, "via": via}
+        src = {"kind": "selection", "assetId": asset_id, "start": start, "end": end, "via": via}
         pv = self.plan(src)
         key = pv["items"][0]["key"]
         over = {k: v for k, v in (("name", name), ("nature", nature)) if v}
@@ -237,7 +236,7 @@ class SamplePlanner:
                 judge = (it["judgeStart"], it["judgeEnd"]) if it["judgeStart"] is not None else None
                 created.append(self.samples.insert_checked(
                     it["assetId"], it["start"], it["end"], name=o.get("name") or it["name"], nature=nature or o.get("nature") or it["nature"],
-                    created_via=it["createdVia"], parent_sample_id=it.get("parentSampleId"), origin=it["origin"], snapshot=it["snapshot"], judge=judge,
+                    created_via=it["createdVia"], origin=it["origin"], snapshot=it["snapshot"], judge=judge,
                 ))
         if self.on_change and created:
             cs = ChangeSet()

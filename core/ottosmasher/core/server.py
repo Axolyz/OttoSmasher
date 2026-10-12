@@ -193,7 +193,7 @@ class Core:
           "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
           lambda p: self.samples.get(self.sample_plan.create_selection(
               p["assetId"], float(p["start"]), float(p["end"]), name=p.get("name"), nature=p.get("nature"),
-              parent_sample_id=p.get("parentSampleId"), via=p.get("via") or "manual")))
+              via=p.get("via") or "manual")))
         r("samples.plan", "read", T.SamplePlanParams, T.SamplePlan,
           "Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch.",
           lambda p: self.sample_plan.plan(dict(p["from"])))
@@ -239,6 +239,9 @@ class Core:
           "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
           lambda p: saved_filters.list_filters(self.conn))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
+        r("samples.related", "read", T.RelatedParams, T.RelatedSamples,
+          "Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first.",
+          lambda p: self.samples.related(p["id"], int(p.get("limit") or 12)))
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
           "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
@@ -301,18 +304,18 @@ class Core:
         # ---- 分离（PyMSS Studio）
         # ---- 语音分析（08 §8.4）
         r("speech.preview", "read", T.SpeechPlanParams, T.SpeechPreview,
-          "What a speech analysis would do: M segment+track units to analyze, N up to date (skipped), K blocked with reasons.",
+          "What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons.",
           lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
         r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
           lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
         r("speech.saveManual", "write", T.SpeechManualParams, T.SpeechHeadRef,
-          "Save edited phoneme times of a segment on a track as a new manual version (times only; labels/order fixed; rejected if the version changed).",
-          lambda p: self.speech.save_manual(p["unitId"], int(p["version"]), p.get("phones"), p.get("text")))
-        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version of a segment on a track the current one.",
+          "Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed).",
+          lambda p: self.speech.save_manual(p["unitId"], int(p["version"]), p.get("phones"), p.get("text"), p.get("assetId")))
+        r("speech.switchHead", "write", T.SpeechSwitchParams, T.SpeechHeadRef, "Make another successful version of a segment's analysis the current one.",
           lambda p: self.speech.switch_head(p["unitId"], p["runId"], int(p["version"])))
-        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis a sample reads: the segments overlapping its judge interval on its track, each with versions, plus the merged result.",
+        r("speech.sample", "read", T.IdParams, T.SpeechSampleView, "Speech analysis a sample reads: the segments overlapping its judge interval (the source timeline's phonemes, seen on its track), each with versions, plus the merged result.",
           lambda p: self.speech.sample_view(p["id"]))
-        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Usable alignments of all segments on an asset range (same physical audio only).",
+        r("speech.forAsset", "read", T.AssetRangeParams, list[T.AssetAlignment], "Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice).",
           lambda p: self.speech.for_asset(p["assetId"], float(p["start"]), float(p["end"])))
         r("measure.f0", "read", T.AssetRangeParams, T.F0Frames, "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
           lambda p: self.speech.f0(p["assetId"], float(p["start"]), float(p["end"])))
@@ -380,8 +383,7 @@ class Core:
           lambda p: self.reimport.preview(p["assetId"], float(p["start"]), p["path"]))
         r("reimport.commit", "write", T.ReimportCommitParams, T.SampleRow,
           "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
-          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified",
-                                         parent_sample_id=p.get("parentSampleId")))
+          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified"))
         r("storage.report", "read", T.NoParams, T.StorageReport, "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
           lambda p: self.storage.report())
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,

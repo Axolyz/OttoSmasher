@@ -1,6 +1,7 @@
 // 语音分析确认框（规格 08 §8.4、16 S1.7；原型 analysisModal）：M / N / K 三个大数字、无法处理的原因、
 // 绑在原混音或无角色资产上的提示、默认不勾的「也重新分析已是最新的 N 条」。确认后排队一个任务（提交时冻结输入）。
-// 分析属于“段 + 资产”（所有者 2026-10-09）：原片入口与段右键可选「默认人声轨（没有就是原混音）」或「当前查看的轨」。
+// 音素属于原素材时间线（所有者 2026-10-12）：一句一份、所有音轨共用，回导成品另有一份；原素材入口与段右键可选「默认人声轨（没有就是原混音）」
+// 或「当前查看的轨」（它不含人声或盖不住整句 → 写原因，不偷偷换轨）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
 import type { ModelsStatus, SpeechPreview } from "../api/types";
@@ -55,7 +56,7 @@ export function SpeechDialog() {
     };
   }, [req, rerun, track]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 分析在哪条轨上：默认 = Core 按入口决定（默认人声轨，没有就是原混音；采样入口 = 采样所在的轨）
+  // 分析在哪条轨上：默认 = Core 按入口决定（默认人声轨，没有就是原混音；采样入口没有默认人声轨时 = 采样所在的人声轨）
   function assetId(): string | null {
     return track === "current" && req?.currentAsset && (req.entry === "source" || req.entry === "segments") ? req.currentAsset.id : null;
   }

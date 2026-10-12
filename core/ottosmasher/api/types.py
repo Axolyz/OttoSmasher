@@ -647,6 +647,10 @@ class AssetRecord(TypedDict):
     actor_kind: str
     actor_session: str | None
     roles: list[Role]
+    # 从哪个回导成品来的（回导成品 = 自己；不是回导来的为 null）：音素读“段 + 原素材”还是“段 + 这个回导成品”那一份
+    reimport_id: str | None
+    # 是不是从分离声部来的（没开任何角色时据此区分“混音”与“没标角色的声部”）
+    from_separation: int
 
 
 class AssetInfo(AssetRecord):
@@ -851,27 +855,31 @@ class SampleGlyph(TypedDict):
     envelope: NotRequired[list[float | None]]
 
 
-class SampleRef(TypedDict):
-    id: str
-    name: str
+class ChainStep(TypedDict):
+    asset: AssetRecord
+    # 这条轨覆盖的原素材秒
+    sourceStart: float
+    sourceEnd: float
+    # 整轨（完整覆盖且未变速）
+    full: bool
 
 
-class SampleChild(TypedDict):
-    id: str
-    name: str
-    createdVia: str
+class ProcessingChain(TypedDict):
+    """加工链（所有者 2026-10-12）：第一步是采样所在的轨，沿输入往上；complete = 追到了原混音（删除原素材断开时为 false）。"""
+
+    steps: list[ChainStep]
+    complete: bool
 
 
 class SampleDetail(TypedDict):
     note: str
-    parent: SampleRef | None
     origin: Any
     independent: bool
     # 判定区间（原片秒）
     judge: list[float] | None
     stemName: str | None
     updatedAt: str
-    children: list[SampleChild]
+    chain: ProcessingChain
 
 
 class SampleRow(TypedDict):
@@ -887,8 +895,6 @@ class SampleRow(TypedDict):
     rating: int | None
     language: str | None
     created_via: str
-    parent_sample_id: str | None
-    parent_label: str | None
     created_at: str
     version: int
     source_id: str
@@ -898,19 +904,42 @@ class SampleRow(TypedDict):
     episode: str
     source_name: str
     source_path: str
-    # 起点的原片秒（映射坏了为 null）
+    # 原素材起止（原素材秒，建采样时算好、不变）
     source_start: float | None
+    source_end: float | None
+    # 「返回原素材」换到的整轨（沿加工链往上第一条整轨；所有者 2026-10-12）
+    back_asset_id: str | None
     media_state: str
     # 已独立化（规格 04 §4.8：声音与画面已物化，删原片后仍可用）
     independent: bool
     # 人物（说话人显示层：character: 在前，participants: 在后，只显示名字）
     people: list[str]
-    # 语音分析（判定区间读到的段）：ok / manual 有人工版本 / partial 有被裁掉一部分的音素（◐）/ stale 段改过待重新分析 / incomplete 有的段还没分析 / failed 只有失败 / none 没有可用分析或没读到段
-    analysis: Literal["ok", "manual", "partial", "stale", "incomplete", "failed", "none"]
+    # 语音分析（判定区间读到的段）：ok / manual 有人工版本 / partial 只读到某段的一部分（◐）/ stale 段改过待重新分析 / incomplete 有的段还没分析 / failed 只有失败 / none 没有可用分析或没读到段
+    # / novoice 采样所在的轨不含人声（不读音素）
+    analysis: Literal["ok", "manual", "partial", "stale", "incomplete", "failed", "none", "novoice"]
     # 有效标签（只有 samples.get 返回）
     tags: NotRequired[list[EffectiveTag]]
     # 资料与来源（只有 samples.get 返回）
     detail: NotRequired[SampleDetail]
+
+
+class RelatedParams(TypedDict):
+    id: str
+    limit: NotRequired[int]
+
+
+class RelatedSample(TypedDict):
+    sample: SampleRow
+    # 与这个采样交叠的原素材秒
+    overlap: float
+    # 它所在的轨（显示名用）
+    stemName: str | None
+    model: str | None
+
+
+class RelatedSamples(TypedDict):
+    total: int
+    rows: list[RelatedSample]
 
 
 class SamplePage(TypedDict):
@@ -1099,14 +1128,13 @@ class SampleCreateParams(TypedDict):
     end: float
     name: NotRequired[str | None]
     nature: NotRequired[str | None]
-    parentSampleId: NotRequired[str | None]
     via: NotRequired[Literal["manual", "hit"]]
 
 
 class SamplePlanSource(TypedDict):
     """建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
 
-    selection：assetId + start/end（资产局部秒），可带 parentSampleId（详情里截取子采样）、via（hit = 命中保存）、localMarker；
+    selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；
     segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
     stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。"""
 
@@ -1114,7 +1142,6 @@ class SamplePlanSource(TypedDict):
     assetId: NotRequired[str | None]
     start: NotRequired[float | None]
     end: NotRequired[float | None]
-    parentSampleId: NotRequired[str | None]
     via: NotRequired[Literal["manual", "hit"]]
     localMarker: NotRequired[str]
     sourceId: NotRequired[str]
@@ -1142,7 +1169,6 @@ class SamplePlanItem(TypedDict):
     origin: dict[str, Any] | None
     snapshot: dict[str, Any] | None
     status: Literal["pending", "oped", "out-of-track", "no-name"]
-    parentSampleId: str | None
     # 段 / 音效提示来源：原片秒与说话人
     sourceStart: NotRequired[float]
     sourceEnd: NotRequired[float]
@@ -1694,7 +1720,7 @@ class SeparationSubmitted(TypedDict):
 
 class SpeechPlanParams(TypedDict):
     # 分析的是“文本层的段 + 具体那条资产”（所有者 2026-10-09）。source = 所选原片的段（不在 OP/ED 里）；segments = 这几段；
-    # samples = 各采样判定区间读到的段（在采样所在的资产上）；units = 指定的“段 + 资产”（结果表里再发起失败项）
+    # samples = 各采样判定区间读到的段；units = 指定的分析单元（结果表里再发起失败项，在上次测它用的轨上）
     entry: Literal["source", "segments", "samples", "units"]
     ids: list[str]
     # 也重新分析已是最新的（排查用，默认不勾）
@@ -1756,9 +1782,11 @@ class SpeechPhone(TypedDict):
     orig: NotRequired[str]
     eff: NotRequired[list[float]]
     strength: NotRequired[float]
-    # 合成结果里：来自读到的第几段（units 的序号）；被采样范围裁掉一部分的非停顿音素（◐）
+    # 合成结果里：来自读到的第几段（units 的序号）；被采样范围或这条轨的边界裁掉一部分的非停顿音素（◐）
     seg: NotRequired[int]
     clipped: NotRequired[bool]
+    # 在这句完整结果里的序号（读取方这条轨只看到一部分音素时，人工修时间用）
+    i: NotRequired[int]
 
 
 class SpeechWord(TypedDict):
@@ -1807,7 +1835,7 @@ class SpeechRun(TypedDict):
 
 
 class SpeechUnit(TypedDict):
-    """采样读到的一段在采样所在资产上的分析。人工修正改的是“这段在这条轨上”的分析，所有读到它的采样同时生效。"""
+    """采样读到的一段的音素（原素材时间线上一份、回导来的另一份），换到采样所在的轨上。人工修正改的是这句的那一份，所有读到它的采样同时生效。"""
 
     unitId: str
     segmentId: str
@@ -1818,10 +1846,14 @@ class SpeechUnit(TypedDict):
     speakers: list[str]
     # 资产局部秒；段不在这条轨的范围里时为 null
     target: list[float] | None
-    # ok 可用 / stale 段改过待重新分析 / failed 只有失败记录 / none 还没分析 / other-sound 文件内容变了
-    state: Literal["ok", "stale", "failed", "none", "other-sound"]
-    # 可用分析的音素跨度超出采样范围（◐）
+    # ok 可用 / stale 段改过待重新分析 / failed 只有失败记录 / none 还没分析
+    state: Literal["ok", "stale", "failed", "none"]
+    # 采样只读到这段的一部分（◐）
     partial: bool
+    # 可用的音素测在哪条轨上（只作记录）
+    measuredOn: AssetRecord | None
+    # 可用版本的对齐窗口（原素材秒）
+    windowSource: list[float] | None
     # 可用的分析（内容与段一致；音素不裁剪）
     head: SpeechHead | None
     # 实际的当前头（可能已停用）
@@ -1851,7 +1883,7 @@ class SpeechSampleView(TypedDict):
     # 判定区间（原片秒）；judgeLocal = 同一区间换到采样所在资产的局部秒（舞台上显示、编辑用）
     judge: list[float] | None
     judgeLocal: list[float] | None
-    # 读到的段的文本连起来；没读到段时给 reason：no-text
+    # 读到的段的文本连起来；没读到段时给 reason：no-text；采样所在的轨不含人声时给 reason：no-voice（units 为空）
     text: str | None
     textSource: str | None
     reason: str | None
@@ -1875,6 +1907,8 @@ class AssetAlignment(TypedDict):
     name: str
     runId: str
     manual: bool
+    # 测在哪条轨上
+    measuredOn: str
     phones: list[AlignedPhone]
 
 
@@ -1892,6 +1926,8 @@ class SpeechManualParams(TypedDict):
     phones: NotRequired[list[ManualPhone] | None]
     # 精确时间文本（每行 开始秒 Tab 结束秒 Tab 音素），给了就用它
     text: NotRequired[str | None]
+    # 时间是哪条轨的局部秒（读取方；只含这条轨盖得住的音素）；不给 = 测量用的那条轨
+    assetId: NotRequired[str | None]
 
 
 class SpeechSwitchParams(TypedDict):
@@ -2598,12 +2634,13 @@ class ReimportPreview(TypedDict):
     sourceStart: float
     sourceEnd: float | None
     assetDuration: float
+    # 回导成品的建议名（它落到的那段的建议名；放不下时为 null）
+    suggestedName: str | None
 
 
 class ReimportCommitParams(ReimportParams):
     name: NotRequired[str | None]
     nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
-    parentSampleId: NotRequired[str | None]
 
 
 class IndependItem(TypedDict):

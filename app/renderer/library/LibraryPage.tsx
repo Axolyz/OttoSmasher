@@ -73,8 +73,8 @@ type Item = SampleRow & { _res?: ResultRow; dead?: boolean };
 function stubRow(id: string, name: string, assetId: string): SampleRow {
   return {
     id, asset_id: assetId, start: 0, end: 0, duration: 0, name, nature: "unclassified", starred: false, rating: null, language: null, created_via: "manual",
-    parent_sample_id: null, parent_label: null, created_at: "", version: 0, source_id: "", asset_origin: "", stream_ordinal: null, work: "", episode: "",
-    source_name: "", source_path: "", source_start: null, media_state: "available", independent: false, people: [], analysis: "none",
+    created_at: "", version: 0, source_id: "", asset_origin: "", stream_ordinal: null, work: "", episode: "",
+    source_name: "", source_path: "", source_start: null, source_end: null, back_asset_id: null, media_state: "available", independent: false, people: [], analysis: "none",
   } as SampleRow;
 }
 
@@ -596,7 +596,7 @@ export function LibraryPage() {
   const tagAt = useRef<{ clientX: number; clientY: number } | null>(null);
   const goSource = (ref: { sourceId: string | null; start?: number; end?: number }) => {
     if (!ref.sourceId) return;
-    setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: ref.start ?? 0, b: ref.end ?? 0 });
+    setSourceJump({ sourceId: ref.sourceId, a: ref.start ?? 0, b: ref.end ?? 0 });
     setPage("sources");
   };
   const openTagMenu = (r: SampleRow, tg: EffectiveTag) => {
@@ -711,7 +711,7 @@ export function LibraryPage() {
     if (!r.sample) {
       const h = r.hits[i]!;
       if (r.asset && h.sourceStart != null && h.sourceEnd != null) {
-        setSourceJump({ sourceId: r.asset.sourceId, ordinal: null, assetId: r.asset.id, a: h.sourceStart, b: h.sourceEnd });
+        setSourceJump({ sourceId: r.asset.sourceId, assetId: r.asset.id, a: h.sourceStart, b: h.sourceEnd });
         setPage("sources");
       }
       return;
@@ -824,10 +824,10 @@ export function LibraryPage() {
     }
   };
 
+  // 「返回原素材」（所有者 2026-10-12）：每次都换到采样来自的整轨（沿加工链往上第一条整轨），跳到它的原素材起止，在“采样”车道上突出它
   const backToSource = (r: SampleRow) => {
-    if (r.source_start == null) return;
-    const len = r.end - r.start;
-    setSourceJump({ sourceId: r.source_id, ordinal: r.stream_ordinal, assetId: r.asset_id, a: r.source_start, b: r.source_start + len });
+    if (r.source_start == null || r.source_end == null) return;
+    setSourceJump({ sourceId: r.source_id, assetId: r.back_asset_id ?? undefined, a: r.source_start, b: r.source_end, highlight: r.id });
     setPage("sources");
   };
 
@@ -1369,7 +1369,10 @@ export function LibraryPage() {
             sample={focusRow}
             onEdit={(fields, label) => void edit([focusRow.id], fields, label)}
             onOpen={(id) => setOpenSample(id)}
-            onAuditionParent={(id) => void call("samples.get", { id }).then((p) => audition(p), fail)}
+            onOpenStep={(st, assetId) => {
+              setSourceJump({ sourceId: focusRow.source_id, assetId: assetId ?? undefined, a: st.sourceStart, b: st.sourceEnd, highlight: focusRow.id });
+              setPage("sources");
+            }}
             extra={
               <div className={s.field}>
                 <span className={s.fieldLabel}>{t("info.picture")}</span>
@@ -1444,10 +1447,10 @@ export function LibraryPage() {
         onGoSource={(ref) => {
           setBatch(null);
           if (ref.sourceId && ref.start != null && ref.end != null) {
-            setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: ref.start, b: ref.end });
+            setSourceJump({ sourceId: ref.sourceId, a: ref.start, b: ref.end });
             setPage("sources");
           } else if (ref.sourceId) {
-            setSourceJump({ sourceId: ref.sourceId, ordinal: null, a: 0, b: 0 });
+            setSourceJump({ sourceId: ref.sourceId, a: 0, b: 0 });
             setPage("sources");
           }
         }}

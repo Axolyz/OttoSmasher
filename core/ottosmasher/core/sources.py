@@ -488,9 +488,14 @@ class SourceService:
         return preview
 
     def _release(self, source_id: str, owned: dict[str, list[str]], keep_samples: list[str], preview: dict[str, Any]) -> dict[str, Any]:
-        """“媒体已释放”：留下独立化采样与它们的资产（只留切片）、文本层、标签、OP/ED、测量；删其余采样与资产、库内整轨；原片文件不碰。"""
+        """“媒体已释放”：留下独立化采样与它们的资产（只留切片）、文本层与音素（测音素用的音轨只留记录）、标签、OP/ED、测量；删其余采样与资产、库内整轨；原片文件不碰。"""
         x = self.conn.execute
-        keep_assets = sorted({r[0] for r in x(f"SELECT asset_id FROM sample WHERE id IN ({','.join('?' * len(keep_samples))})", keep_samples)})
+        keep_assets = {r[0] for r in x(f"SELECT asset_id FROM sample WHERE id IN ({','.join('?' * len(keep_samples))})", keep_samples)}
+        # 音素属于原素材时间线、和文本层一起留下（所有者 2026-10-12）：测它们用的音轨只留一条记录（和其他留下的一样去掉原存储）
+        if owned["asset"]:
+            keep_assets |= {r[0] for r in x(
+                f"SELECT DISTINCT asset_id FROM measure_run WHERE owner_type='asset_text' AND asset_id IN ({','.join('?' * len(owned['asset']))})", owned["asset"])}
+        keep_assets = sorted(keep_assets)
         drop_samples = [s for s in owned["sample"] if s not in set(keep_samples)]
         drop_assets = [a for a in owned["asset"] if a not in set(keep_assets)]
         library_files: list[str] = []

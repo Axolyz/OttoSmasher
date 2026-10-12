@@ -15,16 +15,18 @@ export interface Toast {
 /** 跨页跳转：截取后在采样库打开新采样；「返回原片」带着区间回到原片页。 */
 export interface SourceJump {
   sourceId: string;
-  ordinal: number | null;
+  /** 原素材秒；b ≤ a = 只打开原素材 */
   a: number;
   b: number;
-  /** 采样绑定的资产（分离声部等）；没有就按 ordinal 选容器音轨 */
+  /** 换到这条整轨（「返回原素材」= 采样来自的整轨，永远不是局部成品；所有者 2026-10-12）；没有就不换音源 */
   assetId?: string;
+  /** 在“采样”车道上突出显示的采样 */
+  highlight?: string;
 }
 
 /** 语音分析确认框的请求（规格 08 §8.4：不同入口只是默认范围不同） */
 export interface SpeechRequest {
-  /** 分析属于“段 + 资产”（所有者 2026-10-09）：source = 所选原片的段；segments = 这几段；samples = 采样判定区间读到的段；units = 指定的“段 + 资产” */
+  /** 音素属于原素材时间线（所有者 2026-10-12）：source = 所选原片的段；segments = 这几段；samples = 采样判定区间读到的段；units = 指定的分析单元 */
   entry: "source" | "segments" | "samples" | "units";
   ids: string[];
   /** source / segments：原片页当前查看的轨（确认框里可选“默认人声轨”或它） */

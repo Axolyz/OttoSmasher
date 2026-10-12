@@ -117,10 +117,10 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   // 列表缩略图（R22.11）：采样行取中点帧、原素材行取整片中点帧（Core 后台生成后补上）
   await expect(page.getByTestId("sample-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
   const remaining = await page.getByTestId("sample-row").first().getAttribute("data-id");
-  // 派生采样（R7.6）：原素材页时间线头「派生采样 n」→ 单击打开（跳到采样库）
+  // 采样车道（R7.6；所有者 2026-10-12 改名）：原素材页时间线头「采样 n」→ 单击打开（跳到采样库）
   await page.keyboard.press("Meta+2");
   await expect(page.getByTestId("source-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
-  await expect(page.getByTestId("derived-button")).toHaveText("派生采样 1");
+  await expect(page.getByTestId("derived-button")).toHaveText("采样 1");
   await page.getByTestId("derived-button").click();
   await page.getByTestId(`menu-${remaining}`).click();
   await expect(page.getByTestId("page-library")).toBeVisible();

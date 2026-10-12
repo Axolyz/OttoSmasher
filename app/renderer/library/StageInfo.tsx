@@ -1,7 +1,9 @@
-// 舞台「资料与来源」（UI_PLAN §3；规格 07 §7.8、03 §3.3）：性质、评分、备注（失焦保存）；来源（建立方式、父采样 + 试听父采样、已删除的父采样）；
-// 派生采样（单击打开）；技术详情（绑定的声音、资产局部秒、判定区间、ID、时间）。改动都走统一编辑通道（快捷编辑，可撤销）。
+// 详情区「资料与来源」（UI_PLAN §3；规格 07 §7.8、03 §3.3）：性质、评分、备注（失焦保存）；建立方式；加工链（声音怎么一步步做出来的，
+// 每步可点：在原素材页打开那条整轨并跳到那段）；相关采样（同一原素材上原素材时间交叠的采样，跨所有音轨；单击打开）；
+// 技术详情（绑定的声音、资产局部秒、判定区间、ID、时间）。采样之间没有父子关系（所有者 2026-10-12）。改动都走统一编辑通道（快捷编辑，可撤销）。
 import { useEffect, useState } from "react";
-import type { Nature, SampleRow } from "../api/types";
+import { call, useCoreEvent } from "../api/core";
+import type { ChainStep, Nature, RelatedSamples, SampleRow } from "../api/types";
 import { Button } from "../components/Button";
 import { Disclosure } from "../components/Controls";
 import { Select, TextArea } from "../components/Fields";
@@ -9,16 +11,36 @@ import { NaturePicker } from "../components/NaturePicker";
 import { clock, seconds } from "../format";
 import { t } from "../i18n";
 import s from "./Library.module.css";
+import { assetLabel } from "./StageSpeech";
+
+const RELATED_MAX = 12;
 
 export function StageInfo(props: {
   sample: SampleRow;
   onEdit: (fields: Record<string, unknown>, label: string) => void;
   onOpen: (id: string) => void;
-  onAuditionParent: (id: string) => void;
+  /** 加工链的一步：在原素材页打开那条轨（局部成品 = 它往下第一条整轨）并跳到它覆盖的原素材范围 */
+  onOpenStep: (step: ChainStep, fallbackAssetId: string | null) => void;
   extra?: React.ReactNode;
 }) {
   const r = props.sample;
   const d = r.detail;
+  const [related, setRelated] = useState<RelatedSamples | null>(null);
+  const [relNonce, setRelNonce] = useState(0);
+  useCoreEvent("data.changed", (x) => {
+    if ((x as Record<string, string[]>).sample) setRelNonce((n) => n + 1);
+  });
+  useEffect(() => {
+    let live = true;
+    void call("samples.related", { id: r.id, limit: RELATED_MAX }).then(
+      (v) => live && setRelated(v),
+      () => live && setRelated(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [r.id, relNonce]);
+  const steps = d?.chain.steps ?? [];
   const [note, setNote] = useState(d?.note ?? "");
   useEffect(() => setNote(d?.note ?? ""), [r.id, d?.note]);
   const saveNote = () => {
@@ -51,36 +73,43 @@ export function StageInfo(props: {
         <span className={s.fieldLabel}>{t("library.origin")}</span>
         <span className={s.originLine}>
           <span>{t(`library.via.${r.created_via}`)}</span>
-          {d?.parent ? (
-            <>
-              <span className={s.mutedText}>{t("info.from")}</span>
-              <Button size="sm" variant="flat" onPress={() => props.onOpen(d.parent!.id)} data-testid="stage-parent">
-                <span lang="ja" data-user-data="">
-                  {d.parent.name}
-                </span>
-              </Button>
-              <Button size="sm" variant="flat" onPress={() => props.onAuditionParent(d.parent!.id)}>
-                {t("info.auditionParent")}
-              </Button>
-            </>
-          ) : r.parent_label ? (
-            <span className={s.note}>{t("library.parentDeleted", { name: r.parent_label })}</span>
-          ) : null}
           {d?.independent ? <span className={s.badge}>{t("info.independent")}</span> : null}
         </span>
       </div>
-      {d?.children.length ? (
+      {steps.length > 1 ? (
         <div className={s.field}>
-          <span className={s.fieldLabel}>{t("info.children", { n: d.children.length })}</span>
-          <span className={s.originLine} data-testid="stage-children">
-            {d.children.slice(0, 12).map((c) => (
-              <Button key={c.id} size="sm" variant="flat" onPress={() => props.onOpen(c.id)}>
-                <span lang="ja" data-user-data="">
-                  {c.name}
+          <span className={s.fieldLabel}>{t("info.chain")}</span>
+          <span className={s.originLine} data-testid="stage-chain">
+            {steps.map((st, i) => {
+              // 局部成品：打开它往下第一条整轨（「返回原素材」同一规则，永远不把局部成品当音源）
+              const below = steps.slice(i).find((x) => x.full)?.asset.id ?? r.back_asset_id;
+              return (
+                <span key={st.asset.id} className={s.originLine}>
+                  {i > 0 ? <span className={s.mutedText}>←</span> : null}
+                  <Button size="sm" variant="flat" onPress={() => props.onOpenStep(st, st.full ? st.asset.id : below)} data-testid="stage-chain-step">
+                    <span data-user-data="">{assetLabel(st.asset)}</span>
+                    {st.full ? null : <span className="num"> · {clock(st.sourceStart)}–{clock(st.sourceEnd)}</span>}
+                  </Button>
                 </span>
+              );
+            })}
+            {d && !d.chain.complete ? <span className={s.mutedText}>{t("info.chainBroken")}</span> : null}
+          </span>
+        </div>
+      ) : null}
+      {related && related.total > 0 ? (
+        <div className={s.field}>
+          <span className={s.fieldLabel}>{t("info.related", { n: related.total })}</span>
+          <span className={s.originLine} data-testid="stage-related">
+            {related.rows.map((x) => (
+              <Button key={x.sample.id} size="sm" variant="flat" onPress={() => props.onOpen(x.sample.id)} title={t("info.relatedTip", { s: seconds(x.overlap) })}>
+                <span lang="ja" data-user-data="">
+                  {x.sample.name}
+                </span>
+                <span className={s.mutedText}> · {x.stemName ?? t(`track.origin.${x.sample.asset_origin}`)}</span>
               </Button>
             ))}
-            {d.children.length > 12 ? <span className={s.mutedText}>{t("info.moreChildren", { n: d.children.length - 12 })}</span> : null}
+            {related.total > related.rows.length ? <span className={s.mutedText}>{t("info.moreRelated", { n: related.total - related.rows.length })}</span> : null}
           </span>
         </div>
       ) : null}
