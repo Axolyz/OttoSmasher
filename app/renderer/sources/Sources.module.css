@@ -127,6 +127,8 @@
 
 /* 文本层的段（台本行）：文本 + 受保护标记（✎ 改过 / ◆ 有人工音素版本） */
 .segText { min-width: 0; }
+/* 窄台本（≤ 280 px，列表收成两列）：台词占满第二行，不挤进时间那一列（所有者 2026-10-12：台本右边空掉一大片） */
+@container (max-width: 280px) { .segText { grid-column: 1 / -1; } }
 .segFlags { margin-left: 6px; color: var(--accent2); font-size: var(--fs-xs); white-space: nowrap; }
 .overlapList { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); }
 /* 导入预览：状态（+ 强制替换）与碰到的已有对象 */

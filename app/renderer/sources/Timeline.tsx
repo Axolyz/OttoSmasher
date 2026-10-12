@@ -511,10 +511,14 @@ export const Timeline = forwardRef<
           ctx.restore();
         }
       }
+      // 车道名：不画底框（底框会盖住车道块的末端，看起来像提前截断，所有者 2026-10-12），只给文字描一圈底色
       ctx.font = `10px ${cssVar("--font")}`;
       const w = ctx.measureText(lane.label).width;
-      ctx.fillStyle = cssVar("--s1");
-      ctx.fillRect(size.w - w - 10, y, w + 10, LANE_H);
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = cssVar("--s1");
+      ctx.strokeText(lane.label, size.w - w - 4, y + LANE_H - 4);
+      ctx.lineWidth = 1;
       ctx.fillStyle = cssVar("--muted");
       ctx.fillText(lane.label, size.w - w - 4, y + LANE_H - 4);
     });
