@@ -227,7 +227,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `sound_asset` | id, source_id, origin(`stream`/`separation`/`flatten`/`reimport`), media_file_id, stream_ordinal, duration, mapping（控制点数组）, input_asset_id, input_start, input_end, stem_name（原样大小写）, production（操作、参数、模型身份/指纹、算法版本）, language | 不可变。测量按“资产 + 音频流”共享（同一资产内覆盖所需区间即可复用；不同资产不共享） |
+| `sound_asset` | id, source_id, origin(`stream`/`separation`/`flatten`/`reimport`), media_file_id, stream_ordinal, duration, mapping（控制点数组）, input_asset_id, input_start, input_end, stem_name（原样大小写）, production（操作、参数、模型身份/指纹、算法版本）, language, reimport_id, from_separation | 不可变。声音的测量（F0、单音指标）按“资产 + 音频流”共享（同一资产内覆盖所需区间即可复用；不同资产不共享）；**音素不按资产，属于原素材时间线**（§4.5）。`input_asset_id` 等构成**加工链**（`core/lineage.py`：详情区「加工链」、「返回原素材」换到的整轨 = 沿链往上第一条整轨）。建资产时由触发器从输入资产抄下两件事（迁移 0015）：`reimport_id` = 从哪个回导成品来的（回导成品 = 自己），`from_separation` = 是不是从分离声部来的 |
 | `asset_storage` | asset_id, range_start, range_end, media_file_id, kind(`primary`/`materialized_slice`) | 资产的**物理存储**。正常只有一条 primary；独立化时增加覆盖采样区间的无损切片（§4.9）。这是规格 04 §4.2.4 允许的“显式存储迁移”：只改位置/编码，不改时间关系 |
 | `media_file` | id, path（工作区相对或绝对）, location(`external`/`library`), file_snapshot, format, sample_rate, frames, encode_manifest | 原片文件、库内音轨、回导文件、物化切片 |
 | `asset_role` | asset_id, role(`vocal`/`sfx`), state(`on`/`removed_by_user`) | 角色集合；“用户显式移除”单独记，系统不再加回（R2.5） |
@@ -256,7 +256,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `sample` | id, asset_id, start, end（资产局部秒，创建后不变）, name, nature(`speech`/`pitched`/`unpitched`/`unclassified`), starred, rating, note, language, created_via(`manual`/`segment`/`hint`/`hit`/`processed`/`import`/`reimport`), parent_sample_id, parent_label（父被删后保留的来源说明）, origin（来源：段 / 提示 / 命中 / 任务等）, text_snapshot（建立时的文本，用于命名与显示，之后不追改）, tag_judge_start/end（**判定区间**，原片秒）, independent(bool), visual_binding_id, version | 采样不拥有分析，只读取。判定区间可见、可编辑，必须在采样范围内（编辑通道的 `judge` 字段用资产局部秒），同时决定标签继承与读哪些段；从段或提示建的 = 段或提示的区间，其余 = 选区（插入时没给就由触发器按映射补成选区）。所有建采样入口是一个动作（`core/sample_plan.py`：`samples.plan` / `samples.createPlanned`，来源 = 选区 / 段 / 提示 / 分离声部 / 整段原片，单条与批量产物相同）。显式保存一律新建；删除是硬删除（带确认），固定结果里的成员保留位置并标“已删除” |
+| `sample` | id, asset_id, start, end（资产局部秒，创建后不变）, src_start, src_end（原素材秒，建采样时由触发器按映射算好、不变；迁移 0015）, name, nature(`speech`/`pitched`/`unpitched`/`unclassified`), starred, rating, note, language, created_via(`manual`/`segment`/`hint`/`hit`/`processed`/`import`/`reimport`), origin（来源：段 / 提示 / 命中 / 任务等）, text_snapshot（建立时的文本，用于命名与显示，之后不追改）, tag_judge_start/end（**判定区间**，原片秒）, independent(bool), visual_binding_id, version | **采样之间没有父子关系**（所有者 2026-10-12，0015 删掉 parent_sample_id / parent_label）：同一原素材上原素材时间正长度交叠的采样是“相关采样”（`samples.related`，跨所有音轨）；声音怎么做出来的看资产的加工链。排序“按原素材”、原素材页“采样”车道、「返回原素材」都用 src_start / src_end。采样不拥有分析，只读取。判定区间可见、可编辑，必须在采样范围内（编辑通道的 `judge` 字段用资产局部秒），同时决定标签继承与读哪些段；从段或提示建的 = 段或提示的区间，其余 = 选区（插入时没给就由触发器按映射补成选区）。所有建采样入口是一个动作（`core/sample_plan.py`：`samples.plan` / `samples.createPlanned`，来源 = 选区 / 段 / 提示 / 分离声部 / 整段原片，单条与批量产物相同）。显式保存一律新建；删除是硬删除（带确认），固定结果里的成员保留位置并标“已删除” |
 | `sample_tag` | sample_id, tag | 本地标签（≤512 个/采样） |
 | `sample_effective_tag` | sample_id, tag, facet, provenance(`local`/`source`/`segment`/`auto`), provenance_ref | **派生索引**，不是冻结：由 Core 在同一个写事务里按规则增量维护（段的说话人与边界、区段标签、判定区间、角色、原片属性、本地标签、绑定变化都会触发）；语义仍是“实时求值”，测试要求它恒等于完整重算（R8.8） |
 
@@ -265,7 +265,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 | 表 / 文件 | 关键字段 | 说明 |
 |---|---|---|
 | `measure_run` | id, kind(`alignment`/`f0`/`acoustic`), owner_type(`asset_text`/`asset`), owner_id, asset_id, range（目标）, span_start/span_end（首个到末个非停顿音素，迁移 0011）, inputs（语言、文本与来源、句名、辞典版本、前端版本、模型身份与指纹、目标区间、窗口、容差、音频身份、设备）, status(`ok`/`failed`/`cancelled`/`stale`), manual(bool), result（对齐结果；F0 指向文件）, created_at | 不可变版本 |
-| `measure_head` | owner_type, owner_id, kind, run_id, version | 当前采用的版本（version 供人工修正与切换版本的乐观并发）；采纳规则见规格 08 §8.4。**语音测量属于“段 + 具体那条声音资产”**（所有者 2026-10-09【基线变更】，`core/units.py`）：owner_type = `asset_text`，owner_id = `seg:<段>@<资产>`；目标 = 段区间映射到资产、裁到覆盖范围，窗口 = 目标 ± 对齐容差（0.65 秒），只送这段的文本。`measure_run` 另记 seg_start / seg_end / seg_text（分析时段的内容）：**可用** = 成功、内容与段现在一致、文件快照一致；当前头内容不一致时退回到内容一致的最新成功版本（人工优先），所以撤销一次段修改不用重跑就恢复。改段的文本或边界后旧分析立即停用；设置「改段后自动在后台重跑」（默认关）。人工版本保护只在头的内容与段一致时生效。不属于任何采样：删采样，分析和人工修正都在。**采样读取规则只有一条**：读与判定区间正长度交叠的所有段在采样所在资产上的可用分析；任何一段不可用 → 节奏不可用并写明哪段（`rhythm-segments-missing` / `rhythm-segment-stale`）；两段的非停顿音素在采样范围内交叠 → 不可用（`rhythm-units-conflict`，“第 X 段与第 Y 段在 a–b 秒重叠”，X、Y 是读取时按存活段排出的序号）。合成时去掉各段首尾停顿、段间补停顿、mora/词序号依次平移，音素裁到采样范围，被裁掉一部分的非停顿音素标 `clipped`（音素上的 ◐）。列表与舞台标题的 ◐（状态 `partial`）= 采样范围没有盖住读到的某一段（可用版本的目标区间） |
+| `measure_head` | owner_type, owner_id, kind, run_id, version | 当前采用的版本（version 供人工修正与切换版本的乐观并发）；采纳规则见规格 08 §8.4。**音素属于原素材时间线**（所有者 2026-10-12【基线变更】，`core/units.py`；取代 2026-10-09 的“段 + 具体那条资产”）：一句台词只有一份当前音素，owner_type = `asset_text`，owner_id = `seg:<段>@<原素材>`；回导成品和从它再加工出来的资产读 `seg:<段>@<回导成品>` 那一份（`reimport_id`）。在哪条轨上测的只记在 `measure_run.asset_id`（界面写“在某某轨上测得”）。**时间存原素材秒**（采纳时把测量资产的局部秒换算过来）；任何资产读取时按自己的映射换成局部秒，越出这条资产覆盖范围的音素去掉、被裁掉一部分的非停顿音素标 `clipped`。**只在盖住整句的含人声资产上测**（对齐要整句；容差 20 ms），所以没有半句分析；原素材页 = 正在看的那条轨，采样入口 = 默认人声轨，没有就是采样所在的轨（盖不住整句时沿加工链往上第一条盖得住的人声轨），再没有用原混音；明确选的轨不含人声或盖不住整句 → 写原因不分析。**含人声** = 开着 `vocal` 角色，或者一个角色都没开、又不是从分离声部来的（`from_separation = 0`：原混音以及从它截取 / 拉平 / 回导的）；不含人声的资产不读音素（列表状态 `novoice`）。目标 = 段区间映射到测量资产，窗口 = 目标 ± 对齐容差（0.65 秒），只送这段的文本。`measure_run` 另记 seg_start / seg_end / seg_text（分析时段的内容）：**可用** = 成功、内容与段现在一致（不再核对读取方的文件指纹，R11.10 对音素作废）；当前头内容不一致时退回到内容一致的最新成功版本（人工优先），所以撤销一次段修改不用重跑就恢复。改段的文本或边界后旧音素立即停用；设置「改段后自动在后台重跑」（默认关，在当前版本测量用的轨上重跑）。人工版本保护只在头的内容与段一致时生效；人工修时间可以从任何读这句的轨上改（只改这条轨盖得住的音素，被边界裁过、没改的端点保持原值）。不属于任何采样：删采样，音素和人工修正都在。**采样读取规则只有一条**：读与判定区间正长度交叠的所有段的音素（采样所在资产不含人声时不读）；任何一段不可用 → 节奏不可用并写明哪段（`rhythm-segments-missing` / `rhythm-segment-stale`）；两段的非停顿音素在采样范围内交叠 → 不可用（`rhythm-units-conflict`，“第 X 段与第 Y 段在 a–b 秒重叠”，X、Y 是读取时按存活段排出的序号）。合成时去掉各段首尾停顿、段间补停顿、mora/词序号依次平移，音素裁到采样范围，被裁掉一部分的非停顿音素标 `clipped`（音素上的 ◐）。列表与详情区标题的 ◐（状态 `partial`）= 采样的原素材起止没有盖住读到的某一段 |
 | `Data/Measurements/f0/<asset_id>/<身份>/` | 每 60 秒一段 `<段号>.npy`（6000×3：F0、置信度、能量，float32 逐帧无损，两侧各 1 秒上下文推理）+ `manifest.json` | 按资产共享；身份 = 文件快照 + 音频流 + 存储窗口 + 映射 + 模型与算法版本（`models/f0store.py`）；只测用到且没测过的段；测量记录 kind=f0、归属 asset（阶段 4.5b） |
 | （音高检索索引） | 阶段 7：完整检索直接读 F0 测量（上一行），不另建 50 ms 摘要；“已索引” = 范围所在的 F0 段都已测 | F0 就是音高检索索引，**不当缓存删**（规格 10 §10.2.5） |
 
@@ -311,7 +311,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 按所有者选定的形态 (b)（规格 04 §4.8、18 D32/D48）：
 
-0. **语音分析**（所有者 2026-10-09：分析属于“段 + 资产”，采样只读取）：独立化时要把采样读到的分析（判定区间里的段在这条资产上的可用版本）一起物化到新的音频资产上，在物化后的声音上继续可读（删原片时这些段与测量不级联删除）。阶段 9 实现（ROADMAP L32）。
+0. **语音分析**（所有者 2026-10-12：音素属于原素材时间线，采样只读取）：音素和文本层一起留下；测它们用的资产即使没有独立化的采样也只留一条记录（去掉原存储、界面不列出），独立化采样继续读得到（`sources._release`）。
 1. **声音**：对每个要独立化的采样，把它绑定资产的 `[start, end)`（两端各留 1 帧余量）解码为**无损 WAV 切片**（源是无损时用与源相同位深的整数 PCM；源是 MP3 正式音轨时用 32-bit float，与解码结果逐样本相同）写入
    `Library/Independent/<source-key>/`，作为该资产的 `asset_storage(kind=materialized_slice)`。采样的绑定（资产 + 区间）**不变**，
    所以测量（按资产共享）、固定结果、来源记录都继续有效——测的就是同一段声音（PCM 相同，切片无损正是为此）。
