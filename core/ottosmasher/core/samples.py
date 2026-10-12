@@ -74,8 +74,8 @@ class SampleService:
                 (src["id"], src["id"], s1 - EPS, s0 + EPS),
             ).fetchall()
             texts = [str(r[1]).replace("\n", " ") for r in rows]
-            if len(rows) == 1 and rows[0]["k"] == 0 and units.voiced(asset):
-                partial = self._partial_name(rows[0]["id"], units.base_of(asset), s0, s1)
+            if rows and all(r["k"] == 0 for r in rows) and units.voiced(asset):
+                partial = self._partial_name([r["id"] for r in rows], units.base_of(asset), s0, s1)
         else:
             s0, s1 = start, end
         if partial:
@@ -90,21 +90,36 @@ class SampleService:
         )
         return {"name": name, "nature": naming.nature_for_roles(asset["roles"]), "roles": asset["roles"], "start": start, "end": end}
 
-    def _partial_name(self, segment_id: str, base: str, s0: float, s1: float) -> str | None:
-        """局部命名（所有者 2026-10-12）：选区只落在一个台词段里、且只覆盖它 ≤ 一半的音素 → “选中部分（整句）”；
-        这句还没有可用的音素就不用（照旧整句）。音素与选区都是原素材秒。"""
-        seg = self.conn.execute('SELECT id, start, "end", text FROM text_segment WHERE id=?', (segment_id,)).fetchone()
-        uid = units.unit_id(segment_id, base)
-        runs = self.conn.execute(
-            "SELECT * FROM measure_run WHERE owner_type=? AND owner_id=? AND kind='alignment' ORDER BY created_at DESC, rowid DESC", (units.OWNER, uid)
-        ).fetchall()
-        head = self.conn.execute("SELECT run_id FROM measure_head WHERE owner_type=? AND owner_id=? AND kind='alignment'", (units.OWNER, uid)).fetchone()
-        use = units.pick_usable(runs, seg, head[0] if head else None) if seg is not None else None
-        if use is None:
+    def _partial_name(self, segment_ids: list[str], base: str, s0: float, s1: float) -> str | None:
+        """局部命名（所有者 2026-10-12）：选区只碰到台词段（没碰到音效提示）、而且没有把每一句都完整盖住 →
+        “选中部分（这几句，多句用 / 连接）”；完整盖住的句子在选中部分里写整句原文。任何一句还没有可用的音素就不用（照旧写整句）。
+        音素与选区都是原素材秒。"""
+        frags: list[str] = []
+        texts: list[str] = []
+        whole = True
+        for sid in segment_ids:
+            seg = self.conn.execute('SELECT id, start, "end", text FROM text_segment WHERE id=?', (sid,)).fetchone()
+            uid = units.unit_id(sid, base)
+            runs = self.conn.execute(
+                "SELECT * FROM measure_run WHERE owner_type=? AND owner_id=? AND kind='alignment' ORDER BY created_at DESC, rowid DESC", (units.OWNER, uid)
+            ).fetchall()
+            head = self.conn.execute("SELECT run_id FROM measure_head WHERE owner_type=? AND owner_id=? AND kind='alignment'", (units.OWNER, uid)).fetchone()
+            use = units.pick_usable(runs, seg, head[0] if head else None) if seg is not None else None
+            if use is None:
+                return None
+            res = loads(use["result"]) or {}
+            text = " ".join(str(seg["text"] or "").split())
+            texts.append(text)
+            got = naming.partial_fragment(res.get("phones") or [], res.get("words") or [], res.get("morae") or [], s0, s1)
+            if got is None:
+                continue  # 这句一个音都没选中（只碰到它前后的空白）：不算没盖住
+            frag, full = got
+            whole = whole and full
+            frags.append(text if full else frag)
+        frag = "".join(frags).strip()
+        if whole or not frag:
             return None
-        res = loads(use["result"]) or {}
-        frag = naming.partial_fragment(res.get("phones") or [], res.get("words") or [], s0, s1)
-        return naming.partial_name(frag, str(seg["text"] or "")) if frag else None
+        return naming.partial_name(frag, " / ".join(dict.fromkeys(texts)))
 
     # ------------------------------------------------------------ 新建
 

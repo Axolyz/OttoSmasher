@@ -182,28 +182,41 @@ def test_back_track_chain_and_related(core):
     assert lane[s] == (pytest.approx(10.5), pytest.approx(11.5))
 
 
-def _naming_analysis(core):
-    seg = add_segment(core, 1.0, 2.4, "入部希望です")
-    phones = []
-    for i, (lab, w) in enumerate([("ny", 0), ("u", 0), ("u", 0), ("b", 0), ("u", 0), ("k", 1), ("i", 1), ("b", 1), ("o", 1), ("o", 1),
-                                  ("d", 2), ("e", 2), ("s", 2), ("u", 2)]):
-        phones.append({"label": lab, "start": round(1.0 + i * 0.1, 6), "end": round(1.1 + i * 0.1, 6), "mora": None, "word": w})
-    words = [{"text": "入部", "start": 0, "end": 2, "reading": "", "mapped": True, "moraStart": 0},
-             {"text": "希望", "start": 2, "end": 4, "reading": "", "mapped": True, "moraStart": 3},
-             {"text": "です", "start": 4, "end": 6, "reading": "", "mapped": True, "moraStart": 6}]
-    rid, _ = add_analysis(core, 1.0, 2.4, phones, segment_id=seg, text="入部希望です")
+def _naming_analysis(core, start, text, labs, words, morae):
+    """一句：音素每个 0.1 秒，(音素, 词, 拍) 依次排开。"""
+    seg = add_segment(core, start, round(start + 0.1 * len(labs), 6), text)
+    phones = [{"label": lab, "start": round(start + i * 0.1, 6), "end": round(start + 0.1 + i * 0.1, 6), "mora": m, "word": w}
+              for i, (lab, w, m) in enumerate(labs)]
+    rid, _ = add_analysis(core, start, round(start + 0.1 * len(labs), 6), phones, segment_id=seg, text=text)
     res = loads(core.conn.execute("SELECT result FROM measure_run WHERE id=?", (rid,)).fetchone()[0])
-    core.conn.execute("UPDATE measure_run SET result=? WHERE id=?", (dumps(res | {"words": words}), rid))
+    ws = [{"text": w, "start": 0, "end": 0, "reading": "", "mapped": True, "moraStart": 0} for w in words]
+    core.conn.execute("UPDATE measure_run SET result=? WHERE id=?", (dumps(res | {"words": ws, "morae": morae}), rid))
     return seg
 
 
 def test_partial_naming(core):
-    _naming_analysis(core)
+    """所有者 2026-10-12：没有把读到的每一句都完整盖住就用局部命名（跨句也用）；完整的词写原文、完整的拍写片假名、只选到半拍写罗马字。"""
+    # 入部希望です：ny u u b u | k i b o o | d e s u；拍 ニュ ウ ブ キ ボ ー デ ス
+    _naming_analysis(core, 1.0, "入部希望です", [("ny", 0, 0), ("u", 0, 0), ("u", 0, 1), ("b", 0, 2), ("u", 0, 2), ("k", 1, 3), ("i", 1, 3),
+                                              ("b", 1, 4), ("o", 1, 4), ("o", 1, 5), ("d", 2, 6), ("e", 2, 6), ("s", 2, 7), ("u", 2, 7)],
+                     ["入部", "希望", "です"], ["ニュ", "ウ", "ブ", "キ", "ボ", "ー", "デ", "ス"])
+    # 行くよ：i k u y o；拍 イ ク ヨ
+    _naming_analysis(core, 2.5, "行くよ", [("i", 0, 0), ("k", 0, 1), ("u", 0, 1), ("y", 1, 2), ("o", 1, 2)], ["行く", "よ"], ["イ", "ク", "ヨ"])
     name = lambda a, b: core.samples.suggest(core.aid, a, b)["name"]  # noqa: E731
-    assert name(1.0, 1.3) == "nyuu（入部希望です）"  # 只覆盖一个词的一部分 → 罗马字
-    assert name(1.0, 1.5) == "入部（入部希望です）"  # 完整覆盖的词 → 原文
-    assert name(1.0, 1.7) == "入部ki（入部希望です）"  # 7/14 = 一半，仍然算
-    assert name(1.0, 1.8) == "入部希望です"  # 超过一半 → 照旧整句
+    A, AB = "\uff08入部希望です\uff09", "\uff08入部希望です / 行くよ\uff09"
+    assert name(1.0, 1.3) == "ニュウ" + A  # 词的一部分、完整的拍 → 片假名
+    assert name(1.0, 1.5) == "入部" + A  # 完整的词 → 原文
+    assert name(1.0, 1.7) == "入部キ" + A
+    assert name(1.0, 2.2) == "入部希望デ" + A  # 没盖住整句就用（不再限一半）
+    assert name(1.0, 2.3) == "入部希望デs" + A  # 最后一拍只选到辅音
+    assert name(1.7, 1.8) == "b" + A  # 只选到辅音
+    assert name(1.8, 1.9) == "o" + A  # 只选到元音
+    assert name(1.2, 1.4) == "ウb" + A
+    assert name(1.8, 2.0) == "oー" + A
+    assert name(2.0, 2.7) == "ですイk" + AB  # 跨两句各选一部分
+    assert name(2.0, 3.0) == "です行くよ" + AB  # 完整盖住的那句写整句原文
+    assert name(1.0, 2.4) == "入部希望です"  # 完整盖住 → 照旧
+    assert name(0.9, 3.1) == "入部希望です / 行くよ"
     # 选区同时盖到音效提示 → 照旧“A / B”
     core.conn.execute("INSERT INTO sfx_hint(id, source_id, start, \"end\", text, origin, created_at, updated_at) VALUES (?, ?, 1.0, 1.2, '足音', 'manual', ?, ?)",
                       (new_id(), core.sid, now_iso(), now_iso()))
