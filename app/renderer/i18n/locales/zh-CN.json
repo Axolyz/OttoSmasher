@@ -108,6 +108,8 @@
   "settings.group.models": "环境与模型",
   "settings.general.ui_language.label": "界面语言",
   "settings.general.ui_language.hint": "目前只有简体中文；界面语言与采样语言是两个独立的设置",
+  "settings.general.label_max_lines.label": "时间线标签最多行数",
+  "settings.general.label_max_lines.hint": "波形上的台词段、音效提示、区段标签、音素等标签放不下时自动折行，最多显示这么多行，超出的末尾写“…”（悬停看全文）",
   "settings.inference.accelerate.label": "ONNX 加速",
   "settings.inference.accelerate.hint": "关 = 只用 CPU。开启后若会话没拿到请求的加速方式，任务会报错，不会悄悄退回 CPU",
   "settings.inference.directml_device.label": "DirectML 设备号（Windows）",

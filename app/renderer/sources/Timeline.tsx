@@ -3,12 +3,14 @@
 // - 手势：单击移动播放头；拖动（>3 px）新建选区，拖两端调整，不能整体拖动；双击从此处播放；
 //   滚轮以指针为中心缩放，Shift+滚轮平移；总览条点击/拖动跳到该处。
 // - 两层画布：波形与刻度（视口或峰值变化时重画）、选区与播放头（每帧）。
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { beginDragOut } from "../dragout";
 import { clock } from "../format";
 import { errorText, t } from "../i18n";
+import { useSettingValue } from "../state/settings";
 import { type Boundary, type EditBand, boundaries, boundaryNear, limits, moveBoundary } from "./bounds";
+import { type LabelIn, type LabelOut, layoutLabels } from "./labels";
 import { bandAt, bandsAt, snapExtend } from "./snap";
 import s from "./Sources.module.css";
 
@@ -68,6 +70,47 @@ function cssRgb(v: string): [number, number, number] {
 const RULER_H = 20;
 const OVERVIEW_H = 18;
 const LANE_H = 16;
+/** 车道里一行标签的高度；车道高 = 4 + 行数 × 它（一行时就是 LANE_H） */
+const LANE_LINE = 12;
+/** 覆盖层标签一行的高度 */
+const OVER_LINE = 13;
+const LABEL_FONT_OVER = 11;
+const LABEL_FONT_LANE = 10;
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+function measurer(px: number): (s: string) => number {
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  const font = `${px}px ${cssVar("--font-ja")}`;
+  return (str: string) => {
+    if (!measureCtx) return str.length * px * 0.6;
+    measureCtx.font = font;
+    return measureCtx.measureText(str).width;
+  };
+}
+
+/** 一层可见区间的标签排布（labels.ts：避让 + 折行；所有者 2026-10-13） */
+function layoutBands(bands: LayerBand[], X: (t: number) => number, w: number, v0: number, v1: number, fontPx: number, maxLines: number) {
+  const vis = bands.filter((b) => b.b >= v0 && b.a <= v1 && b.label).sort((p, q) => p.a - q.a || p.b - q.b);
+  const items: LabelIn[] = vis.map((b) => ({ a: Math.max(0, X(b.a)), b: Math.min(w, X(b.b)), text: b.label }));
+  const out = layoutLabels(items, { measure: measurer(fontPx), maxLines, gap: 4, minX: 2, maxX: w - 2 });
+  return vis.map((band, i) => ({ band, label: out[i] ?? null }));
+}
+
+/** 画一个排好的标签：各行在标签框里居中，最后一行的基线在 baseline，往上逐行；描一圈底色免得压在波形上看不清 */
+function drawLabel(ctx: CanvasRenderingContext2D, l: LabelOut, baseline: number, lineH: number, color: string, halo: string) {
+  const n = l.lines.length;
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  l.lines.forEach((line, k) => {
+    const y = baseline - (n - 1 - k) * lineH;
+    const x = l.x + (l.w - ctx.measureText(line).width) / 2;
+    ctx.strokeStyle = halo;
+    ctx.strokeText(line, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(line, x, y);
+  });
+  ctx.lineWidth = 1;
+}
 const HANDLE_PX = 5;
 const STEPS = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
@@ -143,6 +186,8 @@ export const Timeline = forwardRef<
     onEditFocus?: (id: string | null) => void;
     /** 频谱细看（规格 05 §5.3.2、L19）：视口 ≤ 30 秒时把波形换成所选音频的频谱（固定 −90–0 dB）；null = 波形 */
     spectrum?: "log" | "linear" | "mel" | null;
+    /** 标签最多显示几行；不给 = 设置 general.label_max_lines（默认 3）。所有图层同一条避让 + 折行规则 */
+    labelMaxLines?: number;
     /** 可视范围（默认 [0, duration]）：缩放、平移、总览条、选区都只在这里面（详情区 = 采样范围 + 余量，所有者 2026-10-12） */
     bounds?: [number, number];
     /** 焦点区间：之外的部分淡色遮住（详情区里采样自己的范围；余量里照常能框选） */
@@ -342,7 +387,18 @@ export const Timeline = forwardRef<
   }, [props.spectrum, assetId, view, size.w, size.h, duration, offset, assetDur]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes = props.lanes ?? [];
-  const lanesH = lanes.length * LANE_H;
+  const maxLinesSetting = useSettingValue<number>("general.label_max_lines", 3);
+  const maxLines = Math.max(1, Math.min(6, Math.round(props.labelMaxLines ?? maxLinesSetting)));
+  // 车道的标签排布决定车道高度（折了几行就多高，最少一行）
+  const laneLayouts = useMemo(() => {
+    const [v0, v1] = view;
+    const span = v1 - v0 || 1;
+    const X = (tt: number) => ((tt - v0) / span) * size.w;
+    return lanes.map((lane) => layoutBands(lane.bands, X, size.w, v0, v1, LABEL_FONT_LANE, maxLines));
+  }, [lanes, view, size.w, maxLines]);
+  const laneHs = laneLayouts.map((l) => 4 + LANE_LINE * Math.max(1, ...l.map((x) => x.label?.lines.length ?? 1)));
+  const laneYs = laneHs.reduce<number[]>((acc, _h, i) => [...acc, i ? acc[i - 1]! + laneHs[i - 1]! : 0], []);
+  const lanesH = laneHs.reduce((a, b) => a + b, 0);
   const waveTop = RULER_H;
   const waveH = Math.max(10, size.h - RULER_H - OVERVIEW_H - lanesH);
   const laneTop = waveTop + waveH;
@@ -418,17 +474,12 @@ export const Timeline = forwardRef<
       ctx.fillRect(Math.round(xa), waveTop, 1, waveH);
       ctx.fillRect(Math.round(xb), waveTop, 1, waveH);
       ctx.globalAlpha = 1;
-      ctx.font = `11px ${cssVar("--font-ja")}`;
-      const tw = ctx.measureText(band.label).width;
-      if (xb - xa > tw + 6) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(xa + 2, waveTop, xb - xa - 4, waveH);
-        ctx.clip();
-        ctx.fillStyle = cssVar("--text");
-        ctx.fillText(band.label, xa + Math.max(3, (xb - xa - tw) / 2), waveTop + waveH - 5);
-        ctx.restore();
-      }
+    }
+    // 覆盖层标签：避让 + 折行，贴底往上排（可以画到区间外；被省略的悬停看全文）
+    if (props.overlay) {
+      const placed = layoutBands(props.overlay.bands, X, size.w, v0, v1, LABEL_FONT_OVER, maxLines);
+      ctx.font = `${LABEL_FONT_OVER}px ${cssVar("--font-ja")}`;
+      for (const { label } of placed) if (label) drawLabel(ctx, label, waveTop + waveH - 5, OVER_LINE, cssVar("--text"), cssVar("--bg"));
     }
     // F0 曲线：可见范围内可靠值的对数刻度（上下各留 15%）
     const cv = props.curve;
@@ -488,42 +539,35 @@ export const Timeline = forwardRef<
     }
     // 车道：每层一条细带
     lanes.forEach((lane, i) => {
-      const y = laneTop + i * LANE_H;
+      const y = laneTop + laneYs[i]!;
+      const LH = laneHs[i]!;
       ctx.fillStyle = cssVar("--s1");
-      ctx.fillRect(0, y, size.w, LANE_H);
+      ctx.fillRect(0, y, size.w, LH);
       for (const band of lane.bands) {
         if (band.b < v0 || band.a > v1) continue;
         const xa = Math.max(0, X(band.a));
         const xb = Math.min(size.w, X(band.b));
         ctx.fillStyle = toneColor(band.tone);
         ctx.globalAlpha = band.strong ? 0.8 : 0.35;
-        ctx.fillRect(xa, y + 2, Math.max(2, xb - xa - 1), LANE_H - 4);
+        ctx.fillRect(xa, y + 2, Math.max(2, xb - xa - 1), LH - 4);
         ctx.globalAlpha = 1;
         if (band.strong) {
           ctx.strokeStyle = cssVar("--text");
-          ctx.strokeRect(xa + 0.5, y + 1.5, Math.max(2, xb - xa - 1) - 1, LANE_H - 3);
-        }
-        if (xb - xa > 24) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(xa, y, xb - xa - 2, LANE_H);
-          ctx.clip();
-          ctx.fillStyle = cssVar("--sub");
-          ctx.font = `10px ${cssVar("--font-ja")}`;
-          ctx.fillText(band.label, xa + 3, y + LANE_H - 4);
-          ctx.restore();
+          ctx.strokeRect(xa + 0.5, y + 1.5, Math.max(2, xb - xa - 1) - 1, LH - 3);
         }
       }
+      ctx.font = `${LABEL_FONT_LANE}px ${cssVar("--font-ja")}`;
+      for (const { label } of laneLayouts[i] ?? []) if (label) drawLabel(ctx, label, y + LH - 4, LANE_LINE, cssVar("--sub"), cssVar("--s1"));
       // 车道名：不画底框（底框会盖住车道块的末端，看起来像提前截断，所有者 2026-10-12），只给文字描一圈底色
       ctx.font = `10px ${cssVar("--font")}`;
       const w = ctx.measureText(lane.label).width;
       ctx.lineJoin = "round";
       ctx.lineWidth = 3;
       ctx.strokeStyle = cssVar("--s1");
-      ctx.strokeText(lane.label, size.w - w - 4, y + LANE_H - 4);
+      ctx.strokeText(lane.label, size.w - w - 4, y + LH - 4);
       ctx.lineWidth = 1;
       ctx.fillStyle = cssVar("--muted");
-      ctx.fillText(lane.label, size.w - w - 4, y + LANE_H - 4);
+      ctx.fillText(lane.label, size.w - w - 4, y + LH - 4);
     });
     // 当前音源没有覆盖的部分：淡色遮罩（只覆盖部分范围的分离声部）
     if (covered[0] > v0 || covered[1] < Math.min(v1, duration)) {
@@ -553,7 +597,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect(((v0 - lo) / extent) * size.w + 0.5, oy + 0.5, Math.max(3, (span / extent) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum, props.focus?.a, props.focus?.b, lo, extent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum, props.focus?.a, props.focus?.b, lo, extent, laneLayouts, maxLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {
@@ -643,7 +687,9 @@ export const Timeline = forwardRef<
   const laneAt = (clientY: number): number => {
     const r = wrap.current!.getBoundingClientRect();
     const y = clientY - r.top;
-    return y >= laneTop && y < laneTop + lanesH ? Math.floor((y - laneTop) / LANE_H) : -1;
+    if (!(y >= laneTop && y < laneTop + lanesH)) return -1;
+    const k = laneYs.findIndex((ly, i) => y - laneTop >= ly && y - laneTop < ly + laneHs[i]!);
+    return k;
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -728,7 +774,11 @@ export const Timeline = forwardRef<
       const li = laneAt(e.clientY);
       const hv = li >= 0 ? bandAt(timeAt(e.clientX), lanes[li]!.bands) : null;
       hover.current = hv;
-      if (wrap.current) wrap.current.title = hv ? `${hv.label}  ${clock(hv.a)}–${clock(hv.b)}` : "";
+      // 悬停看全文（车道上的区间，或波形上覆盖层的区间——标签被省略或截短时靠它）
+      const yy = e.clientY - wrap.current!.getBoundingClientRect().top;
+      const ov = !hv && yy >= waveTop && yy < waveTop + waveH ? bandAt(timeAt(e.clientX), propsRef.current.overlay?.bands ?? []) : null;
+      const tip = hv ?? ov;
+      if (wrap.current) wrap.current.title = tip ? `${tip.label}  ${clock(tip.a)}–${clock(tip.b)}` : "";
       // 光标提示：选区两端可拖
       const sel = propsRef.current.selection;
       const el = wrap.current;

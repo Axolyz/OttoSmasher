@@ -199,6 +199,18 @@ def test_settings_go_through_edit_channel(db, svc):
     assert ei.value.code == "edit-not-found"
 
 
+# 时间线标签最多行数（所有者 2026-10-13）：整数 1–6，默认 3，走编辑通道
+def test_label_max_lines_setting(db, svc):
+    from ottosmasher.core import settings as settings_mod
+
+    assert settings_mod.values(db)["general.label_max_lines"] == 3
+    for bad in (0, 7, 2.5):
+        with pytest.raises(CoreError):
+            svc.apply({"ops": [upd("setting", "general.label_max_lines", 0, value=bad)]})
+    svc.apply({"ops": [upd("setting", "general.label_max_lines", 0, value=1)]})
+    assert settings_mod.values(db)["general.label_max_lines"] == 1
+
+
 def test_noop_edit_records_nothing(db, svc, sample_id):
     res = svc.apply({"ops": [upd("sample", sample_id, 1, name="やったー")]})
     assert res["edit_id"] is None

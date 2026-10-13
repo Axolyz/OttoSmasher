@@ -28,6 +28,7 @@ interface NumSpec {
   step: number;
 }
 const NUMERIC: Record<string, NumSpec> = {
+  "general.label_max_lines": { min: 1, max: 6, step: 1 },
   "inference.directml_device": { min: 0, step: 1 },
   "subtitle.pad_before": { min: 0, max: 5, step: 0.05 },
   "subtitle.pad_after": { min: 0, max: 5, step: 0.05 },
