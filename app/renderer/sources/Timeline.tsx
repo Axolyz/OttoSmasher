@@ -197,11 +197,14 @@ export const Timeline = forwardRef<
     [clampView, lo, hi],
   );
 
-  // 换资产 / 时长：回到整段（有可视范围时 = 整个范围）
+  // 换资产 / 时长：丢掉旧峰值（同时会重取）；换资产、时长或可视范围：回到整段（有可视范围时 = 整个范围）。
+  // 两件事分开：详情区换到同一条轨上的另一个采样只换可视范围，峰值不能丢（丢了不会重取，波形就没了）
   useEffect(() => {
-    setView(clampView(lo, hi));
     setWhole(null);
     setDetail(null);
+  }, [assetId, duration]);
+  useEffect(() => {
+    setView(clampView(lo, hi));
   }, [assetId, duration, clampView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 尺寸
@@ -822,6 +825,7 @@ export const Timeline = forwardRef<
       className={s.timeline}
       data-testid="timeline"
       data-view={`${view[0].toFixed(3)},${view[1].toFixed(3)}`}
+      data-peaks={whole ? "ready" : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

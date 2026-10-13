@@ -16,12 +16,21 @@ test("详情区窗口：余量、缩放边界、在余量里截取", async () =>
     const req = window.otto.core.request;
     const add = (await req("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
     await req("samples.create", { assetId: add.r[0]!.assets[0]!.assetId, start: 5.0, end: 6.0, name: "まど", nature: "speech" });
+    await req("samples.create", { assetId: add.r[0]!.assets[0]!.assetId, start: 8.0, end: 9.0, name: "となり", nature: "speech" });
   }, wav);
   await page.getByTestId("nav-library").click();
   await refreshLists(page);
   await page.getByTestId("sample-row").filter({ hasText: "まど" }).click();
   const tl = page.getByTestId("stage-wave").getByTestId("timeline");
   await expect(tl).toBeVisible();
+  await expect(tl).toHaveAttribute("data-peaks", "ready", { timeout: 15000 });
+  // 换到同一条轨上的另一个采样再换回来：窗口变了，波形（峰值）不能丢（所有者 2026-10-13 报：详情区看不到波形）
+  await page.getByTestId("sample-row").filter({ hasText: "となり" }).click();
+  await expect(page.getByTestId("stage-title")).toHaveText("となり");
+  await expect(tl).toHaveAttribute("data-peaks", "ready");
+  await page.getByTestId("sample-row").filter({ hasText: "まど" }).click();
+  await expect(page.getByTestId("stage-title")).toHaveText("まど");
+  await expect(tl).toHaveAttribute("data-peaks", "ready");
   const view = async () => (await tl.getAttribute("data-view"))!.split(",").map(Number);
   // 打开时放大到采样本身；往外缩放到头 = 整个窗口 [4, 7]（采样 1 秒 → 余量 1 秒），不会露出整条 12 秒的音轨
   await expect.poll(async () => (await view())[1] - (await view())[0]).toBeLessThan(1.5);
