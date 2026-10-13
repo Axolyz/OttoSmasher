@@ -72,7 +72,7 @@ function cssRgb(v: string): [number, number, number] {
 const RULER_H = 20;
 const OVERVIEW_H = 18;
 const LANE_H = 16;
-/** 车道里一行标签的高度；车道高 = 4 + 行数 × 它（一行时就是 LANE_H） */
+/** 车道里一行标签的高度（车道只排一行） */
 const LANE_LINE = 12;
 /** 覆盖层标签一行的高度 */
 const OVER_LINE = 13;
@@ -190,7 +190,7 @@ export const Timeline = forwardRef<
     spectrum?: "log" | "linear" | "mel" | null;
     /** 目标音（MIDI；拉平成品）：音高线上画一条虚线 */
     pitchTarget?: number | null;
-    /** 标签最多显示几行；不给 = 设置 general.label_max_lines（默认 3）。所有图层同一条避让 + 折行规则 */
+    /** 覆盖层标签最多显示几行；不给 = 设置 general.label_max_lines（默认 3）。车道上的标签只排一行（避让 + 截短） */
     labelMaxLines?: number;
     /** 可视范围（默认 [0, duration]）：缩放、平移、总览条、选区都只在这里面（详情区 = 采样范围 + 余量，所有者 2026-10-12） */
     bounds?: [number, number];
@@ -393,14 +393,14 @@ export const Timeline = forwardRef<
   const lanes = props.lanes ?? [];
   const maxLinesSetting = useSettingValue<number>("general.label_max_lines", 3);
   const maxLines = Math.max(1, Math.min(6, Math.round(props.labelMaxLines ?? maxLinesSetting)));
-  // 车道的标签排布决定车道高度（折了几行就多高，最少一行）
+  // 车道的标签只排一行（避让 + 截短；所有者 2026-10-13：车道折行会让车道随平移忽高忽低、整页跟着跳），车道高度固定
   const laneLayouts = useMemo(() => {
     const [v0, v1] = view;
     const span = v1 - v0 || 1;
     const X = (tt: number) => ((tt - v0) / span) * size.w;
-    return lanes.map((lane) => layoutBands(lane.bands, X, size.w, v0, v1, LABEL_FONT_LANE, maxLines));
-  }, [lanes, view, size.w, maxLines]);
-  const laneHs = laneLayouts.map((l) => 4 + LANE_LINE * Math.max(1, ...l.map((x) => x.label?.lines.length ?? 1)));
+    return lanes.map((lane) => layoutBands(lane.bands, X, size.w, v0, v1, LABEL_FONT_LANE, 1));
+  }, [lanes, view, size.w]);
+  const laneHs = laneLayouts.map(() => LANE_H);
   const laneYs = laneHs.reduce<number[]>((acc, _h, i) => [...acc, i ? acc[i - 1]! + laneHs[i - 1]! : 0], []);
   const lanesH = laneHs.reduce((a, b) => a + b, 0);
   const waveTop = RULER_H;
