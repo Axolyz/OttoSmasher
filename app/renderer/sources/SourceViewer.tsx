@@ -2,14 +2,13 @@
 // 页面头（收起列表、当前原片、⋯）在顶栏里，由 SourcesPage 放。
 // 快捷键（UI_PLAN §7，焦点在查看器时）：Space 播放/暂停 · Shift+Space 播放选区（引擎截停）· L 循环选区 ·
 // I/O 播放位置设为选区开始/结束 · F 适合窗口 · Z 放大选区 · ←/→ 逐帧 · Shift+←/→ 1 ms · ⌥←/→ ±5 秒 · Esc 清除选区。
-import { AudioLines, AudioWaveform, ChevronDown, Pencil, TriangleAlert, Download, Info, Pause, Play, Repeat, Split, SquarePlay, Undo2, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, Pencil, TriangleAlert, Info, Pause, Play, Repeat, SquarePlay, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
 import type { AssetAlignment, AssetInfo, DerivedSample, EditOp, RangeTagRow, SamplePlanSource, SfxHint, SourceDetail, SourceRow, TextSegment } from "../api/types";
 import { Button } from "../components/Button";
-import { Checkbox, Segmented } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
 import { Menu, type MenuEntry, type MenuItems, useContextMenu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
@@ -18,7 +17,8 @@ import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
 import { useApp } from "../state/store";
 import { exportWords } from "../exportWords";
-import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
+import { type SpectrumScale } from "../components/SpectrumMenu";
+import { WaveCard, WaveEditBar, WaveEditHint, WaveEditName, WaveHint, WaveLayers, WaveProcess, WaveSelection } from "../components/WaveCard";
 import { ReimportDialog, type ReimportRequest } from "./ReimportDialog";
 import { hangOffset } from "./hang";
 import { ClipPanel } from "./ClipPanel";
@@ -675,8 +675,9 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
         />
       </div>
 
-      <div className={s.tlCard}>
-        <div className={s.tlBar}>
+      <WaveCard
+        testId="timeline-card"
+        title={
           <Select
             value={asset?.id ?? ""}
             onChange={(v) => setAssetSel(v)}
@@ -684,177 +685,167 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             prefix={t("sources.audioSource")}
             options={sourceOptions.map((a) => ({ id: a.id, label: assetLabel(a) }))}
           />
-          <span className={s.grow} />
+        }
+        headExtra={
           <Button size="sm" variant="flat" icon={<Pencil />} isDisabled={!baseOverlay || editing || overlayId === "ph"} onPress={startEdit} data-testid="edit-bounds">
             {baseOverlay ? t("edit.button", { layer: t(`layers.${overlayId}`) }) : t("edit.buttonNone")}
           </Button>
-          <Button size="sm" variant="flat" onPress={() => tl.current?.fit()} title={t("sources.fitTip")}>
-            {t("sources.fit")}
-          </Button>
-          <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")}>
-            {t("sources.zoomSel")}
-          </Button>
-          <SpectrumMenu value={spectrum} onChange={setSpectrum} testId="timeline-spectrum" />
-          <Menu
-            head={t("sources.derivedHead", { n: derived.length })}
-            items={
-              derived.length > DERIVED_MENU_MAX
-                ? [...derivedItems(derived.slice(0, DERIVED_MENU_MAX)), "-", { id: "more", label: t("sources.derivedMore", { n: derived.length - DERIVED_MENU_MAX }), disabled: true }]
-                : derivedItems(derived)
-            }
-            placement="bottom end"
-            testId="derived-menu"
-            trigger={
-              <Button size="sm" variant="flat" isDisabled={!derived.length} data-testid="derived-button">
-                {t("sources.derivedN", { n: derived.length })}
-              </Button>
-            }
-          />
-          <Tip content={t("sources.timelineHelp")}>
-            <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
-          </Tip>
-        </div>
-        {openError ? (
-          <div className={s.tlError} data-testid="open-error">
-            {openError}
-          </div>
-        ) : null}
-        {editing ? (
-          <div className={s.editBar} data-testid="edit-bar">
-            <b>{t("edit.editing", { layer: t(`layers.${overlayId}`) })}</b>
-            {focusBand ? (
-              <>
-                <span className={s.editName} lang="ja" data-user-data="">
-                  {focusBand.label}
-                </span>
-                <TimeField value={focusBand.a} onCommit={commitEdge("a")} label={t("sources.selStart")} testId="edit-start" />
-                <span className={s.arrow}>→</span>
-                <TimeField value={focusBand.b} onCommit={commitEdge("b")} label={t("sources.selEnd")} testId="edit-end" />
-              </>
-            ) : (
-              <span className={`${s.muted} ${s.editHint}`}>{t("edit.hint")}</span>
-            )}
-            <span className={s.grow} />
-            <Button
-              size="sm"
-              variant="flat"
-              onPress={() => {
+        }
+        fitLabel={t("sources.fit")}
+        fitTip={t("sources.fitTip")}
+        onFit={() => tl.current?.fit()}
+        onZoomSel={() => sel && tl.current?.zoomTo(sel.a, sel.b)}
+        zoomSelDisabled={!sel}
+        spectrum={spectrum}
+        onSpectrum={setSpectrum}
+        spectrumTestId="timeline-spectrum"
+        headTail={
+          <>
+              <Menu
+                head={t("sources.derivedHead", { n: derived.length })}
+                items={
+                  derived.length > DERIVED_MENU_MAX
+                    ? [...derivedItems(derived.slice(0, DERIVED_MENU_MAX)), "-", { id: "more", label: t("sources.derivedMore", { n: derived.length - DERIVED_MENU_MAX }), disabled: true }]
+                    : derivedItems(derived)
+                }
+                placement="bottom end"
+                testId="derived-menu"
+                trigger={
+                  <Button size="sm" variant="flat" isDisabled={!derived.length} data-testid="derived-button">
+                    {t("sources.derivedN", { n: derived.length })}
+                  </Button>
+                }
+              />
+              <Tip content={t("sources.timelineHelp")}>
+                <Button variant="flat" size="sm" icon={<Info />} aria-label={t("sources.timelineHelpLabel")} />
+              </Tip>
+          </>
+        }
+        error={openError ? <span data-testid="open-error">{openError}</span> : null}
+        bar={
+          editing ? (
+            <WaveEditBar
+              title={t("edit.editing", { layer: t(`layers.${overlayId}`) })}
+              onDiscard={() => {
                 stopEdit();
                 toast({ text: t("edit.boundsDiscarded") });
               }}
-              data-testid="edit-discard"
+              onSave={() => void saveEdit()}
+              saveLabel={t("edit.saveBounds")}
+              testId="edit-bar"
+              discardTestId="edit-discard"
+              saveTestId="edit-save"
             >
-              {t("edit.discard")}
-            </Button>
-            <Button size="sm" variant="primary" onPress={() => void saveEdit()} data-testid="edit-save">
-              {t("edit.saveBounds")}
-            </Button>
-          </div>
-        ) : (
-        <div className={s.layerBar} data-testid="layer-bar">
-          <span className={s.groupLabel}>{t("layers.overlay")}</span>
-          <Segmented<LayerId>
-            size="sm"
-            value={overlayId}
-            onChange={setOverlayId}
-            label={t("layers.overlay")}
-            options={LAYER_IDS.map((id) => ({ id, label: t(`layers.${id}`) }))}
+              {focusBand ? (
+                <>
+                  <WaveEditName>{focusBand.label}</WaveEditName>
+                  <TimeField value={focusBand.a} onCommit={commitEdge("a")} label={t("sources.selStart")} testId="edit-start" />
+                  <span className={s.arrow}>→</span>
+                  <TimeField value={focusBand.b} onCommit={commitEdge("b")} label={t("sources.selEnd")} testId="edit-end" />
+                </>
+              ) : (
+                <WaveEditHint>{t("edit.hint")}</WaveEditHint>
+              )}
+            </WaveEditBar>
+          ) : (
+            <WaveLayers<LayerId>
+              testId="layer-bar"
+              overlay={{ value: overlayId, onChange: setOverlayId, options: LAYER_IDS.map((id) => ({ id, label: t(`layers.${id}`) })) }}
+              lanes={(["sub", "hint", "seg", "ph", "derived"] as const).map((id) => ({
+                id,
+                label: t(`layers.${id}`),
+                checked: laneIds.has(id),
+                isDisabled: overlayId === (id as LayerId),
+                onChange: (on: boolean) => setLaneIds((x) => toggleSet(x, id, on)),
+              }))}
+              hint={t("layers.help")}
+            />
+          )
+        }
+        timeline={
+          <Timeline
+            spectrum={spectrum}
+            ref={tl}
+            overlay={overlay}
+            lanes={lanes}
+            onLaneDoubleClick={(id) => id !== "derived" && setOverlayId(id as LayerId)}
+            editing={editing}
+            editFocus={editFocus}
+            onEditBands={setEditBands}
+            onEditFocus={setEditFocus}
+            onContextMenu={(tt, hits, at) => {
+              const ids = [...new Set([...hits.overlay, ...(hits.lane?.bands ?? [])].map((b) => b.id ?? ""))];
+              const hit = <T extends { id: string }>(prefix: string, list: T[]) =>
+                ids
+                  .filter((x) => x.startsWith(prefix))
+                  .map((x) => list.find((o) => `${prefix}${o.id}` === x))
+                  .filter((o): o is T => !!o)
+                  .slice(0, 5);
+              const gs = hit("segment:", segs);
+              const hs = hit("hint:", hints);
+              const tgs = hit("tag:", rtags);
+              const obj = gs.length + hs.length ? objectMenu(gs, hs, { x: at.clientX, y: at.clientY }, tt) : null;
+              const derivedHits = hits.lane?.id === "derived" ? hits.lane.bands.slice(0, 5) : [];
+              const setEdge = (side: "a" | "b") => {
+                const a = side === "a" ? tt : (sel?.a ?? 0);
+                const b = side === "b" ? tt : (sel?.b ?? duration);
+                if (b > a) setSel({ a, b });
+              };
+              tlMenu.open(at, {
+                head: obj?.head ? `${t("sources.atTime", { t: clock(tt) })} · ${obj.head}` : t("sources.atTime", { t: clock(tt) }),
+                items: [
+                  { id: "in", label: t("sources.setStart"), shortcut: "I", run: () => setEdge("a") },
+                  { id: "out", label: t("sources.setEnd"), shortcut: "O", run: () => setEdge("b") },
+                  "-",
+                  { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
+                  { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
+                  { id: "reimport", label: t("reimport.action"), disabled: !selLocal || !asset, run: () => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a }) },
+                  { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
+                  { id: "video", label: t("video.selection"), disabled: !sel || !asset, run: () => void exportVideo() },
+                  "-",
+                  { id: "add-seg", label: t("seg.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-segment", sourceId: row.id, start: sel.a, end: sel.b }) },
+                  { id: "add-hint", label: t("hint.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-hint", sourceId: row.id, start: sel.a, end: sel.b }) },
+                  { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-tag", sourceId: row.id, start: sel.a, end: sel.b }) },
+                  ...(obj ? (["-", ...obj.items] as MenuItems) : []),
+                  ...(tgs.length
+                    ? (["-", ...tgs.map((g) => ({
+                        id: `tag:${g.id}`,
+                        label: t("ann.editTagMenu", { name: g.label || g.tags.join(" ") }),
+                        disabled: editing,
+                        run: () => setAnnTarget({ mode: "edit-tag", tag: g, shift: g.scope === "asset" ? offset : 0 }),
+                      }))] as MenuItems)
+                    : []),
+                  ...derivedHits.map((b) => ({ id: `smp:${b.id}`, label: t("sources.openSample", { name: b.label }), run: () => openSample(b.id!) })),
+                ],
+              });
+            }}
+            onBandPress={(laneId, bands, at) => {
+              if (laneId !== "derived") return false;
+              if (bands.length === 1) openSample(bands[0]!.id!);
+              else pick.open(at, { head: t("sources.derivedPick", { n: bands.length }), items: derivedItems(bands.map((b) => derived.find((d) => d.id === b.id)!)) });
+              return true;
+            }}
+            assetId={asset?.id ?? null}
+            duration={duration}
+            offset={offset}
+            assetDuration={asset?.duration ?? duration}
+            playhead={playhead}
+            playing={playing}
+            selection={sel}
+            onSelection={setSel}
+            onSeek={(tt) => {
+              window.otto.player.seek(tt);
+              root.current?.focus();
+            }}
+            onPlayFrom={(tt) => {
+              window.otto.player.seek(tt);
+              window.otto.player.play();
+            }}
+            onDragOut={exportSelection}
           />
-          <span className={s.groupLabel}>{t("layers.lanes")}</span>
-          {(["sub", "hint", "seg", "ph", "derived"] as const).map((id) => (
-            <Checkbox key={id} isSelected={laneIds.has(id)} isDisabled={overlayId === (id as LayerId)} onChange={(on) => setLaneIds((x) => toggleSet(x, id, on))} label={t(`layers.${id}`)}>
-              {t(`layers.${id}`)}
-            </Checkbox>
-          ))}
-          <span className={`${s.muted} ${s.layerHint}`}>{t("layers.help")}</span>
-        </div>
-        )}
-        <Timeline
-          spectrum={spectrum}
-          ref={tl}
-          overlay={overlay}
-          lanes={lanes}
-          onLaneDoubleClick={(id) => id !== "derived" && setOverlayId(id as LayerId)}
-          editing={editing}
-          editFocus={editFocus}
-          onEditBands={setEditBands}
-          onEditFocus={setEditFocus}
-          onContextMenu={(tt, hits, at) => {
-            const ids = [...new Set([...hits.overlay, ...(hits.lane?.bands ?? [])].map((b) => b.id ?? ""))];
-            const hit = <T extends { id: string }>(prefix: string, list: T[]) =>
-              ids
-                .filter((x) => x.startsWith(prefix))
-                .map((x) => list.find((o) => `${prefix}${o.id}` === x))
-                .filter((o): o is T => !!o)
-                .slice(0, 5);
-            const gs = hit("segment:", segs);
-            const hs = hit("hint:", hints);
-            const tgs = hit("tag:", rtags);
-            const obj = gs.length + hs.length ? objectMenu(gs, hs, { x: at.clientX, y: at.clientY }, tt) : null;
-            const derivedHits = hits.lane?.id === "derived" ? hits.lane.bands.slice(0, 5) : [];
-            const setEdge = (side: "a" | "b") => {
-              const a = side === "a" ? tt : (sel?.a ?? 0);
-              const b = side === "b" ? tt : (sel?.b ?? duration);
-              if (b > a) setSel({ a, b });
-            };
-            tlMenu.open(at, {
-              head: obj?.head ? `${t("sources.atTime", { t: clock(tt) })} · ${obj.head}` : t("sources.atTime", { t: clock(tt) }),
-              items: [
-                { id: "in", label: t("sources.setStart"), shortcut: "I", run: () => setEdge("a") },
-                { id: "out", label: t("sources.setEnd"), shortcut: "O", run: () => setEdge("b") },
-                "-",
-                { id: "clip", label: t("clip.menu"), disabled: !sel || !asset || editing, run: () => setClipOpen(true) },
-                { id: "flatten", label: t("flatten.menuSel"), disabled: !sel || !asset || editing, run: () => flattenSel() },
-                { id: "reimport", label: t("reimport.action"), disabled: !selLocal || !asset, run: () => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a }) },
-                { id: "wav", label: t("sources.exportWav"), disabled: !sel || !asset, run: () => void exportWav() },
-                { id: "video", label: t("video.selection"), disabled: !sel || !asset, run: () => void exportVideo() },
-                "-",
-                { id: "add-seg", label: t("seg.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-segment", sourceId: row.id, start: sel.a, end: sel.b }) },
-                { id: "add-hint", label: t("hint.menu.add"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-hint", sourceId: row.id, start: sel.a, end: sel.b }) },
-                { id: "tag", label: t("ann.createMenu"), disabled: !sel || editing, run: () => sel && setAnnTarget({ mode: "create-tag", sourceId: row.id, start: sel.a, end: sel.b }) },
-                ...(obj ? (["-", ...obj.items] as MenuItems) : []),
-                ...(tgs.length
-                  ? (["-", ...tgs.map((g) => ({
-                      id: `tag:${g.id}`,
-                      label: t("ann.editTagMenu", { name: g.label || g.tags.join(" ") }),
-                      disabled: editing,
-                      run: () => setAnnTarget({ mode: "edit-tag", tag: g, shift: g.scope === "asset" ? offset : 0 }),
-                    }))] as MenuItems)
-                  : []),
-                ...derivedHits.map((b) => ({ id: `smp:${b.id}`, label: t("sources.openSample", { name: b.label }), run: () => openSample(b.id!) })),
-              ],
-            });
-          }}
-          onBandPress={(laneId, bands, at) => {
-            if (laneId !== "derived") return false;
-            if (bands.length === 1) openSample(bands[0]!.id!);
-            else pick.open(at, { head: t("sources.derivedPick", { n: bands.length }), items: derivedItems(bands.map((b) => derived.find((d) => d.id === b.id)!)) });
-            return true;
-          }}
-          assetId={asset?.id ?? null}
-          duration={duration}
-          offset={offset}
-          assetDuration={asset?.duration ?? duration}
-          playhead={playhead}
-          playing={playing}
-          selection={sel}
-          onSelection={setSel}
-          onSeek={(tt) => {
-            window.otto.player.seek(tt);
-            root.current?.focus();
-          }}
-          onPlayFrom={(tt) => {
-            window.otto.player.seek(tt);
-            window.otto.player.play();
-          }}
-          onDragOut={exportSelection}
-        />
-        {pick.node}
-        {tlMenu.node}
-        <ReimportDialog req={reimport} onClose={() => setReimport(null)} />
-        {segMenu.node}
-        <div className={s.actions}>
-          <div className={s.group}>
+        }
+        play={
+          <>
             <Button variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} data-testid="play-pause">
               {playing ? t("player.pause") : t("player.play")}
             </Button>
@@ -862,64 +853,52 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
               {t("player.selection")}
             </Button>
             <Button variant="flat" icon={<Repeat />} onPress={() => playSel(true)} isDisabled={!sel} aria-label={t("player.loop")} title={t("player.loop")} />
-          </div>
-          <div className={s.group} data-testid="readout" data-a={sel?.a ?? ""} data-b={sel?.b ?? ""}>
-            <span className={s.groupLabel}>{t("sources.selection")}</span>
-            <TimeField value={sel?.a ?? null} onCommit={commitSel("a")} label={t("sources.selStart")} isDisabled={!sel} testId="sel-start" />
-            <span className={s.arrow}>→</span>
-            <TimeField value={sel?.b ?? null} onCommit={commitSel("b")} label={t("sources.selEnd")} isDisabled={!sel} testId="sel-end" />
-            <span className={`${s.dur} num`}>{sel ? t("format.sec", { v: seconds(sel.b - sel.a) }) : ""}</span>
-          </div>
-          <div className={s.group}>
-            <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={selLocal} isOpen={clipOpen} onOpenChange={setClipOpen} />
-            {clipFrom ? (
-              <ClipPanel
-                from={clipFrom.from}
-                at={clipFrom.at}
-                assetId={asset?.id ?? null}
-                track={trackName}
-                sel={null}
-                isOpen
-                onOpenChange={(o) => !o && setClipFrom(null)}
-                currentAsset={cur ?? null}
-                // 看片时逐句建：留在原片页，提示里可以打开
-                afterSave={(id, name) => toast({ text: t("clip.savedHere", { name }), action: { label: t("clip.open"), run: () => openSample(id) } })}
-              />
-            ) : null}
-            <Button variant="flat" icon={<AudioWaveform />} isDisabled={!sel || !asset || editing} onPress={flattenSel} data-testid="flatten">
-              {t("flatten.action")}
-            </Button>
-            <Button
-              variant="flat"
-              icon={<Split />}
-              isDisabled={!asset}
-              onPress={() => asset && props.onSeparate({ assetId: asset.id, trackLabel: trackName, duration: asset.duration, selection: selLocal, scope: selLocal ? "sel" : "full" })}
-              data-testid="separate"
-            >
-              {t("sep.action")}
-            </Button>
-            <Button variant="flat" icon={<Undo2 />} isDisabled={!sel || !selLocal || !asset} onPress={() => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a })} data-testid="reimport">
-              {t("reimport.action")}
-            </Button>
-            <Menu
-              head={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}
-              items={[
-                { id: "wav", label: t("sources.exportWav"), run: () => void exportWav() },
-                { id: "video", label: t("video.selection"), run: () => void exportVideo() },
-              ]}
-              placement="top start"
-              trigger={
-                <Button variant="flat" icon={<Download />} isDisabled={!sel || !asset || exporting} data-testid="export-menu">
-                  {t("sources.export")}
-                  <ChevronDown size={13} />
-                </Button>
-              }
-            />
-          </div>
-          <span className={s.grow} />
-          <span className={s.hint}>{t("sources.dragHint")}</span>
-        </div>
-      </div>
+          </>
+        }
+        selection={<WaveSelection a={sel?.a ?? null} b={sel?.b ?? null} onCommit={commitSel} isDisabled={!sel} testId="readout" startTestId="sel-start" endTestId="sel-end" />}
+        process={
+          <WaveProcess
+            clip={
+              <>
+                <ClipPanel assetId={asset?.id ?? null} track={trackName} sel={selLocal} isOpen={clipOpen} onOpenChange={setClipOpen} />
+                {clipFrom ? (
+                  <ClipPanel
+                    from={clipFrom.from}
+                    at={clipFrom.at}
+                    assetId={asset?.id ?? null}
+                    track={trackName}
+                    sel={null}
+                    isOpen
+                    onOpenChange={(o) => !o && setClipFrom(null)}
+                    currentAsset={cur ?? null}
+                    // 看片时逐句建：留在原片页，提示里可以打开
+                    afterSave={(id, name) => toast({ text: t("clip.savedHere", { name }), action: { label: t("clip.open"), run: () => openSample(id) } })}
+                  />
+                ) : null}
+              </>
+            }
+            onFlatten={flattenSel}
+            flattenDisabled={!sel || !asset || editing}
+            onSeparate={() => asset && props.onSeparate({ assetId: asset.id, trackLabel: trackName, duration: asset.duration, selection: selLocal, scope: selLocal ? "sel" : "full" })}
+            separateDisabled={!asset}
+            onReimport={() => asset && selLocal && setReimport({ assetId: asset.id, start: selLocal.a })}
+            reimportDisabled={!sel || !selLocal || !asset}
+            exportHead={sel ? t("sources.selectionIs", { a: clock(sel.a), b: clock(sel.b) }) : undefined}
+            exportItems={[
+              { id: "wav", label: t("sources.exportWav"), run: () => void exportWav() },
+              { id: "video", label: t("video.selection"), run: () => void exportVideo() },
+            ]}
+            exportDisabled={!sel || !asset || exporting}
+            testIds={{ flatten: "flatten", separate: "separate", reimport: "reimport", export: "export-menu" }}
+          />
+        }
+        actionsTail={<WaveHint>{t("sources.dragHint")}</WaveHint>}
+      >
+        {pick.node}
+        {tlMenu.node}
+        <ReimportDialog req={reimport} onClose={() => setReimport(null)} />
+        {segMenu.node}
+      </WaveCard>
       <AnnotationDialog target={annTarget} duration={duration} onClose={() => setAnnTarget(null)} />
     </section>
   );

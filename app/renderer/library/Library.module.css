@@ -67,14 +67,8 @@
 /* 舞台的声音与语音（阶段 4.6；UI_PLAN §3、§3.1） */
 .waveHead { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .grow { flex: 1; }
-/* 详情区波形卡是波形焦点区（UI_PLAN §7）：单击波形即获得焦点，边框提示 */
-.waveCard { outline: none; }
-.waveCard:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--line2)); }
-.waveBox { height: 200px; min-width: 0; display: flex; }
-.waveBox > * { flex: 1; min-width: 0; }
 /* 舞台动作条（UI_PLAN §3：与原片时间线的动作条同构；窄时换行） */
 .stageActions { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; min-width: 0; padding-top: 6px; border-top: 1px solid var(--line); }
-.actGroup { display: flex; align-items: center; gap: 2px; min-width: 0; flex-wrap: wrap; border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 2px; background: var(--s2); }
 .okText { color: var(--ok); font-size: var(--fs-xs); }
 .badText { color: var(--bad); font-size: var(--fs-xs); }
 .mutedText { color: var(--muted); font-size: var(--fs-xs); }
@@ -87,8 +81,6 @@
 .provideRow { display: flex; gap: 8px; }
 .provideRow > :first-child { flex: 1; min-width: 0; }
 .textLine { display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-sm); flex-wrap: wrap; }
-.editBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); }
-.editBar b { color: var(--accent); font-weight: 600; }
 .speechActions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* 节奏与卡拍（阶段 6；原型 natPanel / drawMap） */

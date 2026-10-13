@@ -6,23 +6,23 @@
 //   判定区间可见可改（这里的时间框 + 波形上的带子；必须在采样范围内）。修音素时间、切换版本、编辑文本都作用于所选的那一段，
 //   所有读这段的采样和原片页音素层同时生效（P13：面板上写明）。「添加台词…」= 在文本层加一段（与已有段重叠时选替换 / 切开 / 取消）。
 // 时间：这里的时间轴是采样绑定资产的局部秒（测量里的音素时间也是资产局部秒）。
-import { AudioWaveform, ChevronDown, Download, Music2, Play, Repeat, Split, Square, SquarePlay, Undo2 } from "lucide-react";
+import { Music2, Play, Repeat, Square, SquarePlay } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AssetRecord, SampleRow, SpeechPhone, SpeechSampleView, SpeechUnit } from "../api/types";
 import { Button } from "../components/Button";
-import { Callout, Checkbox, Segmented, Token } from "../components/Controls";
+import { Callout, Token } from "../components/Controls";
 import { Select, TextArea, TextField, TimeField } from "../components/Fields";
 import { AnnotationDialog, type AnnTarget } from "../sources/AnnotationDialog";
 import { hangOffset } from "../sources/hang";
-import { Menu } from "../components/Menu";
 import { exportWords } from "../exportWords";
 import { ClipPanel } from "../sources/ClipPanel";
 import { AnchoredPanel } from "../components/Panel";
 import { clock, seconds } from "../format";
 import { errorText, t, type TArgs } from "../i18n";
 import { useApp } from "../state/store";
-import { SpectrumMenu, type SpectrumScale } from "../components/SpectrumMenu";
+import { type SpectrumScale } from "../components/SpectrumMenu";
+import { WaveCard, WaveEditBar, WaveEditHint, WaveLayers, WaveProcess, WaveSelection, WaveTitle } from "../components/WaveCard";
 import { ReimportDialog, type ReimportRequest } from "../sources/ReimportDialog";
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
@@ -122,6 +122,8 @@ export function StageSpeech(props: {
   const [unitSel, setUnitSel] = useState<string | null>(null);
   const [curve, setCurve] = useState<Curve | null>(null);
   const [layer, setLayer] = useState<LayerId>("ph");
+  // 车道（覆盖层之外的图层）：默认音素、mora 都开（当前覆盖层那一项不画）
+  const [laneOn, setLaneOn] = useState<{ ph: boolean; mora: boolean }>({ ph: true, mora: true });
   const [sel, setSel] = useState<Sel | null>(null);
   const [draft, setDraft] = useState("");
   const tl = useRef<TimelineHandle>(null);
@@ -215,7 +217,7 @@ export function StageSpeech(props: {
   // 判定区间（资产局部秒）：一条车道上的带子
   const judge = view?.judgeLocal && view.judgeLocal.length === 2 ? { a: view.judgeLocal[0]!, b: view.judgeLocal[1]! } : null;
   const judgeLane: Layer | null = judge ? { id: "judge", label: t("judge.lane"), bands: [{ a: judge.a, b: judge.b, label: "", tone: "seg" }] } : null;
-  const lanes = [...(["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && layers[k]).map((k) => layers[k]!), ...(judgeLane && judgeOn ? [judgeLane] : [])];
+  const lanes = [...(["ph", "mora"] as const).filter((k) => k !== (editing ? "ph" : layer) && laneOn[k] && layers[k]).map((k) => layers[k]!), ...(judgeLane && judgeOn ? [judgeLane] : [])];
 
   const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
   const saveManual = async (args: { phones?: Array<{ label: string; start: number; end: number }>; text?: string }) => {
@@ -461,81 +463,95 @@ export function StageSpeech(props: {
 
   return (
     <>
-      <section className={`${s.card} ${s.waveCard}`} ref={card} tabIndex={0} onKeyDown={onWaveKey} data-testid="stage-wave" data-cursor={cursor.toFixed(3)} data-mode={props.playing ? (mode ?? "play") : undefined} aria-label={t("speech.sound", { name: assetLabel(asset) })}>
-        <div className={s.waveHead}>
-          <span className={s.cardTitle}>{t("speech.sound", { name: assetLabel(asset) })}</span>
-          <div className={s.grow} />
-          <Segmented
-            size="sm"
-            label={t("speech.layer.label")}
-            value={editing ? "ph" : layer}
-            onChange={(v) => !editing && setLayer(v)}
-            options={[
-              { id: "ph", label: t("speech.layer.ph") },
-              { id: "mora", label: t("speech.layer.mora") },
-              { id: "none", label: t("speech.layer.none") },
-            ]}
-            testId="stage-layer"
-          />
-          {judgeLane ? (
-            <Checkbox isSelected={judgeOn} onChange={setJudgeOn} label={t("judge.lane")} testId="stage-judge-lane">
-              {t("judge.lane")}
-            </Checkbox>
-          ) : null}
-          <Button size="sm" variant="flat" onPress={() => tl.current?.zoomTo(smp.start, smp.end)}>
-            {t("speech.fit")}
-          </Button>
-          <Button size="sm" variant="flat" onPress={() => sel && tl.current?.zoomTo(sel.a, sel.b)} isDisabled={!sel} title={t("sources.zoomSelTip")} data-testid="stage-zoom-sel">
-            {t("sources.zoomSel")}
-          </Button>
-          <SpectrumMenu value={spectrum} onChange={setSpectrum} testId="stage-spectrum" />
-        </div>
-        {editing ? (
-          <div className={s.editBar} data-testid="phone-edit-bar">
-            <b>{t("speech.editing")}</b>
-            <span className={s.mutedText}>{t("speech.editHint")}</span>
-            <div className={s.grow} />
-            <Button size="sm" variant="flat" onPress={() => (stopEdit(), toast({ text: t("speech.editDiscarded") }))} data-testid="phone-edit-discard">
-              {t("edit.discard")}
-            </Button>
-            <Button size="sm" variant="primary" onPress={() => void saveEdit()} data-testid="phone-edit-save">
-              {t("speech.editSave")}
-            </Button>
-          </div>
-        ) : null}
-        <div className={s.waveBox} onPointerDownCapture={() => card.current?.focus({ preventScroll: true })}>
-          {asset ? (
-            <Timeline
-              spectrum={spectrum}
-              ref={tl}
-              assetId={smp.asset_id}
-              duration={asset.duration}
-              bounds={bounds}
-              focus={{ a: smp.start, b: smp.end }}
-              playhead={playhead}
-              playing={props.playing}
-              selection={sel}
-              onSelection={setSel}
-              hitBox={props.hit ?? null}
-              onSeek={seek}
-              onPlayFrom={(at) => {
-                setCursor(at);
-                setMode("play");
-                props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : endFrom(at)));
+      <WaveCard
+        testId="stage-wave"
+        cardRef={card}
+        focusable
+        onKeyDown={onWaveKey}
+        data={{ cursor: cursor.toFixed(3), mode: props.playing ? (mode ?? "play") : undefined }}
+        ariaLabel={t("speech.sound", { name: assetLabel(asset) })}
+        title={<WaveTitle>{t("speech.sound", { name: assetLabel(asset) })}</WaveTitle>}
+        fitLabel={t("speech.fit")}
+        onFit={() => tl.current?.zoomTo(smp.start, smp.end)}
+        onZoomSel={() => sel && tl.current?.zoomTo(sel.a, sel.b)}
+        zoomSelDisabled={!sel}
+        zoomSelTestId="stage-zoom-sel"
+        spectrum={spectrum}
+        onSpectrum={setSpectrum}
+        spectrumTestId="stage-spectrum"
+        bar={
+          editing ? (
+            <WaveEditBar
+              title={t("speech.editing")}
+              onDiscard={() => (stopEdit(), toast({ text: t("speech.editDiscarded") }))}
+              onSave={() => void saveEdit()}
+              saveLabel={t("speech.editSave")}
+              testId="phone-edit-bar"
+              discardTestId="phone-edit-discard"
+              saveTestId="phone-edit-save"
+            >
+              <WaveEditHint>{t("speech.editHint")}</WaveEditHint>
+            </WaveEditBar>
+          ) : (
+            <WaveLayers<LayerId>
+              overlay={{
+                value: layer,
+                onChange: setLayer,
+                options: [
+                  { id: "ph", label: t("speech.layer.ph") },
+                  { id: "mora", label: t("speech.layer.mora") },
+                  { id: "none", label: t("speech.layer.none") },
+                ],
+                testId: "stage-layer",
               }}
-              overlay={overlay}
-              lanes={lanes}
-              onLaneDoubleClick={(id) => !editing && setLayer(id as LayerId)}
-              curve={curve}
-              editing={editing}
-              editFocus={editFocus}
-              onEditBands={setEditBands}
-              onEditFocus={setEditFocus}
+              lanes={[
+                ...(["ph", "mora"] as const).map((k) => ({
+                  id: k,
+                  label: t(`speech.layer.${k}`),
+                  checked: laneOn[k] && layer !== k,
+                  isDisabled: layer === k || !layers[k],
+                  onChange: (on: boolean) => setLaneOn((x) => ({ ...x, [k]: on })),
+                })),
+                { id: "judge", label: t("judge.lane"), checked: judgeOn && !!judgeLane, isDisabled: !judgeLane, onChange: setJudgeOn, testId: "stage-judge-lane" },
+              ]}
             />
-          ) : null}
-        </div>
-        <div className={s.stageActions} data-testid="stage-actions">
-          <div className={s.actGroup}>
+          )
+        }
+        timeline={
+          <div onPointerDownCapture={() => card.current?.focus({ preventScroll: true })}>
+            {asset ? (
+                <Timeline
+                  spectrum={spectrum}
+                  ref={tl}
+                  assetId={smp.asset_id}
+                  duration={asset.duration}
+                  bounds={bounds}
+                  focus={{ a: smp.start, b: smp.end }}
+                  playhead={playhead}
+                  playing={props.playing}
+                  selection={sel}
+                  onSelection={setSel}
+                  hitBox={props.hit ?? null}
+                  onSeek={seek}
+                  onPlayFrom={(at) => {
+                    setCursor(at);
+                    setMode("play");
+                    props.onPlayRange(at, Math.max(at + 0.05, sel && sel.b > at ? sel.b : endFrom(at)));
+                  }}
+                  overlay={overlay}
+                  lanes={lanes}
+                  onLaneDoubleClick={(id) => !editing && setLayer(id as LayerId)}
+                  curve={curve}
+                  editing={editing}
+                  editFocus={editFocus}
+                  onEditBands={setEditBands}
+                  onEditFocus={setEditFocus}
+                />
+            ) : null}
+          </div>
+        }
+        play={
+          <>
             <Button variant="flat" icon={props.playing && mode === "play" ? <Square /> : <Play />} onPress={play} data-testid="stage-play">
               {props.playing && mode === "play" ? t("library.stop") : t("player.play")}
             </Button>
@@ -556,55 +572,44 @@ export function StageSpeech(props: {
                 {props.stretchedPlaying ? t("library.stop") : t("stage.stretched")}
               </Button>
             ) : null}
-          </div>
-          <div className={s.actGroup} data-testid="stage-readout" data-a={range.a} data-b={range.b}>
-            <span className={s.mutedText}>{t("sources.selection")}</span>
-            <TimeField value={range.a} onCommit={commitSel("a")} label={t("sources.selStart")} testId="stage-sel-start" />
-            <span className={s.mutedText}>→</span>
-            <TimeField value={range.b} onCommit={commitSel("b")} label={t("sources.selEnd")} testId="stage-sel-end" />
-            <span className={`${s.mutedText} num`}>{t("format.sec", { v: seconds(range.b - range.a) })}</span>
-          </div>
-          <div className={s.actGroup}>
-            <ClipPanel
-              assetId={smp.asset_id}
-              track={trackLabel}
-              sel={sel}
-              isOpen={clipOpen}
-              onOpenChange={(o) => {
-                setClipOpen(o);
-                if (!o) setClipVia("manual");
-              }}
-              via={clipVia}
-              formatRange={(a, b) => `${seconds(a)}–${seconds(b)}`}
-              afterSave={
-                clipVia === "hit"
-                  ? (id, name) => toast({ text: t("clip.savedHit", { name }), action: { label: t("clip.open"), run: () => (setOpenSample(id), setPage("library")) } })
-                  : undefined
-              }
-            />
-            <Button variant="flat" icon={<AudioWaveform />} onPress={flatten} isDisabled={editing} data-testid="stage-flatten">
-              {t("flatten.action")}
-            </Button>
-            <Button variant="flat" icon={<Split />} onPress={separate} isDisabled={!asset || editing} data-testid="stage-separate">
-              {t("sep.action")}
-            </Button>
-            <Button variant="flat" icon={<Undo2 />} onPress={() => setReimport({ assetId: smp.asset_id, start: range.a })} isDisabled={editing} data-testid="stage-reimport">
-              {t("reimport.action")}
-            </Button>
-            <Menu
-              head={t("stage.exportHead", { a: seconds(range.a), b: seconds(range.b) })}
-              items={[{ id: "wav", label: t("stage.exportWav"), run: () => void exportRange() }]}
-              placement="top start"
-              trigger={
-                <Button variant="flat" icon={<Download />} isDisabled={exporting} data-testid="stage-export">
-                  {t("sources.export")}
-                  <ChevronDown size={13} />
-                </Button>
-              }
-            />
-          </div>
-        </div>
-      </section>
+          </>
+        }
+        selection={<WaveSelection a={range.a} b={range.b} onCommit={commitSel} testId="stage-readout" startTestId="stage-sel-start" endTestId="stage-sel-end" />}
+        process={
+          <WaveProcess
+            clip={
+                <ClipPanel
+                  assetId={smp.asset_id}
+                  track={trackLabel}
+                  sel={sel}
+                  isOpen={clipOpen}
+                  onOpenChange={(o) => {
+                    setClipOpen(o);
+                    if (!o) setClipVia("manual");
+                  }}
+                  via={clipVia}
+                  formatRange={(a, b) => `${seconds(a)}–${seconds(b)}`}
+                  afterSave={
+                    clipVia === "hit"
+                      ? (id, name) => toast({ text: t("clip.savedHit", { name }), action: { label: t("clip.open"), run: () => (setOpenSample(id), setPage("library")) } })
+                      : undefined
+                  }
+                />
+            }
+            onFlatten={flatten}
+            flattenDisabled={editing}
+            onSeparate={separate}
+            separateDisabled={!asset || editing}
+            onReimport={() => setReimport({ assetId: smp.asset_id, start: range.a })}
+            reimportDisabled={editing}
+            exportHead={t("stage.exportHead", { a: seconds(range.a), b: seconds(range.b) })}
+            exportItems={[{ id: "wav", label: t("stage.exportWav"), run: () => void exportRange() }]}
+            exportDisabled={exporting}
+            testIds={{ flatten: "stage-flatten", separate: "stage-separate", reimport: "stage-reimport", export: "stage-export" }}
+          />
+        }
+        actionsTestId="stage-actions"
+      />
       <ReimportDialog req={reimport} onClose={() => setReimport(null)} onSaved={(id) => setOpenSample(id)} />
       <section className={s.card} data-testid="speech-panel">
         <div className={s.waveHead}>

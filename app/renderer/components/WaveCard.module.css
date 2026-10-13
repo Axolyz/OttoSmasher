@@ -1,0 +1,23 @@
+/* 波形卡（原素材页与详情区共用；所有者 2026-10-13）。排布照原来原素材页那张卡：标题栏、图层栏 / 编辑条、时间线、动作条 */
+.card { border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--s1); display: flex; flex-direction: column; min-width: 0; outline: none; }
+.card:focus-within, .card:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.head { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; flex-wrap: wrap; row-gap: 4px; min-width: 0; }
+.title { font-size: var(--fs-sm); color: var(--sub); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow { flex: 1; }
+.error { padding: 0 12px 6px; color: var(--warn); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.layers { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; flex-wrap: wrap; }
+.layerHint { color: var(--muted); font-size: var(--fs-sm); }
+.editBar { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; flex-wrap: wrap; font-size: var(--fs-sm); }
+.editBar b { color: var(--accent); font-weight: 600; }
+.editName { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.editHint { color: var(--muted); flex-basis: 100%; order: 10; }
+.actions { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; flex-wrap: wrap; min-width: 0; }
+.group { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line2); border-radius: var(--r-lg); padding: 2px; background: var(--s2); min-width: 0; flex-wrap: wrap; }
+.groupLabel { color: var(--muted); font-size: var(--fs-sm); padding: 0 6px 0 8px; }
+.arrow { color: var(--muted); }
+.dur { color: var(--muted); font-size: var(--fs-xs); padding: 0 8px 0 4px; min-width: 56px; }
+.hint { color: var(--faint); font-size: var(--fs-xs); }
+/* 矮窗口（850×600）：去掉图层栏的说明，让画面留出高度 */
+@media (max-height: 760px) {
+  .layerHint { display: none; }
+}

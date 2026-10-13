@@ -24,6 +24,10 @@ test("详情区窗口：余量、缩放边界、在余量里截取", async () =>
   const tl = page.getByTestId("stage-wave").getByTestId("timeline");
   await expect(tl).toBeVisible();
   await expect(tl).toHaveAttribute("data-peaks", "ready", { timeout: 15000 });
+  // 共用波形卡（所有者 2026-10-13）：时间线下沿紧贴动作条，中间没有空白
+  const tb = (await tl.boundingBox())!;
+  const ab = (await page.getByTestId("stage-actions").boundingBox())!;
+  expect(ab.y - (tb.y + tb.height)).toBeLessThan(16);
   // 换到同一条轨上的另一个采样再换回来：窗口变了，波形（峰值）不能丢（所有者 2026-10-13 报：详情区看不到波形）
   await page.getByTestId("sample-row").filter({ hasText: "となり" }).click();
   await expect(page.getByTestId("stage-title")).toHaveText("となり");
