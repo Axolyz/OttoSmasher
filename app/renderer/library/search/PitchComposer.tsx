@@ -11,6 +11,7 @@ import { AnchoredPanel } from "../../components/Panel";
 import { t } from "../../i18n";
 import { useApp } from "../../state/store";
 import s from "./Search.module.css";
+import { noteName } from "../../pitch";
 
 export interface PBlock {
   id: number;
@@ -46,8 +47,7 @@ export const newPitchDraft = (): PitchDraft => ({
   ignoreOctave: false, elastic: false, elasticLo: 0.8, elasticHi: 1.25, head: null, tail: null,
 });
 
-const NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
-export const noteName = (m: number) => `${NAMES[((m % 12) + 12) % 12]}${Math.floor(m / 12) - 1}`;
+export { noteName };
 const PHI = 96;
 const PLO = 36;
 const RH = 10;

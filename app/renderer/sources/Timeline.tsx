@@ -10,7 +10,9 @@ import { clock } from "../format";
 import { errorText, t } from "../i18n";
 import { useSettingValue } from "../state/settings";
 import { type Boundary, type EditBand, boundaries, boundaryNear, limits, moveBoundary } from "./bounds";
+import { midiOf, noteName } from "../pitch";
 import { type LabelIn, type LabelOut, layoutLabels } from "./labels";
+import { pitchGrid, pitchRange } from "./pitchGrid";
 import { bandAt, bandsAt, snapExtend } from "./snap";
 import s from "./Sources.module.css";
 
@@ -186,6 +188,8 @@ export const Timeline = forwardRef<
     onEditFocus?: (id: string | null) => void;
     /** 频谱细看（规格 05 §5.3.2、L19）：视口 ≤ 30 秒时把波形换成所选音频的频谱（固定 −90–0 dB）；null = 波形 */
     spectrum?: "log" | "linear" | "mel" | null;
+    /** 目标音（MIDI；拉平成品）：音高线上画一条虚线 */
+    pitchTarget?: number | null;
     /** 标签最多显示几行；不给 = 设置 general.label_max_lines（默认 3）。所有图层同一条避让 + 折行规则 */
     labelMaxLines?: number;
     /** 可视范围（默认 [0, duration]）：缩放、平移、总览条、选区都只在这里面（详情区 = 采样范围 + 余量，所有者 2026-10-12） */
@@ -484,20 +488,60 @@ export const Timeline = forwardRef<
     // F0 曲线：可见范围内可靠值的对数刻度（上下各留 15%）
     const cv = props.curve;
     if (cv && cv.values.length) {
+      // 音高线（所有者 2026-10-13）：纵向按 MIDI 半音，最少 6 个半音、以中位为中心；刻度按疏密自适应（pitchGrid）；拉平成品画目标音虚线
       const i0 = Math.max(0, Math.floor((v0 - cv.t0) / cv.step));
       const i1 = Math.min(cv.values.length - 1, Math.ceil((v1 - cv.t0) / cv.step));
-      let lo = Infinity;
-      let hi = -Infinity;
+      const vis: number[] = [];
       for (let i = i0; i <= i1; i++) {
         const v = cv.values[i]!;
-        if (Number.isFinite(v) && v > 0) {
-          lo = Math.min(lo, Math.log2(v));
-          hi = Math.max(hi, Math.log2(v));
-        }
+        if (Number.isFinite(v) && v > 0) vis.push(midiOf(v));
       }
-      if (Number.isFinite(lo)) {
-        const pad = Math.max(0.25, (hi - lo) * 0.15);
-        const Y = (v: number) => waveTop + waveH - ((Math.log2(v) - (lo - pad)) / (hi - lo + 2 * pad)) * waveH;
+      const target = props.pitchTarget ?? null;
+      const range = pitchRange(target != null && vis.length ? [...vis, target] : vis);
+      if (range) {
+        const [ma, mb] = range;
+        const Y = (m: number) => waveTop + waveH - ((m - ma) / (mb - ma)) * waveH;
+        // 刻度线与音名（在曲线下面）
+        ctx.font = `9px ${cssVar("--font")}`;
+        for (const g of pitchGrid(ma, mb, waveH / (mb - ma))) {
+          const y = Math.round(Y(g.midi)) + 0.5;
+          ctx.strokeStyle = cssVar(g.c ? "--line" : "--line2");
+          ctx.globalAlpha = g.c ? 0.9 : 0.6;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(size.w, y);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          if (g.label && y - 11 > waveTop) {
+            ctx.lineJoin = "round";
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = cssVar("--bg");
+            ctx.strokeText(noteName(g.midi), 4, y - 2);
+            ctx.lineWidth = 1;
+            ctx.fillStyle = cssVar(g.c ? "--sub" : "--faint");
+            ctx.fillText(noteName(g.midi), 4, y - 2);
+          }
+        }
+        if (target != null) {
+          const y = Math.round(Y(target)) + 0.5;
+          ctx.strokeStyle = cssVar("--gold");
+          ctx.globalAlpha = 0.8;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(size.w, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+          const label = t("pitch.target", { note: noteName(Math.round(target)) });
+          const w = ctx.measureText(label).width;
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = cssVar("--bg");
+          ctx.strokeText(label, size.w - w - 6, y - 3);
+          ctx.lineWidth = 1;
+          ctx.fillStyle = cssVar("--gold");
+          ctx.fillText(label, size.w - w - 6, y - 3);
+        }
         ctx.strokeStyle = cssVar("--gold");
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -509,8 +553,8 @@ export const Timeline = forwardRef<
             continue;
           }
           const x = X(cv.t0 + i * cv.step);
-          if (pen) ctx.lineTo(x, Y(v));
-          else ctx.moveTo(x, Y(v));
+          if (pen) ctx.lineTo(x, Y(midiOf(v)));
+          else ctx.moveTo(x, Y(midiOf(v)));
           pen = true;
         }
         ctx.stroke();
@@ -597,7 +641,7 @@ export const Timeline = forwardRef<
     ctx.strokeStyle = cssVar("--accent");
     ctx.lineWidth = 1;
     ctx.strokeRect(((v0 - lo) / extent) * size.w + 0.5, oy + 0.5, Math.max(3, (span / extent) * size.w) - 1, OVERVIEW_H - 1);
-  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum, props.focus?.a, props.focus?.b, lo, extent, laneLayouts, maxLines]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, view, whole, detail, duration, waveTop, waveH, covered[0], covered[1], props.overlay, props.curve, props.lanes, props.editing, props.editFocus, spec, props.spectrum, props.focus?.a, props.focus?.b, lo, extent, laneLayouts, maxLines, props.pitchTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 上层：选区 + 播放头（每帧），播放时视口跟随
   useEffect(() => {

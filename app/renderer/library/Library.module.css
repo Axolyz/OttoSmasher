@@ -139,3 +139,6 @@
 .stagePicEmpty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: var(--fs-sm); }
 .stagePicTag { position: absolute; right: 8px; bottom: 6px; font-size: var(--fs-xs); color: var(--sub); background: color-mix(in srgb, var(--s1) 70%, transparent); border-radius: 5px; padding: 0 5px; }
 .stagePicWide { position: absolute; right: 4px; top: 4px; }
+
+/* 波形卡标题栏里的音高读数（所有者 2026-10-13） */
+.pitchReadout { display: inline-flex; gap: 8px; align-items: baseline; font-size: var(--fs-sm); color: var(--gold); font-variant-numeric: tabular-nums; margin-left: 8px; }

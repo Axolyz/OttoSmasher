@@ -27,6 +27,7 @@ import { ReimportDialog, type ReimportRequest } from "../sources/ReimportDialog"
 import { useUndo } from "../shell/useUndo";
 import { type Curve, type Layer, type LayerBand, type Sel, Timeline, type TimelineHandle } from "../sources/Timeline";
 import { waveKey } from "../sources/waveKeys";
+import { midiOf, noteName, readPitch } from "../pitch";
 import s from "./Library.module.css";
 import { GroupingPanel } from "./StageRhythm";
 
@@ -461,6 +462,35 @@ export function StageSpeech(props: {
   const inSel = (a: number, b: number) => sel !== null && (a + b) / 2 >= sel.a - 1e-6 && (a + b) / 2 <= sel.b + 1e-6;
   const pickRange = (a: number, b: number, extend: boolean) => setSel(extend && sel ? { a: Math.min(sel.a, a), b: Math.max(sel.b, b) } : { a, b });
 
+  // 音高（所有者 2026-10-13）：拉平成品的目标音（虚线 + 偏差）；标题栏固定位置的读数 = 播放指针 / 光标处的音高（播放时每 0.1 秒更新）
+  const pitchTarget = asset?.origin === "flatten" ? ((asset.production?.target as { midi?: number } | undefined)?.midi ?? null) : null;
+  const [readAt, setReadAt] = useState(cursor);
+  useEffect(() => {
+    if (!props.playing) return setReadAt(cursor);
+    const id = setInterval(() => setReadAt(playhead()), 100);
+    return () => clearInterval(id);
+  }, [props.playing, cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  const f0At = (tt: number) => {
+    if (!curve) return null;
+    const v = curve.values[Math.round((tt - curve.t0) / curve.step)];
+    return v != null && Number.isFinite(v) && v > 0 ? midiOf(v) : null;
+  };
+  const deviation = useMemo(() => {
+    if (pitchTarget == null || !curve) return null;
+    const c = [...curve.values].filter((v) => Number.isFinite(v) && v > 0).map((v) => Math.abs(midiOf(v) - pitchTarget) * 100).sort((x, y) => x - y);
+    return c.length ? Math.round(c[Math.min(c.length - 1, Math.floor(c.length * 0.9))]!) : null;
+  }, [curve, pitchTarget]);
+  const nowPitch = f0At(readAt);
+  const pitchReadout = curve ? (
+    <span className={s.pitchReadout} data-testid="pitch-readout">
+      {nowPitch == null ? t("pitch.none") : (() => {
+        const r = readPitch(nowPitch);
+        return t("pitch.readout", { note: r.name, cents: `${r.cents > 0 ? "+" : r.cents < 0 ? "\u2212" : "\u00b1"}${Math.abs(r.cents)}` });
+      })()}
+      {pitchTarget != null && deviation != null ? <span className={s.mutedText}>{t("pitch.deviation", { note: noteName(Math.round(pitchTarget)), n: deviation })}</span> : null}
+    </span>
+  ) : null;
+
   return (
     <>
       <WaveCard
@@ -471,6 +501,7 @@ export function StageSpeech(props: {
         data={{ cursor: cursor.toFixed(3), mode: props.playing ? (mode ?? "play") : undefined }}
         ariaLabel={t("speech.sound", { name: assetLabel(asset) })}
         title={<WaveTitle>{t("speech.sound", { name: assetLabel(asset) })}</WaveTitle>}
+        readout={pitchReadout}
         fitLabel={t("speech.fit")}
         onFit={() => tl.current?.zoomTo(smp.start, smp.end)}
         onZoomSel={() => sel && tl.current?.zoomTo(sel.a, sel.b)}
@@ -542,6 +573,7 @@ export function StageSpeech(props: {
                   lanes={lanes}
                   onLaneDoubleClick={(id) => !editing && setLayer(id as LayerId)}
                   curve={curve}
+              pitchTarget={pitchTarget}
                   editing={editing}
                   editFocus={editFocus}
                   onEditBands={setEditBands}

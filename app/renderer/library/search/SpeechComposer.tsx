@@ -9,6 +9,7 @@ import { Checkbox, Disclosure, Segmented } from "../../components/Controls";
 import { OptionalNumber, Select, Switch, TextField } from "../../components/Fields";
 import { AnchoredPanel } from "../../components/Panel";
 import { t } from "../../i18n";
+import { NOTE_NAMES } from "../../pitch";
 import s from "./Search.module.css";
 
 export type Strategy = "free" | "strict" | "rank";
@@ -47,7 +48,6 @@ export const newSpeechDraft = (): SpeechDraft => ({
 });
 
 const BPX = 90;
-const NOTE_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 const tolOf = (d: SpeechDraft) => Math.min(0.1, d.grid / 3);
 const sorted = (d: SpeechDraft) => (d.strategy === "free" ? d.blocks : [...d.blocks].sort((x, y) => x.a - y.a));
 

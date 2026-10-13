@@ -1559,7 +1559,7 @@ function RowExtra(props: { r: SampleRow; g: SampleGlyph | undefined }) {
         ) : null}
         {g.curve ? (
           <span className={s.extraGlyph} data-nature="pitched">
-            <Sparkline values={g.curve} label={t("library.pitchCurve")} />
+            <Sparkline values={g.curve} minSpan={6} label={t("library.pitchCurve")} />
           </span>
         ) : null}
       </span>
