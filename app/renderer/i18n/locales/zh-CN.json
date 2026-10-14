@@ -495,6 +495,7 @@
   "sources.transcript": "台本",
   "sources.noSubtitleHint": "没有字幕文件。可以在「作品与输入设置」里关联；没有字幕也能直接在时间线上选区截取。",
   "sources.audioSource": "音源",
+  "sources.partialHere": "这里的局部音轨（盖住播放头的）",
   "sources.trackN": "第 {n} 条音轨",
   "sources.langUnknown": "语言未知",
   "sources.timelineHelp": "单击定位，拖动选区（拖两端调整）；双击从此处播放；滚轮以指针为中心缩放，Shift+滚轮平移；底部总览条可点击跳转。Space 播放/暂停，Shift+Space 播放选区，L 循环，I/O 设选区起止，F 适合窗口，Z 放大选区，←/→ 逐帧。",

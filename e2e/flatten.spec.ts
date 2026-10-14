@@ -87,6 +87,16 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await expect(viewer).toHaveAttribute("data-asset", aid);
   await expect(viewer).toHaveAttribute("data-highlight", /.+/);
   await expect(page.getByTestId("readout")).toHaveAttribute("data-a", "0.5");
+  // 音源下拉（所有者 2026-10-13）：整轨都列；拉平成品这种局部音轨只在播放头落在它上面时出现在“这里的局部音轨”小节里
+  await page.getByTestId("audio-source").getByRole("button").click();
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => window.otto.player.seek(1.0));
+  await page.waitForTimeout(400);
+  await page.getByTestId("audio-source").getByRole("button").click();
+  await expect(page.getByRole("option")).toHaveCount(2);
+  await expect(page.getByText("这里的局部音轨（盖住播放头的）")).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(product).toBeTruthy();
   // 加工链与相关采样：成品 ← 原混音；与原采样、みー 交叠
   await page.keyboard.press("Meta+1");

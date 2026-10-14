@@ -47,3 +47,6 @@
 .suggestHead { font-size: var(--fs-xs); color: var(--muted); padding: 6px 8px 2px; }
 .suggestDetail { color: var(--muted); font-size: var(--fs-xs); }
 .suggestFoot { font-size: var(--fs-xs); color: var(--faint); padding: 6px 12px 8px; border-top: 1px solid var(--line2); }
+/* 下拉里的分组（例：原素材页音源的“这里的局部音轨”） */
+.section { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line2); }
+.sectionHead { padding: 2px 8px 4px; color: var(--muted); font-size: var(--fs-xs); }

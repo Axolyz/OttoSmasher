@@ -25,6 +25,7 @@ from ottosmasher.store.workspace import Workspace
 from ottosmasher.studio import discovery, protocol
 
 from . import assets as assets_mod
+from . import effective_tags
 from . import libdirs
 from . import settings as settings_mod
 from .clock import new_id, now_iso
@@ -35,7 +36,8 @@ DEVICES = ("auto", "cpu", "cuda", "mps")
 
 
 class SeparationService:
-    def __init__(self, conn: sqlite3.Connection, ws: Workspace, jobs: Any, on_change: Callable[[ChangeSet], None] | None = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, ws: Workspace, jobs: Any, on_change: Callable[[ChangeSet], None] | None = None, samples: Any = None) -> None:
+        self.samples = samples  # 局部分离自动建采样用（SampleService）
         self.conn = conn
         self.ws = ws
         self.jobs = jobs
@@ -169,6 +171,9 @@ class SeparationService:
         aliases = settings_mod.values(self.conn)["separation.role_aliases"]
         moved: list[Path] = []
         created: list[str] = []
+        new_samples: list[str] = []
+        src_dur = self.conn.execute("SELECT duration FROM source WHERE id=?", (asset["source_id"],)).fetchone()[0]
+        partial = src_dur is None or not mapping.is_full_track(float(src_dur))
         try:
             with transaction(self.conn):
                 for st in result["stems"]:
@@ -208,6 +213,14 @@ class SeparationService:
                     )
                     assets_mod.prefill_roles(self.conn, aid, assets_mod.roles_for_stem(st["stem"], aliases))
                     created.append(aid)
+                    # 局部分离（对选区）= 某一段的另一个版本，属于采样那一侧：和拉平、回导一样自动建一个采样（所有者 2026-10-13）；
+                    # 整轨分离是原素材的音轨，不建采样。名称 = 这段的建议名 · 声部，性质按声部角色
+                    if partial and self.samples is not None:
+                        name = self.samples.suggest(aid, 0.0, duration)["name"]
+                        sid = self.samples.insert_checked(aid, 0.0, duration, name=f"{name} \u00b7 {st['stem']}"[:500], created_via="processed",
+                                                          origin={"kind": "separation", "job": job["id"], "stem": st["stem"]})
+                        effective_tags.refresh(self.conn, [sid])
+                        new_samples.append(sid)
         except Exception:
             for p in moved:
                 p.unlink(missing_ok=True)
@@ -216,6 +229,8 @@ class SeparationService:
             cs = ChangeSet()
             for a in created:
                 cs.add("asset", a)
+            for sid in new_samples:
+                cs.add("sample", sid)
             cs.add("source", asset["source_id"])
             self.on_change(cs)
 

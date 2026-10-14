@@ -7,6 +7,7 @@ import pytest
 from fake_studio import make_fake_studio
 from ottosmasher.core import assets as assets_mod
 from ottosmasher.core.errors import CoreError
+from ottosmasher.core.samples import SampleService
 from ottosmasher.core.separation import SeparationService
 from ottosmasher.core.sources import SourceService
 from ottosmasher.media import mp3
@@ -28,7 +29,7 @@ def env(db, ws, tmp_path):
     sources = SourceService(db, workspace_root=ws.root)
     sid = sources.add([str(wav)])[0]["sourceId"]
     aid = assets_mod.list_for_source(db, sid)[0]["id"]
-    svc = SeparationService(db, ws, h.s)
+    svc = SeparationService(db, ws, h.s, samples=SampleService(db))
     yield h, svc, sid, aid, data
     h.cleanup()
 
@@ -75,7 +76,7 @@ def test_full_separation_registers_stems_and_reuses(db, ws, env):
     assert v["mapping"] == [[0.0, 0.0], [3.0, 3.0]]
     assert v["roles"] == ["vocal"] and by_stem["Instrumental"]["roles"] == []  # 别名表预填（不分大小写）
     assert db.execute("SELECT COUNT(*) FROM default_track").fetchone()[0] == 0  # 不自动设默认轨
-    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0  # 不建采样
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0  # 整轨分离是原素材的音轨：不建采样
     assert v["production"]["model"] == "fake_vocals" and v["production"]["studioVersion"] == "9.9.9"
     mf = db.execute("SELECT path, location, format, frames, sample_rate FROM media_file WHERE id=?", (v["media_file_id"],)).fetchone()
     assert (mf["location"], mf["format"], mf["frames"], mf["sample_rate"]) == ("library", "mp3", 144000, 48000)
@@ -98,6 +99,11 @@ def test_selection_three_track_crops_mapping(db, env):
     assert set(got) == {"speech", "effects"}
     assert got["speech"]["mapping"] == [[0.0, 0.5], [1.5, 2.0]]
     assert (got["speech"]["roles"], got["effects"]["roles"]) == (["vocal"], ["sfx"])
+    # 局部分离（对选区）自动建采样，每个声部一个（所有者 2026-10-13）：整段、名称 = 建议名 · 声部、性质按角色
+    rows = {r["asset_id"]: r for r in db.execute('SELECT asset_id, start, "end", name, nature, created_via FROM sample')}
+    sp, ef = rows[got["speech"]["id"]], rows[got["effects"]["id"]]
+    assert (sp["start"], sp["end"], sp["nature"], sp["created_via"]) == (0.0, 1.5, "speech", "processed") and sp["name"].endswith("\u00b7 speech")
+    assert ef["nature"] == "unpitched" and len(rows) == 2
     with pytest.raises(CoreError) as e:
         svc.submit(aid, None, None, "fake_3track", ["Vocals"])
     assert e.value.code == "sep-stems-invalid"

@@ -114,6 +114,21 @@ export function TextField(props: {
 export interface Option {
   id: string;
   label: string;
+  /** 分组标题：同组的选项排在一个带标题的小节里，没有分组的排在最前面 */
+  group?: string;
+}
+
+function item(o: Option) {
+  return (
+    <ListBoxItem key={o.id} id={o.id} className={s.option} textValue={o.label}>
+      {({ isSelected }) => (
+        <>
+          <span>{o.label}</span>
+          {isSelected ? <Check size={13} /> : null}
+        </>
+      )}
+    </ListBoxItem>
+  );
 }
 
 export function Select(props: {
@@ -140,17 +155,14 @@ export function Select(props: {
         <ChevronDown size={14} />
       </RacButton>
       <Popover className={s.popover} offset={4}>
-        <ListBox className={s.listbox} items={props.options}>
-          {(o) => (
-            <ListBoxItem id={o.id} className={s.option} textValue={o.label}>
-              {({ isSelected }) => (
-                <>
-                  <span>{o.label}</span>
-                  {isSelected ? <Check size={13} /> : null}
-                </>
-              )}
-            </ListBoxItem>
-          )}
+        <ListBox className={s.listbox}>
+          {props.options.filter((o) => !o.group).map(item)}
+          {[...new Set(props.options.filter((o) => o.group).map((o) => o.group!))].map((g) => (
+            <ListBoxSection key={g} className={s.section}>
+              <Header className={s.sectionHead}>{g}</Header>
+              {props.options.filter((o) => o.group === g).map(item)}
+            </ListBoxSection>
+          ))}
         </ListBox>
       </Popover>
     </RacSelect>

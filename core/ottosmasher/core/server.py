@@ -455,7 +455,7 @@ class Core:
         self.jobs.adopters["models.probe"] = self._adopt_probes
         self.jobs.adopters["dictionary.compile"] = self._adopt_dictionary
         self.jobs.adopters["dictionary.preview"] = self._adopt_probes
-        self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change)
+        self.separation = SeparationService(self.conn, self.ws, self.jobs, on_change=self._on_change, samples=self.samples)
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
         self.glyphs = Glyphs(self.conn, self.speech)

@@ -493,9 +493,16 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     const off = hangOffset(a.mapping) ?? 0;
     return a.isFullTrack ? base : t("sources.partialTrack", { name: base, a: clock(off), b: clock(off + a.duration) });
   };
-  // 只列能挂到原片时间轴（未变速）的资产：容器音轨在前，然后整轨，最后部分覆盖的
+  // 音源（所有者 2026-10-13：原素材页管整条时间线，拉平 / 局部分离 / 回导这些“某一段的另一个版本”属于采样那一侧）：
+  // 整轨（容器音轨在前）都列；局部音轨只列盖住播放头的那几个，放在“这里的局部音轨”小节里（正在用的那条总在）
+  const phNow = playhead() ?? sel?.a ?? null;
   const sourceOptions = assets
     .filter((a) => hangOffset(a.mapping) != null)
+    .filter((a) => {
+      if (a.isFullTrack || a.id === asset?.id) return true;
+      const o = hangOffset(a.mapping);
+      return phNow != null && o != null && phNow >= o - 1e-6 && phNow <= o + a.duration + 1e-6;
+    })
     .sort((x, y) => Number(x.origin !== "stream") - Number(y.origin !== "stream") || Number(!x.isFullTrack) - Number(!y.isFullTrack));
   const trackName = asset ? assetLabel(asset) : "";
   // 导出文件名的“音轨”段（规格 12 §12.1）：原混音 / 声部名
@@ -683,7 +690,8 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
             onChange={(v) => setAssetSel(v)}
             label={t("sources.audioSource")}
             prefix={t("sources.audioSource")}
-            options={sourceOptions.map((a) => ({ id: a.id, label: assetLabel(a) }))}
+            options={sourceOptions.map((a) => ({ id: a.id, label: assetLabel(a), group: a.isFullTrack ? undefined : t("sources.partialHere") }))}
+            testId="audio-source"
           />
         }
         headExtra={
