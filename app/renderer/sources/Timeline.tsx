@@ -503,22 +503,24 @@ export const Timeline = forwardRef<
         const Y = (m: number) => waveTop + waveH - ((m - ma) / (mb - ma)) * waveH;
         // 刻度线与音名（在曲线下面）
         ctx.font = `9px ${cssVar("--font")}`;
+        // 只画标了音名的那几条线（所有者 2026-10-13：没标音名的线只会添乱），线比波形底色亮一些，C 再亮一点
         for (const g of pitchGrid(ma, mb, waveH / (mb - ma))) {
+          if (!g.label) continue;
           const y = Math.round(Y(g.midi)) + 0.5;
-          ctx.strokeStyle = cssVar(g.c ? "--line" : "--line2");
-          ctx.globalAlpha = g.c ? 0.9 : 0.6;
+          ctx.strokeStyle = cssVar(g.c ? "--sub" : "--muted");
+          ctx.globalAlpha = g.c ? 0.45 : 0.32;
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(size.w, y);
           ctx.stroke();
           ctx.globalAlpha = 1;
-          if (g.label && y - 11 > waveTop) {
+          if (y - 11 > waveTop) {
             ctx.lineJoin = "round";
             ctx.lineWidth = 3;
             ctx.strokeStyle = cssVar("--bg");
             ctx.strokeText(noteName(g.midi), 4, y - 2);
             ctx.lineWidth = 1;
-            ctx.fillStyle = cssVar(g.c ? "--sub" : "--faint");
+            ctx.fillStyle = cssVar(g.c ? "--sub" : "--muted");
             ctx.fillText(noteName(g.midi), 4, y - 2);
           }
         }
