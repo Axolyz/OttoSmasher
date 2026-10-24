@@ -104,3 +104,13 @@ def test_history_and_undo_session(core):
     assert r == {"undone": 1, "blocked": None, "remaining": 0}
     assert ok(call(core, "settings.list"))["jobs.concurrency_light"]["value"] == ok(call(core, "settings.list"))["jobs.concurrency_light"]["default"]
     assert ok(call(core, "edits.undoSession", session="s1")) == {"undone": 0, "blocked": None, "remaining": 0}
+
+
+def test_pitch_search_scope_keeps_tag_conditions(core):
+    """以前 search.pitch 的范围没声明 tags / expr，参数校验时被静默丢掉（P6）。"""
+    cmd = core.api.get("search.pitch")
+    p = cmd.parse({"blocks": [], "mode": "samples", "scope": {"tags": {"expr": "topic:game"}, "expr": "character:*", "natures": ["speech"]}})
+    assert p["scope"] == {"tags": {"expr": "topic:game"}, "expr": "character:*", "natures": ["speech"]}
+    # 原片音轨模式：采样专用条件明确拒绝，不静默忽略
+    r = call(core, "search.pitch", blocks=[{"seconds": 0.3, "low": "C4"}], mode="sources", scope={"languages": ["ja"]})
+    assert (r["e"]["code"], r["e"]["args"]["field"]) == ("search-invalid", "languages"), r

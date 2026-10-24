@@ -984,10 +984,14 @@ export interface PitchProblem {
 }
 
 export interface PitchSourceScope {
+  expr?: string;
+  languages?: string[] | null;
+  metrics?: MetricFilter | null;
   natures?: string[] | null;
   roles?: ("mix" | "sfx" | "vocal")[] | null;
   sourceId?: string | null;
   starred?: boolean | null;
+  tags?: TagScope | null;
   text?: string;
 }
 

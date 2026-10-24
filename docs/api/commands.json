@@ -7893,6 +7893,32 @@
    "title": "PitchSourceScope",
    "type": "object",
    "properties": {
+    "expr": {
+     "type": "string"
+    },
+    "languages": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "metrics": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/MetricFilter"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "natures": {
      "anyOf": [
       {
@@ -7937,6 +7963,16 @@
      "anyOf": [
       {
        "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "tags": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/TagScope"
       },
       {
        "type": "null"

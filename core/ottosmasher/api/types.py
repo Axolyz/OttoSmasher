@@ -2458,6 +2458,12 @@ class PitchSourceScope(TypedDict):
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
     roles: NotRequired[list[Literal["vocal", "sfx", "mix"]] | None]
+    # 与 SampleFilter 相同的标签条件（采样模式按采样的有效标签；原片模式按查询窗与标注交叠，L28）。
+    # 以前没声明，参数校验时被静默丢掉（阶段 A 写说明书时发现）
+    tags: NotRequired[TagScope | None]
+    expr: NotRequired[str]
+    metrics: NotRequired[MetricFilter | None]
+    languages: NotRequired[list[str] | None]
 
 
 class SearchPitchParams(TypedDict):

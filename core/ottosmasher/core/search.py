@@ -346,7 +346,7 @@ class SearchService:
     def _list_tracks(self, scope: dict[str, Any] | None) -> list[Any]:
         """原片音轨模式（10 §10.2.3）：范围只保留原片、文字（原片名/作品/集数）、音轨角色；采样专用条件拒绝并说明。"""
         sc = dict(scope or {})
-        for k in ("natures", "starred"):
+        for k in ("natures", "starred", "metrics", "languages"):
             if sc.get(k):
                 raise CoreError("search-invalid", field=k)
         where, args = ["1=1"], []
