@@ -41,7 +41,11 @@ def build(commands: CommandSet) -> dict[str, Any]:
     schemas, defs = msgspec.json.schema_components(types, ref_template="#/$defs/{name}")
     out = []
     for i, c in enumerate(cmds):
-        out.append({"name": c.name, "effect": c.effect, "summary": c.summary, "params": schemas[2 * i], "result": schemas[2 * i + 1]})
+        entry = {"name": c.name, "effect": c.effect, "summary": c.summary, "params": schemas[2 * i], "result": schemas[2 * i + 1]}
+        if c.danger:
+            # 撤销不了：外部连接调用时要所有者在应用里确认（conditional = 只在某些参数下，见说明）
+            entry["danger"] = "conditional" if callable(c.danger) else "always"
+        out.append(entry)
     return {"catalogVersion": CATALOG_VERSION, "commands": out, "errors": error_table(), "$defs": dict(sorted(defs.items()))}
 
 

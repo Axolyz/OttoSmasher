@@ -31,6 +31,7 @@ from .errors import CoreError
 from .rpc import FrameWriter, read_frame
 from .scheduler import Scheduler
 from . import actor as actor_mod
+from .agent_link import CONFIRM_SECONDS, AgentLink, Confirmations, Peer
 from . import text_layer as text_layer_mod
 from . import assets as assets_mod
 from . import playback as playback_mod
@@ -61,7 +62,7 @@ from .waveforms import WaveformService
 log = logging.getLogger(__name__)
 
 class Core:
-    def __init__(self, workspace: Path, *, support_dir: Path | None = None, dev: bool = False) -> None:
+    def __init__(self, workspace: Path, *, support_dir: Path | None = None, dev: bool = False, agent_link: bool = True) -> None:
         self.ws = Workspace(workspace)
         self.support_dir = support_dir or registry.default_support_dir()
         self.dev = dev
@@ -81,6 +82,11 @@ class Core:
         self.interrupted_on_start = 0
         self._stop = False
         self._req: Any = None  # 正在处理的请求 ID（资料变化事件带上它）
+        # 本机 agent 端点（阶段 A）：只在 serve（应用里真正运行）时开
+        self.agent_link_enabled = agent_link
+        self.link: AgentLink | None = None
+        self.confirms = Confirmations(emit=self.emit, post=self.post,
+                                      seconds=float(os.environ.get("OTTO_AGENT_CONFIRM_SECONDS", CONFIRM_SECONDS)))
         self.api = CommandSet()
         self._register(self.api)
 
@@ -89,6 +95,10 @@ class Core:
         r = api.add
         # ---- 应用、设置、界面状态
         r("core.hello", "read", T.NoParams, T.Hello, "Core version, workspace and schema version.", self._hello)
+        r("agent.sessions", "read", T.NoParams, list[T.AgentSession], "Command-line (agent / script) connections currently attached to this app.",
+          lambda p: self.link.sessions() if self.link is not None else [])
+        r("agent.confirmReply", "ui", T.AgentConfirmReplyParams, T.NoParams,
+          "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).", self._confirm_reply)
         r("settings.list", "read", T.NoParams, dict[str, T.SettingEntry], "All settings with value, default and version (edit via edits.apply, entity 'setting').",
           lambda p: settings_mod.read_all(self.conn))
         r("sources.inferTest", "read", T.InferTestParams, T.InferTest, "Try the work/episode inference rules (draft or current) on a file name.", self._infer_test)
@@ -135,7 +145,7 @@ class Core:
         r("sources.deletePreview", "read", T.IdParams, T.DeletePreview, "What deleting a source would remove.", lambda p: self.sources.delete_preview(p["id"]))
         r("sources.delete", "write", T.IdParams, T.DeletePreview,
           "Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'.",
-          lambda p: self.sources.delete(p["id"], release=True))
+          lambda p: self.sources.delete(p["id"], release=True), danger=True)
         r("sources.relocatePlan", "read", T.RelocatePlanParams, list[T.RelocateItem],
           "Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name.",
           lambda p: self.sources.relocate_plan(list(p["ids"]), p["folder"]))
@@ -145,7 +155,7 @@ class Core:
           lambda p: self.independence.plan(list(p["ids"])))
         r("samples.independ", "job", T.IndependParams, T.JobSummary,
           "Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released).",
-          lambda p: self.independence.submit(list(p["ids"]), p.get("deleteSource")))
+          lambda p: self.independence.submit(list(p["ids"]), p.get("deleteSource")), danger=lambda p: bool(p.get("deleteSource")))
         r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files.", lambda p: self.roots.rescan())
         r("roots.list", "read", T.NoParams, list[T.SourceRoot], "Source folders.", lambda p: self.roots.list())
         r("roots.add", "write", T.PathParams, T.RootAdded, "Add a source folder (adopts sources already inside, then scans).", lambda p: self.roots.add(str(p["path"])))
@@ -154,7 +164,7 @@ class Core:
           lambda p: self.roots.relocate(str(p["id"]), str(p["path"])))
         r("works.list", "read", T.NoParams, list[T.WorkFolder], "Work folders (first-level subfolders of source folders).", lambda p: self.roots.works())
         r("works.rename", "write", T.WorkRenameParams, T.WorkRenamed, "Rename a work: renames the folder on disk (not undoable).",
-          lambda p: self.roots.rename(str(p["id"]), str(p["name"])))
+          lambda p: self.roots.rename(str(p["id"]), str(p["name"])), danger=True)
         r("works.settingsBatch", "read", T.WorkSettingsParams, T.EditBatch, "Edit batch for a work's settings (apply with edits.apply).",
           lambda p: self.roots.settings_batch(str(p["id"]), str(p.get("sourceType", "")), bool(p.get("bindPictures", True))))
         r("imports.scan", "job", T.PathsParams, T.JobSummary, "Scan files/folders to import (background job).", lambda p: self.imports.scan(list(p["paths"])))
@@ -242,7 +252,8 @@ class Core:
         r("samples.related", "read", T.RelatedParams, T.RelatedSamples,
           "Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first.",
           lambda p: self.samples.related(p["id"], int(p.get("limit") or 12)))
-        r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay).", lambda p: self.samples.delete(list(p["ids"])))
+        r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay; not undoable).",
+          lambda p: self.samples.delete(list(p["ids"])), danger=True)
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
           "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
           lambda p: self.handoff.export_samples(list(p["ids"]), dict(p.get("words", {})), dict(p.get("versions") or {})))
@@ -388,7 +399,7 @@ class Core:
           lambda p: self.storage.report())
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,
           "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
-          lambda p: self.storage.clean(derived=bool(p.get("derived"))))
+          lambda p: self.storage.clean(derived=bool(p.get("derived"))), danger=True)
         r("app.userInput", "read", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
           lambda p: self.storage.user_input())
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
@@ -505,6 +516,8 @@ class Core:
 
     def close(self) -> None:
         try:
+            if self.link is not None:
+                self.link.close()
             self.waveforms.shutdown()
             self.thumbs.shutdown()
             self.jobs.kill_all()
@@ -523,6 +536,8 @@ class Core:
             # 资料变化记下引起它的请求（只在主循环里处理请求时才有；任务、后台补齐、别的线程发的没有）
             req = self._req if name == "data.changed" and threading.current_thread() is threading.main_thread() else None
             self.writer.event(name, data, req)
+        if self.link is not None:
+            self.link.broadcast({"t": "evt", "e": name, "d": data})
 
     def post(self, fn: Callable[[], None]) -> None:
         self._q.put(("call", fn))
@@ -572,6 +587,15 @@ class Core:
     def serve(self, stdin: BinaryIO, stdout: BinaryIO) -> None:
         self.writer = FrameWriter(stdout)
         threading.Thread(target=self._reader, args=(stdin,), name="stdin-reader", daemon=True).start()
+        if self.agent_link_enabled:
+            self.link = AgentLink(self.ws.root, self.ws.data, hello=lambda: self._hello({}),
+                                  submit=lambda peer, msg: self._q.put(("xreq", (peer, msg))),
+                                  on_peers=lambda: self.post(self._peers_changed))
+            try:
+                self.link.start()
+            except Exception:  # noqa: BLE001 — 端点开不了不影响应用本身，只是命令行连不上
+                log.exception("agent link failed to start")
+                self.link = None
         self.emit("core.ready", self._hello({}))
         while not self._stop:
             kind, item = self._q.get()
@@ -583,6 +607,12 @@ class Core:
                     item()
                 except Exception:  # noqa: BLE001
                     log.exception("internal callback failed")
+                continue
+            if kind == "xreq":
+                peer, msg = item
+                res = self.dispatch(msg, peer=peer)
+                if res is not None:
+                    peer.send(res)
                 continue
             self.writer.send(self.dispatch(item))
 
@@ -597,7 +627,8 @@ class Core:
             log.exception("stdin reader failed")
         self._q.put(("eof", None))
 
-    def dispatch(self, msg: dict[str, Any]) -> dict[str, Any]:
+    def dispatch(self, msg: dict[str, Any], *, peer: Peer | None = None, confirmed: bool = False) -> dict[str, Any] | None:
+        """处理一个请求。``peer`` = 外部连接（命令行）：来源按连接、不对外的命令拒绝、危险命令先等确认（返回 None，稍后回响应）。"""
         rid = msg.get("id")
         method = msg.get("m")
         cmd = self.api.get(method)
@@ -605,8 +636,17 @@ class Core:
             if cmd is None:
                 raise CoreError("unknown-method", method=method)
             params = cmd.parse(msg.get("p"))
-            kind, session = actor_mod.parse(msg.get("actor"))
-            self._req = rid
+            if peer is None:
+                kind, session = actor_mod.parse(msg.get("actor"))
+            else:
+                kind, session = peer.kind, peer.session
+                if cmd.effect in ("ui", "app", "dev"):
+                    raise CoreError("agent-command-forbidden", method=method, effect=cmd.effect)
+                if not confirmed and cmd.dangerous(params):
+                    self.confirms.ask(peer, msg, preview=self._danger_preview(method, params))
+                    return None
+            # 外部连接的请求不带请求标记：界面把它们的改动当作“别处的改动”（P8）
+            self._req = rid if peer is None else None
             try:
                 with actor_mod.acting(self.conn, kind, session):
                     result = cmd.handler(params)
@@ -625,6 +665,44 @@ class Core:
         except Exception as exc:  # noqa: BLE001
             log.exception("command %s failed", method)
             return {"t": "res", "id": rid, "ok": False, "e": {"code": "internal-error", "args": {"method": method, "reason": repr(exc)}}}
+
+    # ---------- 外部连接（阶段 A）
+
+    def _peers_changed(self) -> None:
+        live = {p["id"] for p in self.link.sessions()} if self.link is not None else set()
+        for item in list(self.confirms.pending.values()):
+            if item["peer"].id not in live:
+                self.confirms.drop_peer(item["peer"].id)
+        self.emit("agent.sessions", self.link.sessions() if self.link is not None else [])
+
+    def _danger_preview(self, method: str, params: Any) -> Any:
+        """确认框里给所有者看的影响（有预览命令就用它；预览失败不挡确认，只是不带）。"""
+        try:
+            if method == "sources.delete":
+                return self.sources.delete_preview(params["id"])
+            if method == "samples.independ":
+                return {"plan": self.independence.plan(list(params["ids"])), "deleteSource": params.get("deleteSource")}
+            if method == "samples.delete":
+                ids = list(params["ids"])
+                marks = ",".join("?" * len(ids[:20]))
+                names = [r[0] for r in self.conn.execute(f"SELECT name FROM sample WHERE id IN ({marks})", ids[:20])] if ids else []
+                return {"count": len(ids), "names": names}
+        except Exception:  # noqa: BLE001
+            log.exception("danger preview failed for %s", method)
+        return None
+
+    def _confirm_reply(self, p: dict[str, Any]) -> dict[str, Any]:
+        item = self.confirms.take(str(p["id"]))
+        peer, msg = item["peer"], item["msg"]
+        if not peer.open:
+            return {}
+        if p["approve"]:
+            res = self.dispatch(msg, peer=peer, confirmed=True)
+        else:
+            res = {"t": "res", "id": msg.get("id"), "ok": False, "e": CoreError("agent-confirm-declined", method=msg.get("m")).to_wire()}
+        if res is not None:
+            peer.send(res)
+        return {}
 
     # ---------- 命令
 

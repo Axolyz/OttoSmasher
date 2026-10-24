@@ -18,13 +18,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--workspace", required=True, type=Path)
     ap.add_argument("--support-dir", type=Path, default=None)
     ap.add_argument("--dev", action="store_true", help="dev mode: allow self-test jobs")
+    ap.add_argument("--no-agent-link", action="store_true", help="do not open the local endpoint for the command line (otto)")
     args = ap.parse_args(argv)
 
     # stdout 只用来传帧；任何意外的 print 都改到 stderr
     out = sys.stdout.buffer
     sys.stdout = sys.stderr
 
-    core = Core(args.workspace, support_dir=args.support_dir, dev=args.dev)
+    core = Core(args.workspace, support_dir=args.support_dir, dev=args.dev, agent_link=not args.no_agent_link)
     logs = args.workspace / "Data" / "Logs"
     logs.mkdir(parents=True, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(logs / "core.log", maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8")

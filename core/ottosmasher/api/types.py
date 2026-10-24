@@ -126,6 +126,40 @@ class Hello(TypedDict):
     dev: bool
 
 
+# ---------------------------------------------------------------- 外部连接（命令行 / agent，阶段 A）
+
+
+class AgentSession(TypedDict):
+    """一条正在连着的命令行连接。"""
+
+    id: str
+    kind: Literal["agent", "script"]
+    session: str | None
+    connectedAt: str
+
+
+class AgentConfirmReplyParams(TypedDict):
+    id: str
+    approve: bool
+
+
+class Actor(TypedDict):
+    kind: Literal["user", "script", "agent"]
+    session: str | None
+
+
+class AgentConfirm(TypedDict):
+    """事件 agent.confirm：外部连接要执行一条撤销不了的命令，等所有者在应用里确认。"""
+
+    id: str
+    method: str
+    params: dict[str, Any]
+    # 影响预览（有对应的预览命令时带上，例如 sources.deletePreview）
+    preview: Any
+    actor: Actor
+    seconds: int
+
+
 class SettingEntry(TypedDict):
     value: Any
     default: Any

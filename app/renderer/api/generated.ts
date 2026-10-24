@@ -15,6 +15,19 @@ export interface AddResult {
   work?: string | null;
 }
 
+export interface AgentConfirmReplyParams {
+  approve: boolean;
+  id: string;
+}
+
+/** 一条正在连着的命令行连接。 */
+export interface AgentSession {
+  connectedAt: string;
+  id: string;
+  kind: "agent" | "script";
+  session: string | null;
+}
+
 export interface AlignedPhone {
   end: number;
   label: string;
@@ -2514,6 +2527,10 @@ export interface WorkSettingsParams {
 
 /** All Core commands: params, result and effect. */
 export interface Commands {
+  /** The owner's answer to an agent.confirm request (approve runs the command for the waiting connection). */
+  "agent.confirmReply": { params: AgentConfirmReplyParams; result: NoParams; effect: "ui" };
+  /** Command-line (agent / script) connections currently attached to this app. */
+  "agent.sessions": { params: NoParams; result: AgentSession[]; effect: "read" };
   /** Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start). */
   "app.prepareQuit": { params: NoParams; result: PrepareQuit; effect: "app" };
   /** Cancel jobs and stop Core. */
@@ -2670,7 +2687,7 @@ export interface Commands {
   "samples.create": { params: SampleCreateParams; result: SampleRow; effect: "write" };
   /** Create the chosen planned samples atomically (always new samples). */
   "samples.createPlanned": { params: SampleCreatePlannedParams; result: SamplesCreated; effect: "write" };
-  /** Delete samples (assets, measurements and exports stay). */
+  /** Delete samples (assets, measurements and exports stay; not undoable). */
   "samples.delete": { params: IdsParams; result: Deleted; effect: "write" };
   /** One sample with its effective tags. */
   "samples.get": { params: IdParams; result: SampleRow; effect: "read" };
@@ -2822,10 +2839,16 @@ export type CommandName = keyof Commands;
 
 /** Core error codes (argument names: docs/api/commands.json, errors). */
 export type ErrorCode =
+  | "agent-command-forbidden"
+  | "agent-confirm-declined"
+  | "agent-confirm-timeout"
+  | "agent-confirm-unknown"
+  | "agent-link-failed"
   | "align-ambiguous"
   | "align-audio-too-short"
   | "align-empty"
   | "align-unsupported"
+  | "app-not-running"
   | "asset-file-missing"
   | "asset-not-found"
   | "asset-not-hangable"

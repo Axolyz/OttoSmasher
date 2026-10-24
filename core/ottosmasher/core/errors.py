@@ -34,6 +34,13 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "internal-error": (("method", "reason"), "Unexpected failure inside Core (a bug)."),
     "result-mismatch": (("method", "reason"), "Strict mode: a command returned data that does not match its declared result type."),
     "dev-only": ((), "Command is only available in development mode."),
+    # ---- 外部连接（命令行 / agent，阶段 A）
+    "app-not-running": (("workspace",), "OttoSmasher is not running on this workspace; open the app first (the command line only talks to a running app)."),
+    "agent-link-failed": (("reason",), "Could not connect to the running app (stale endpoint file, wrong key or the app is shutting down)."),
+    "agent-command-forbidden": (("method", "effect"), "This command belongs to the app's own interface and cannot be called from the command line."),
+    "agent-confirm-declined": (("method",), "The owner declined this command in the app (it cannot be undone, so it needs their confirmation)."),
+    "agent-confirm-timeout": (("method", "seconds"), "Nobody confirmed this command in the app in time; it was not run."),
+    "agent-confirm-unknown": (("id",), "No pending confirmation with this id (already answered, timed out or its connection closed)."),
     # ---- 工作区与数据库
     "workspace-locked": (("path",), "The workspace is open in another OttoSmasher."),
     "schema-too-new": (("found", "supported"), "The database was written by a newer version."),

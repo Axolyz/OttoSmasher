@@ -31,6 +31,11 @@ class Command:
     result: Any
     summary: str
     handler: Callable[[Any], Any]
+    # 危险（撤销不了）：True = 总是；函数 = 按参数判断。外部连接（agent / 脚本）调用时要所有者在应用里确认（阶段 A）
+    danger: bool | Callable[[Any], bool] = False
+
+    def dangerous(self, params: Any) -> bool:
+        return bool(self.danger(params)) if callable(self.danger) else bool(self.danger)
 
     def parse(self, raw: Any) -> Any:
         try:
@@ -53,14 +58,15 @@ class CommandSet:
     def __init__(self) -> None:
         self._by: dict[str, Command] = {}
 
-    def add(self, name: str, effect: str, params: Any, result: Any, summary: str, handler: Callable[[Any], Any]) -> None:
+    def add(self, name: str, effect: str, params: Any, result: Any, summary: str, handler: Callable[[Any], Any], *,
+            danger: bool | Callable[[Any], bool] = False) -> None:
         if name in self._by:
             raise ValueError(f"duplicate command {name}")
         if effect not in EFFECTS:
             raise ValueError(f"bad effect {effect!r} for {name}")
         if not typing.is_typeddict(params):
             raise TypeError(f"params of {name} must be a TypedDict")
-        self._by[name] = Command(name, effect, params, result, summary, handler)
+        self._by[name] = Command(name, effect, params, result, summary, handler, danger)
 
     def get(self, name: Any) -> Command | None:
         return self._by.get(name) if isinstance(name, str) else None

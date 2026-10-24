@@ -2,6 +2,31 @@
  "catalogVersion": 1,
  "commands": [
   {
+   "name": "agent.confirmReply",
+   "effect": "ui",
+   "summary": "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).",
+   "params": {
+    "$ref": "#/$defs/AgentConfirmReplyParams"
+   },
+   "result": {
+    "$ref": "#/$defs/NoParams"
+   }
+  },
+  {
+   "name": "agent.sessions",
+   "effect": "read",
+   "summary": "Command-line (agent / script) connections currently attached to this app.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AgentSession"
+    }
+   }
+  },
+  {
    "name": "app.prepareQuit",
    "effect": "app",
    "summary": "Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start).",
@@ -902,13 +927,14 @@
   {
    "name": "samples.delete",
    "effect": "write",
-   "summary": "Delete samples (assets, measurements and exports stay).",
+   "summary": "Delete samples (assets, measurements and exports stay; not undoable).",
    "params": {
     "$ref": "#/$defs/IdsParams"
    },
    "result": {
     "$ref": "#/$defs/Deleted"
-   }
+   },
+   "danger": "always"
   },
   {
    "name": "samples.get",
@@ -958,7 +984,8 @@
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
-   }
+   },
+   "danger": "conditional"
   },
   {
    "name": "samples.independPlan",
@@ -1223,7 +1250,8 @@
    },
    "result": {
     "$ref": "#/$defs/DeletePreview"
-   }
+   },
+   "danger": "always"
   },
   {
    "name": "sources.deletePreview",
@@ -1443,7 +1471,8 @@
    },
    "result": {
     "$ref": "#/$defs/StorageCleaned"
-   }
+   },
+   "danger": "always"
   },
   {
    "name": "storage.report",
@@ -1757,7 +1786,8 @@
    },
    "result": {
     "$ref": "#/$defs/WorkRenamed"
-   }
+   },
+   "danger": "always"
   },
   {
    "name": "works.settingsBatch",
@@ -1772,6 +1802,43 @@
   }
  ],
  "errors": [
+  {
+   "code": "agent-command-forbidden",
+   "args": [
+    "method",
+    "effect"
+   ],
+   "summary": "This command belongs to the app's own interface and cannot be called from the command line."
+  },
+  {
+   "code": "agent-confirm-declined",
+   "args": [
+    "method"
+   ],
+   "summary": "The owner declined this command in the app (it cannot be undone, so it needs their confirmation)."
+  },
+  {
+   "code": "agent-confirm-timeout",
+   "args": [
+    "method",
+    "seconds"
+   ],
+   "summary": "Nobody confirmed this command in the app in time; it was not run."
+  },
+  {
+   "code": "agent-confirm-unknown",
+   "args": [
+    "id"
+   ],
+   "summary": "No pending confirmation with this id (already answered, timed out or its connection closed)."
+  },
+  {
+   "code": "agent-link-failed",
+   "args": [
+    "reason"
+   ],
+   "summary": "Could not connect to the running app (stale endpoint file, wrong key or the app is shutting down)."
+  },
   {
    "code": "align-ambiguous",
    "args": [
@@ -1798,6 +1865,13 @@
     "detail"
    ],
    "summary": "The aligner does not support a phoneme transition in this text."
+  },
+  {
+   "code": "app-not-running",
+   "args": [
+    "workspace"
+   ],
+   "summary": "OttoSmasher is not running on this workspace; open the app first (the command line only talks to a running app)."
   },
   {
    "code": "asset-file-missing",
@@ -3147,6 +3221,57 @@
    "required": [
     "ok",
     "path"
+   ]
+  },
+  "AgentConfirmReplyParams": {
+   "title": "AgentConfirmReplyParams",
+   "type": "object",
+   "properties": {
+    "approve": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "approve",
+    "id"
+   ]
+  },
+  "AgentSession": {
+   "title": "AgentSession",
+   "description": "一条正在连着的命令行连接。",
+   "type": "object",
+   "properties": {
+    "connectedAt": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "agent",
+      "script"
+     ]
+    },
+    "session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "connectedAt",
+    "id",
+    "kind",
+    "session"
    ]
   },
   "AlignedPhone": {
