@@ -6632,6 +6632,9 @@
    "title": "JobSummary",
    "type": "object",
    "properties": {
+    "actor": {
+     "$ref": "#/$defs/Actor"
+    },
     "affects": {
      "type": "object",
      "additionalProperties": {

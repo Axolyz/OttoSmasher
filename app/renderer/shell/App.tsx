@@ -15,6 +15,7 @@ import { FlattenSheet } from "./FlattenSheet";
 import { SeparationDialog } from "../sources/SeparationDialog";
 import { NewSamplesSheet } from "../sources/NewSamplesSheet";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
+import { AgentConfirmHost } from "./AgentLink";
 import { CoreBanner } from "./CoreBanner";
 import { Dock } from "./Dock";
 import { ManageTags } from "./ManageTags";
@@ -188,6 +189,7 @@ export function App() {
       <FlattenSheet />
       <NewSamplesSheet />
       <ManageTags />
+      <AgentConfirmHost />
       <Palette />
       <Sheet isOpen={st.shortcutsOpen} onClose={() => st.setShortcutsOpen(false)} title={t("shortcuts.title")}>
         <table className={s.keys}>

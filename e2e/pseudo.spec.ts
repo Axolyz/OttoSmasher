@@ -4,26 +4,8 @@ import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launch, refreshLists } from "./helpers";
+import { launch, refreshLists, unbracketed } from "./helpers";
 
-async function unbracketed(page: import("@playwright/test").Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const bad: string[] = [];
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let n: Node | null = walker.nextNode();
-    while (n) {
-      const el = n.parentElement;
-      const text = (n.textContent ?? "").trim();
-      const visible = el && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden";
-      // 允许：纯符号/数字/快捷键、mono 显示的路径与令牌名、用户数据
-      // 文件大小（Q21：数字与单位是统一格式，不翻译）
-      const exempt = !text || /^[\s\d.,:;·/\\()\-–—+×♩?⌘⌫⇧⌥↶{}#%→]*$/.test(text) || /^[\d.]+ (B|KB|MB|GB|TB)$/.test(text) || el?.closest(".mono, kbd, [data-user-data], [aria-hidden=\"true\"], [data-live-announcer]");
-      if (visible && !exempt && !/[[\]]/.test(text) && !/^(Esc|Space|B|OttoSmasher)$/.test(text)) bad.push(text);
-      n = walker.nextNode();
-    }
-    return bad;
-  });
-}
 
 test("伪语言下没有写死的界面文字", async () => {
   const { app, page } = await launch({ locale: "pseudo" });

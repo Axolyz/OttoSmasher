@@ -170,6 +170,11 @@ class Hello(TypedDict):
 # ---------------------------------------------------------------- 外部连接（命令行 / agent，阶段 A）
 
 
+class Actor(TypedDict):
+    kind: Literal["user", "script", "agent"]
+    session: str | None
+
+
 class AgentSession(TypedDict):
     """一条正在连着的命令行连接。"""
 
@@ -182,11 +187,6 @@ class AgentSession(TypedDict):
 class AgentConfirmReplyParams(TypedDict):
     id: str
     approve: bool
-
-
-class Actor(TypedDict):
-    kind: Literal["user", "script", "agent"]
-    session: str | None
 
 
 class AgentConfirm(TypedDict):
@@ -391,6 +391,7 @@ class JobSummary(TypedDict):
     finished_at: str | None
     # 自动准备之类的后台任务（排在用户提交的任务后面）
     background: NotRequired[bool]
+    actor: NotRequired[Actor]
 
 
 class JobsListParams(TypedDict):

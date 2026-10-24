@@ -322,4 +322,6 @@ def _summary(row: sqlite3.Row) -> dict[str, Any]:
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
         "background": bool(row["background"]),
+        # 谁提交的（用户 / 脚本 / agent + 会话；任务抽屉给命令行提交的任务一个小标记）
+        "actor": {"kind": row["actor_kind"], "session": row["actor_session"]},
     }

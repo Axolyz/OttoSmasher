@@ -33,3 +33,23 @@ export async function refreshLists(page: Page): Promise<void> {
   if (await b.isVisible().catch(() => false)) return b.click();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("otto:refresh-lists")));
 }
+
+/** 伪语言检查（规格 16 R22.13）：页面上可见、没有方括号的文字（用户数据、符号、快捷键除外）。 */
+export async function unbracketed(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const bad: string[] = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n: Node | null = walker.nextNode();
+    while (n) {
+      const el = n.parentElement;
+      const text = (n.textContent ?? "").trim();
+      const visible = el && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden";
+      // 允许：纯符号/数字/快捷键、mono 显示的路径与令牌名、用户数据
+      // 文件大小（Q21：数字与单位是统一格式，不翻译）
+      const exempt = !text || /^[\s\d.,:;·/\\()\-–—+×♩?⌘⌫⇧⌥↶{}#%→]*$/.test(text) || /^[\d.]+ (B|KB|MB|GB|TB)$/.test(text) || el?.closest(".mono, kbd, [data-user-data], [aria-hidden=\"true\"], [data-live-announcer]");
+      if (visible && !exempt && !/[[\]]/.test(text) && !/^(Esc|Space|B|OttoSmasher)$/.test(text)) bad.push(text);
+      n = walker.nextNode();
+    }
+    return bad;
+  });
+}

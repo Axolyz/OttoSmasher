@@ -74,6 +74,11 @@ function JobRow({ job }: { job: JobSummary }) {
         <b className={s.kind}>{kindLabel(job.kind)}</b>
         <span className={s.chip}>{t(`tasks.channel.${job.channel}`)}</span>
         {job.background ? <span className={s.chip}>{t("tasks.background")}</span> : null}
+        {job.actor && job.actor.kind !== "user" ? (
+          <span className={s.chip} title={job.actor.session ?? undefined} data-testid="job-agent">
+            {t("tasks.byAgent")}
+          </span>
+        ) : null}
         <div className={s.grow} />
         <span className={s.status}>{t(`tasks.status.${job.status}`)}</span>
       </div>

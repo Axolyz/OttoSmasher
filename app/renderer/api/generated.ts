@@ -713,6 +713,7 @@ export interface JobSubmitParams {
 }
 
 export interface JobSummary {
+  actor?: Actor;
   affects: Record<string, string[]>;
   background?: boolean;
   channel: "light" | "model";
