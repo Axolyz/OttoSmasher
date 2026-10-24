@@ -19,7 +19,7 @@ from typing import Any, BinaryIO
 
 from .. import __version__
 from ..api import types as T
-from ..api.registry import CommandSet
+from ..api.registry import CommandSet, extra_keys
 from ..domain import naming, subtitle_rules
 from ..models import registry
 from ..store.db import connect, current_version, migrate, transaction
@@ -651,6 +651,11 @@ class Core:
             if cmd is None:
                 raise CoreError("unknown-method", method=method)
             params = cmd.parse(msg.get("p"))
+            if peer is not None or self.strict_api:
+                # 没声明的参数键会被校验静默丢掉（P6）：命令行一律拒绝；界面在严格模式（测试、e2e）下拒绝，免得类型声明漏字段
+                extra = extra_keys(msg.get("p") or {}, cmd.params)
+                if extra:
+                    raise CoreError("bad-request", method=method, reason="undeclared keys: " + ", ".join(extra[:8]))
             if peer is None:
                 kind, session = actor_mod.parse(msg.get("actor"))
             else:

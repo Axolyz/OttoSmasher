@@ -204,6 +204,15 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
         st = wait_search(client, result["searchId"], timeout, pretty)
         return st, st["status"] == "done"
     job = _job_of(result)
+    ref = None
+    if job is None and isinstance(result, dict):
+        # 只带任务 ID 的（roots.add 的 job、sources.rescan）：取一次当前摘要
+        if isinstance(result.get("job"), dict) and "id" in result["job"]:
+            ref = result["job"]["id"]
+        elif method == "sources.rescan" and set(result) == {"id"}:
+            ref = result["id"]
+    if ref is not None:
+        job = next((j for j in client.call("jobs.list", {"limit": 500}) if j["id"] == ref), None)
     if job is None:
         return result, True
     final = wait_job(client, job, timeout, pretty)

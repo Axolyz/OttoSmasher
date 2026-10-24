@@ -43,7 +43,7 @@ def run(svc: VideoExportService, jobs: FakeJobs, started: dict) -> dict:
     assert started["job"] is not None
     _kind, params = jobs.submitted[-1]
     res = run_job(params, Ctx())
-    svc._adopt({"params": json.dumps(params)}, res)
+    svc._adopt({"id": "job-1", "params": json.dumps(params)}, res)
     return {**params, **res}
 
 

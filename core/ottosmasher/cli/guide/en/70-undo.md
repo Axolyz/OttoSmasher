@@ -1,0 +1,12 @@
+# Undo and history
+
+* Everything you change is recorded with your **session** (`OTTO_AGENT_SESSION`) and kind `agent`.
+* `otto call edits.history '{"session": "<session>"}'` lists your edits, newest first (`label`, `changes`, `undoneBy`).
+* `otto call edits.undoSession '{"session": "<session>"}'` undoes all of them, newest first. It stops at the first edit that
+  was changed again afterwards (by the owner or another session) and reports it in `blocked`; `remaining` says how many are left.
+* `edits.undo` undoes the most recent safe edit of anyone; prefer `edits.undoSession` for your own work.
+* **Not part of the edit history** (so not undone by `edits.undoSession`): newly created samples, sources and tracks
+  (registration, separation results, reimports), finished jobs, exported files.
+  Created samples can only be removed with `samples.delete`, which needs the owner's confirmation — so plan before creating,
+  and keep the ids you created (`samples.createPlanned` returns them) to report to the owner.
+* Dangerous commands (overview rule 6) are never undoable.

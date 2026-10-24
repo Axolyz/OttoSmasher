@@ -217,7 +217,7 @@ def test_stretched_video_synced_and_original_speed(core, tmp_path):  # noqa: F81
     assert params["duration"] == pytest.approx(v["schemes"]["near_fast"]["outSeconds"], abs=1e-3)
     assert params["frames"] == round(params["duration"] * 30)  # 图片：30 fps
     res = run_job(params, type("C", (), {"progress": lambda *a, **k: None})())
-    core.video_export._adopt({"params": job}, res)
+    core.video_export._adopt({"id": "job-1", "params": job}, res)
     assert "卡拍-120BPM" in params["target"] and params["target"].endswith(".mp4")
     orig = core.video_export.sample(s, version="stretched", picture="original", words=WORDS)
     p2 = json.loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (orig["job"]["id"],)).fetchone()[0])
