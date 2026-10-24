@@ -1,5 +1,5 @@
 {
- "catalogVersion": 1,
+ "catalogVersion": 2,
  "commands": [
   {
    "name": "agent.confirmReply",
@@ -162,6 +162,20 @@
    }
   },
   {
+   "name": "edits.history",
+   "effect": "read",
+   "summary": "Edit records, newest first; filter by actor kind or by command-line session.",
+   "params": {
+    "$ref": "#/$defs/EditHistoryParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/EditHistoryItem"
+    }
+   }
+  },
+  {
    "name": "edits.peekUndo",
    "effect": "read",
    "summary": "What undo would revert next.",
@@ -199,6 +213,17 @@
    },
    "result": {
     "$ref": "#/$defs/EditUndone"
+   }
+  },
+  {
+   "name": "edits.undoSession",
+   "effect": "write",
+   "summary": "Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it.",
+   "params": {
+    "$ref": "#/$defs/SessionParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SessionUndone"
    }
   },
   {
@@ -1677,6 +1702,28 @@
    }
   },
   {
+   "name": "tracks.setDefault",
+   "effect": "write",
+   "summary": "Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit.",
+   "params": {
+    "$ref": "#/$defs/TrackDefaultParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditApplied"
+   }
+  },
+  {
+   "name": "tracks.setRole",
+   "effect": "write",
+   "summary": "Turn a role on or off for a track; turning off the role of the current default track also clears that default (one undoable edit).",
+   "params": {
+    "$ref": "#/$defs/TrackRoleParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditApplied"
+   }
+  },
+  {
    "name": "ui.get",
    "effect": "ui",
    "summary": "Restore UI state of one page.",
@@ -1696,6 +1743,17 @@
    },
    "result": {
     "type": "null"
+   }
+  },
+  {
+   "name": "visuals.bind",
+   "effect": "write",
+   "summary": "Bind a picture file (video / animation / image; mode by file kind unless given) to a sample or source, or unbind with null; one undoable edit.",
+   "params": {
+    "$ref": "#/$defs/VisualBindParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditApplied"
    }
   },
   {
@@ -1798,6 +1856,136 @@
    },
    "result": {
     "$ref": "#/$defs/EditBatch"
+   }
+  }
+ ],
+ "events": [
+  {
+   "name": "agent.confirm",
+   "summary": "A command-line connection asks to run a command that cannot be undone; the owner answers in the app.",
+   "payload": {
+    "$ref": "#/$defs/AgentConfirm"
+   }
+  },
+  {
+   "name": "agent.confirmClosed",
+   "summary": "A pending confirmation was answered, timed out or dropped.",
+   "payload": {
+    "$ref": "#/$defs/ConfirmClosed"
+   }
+  },
+  {
+   "name": "agent.sessions",
+   "summary": "Command-line connections attached or detached.",
+   "payload": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AgentSession"
+    }
+   }
+  },
+  {
+   "name": "core.fatal",
+   "summary": "Core could not open the workspace and is exiting.",
+   "payload": {
+    "$ref": "#/$defs/ErrorWire"
+   }
+  },
+  {
+   "name": "core.ready",
+   "summary": "Core opened the workspace and accepts requests.",
+   "payload": {
+    "$ref": "#/$defs/Hello"
+   }
+  },
+  {
+   "name": "data.changed",
+   "summary": "User data changed: entity -> ids. Re-read what you show; nothing refreshes by itself.",
+   "payload": {
+    "type": "object",
+    "additionalProperties": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  {
+   "name": "exports.videoDone",
+   "summary": "A queued video clip export finished; path is the file.",
+   "payload": {
+    "$ref": "#/$defs/VideoDone"
+   }
+  },
+  {
+   "name": "job.updated",
+   "summary": "A job was queued, progressed or finished (status succeeded / failed / cancelled / interrupted).",
+   "payload": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "models.changed",
+   "summary": "Model files or their status changed.",
+   "payload": {
+    "$ref": "#/$defs/NoPayload"
+   }
+  },
+  {
+   "name": "peaks.failed",
+   "summary": "Building waveform peaks failed for these assets.",
+   "payload": {
+    "$ref": "#/$defs/PeaksEvent"
+   }
+  },
+  {
+   "name": "peaks.ready",
+   "summary": "Waveform peaks became available for these assets.",
+   "payload": {
+    "$ref": "#/$defs/PeaksEvent"
+   }
+  },
+  {
+   "name": "rhythm.bpm",
+   "summary": "The global target BPM changed.",
+   "payload": {
+    "$ref": "#/$defs/BpmEvent"
+   }
+  },
+  {
+   "name": "search.coverage",
+   "summary": "Background preparation added search index / pitch / metrics for some items.",
+   "payload": {
+    "$ref": "#/$defs/SearchCoverageEvent"
+   }
+  },
+  {
+   "name": "search.finished",
+   "summary": "A search ended; when status is done, read hits with results.page(resultId).",
+   "payload": {
+    "$ref": "#/$defs/SearchFinished"
+   }
+  },
+  {
+   "name": "search.started",
+   "summary": "A speech or pitch search started.",
+   "payload": {
+    "$ref": "#/$defs/SearchStartedEvent"
+   }
+  },
+  {
+   "name": "sources.scanned",
+   "summary": "A scan of the source folders finished: counts, new source ids, failures (first 50), offline folders.",
+   "payload": {
+    "$ref": "#/$defs/SourcesScanned"
+   }
+  },
+  {
+   "name": "thumbs.ready",
+   "summary": "List thumbnails became available.",
+   "payload": {
+    "$ref": "#/$defs/ThumbsReady"
    }
   }
  ],
@@ -3156,6 +3344,33 @@
   }
  ],
  "$defs": {
+  "Actor": {
+   "title": "Actor",
+   "type": "object",
+   "properties": {
+    "kind": {
+     "enum": [
+      "agent",
+      "script",
+      "user"
+     ]
+    },
+    "session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "kind",
+    "session"
+   ]
+  },
   "AddResult": {
    "title": "AddResult",
    "type": "object",
@@ -3221,6 +3436,37 @@
    "required": [
     "ok",
     "path"
+   ]
+  },
+  "AgentConfirm": {
+   "title": "AgentConfirm",
+   "description": "事件 agent.confirm：外部连接要执行一条撤销不了的命令，等所有者在应用里确认。",
+   "type": "object",
+   "properties": {
+    "actor": {
+     "$ref": "#/$defs/Actor"
+    },
+    "id": {
+     "type": "string"
+    },
+    "method": {
+     "type": "string"
+    },
+    "params": {
+     "type": "object"
+    },
+    "preview": {},
+    "seconds": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "actor",
+    "id",
+    "method",
+    "params",
+    "preview",
+    "seconds"
    ]
   },
   "AgentConfirmReplyParams": {
@@ -3878,6 +4124,25 @@
     "bpm"
    ]
   },
+  "BpmEvent": {
+   "title": "BpmEvent",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "bpm"
+   ]
+  },
   "BpmParams": {
    "title": "BpmParams",
    "type": "object",
@@ -3949,6 +4214,18 @@
     "kind",
     "name",
     "speakers"
+   ]
+  },
+  "ConfirmClosed": {
+   "title": "ConfirmClosed",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
    ]
   },
   "DeletePreview": {
@@ -4259,6 +4536,117 @@
     "field"
    ]
   },
+  "EditHistoryActor": {
+   "title": "EditHistoryActor",
+   "type": "object",
+   "properties": {
+    "kind": {
+     "type": "string"
+    },
+    "session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "kind",
+    "session"
+   ]
+  },
+  "EditHistoryItem": {
+   "title": "EditHistoryItem",
+   "type": "object",
+   "properties": {
+    "actor": {
+     "$ref": "#/$defs/EditHistoryActor"
+    },
+    "changes": {
+     "type": "integer"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "edit_id": {
+     "type": "string"
+    },
+    "label": {
+     "$ref": "#/$defs/EditLabel"
+    },
+    "seq": {
+     "type": "integer"
+    },
+    "undoOf": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undoneBy": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "actor",
+    "changes",
+    "created_at",
+    "edit_id",
+    "label",
+    "seq",
+    "undoOf",
+    "undoneBy"
+   ]
+  },
+  "EditHistoryParams": {
+   "title": "EditHistoryParams",
+   "type": "object",
+   "properties": {
+    "actorKind": {
+     "anyOf": [
+      {
+       "enum": [
+        "agent",
+        "script",
+        "user"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "session": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
   "EditLabel": {
    "title": "EditLabel",
    "type": "object",
@@ -4353,6 +4741,22 @@
    },
    "required": [
     "editId"
+   ]
+  },
+  "EditUndoBlocked": {
+   "title": "EditUndoBlocked",
+   "type": "object",
+   "properties": {
+    "edit_id": {
+     "type": "string"
+    },
+    "label": {
+     "$ref": "#/$defs/EditLabel"
+    }
+   },
+   "required": [
+    "edit_id",
+    "label"
    ]
   },
   "EditUndone": {
@@ -6812,6 +7216,12 @@
    "properties": {},
    "required": []
   },
+  "NoPayload": {
+   "title": "NoPayload",
+   "type": "object",
+   "properties": {},
+   "required": []
+  },
   "OnnxRuntimeStatus": {
    "title": "OnnxRuntimeStatus",
    "type": "object",
@@ -7127,6 +7537,24 @@
    },
    "required": [
     "state"
+   ]
+  },
+  "PeaksEvent": {
+   "title": "PeaksEvent",
+   "type": "object",
+   "properties": {
+    "assetIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    }
+   },
+   "required": [
+    "assetIds"
    ]
   },
   "PeaksParams": {
@@ -10689,6 +11117,22 @@
     "version"
    ]
   },
+  "ScanFailed": {
+   "title": "ScanFailed",
+   "type": "object",
+   "properties": {
+    "error": {
+     "$ref": "#/$defs/ErrorWire"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "error",
+    "path"
+   ]
+  },
   "SearchCancelled": {
    "title": "SearchCancelled",
    "type": "object",
@@ -10736,6 +11180,26 @@
     "ready",
     "stale",
     "total"
+   ]
+  },
+  "SearchCoverageEvent": {
+   "title": "SearchCoverageEvent",
+   "type": "object",
+   "properties": {
+    "adopted": {
+     "type": "integer"
+    },
+    "mode": {
+     "enum": [
+      "metrics",
+      "pitch",
+      "speech"
+     ]
+    }
+   },
+   "required": [
+    "adopted",
+    "mode"
    ]
   },
   "SearchCoverageParams": {
@@ -10911,6 +11375,25 @@
     }
    },
    "required": [
+    "searchId"
+   ]
+  },
+  "SearchStartedEvent": {
+   "title": "SearchStartedEvent",
+   "type": "object",
+   "properties": {
+    "kind": {
+     "enum": [
+      "pitch",
+      "speech"
+     ]
+    },
+    "searchId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "kind",
     "searchId"
    ]
   },
@@ -11251,6 +11734,46 @@
     }
    },
    "required": []
+  },
+  "SessionParams": {
+   "title": "SessionParams",
+   "type": "object",
+   "properties": {
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "session"
+   ]
+  },
+  "SessionUndone": {
+   "title": "SessionUndone",
+   "description": "整批撤回一个会话：撤了几条；停在哪条（被之后的修改改过）；还剩几条没撤。",
+   "type": "object",
+   "properties": {
+    "blocked": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/EditUndoBlocked"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "remaining": {
+     "type": "integer"
+    },
+    "undone": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "blocked",
+    "remaining",
+    "undone"
+   ]
   },
   "SettingEntry": {
    "title": "SettingEntry",
@@ -11904,6 +12427,65 @@
    },
    "required": [
     "paths"
+   ]
+  },
+  "SourcesScanned": {
+   "title": "SourcesScanned",
+   "type": "object",
+   "properties": {
+    "byWork": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "integer"
+       }
+      ],
+      "items": false
+     }
+    },
+    "failed": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/ScanFailed"
+     }
+    },
+    "missing": {
+     "type": "integer"
+    },
+    "moved": {
+     "type": "integer"
+    },
+    "new": {
+     "type": "integer"
+    },
+    "newIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "offline": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "byWork",
+    "failed",
+    "missing",
+    "moved",
+    "new",
+    "newIds",
+    "offline"
    ]
   },
   "SpeakersRegenerated": {
@@ -14782,6 +15364,74 @@
     "items"
    ]
   },
+  "ThumbsReady": {
+   "title": "ThumbsReady",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
+  "TrackDefaultParams": {
+   "title": "TrackDefaultParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "role": {
+     "enum": [
+      "sfx",
+      "vocal"
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "assetId",
+    "role",
+    "sourceId"
+   ]
+  },
+  "TrackRoleParams": {
+   "title": "TrackRoleParams",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "on": {
+     "type": "boolean"
+    },
+    "role": {
+     "enum": [
+      "sfx",
+      "vocal"
+     ]
+    }
+   },
+   "required": [
+    "assetId",
+    "on",
+    "role"
+   ]
+  },
   "TrackRow": {
    "title": "TrackRow",
    "type": "object",
@@ -14947,6 +15597,34 @@
     "label"
    ]
   },
+  "VideoDone": {
+   "title": "VideoDone",
+   "type": "object",
+   "properties": {
+    "black": {
+     "type": "integer"
+    },
+    "content": {
+     "type": "string"
+    },
+    "fps": {
+     "type": "number"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "black",
+    "content",
+    "fps",
+    "jobId",
+    "path"
+   ]
+  },
   "VideoExportParams": {
    "title": "VideoExportParams",
    "type": "object",
@@ -15059,6 +15737,53 @@
     "assetId",
     "end",
     "start"
+   ]
+  },
+  "VisualBindParams": {
+   "title": "VisualBindParams",
+   "type": "object",
+   "properties": {
+    "mode": {
+     "anyOf": [
+      {
+       "enum": [
+        "image",
+        "loop",
+        "sync"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "offset": {
+     "type": "number"
+    },
+    "ownerId": {
+     "type": "string"
+    },
+    "ownerType": {
+     "enum": [
+      "sample",
+      "source"
+     ]
+    },
+    "path": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "ownerId",
+    "ownerType",
+    "path"
    ]
   },
   "VisualBinding": {

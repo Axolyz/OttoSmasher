@@ -914,27 +914,77 @@ class EditService:
             if cand is None:
                 raise CoreError("undo-nothing-safe")
             e, changes = cand
-            plan: list[dict[str, Any]] = []
-            for c in changes:
-                spec = ENTITIES[c["entity"]]
-                after = loads(c["after"])
-                cur = self._read(spec, c["entity_id"], list(after))
-                assert cur is not None
-                _, version = cur
-                if c["op"] == "create":
-                    col = spec.soft_delete_column
-                    assert col is not None
-                    diffs = {col: (False, True)}
-                else:
-                    before = loads(c["before"])
-                    diffs = {n: (after[n], before[n]) for n in before}
-                plan.append({"index": c["idx"], "entity": c["entity"], "id": c["entity_id"], "op": "update", "version": version, "diffs": diffs})
-            label = {"code": "undo", "args": {"of": e["label_code"], "of_args": loads(e["label_args"])}}
-            edit_id = self._write(plan, label, undo_of=e["id"])
+            edit_id, label, plan = self._undo_one(e, changes)
         changes_set = _changeset(plan)
         if self.on_change:
             self.on_change(changes_set)
         return {"edit_id": edit_id, "undone": e["id"], "label": label, "changes": [_wire(p) for p in plan]}
+
+    def _undo_one(self, e: sqlite3.Row, changes: list[sqlite3.Row]) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+        """在调用方事务里撤一条编辑（调用方已确认每条改动仍是它写下的样子）。"""
+        plan: list[dict[str, Any]] = []
+        for c in changes:
+            spec = ENTITIES[c["entity"]]
+            after = loads(c["after"])
+            cur = self._read(spec, c["entity_id"], list(after))
+            assert cur is not None
+            _, version = cur
+            if c["op"] == "create":
+                col = spec.soft_delete_column
+                assert col is not None
+                diffs = {col: (False, True)}
+            else:
+                before = loads(c["before"])
+                diffs = {n: (after[n], before[n]) for n in before}
+            plan.append({"index": c["idx"], "entity": c["entity"], "id": c["entity_id"], "op": "update", "version": version, "diffs": diffs})
+        label = {"code": "undo", "args": {"of": e["label_code"], "of_args": loads(e["label_args"])}}
+        edit_id = self._write(plan, label, undo_of=e["id"])
+        return edit_id, label, plan
+
+    # ---------- 按来源（命令行 / agent 会话，阶段 A）
+
+    def history(self, session: str | None = None, actor_kind: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """编辑记录，新的在前；可按来源筛。"""
+        where, args = ["1=1"], []
+        if session is not None:
+            where.append("e.actor_session = ?")
+            args.append(session)
+        if actor_kind is not None:
+            where.append("e.actor_kind = ?")
+            args.append(actor_kind)
+        rows = self.conn.execute(
+            "SELECT e.*, (SELECT COUNT(*) FROM edit_change c WHERE c.edit_id = e.id) AS n FROM edit e"
+            f" WHERE {' AND '.join(where)} ORDER BY e.seq DESC LIMIT ?", (*args, max(1, min(int(limit), 1000))),
+        ).fetchall()
+        return [{
+            "edit_id": r["id"], "seq": r["seq"], "created_at": r["created_at"],
+            "label": {"code": r["label_code"], "args": loads(r["label_args"])},
+            "actor": {"kind": r["actor_kind"], "session": r["actor_session"]},
+            "undoOf": r["undo_of"], "undoneBy": r["undone_by"], "changes": r["n"],
+        } for r in rows]
+
+    def undo_session(self, session: str) -> dict[str, Any]:
+        """整批撤回一个会话（命令行连接）做的修改：从新到旧逐条撤；遇到被之后的修改改过的那条就停下并报告它（不跳过，免得撤出半套）。"""
+        undone: list[str] = []
+        blocked = None
+        all_plans: list[dict[str, Any]] = []
+        with transaction(self.conn):
+            barrier = self.conn.execute("SELECT MAX(seq) FROM edit WHERE label_code='barrier'").fetchone()[0] or -1
+            edits = self.conn.execute(
+                "SELECT * FROM edit WHERE actor_session=? AND actor_kind IN ('agent', 'script') AND undo_of IS NULL AND undone_by IS NULL"
+                " AND seq > ? ORDER BY seq DESC", (session, barrier),
+            ).fetchall()
+            for e in edits:
+                changes = self.conn.execute("SELECT * FROM edit_change WHERE edit_id=? ORDER BY idx", (e["id"],)).fetchall()
+                if not all(self._still_after(c) for c in changes):
+                    blocked = {"edit_id": e["id"], "label": {"code": e["label_code"], "args": loads(e["label_args"])}}
+                    break
+                _, _, plan = self._undo_one(e, changes)
+                undone.append(e["id"])
+                all_plans += plan
+        if all_plans and self.on_change:
+            self.on_change(_changeset(all_plans))
+        return {"undone": len(undone), "blocked": blocked, "remaining": len(edits) - len(undone)}
 
 
 _AUTO_FLAGS: dict[str, tuple[tuple[str, set[str]], ...]] = {

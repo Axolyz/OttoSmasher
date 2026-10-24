@@ -23,7 +23,7 @@ from .registry import CommandSet
 ROOT = Path(__file__).resolve().parents[3]
 JSON_PATH = ROOT / "docs" / "api" / "commands.json"
 TS_PATH = ROOT / "app" / "renderer" / "api" / "generated.ts"
-CATALOG_VERSION = 1
+CATALOG_VERSION = 2
 
 
 def default_commands() -> CommandSet:
@@ -34,11 +34,17 @@ def default_commands() -> CommandSet:
 
 
 def build(commands: CommandSet) -> dict[str, Any]:
+    from .events import EVENTS
+
     cmds = sorted(commands, key=lambda c: c.name)
     types: list[Any] = []
     for c in cmds:
         types += [c.params, c.result]
+    evs = sorted(EVENTS.items())
+    types += [tp for _, (tp, _) in evs]
     schemas, defs = msgspec.json.schema_components(types, ref_template="#/$defs/{name}")
+    base = 2 * len(cmds)
+    events = [{"name": n, "summary": s, "payload": schemas[base + i]} for i, (n, (_, s)) in enumerate(evs)]
     out = []
     for i, c in enumerate(cmds):
         entry = {"name": c.name, "effect": c.effect, "summary": c.summary, "params": schemas[2 * i], "result": schemas[2 * i + 1]}
@@ -46,7 +52,7 @@ def build(commands: CommandSet) -> dict[str, Any]:
             # 撤销不了：外部连接调用时要所有者在应用里确认（conditional = 只在某些参数下，见说明）
             entry["danger"] = "conditional" if callable(c.danger) else "always"
         out.append(entry)
-    return {"catalogVersion": CATALOG_VERSION, "commands": out, "errors": error_table(), "$defs": dict(sorted(defs.items()))}
+    return {"catalogVersion": CATALOG_VERSION, "commands": out, "events": events, "errors": error_table(), "$defs": dict(sorted(defs.items()))}
 
 
 # ---------------------------------------------------------------- JSON Schema → TypeScript
@@ -139,6 +145,12 @@ def render_ts(cat: dict[str, Any]) -> str:
     out.append("}")
     out.append("")
     out.append("export type CommandName = keyof Commands;")
+    out.append("")
+    out.append("/** Core events and their payloads. */")
+    out.append("export interface Events {")
+    for e in cat["events"]:
+        out.append(_doc(e["summary"], "  ") + f'  "{e["name"]}": {ts_type(e["payload"])};')
+    out.append("}")
     out.append("")
     out.append("/** Core error codes (argument names: docs/api/commands.json, errors). */")
     out.append("export type ErrorCode =\n" + "\n".join(f'  | "{e["code"]}"' for e in cat["errors"]) + ";")

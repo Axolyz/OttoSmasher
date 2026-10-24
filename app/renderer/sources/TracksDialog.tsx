@@ -3,7 +3,7 @@
 // 与原型的差异：原型把默认轨画成表里的两列单选；这里是表上方两个下拉（跨表格行的单选列做不成一个无障碍的单选组），功能相同。
 import { useCallback, useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { EditOp, SourceDetail, SourceRow, TrackRow, Tracks } from "../api/types";
+import type { SourceDetail, SourceRow, TrackRow, Tracks } from "../api/types";
 import { Callout, Checkbox } from "../components/Controls";
 import { Select } from "../components/Fields";
 import { DialogBox } from "../components/Overlay";
@@ -49,9 +49,10 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
     if (c.asset || c.source) void reload();
   });
 
-  const apply = async (ops: EditOp[], text: string) => {
+  // 角色与默认轨的规则在 Core（tracks.setRole / tracks.setDefault，命令行也用同一组）
+  const apply = async (run: () => Promise<unknown>, text: string) => {
     try {
-      await call("edits.apply", { batch: { label: { code: "tracks", args: {} }, ops } });
+      await run();
       toast({ text, action: { label: t("common.undo"), run: () => void undo() } });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -61,12 +62,12 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
 
   const toggleRole = (tr: TrackRow, role: Role, on: boolean) => {
     if (!src || !data) return;
-    const roles = on ? [...new Set([...tr.roles, role])] : tr.roles.filter((r) => r !== role);
-    const ops: EditOp[] = [{ entity: "asset", id: tr.id, version: tr.version, fields: { roles } }];
     const wasDefault = !on && data.defaults[role] === tr.id;
     // 去掉默认轨的角色 = 同时取消这个默认轨（明确写在提示里，不静默）
-    if (wasDefault) ops.push({ entity: "source", id: src.id, version: data.sourceVersion, fields: { [`default_${role}`]: null } });
-    void apply(ops, t(wasDefault ? "tracks.roleOffAndDefault" : on ? "tracks.roleOn" : "tracks.roleOff", { role: t(`role.${role}`), track: trackName(tr, detail) }));
+    void apply(
+      () => call("tracks.setRole", { assetId: tr.id, role, on }),
+      t(wasDefault ? "tracks.roleOffAndDefault" : on ? "tracks.roleOn" : "tracks.roleOff", { role: t(`role.${role}`), track: trackName(tr, detail) }),
+    );
   };
 
   const setDefault = (role: Role, id: string) => {
@@ -74,7 +75,7 @@ export function TracksDialog(props: { source: SourceRow | null; onClose: () => v
     const v = id || null;
     const tr = data.tracks.find((x) => x.id === v);
     void apply(
-      [{ entity: "source", id: src.id, version: data.sourceVersion, fields: { [`default_${role}`]: v } }],
+      () => call("tracks.setDefault", { sourceId: src.id, role, assetId: v }),
       v ? t("tracks.defaultSet", { role: t(`role.${role}`), track: tr ? trackName(tr, detail) : "" }) : t("tracks.defaultCleared", { role: t(`role.${role}`) }),
     );
   };

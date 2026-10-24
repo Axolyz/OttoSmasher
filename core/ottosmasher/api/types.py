@@ -102,6 +102,47 @@ class EditApplied(TypedDict):
     changes: list[EditChange]
 
 
+class EditHistoryParams(TypedDict):
+    session: NotRequired[str | None]
+    actorKind: NotRequired[Literal["user", "script", "agent"] | None]
+    limit: NotRequired[int]
+
+
+class EditHistoryActor(TypedDict):
+    kind: str
+    session: str | None
+
+
+class EditHistoryItem(TypedDict):
+    edit_id: str
+    seq: int
+    created_at: str
+    label: EditLabel
+    actor: EditHistoryActor
+    # 这条本身是撤销（撤的是哪条）
+    undoOf: str | None
+    # 已被哪条撤销
+    undoneBy: str | None
+    changes: int
+
+
+class SessionParams(TypedDict):
+    session: str
+
+
+class EditUndoBlocked(TypedDict):
+    edit_id: str
+    label: EditLabel
+
+
+class SessionUndone(TypedDict):
+    """整批撤回一个会话：撤了几条；停在哪条（被之后的修改改过）；还剩几条没撤。"""
+
+    undone: int
+    blocked: EditUndoBlocked | None
+    remaining: int
+
+
 class EditUndone(TypedDict):
     edit_id: str
     undone: str
@@ -835,6 +876,17 @@ class VisualPrepareParams(TypedDict):
     ownerId: str
     path: str
     mode: NotRequired[Literal["sync", "image", "loop"] | None]
+    offset: NotRequired[float]
+
+
+class VisualBindParams(TypedDict):
+    ownerType: Literal["sample", "source"]
+    ownerId: str
+    # null = 摘下自己的绑定（采样回到原素材的画面）
+    path: str | None
+    # 缺省按文件：图片 = image、动图 = loop、视频 = sync
+    mode: NotRequired[Literal["sync", "image", "loop"] | None]
+    # 只对 sync：画面相对原素材 / 采样的偏移秒
     offset: NotRequired[float]
 
 
@@ -2746,6 +2798,19 @@ class RelocateItem(TypedDict):
 
 class RelocateManyParams(TypedDict):
     items: list[RelocateItem]
+
+
+class TrackDefaultParams(TypedDict):
+    sourceId: str
+    role: Role
+    # null = 取消这个角色的默认轨
+    assetId: str | None
+
+
+class TrackRoleParams(TypedDict):
+    assetId: str
+    role: Role
+    on: bool
 
 
 class OriginalAsVocal(TypedDict):

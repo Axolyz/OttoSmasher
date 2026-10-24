@@ -216,7 +216,7 @@ class VideoExportService:
         (d / f"{params['key'][:24]}.json").write_text(dumps({**params["manifest"], "file": str(target), "black": result.get("black", 0),
                                                              "createdAt": now_iso()}), encoding="utf-8")
         if self.emit:
-            self.emit("exports.videoDone", {"path": str(target), "black": int(result.get("black", 0)), "fps": params["fps"], "content": params["content"]})
+            self.emit("exports.videoDone", {"jobId": job["id"], "path": str(target), "black": int(result.get("black", 0)), "fps": params["fps"], "content": params["content"]})
 
 
 def _bpm(v: float) -> str:

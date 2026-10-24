@@ -39,6 +39,25 @@ def test_catalog_shape():
     assert {e["code"] for e in cat["errors"]} == set(ERRORS)
 
 
+def test_every_emitted_event_is_registered():
+    """源码里 emit("名称", …) 的每个事件都登记在 api/events.py（命令目录的 events 一节，阶段 A）。"""
+    import re
+
+    from ottosmasher.api.events import EVENTS
+
+    seen = set()
+    for f in PKG.rglob("*.py"):
+        text = f.read_text(encoding="utf-8")
+        seen |= set(re.findall(r'\bemit\(\s*"([a-zA-Z]+\.[a-zA-Z]+)"', text))
+        seen |= set(re.findall(r'\.event\(\s*"([a-zA-Z]+\.[a-zA-Z]+)"', text))
+    assert seen and seen <= set(EVENTS), sorted(seen - set(EVENTS))
+    cat = catalog.build(catalog.default_commands())
+    assert [e["name"] for e in cat["events"]] == sorted(EVENTS)
+    dangerous = {c["name"]: c["danger"] for c in cat["commands"] if "danger" in c}
+    assert dangerous == {"sources.delete": "always", "samples.delete": "always", "works.rename": "always",
+                         "storage.clean": "always", "samples.independ": "conditional"}
+
+
 def _literal_codes() -> dict[str, set[str]]:
     """源码里出现的错误码 → 用到的参数名：CoreError("码", k=…)、code="码" 传给规则校验、{"code": "码", "args": {…}}。"""
     found: dict[str, set[str]] = {}

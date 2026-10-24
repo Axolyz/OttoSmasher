@@ -126,6 +126,12 @@ class Core:
         r("app.quit", "app", T.QuitParams, T.Quit, "Cancel jobs and stop Core.", self._quit)
         # ---- 编辑通道、任务
         r("edits.preview", "read", T.EditBatchParams, T.EditPreview, "Validate an edit batch and show its changes without writing.", lambda p: self.edits.preview(p["batch"]))
+        r("edits.history", "read", T.EditHistoryParams, list[T.EditHistoryItem],
+          "Edit records, newest first; filter by actor kind or by command-line session.",
+          lambda p: self.edits.history(p.get("session"), p.get("actorKind"), int(p.get("limit", 50))))
+        r("edits.undoSession", "write", T.SessionParams, T.SessionUndone,
+          "Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it.",
+          lambda p: self.edits.undo_session(str(p["session"])))
         r("edits.apply", "write", T.EditBatchParams, T.EditApplied, "Apply an edit batch atomically (undoable).", lambda p: self.edits.apply(p["batch"]))
         r("edits.undo", "write", T.NoParams, T.EditUndone, "Undo the latest edit that can be undone safely.", lambda p: self.edits.undo())
         r("edits.peekUndo", "read", T.NoParams, T.UndoPeek | None, "What undo would revert next.", lambda p: self.edits.peek_undo())
@@ -182,6 +188,12 @@ class Core:
         r("tracks.originalAsVocal", "write", T.SourceIdsParams, T.OriginalAsVocal,
           "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
           self._tracks_original_as_vocal)
+        r("tracks.setDefault", "write", T.TrackDefaultParams, T.EditApplied,
+          "Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit.",
+          self._tracks_set_default)
+        r("tracks.setRole", "write", T.TrackRoleParams, T.EditApplied,
+          "Turn a role on or off for a track; turning off the role of the current default track also clears that default (one undoable edit).",
+          self._tracks_set_role)
         r("assets.tracks", "read", T.SourceIdParams, T.Tracks, "Tracks that can be default tracks, with roles and current defaults.",
           lambda p: assets_mod.tracks(self.conn, p["sourceId"]))
         r("playback.resolveSource", "read", T.ResolveSourceParams, T.SourceHandle, "Playback handle for the source player (file, audio track, external stem).",
@@ -231,6 +243,9 @@ class Core:
         r("visuals.prepare", "write", T.VisualPrepareParams, T.VisualPrepared,
           "Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable).",
           self._visual_prepare)
+        r("visuals.bind", "write", T.VisualBindParams, T.EditApplied,
+          "Bind a picture file (video / animation / image; mode by file kind unless given) to a sample or source, or unbind with null; one undoable edit.",
+          self._visual_bind)
         r("visuals.matchPlan", "read", T.IdsParams, list[T.MatchItem], "Same-name picture (video > animation > image) in each source's folder.",
           lambda p: visuals_mod.match_plan(self.conn, list(p["ids"])))
         r("visuals.matchApply", "write", T.MatchApplyParams, T.EditApplied, "Bind the matched same-name pictures to the sources in one undoable edit.",
@@ -790,6 +805,24 @@ class Core:
             vid = visuals_mod.prepare(self.conn, p["ownerType"], p["ownerId"], p["path"], p.get("mode"), float(p.get("offset") or 0.0))
         return {"bindingId": vid}
 
+    def _visual_bind(self, p: dict[str, Any]) -> dict[str, Any]:
+        """「画面绑定…」的登记 + 挂上（原来在界面里拼：VisualDialog）。撤销只摘下绑定，登记的记录留着无害。"""
+        owner, oid = p["ownerType"], p["ownerId"]
+        row = self.conn.execute(
+            "SELECT version, name FROM sample WHERE id=?" if owner == "sample" else "SELECT version, COALESCE(NULLIF(episode, ''), path) FROM source WHERE id=?", (oid,)
+        ).fetchone()
+        if row is None:
+            raise CoreError("sample-not-found" if owner == "sample" else "source-not-found", id=oid)
+        with transaction(self.conn):
+            vid = None
+            if p.get("path"):
+                mode = p.get("mode")
+                vid = visuals_mod.prepare(self.conn, owner, oid, p["path"], mode, float(p.get("offset") or 0.0) if mode in (None, "sync") else 0.0)
+            op = {"entity": owner, "id": oid, "version": row[0], "fields": {"visual_binding_id": vid}}
+            edit_id, cs = self.edits.apply_within({"label": {"code": "visual-bind", "args": {"name": row[1]}}, "ops": [op]})
+        self._on_change(cs)
+        return {"edit_id": edit_id, "changes": [{"index": 0, "entity": owner, "id": oid, "op": "update", "diffs": []}]}
+
     def _tracks_original_as_vocal(self, p: dict[str, Any]) -> dict[str, Any]:
         """批量「原混音设为人声与默认人声轨」（所有者 2026-10-10：游戏语音、已经是干声的素材一次上千个，逐个开「人声 / 音效与默认轨」做不完）。
         已经有默认人声轨的不动（例如分离出的人声）；媒体已释放的跳过；整批一个编辑、可撤销。"""
@@ -815,6 +848,37 @@ class Core:
             return {"edit_id": None, "applied": 0, "skipped": skipped}
         res = self.edits.apply({"label": {"code": "tracks-original-vocal", "args": {"n": n}}, "ops": ops})
         return {"edit_id": res["edit_id"], "applied": n, "skipped": skipped}
+
+    def _tracks_set_default(self, p: dict[str, Any]) -> dict[str, Any]:
+        """就地指定默认轨（原来在界面里拼：NewSamplesSheet、TracksDialog）：没有该角色的整轨 = 同时赋予角色并设为默认。"""
+        sid, role, aid = p["sourceId"], p["role"], p.get("assetId")
+        src = self.conn.execute("SELECT version FROM source WHERE id=?", (sid,)).fetchone()
+        if src is None:
+            raise CoreError("source-not-found", id=sid)
+        ops: list[dict[str, Any]] = []
+        if aid is not None:
+            tr = next((t for t in assets_mod.tracks(self.conn, sid)["tracks"] if t["id"] == aid), None)
+            if tr is None:
+                raise CoreError("asset-not-found", id=aid)
+            if role not in tr["roles"]:
+                ops.append({"entity": "asset", "id": aid, "version": tr["version"], "fields": {"roles": [*tr["roles"], role]}})
+        ops.append({"entity": "source", "id": sid, "version": src[0], "fields": {f"default_{role}": aid}})
+        return self.edits.apply({"label": {"code": "tracks", "args": {}}, "ops": ops})
+
+    def _tracks_set_role(self, p: dict[str, Any]) -> dict[str, Any]:
+        a = self.conn.execute("SELECT source_id, version FROM sound_asset WHERE id=?", (p["assetId"],)).fetchone()
+        if a is None:
+            raise CoreError("asset-not-found", id=p["assetId"])
+        role = p["role"]
+        roles = [r[0] for r in self.conn.execute("SELECT role FROM asset_role WHERE asset_id=? AND state='on'", (p["assetId"],))]
+        new = sorted({*roles, role}) if p["on"] else [r for r in roles if r != role]
+        ops: list[dict[str, Any]] = [{"entity": "asset", "id": p["assetId"], "version": a["version"], "fields": {"roles": new}}]
+        # 去掉默认轨的角色 = 同时取消这个默认轨
+        is_default = self.conn.execute("SELECT 1 FROM default_track WHERE source_id=? AND role=? AND asset_id=?", (a["source_id"], role, p["assetId"])).fetchone()
+        if not p["on"] and is_default:
+            ver = self.conn.execute("SELECT version FROM source WHERE id=?", (a["source_id"],)).fetchone()[0]
+            ops.append({"entity": "source", "id": a["source_id"], "version": ver, "fields": {f"default_{role}": None}})
+        return self.edits.apply({"label": {"code": "tracks", "args": {}}, "ops": ops})
 
     def _visual_match_apply(self, p: dict[str, Any]) -> dict[str, Any]:
         """匹配同名画面：登记画面文件并在一次编辑里挂到原片上（可撤销；撤销只摘下绑定，登记的记录留着无害）。"""

@@ -4,7 +4,7 @@
 // → 大数字（待创建 / OP/ED 排除 / 其他）→ 起止秒 +「预览范围」→ 表格（段与提示默认一项都不勾，整段默认全勾；表头跨页全选）→「创建 N 项」。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { EditOp, Nature, SamplePlan, SamplePlanItem, SamplePlanSource, SourceDetail } from "../api/types";
+import type { Nature, SamplePlan, SamplePlanItem, SamplePlanSource, SourceDetail } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, EmptyState, Segmented, Stats } from "../components/Controls";
 import { Select, TimeField } from "../components/Fields";
@@ -104,11 +104,8 @@ export function NewSamplesSheet() {
     if (!req || req.kind === "whole" || !tracks) return;
     const tr = tracks.tracks.find((x) => x.id === assetId);
     if (!tr) return;
-    const ops: EditOp[] = [];
-    if (!tr.roles.includes(role)) ops.push({ entity: "asset", id: tr.id, version: tr.version, fields: { roles: [...tr.roles, role] } });
-    ops.push({ entity: "source", id: req.sourceId, version: tracks.sourceVersion, fields: { [`default_${role}`]: tr.id } });
     try {
-      await call("edits.apply", { batch: { label: { code: "tracks", args: {} }, ops } });
+      await call("tracks.setDefault", { sourceId: req.sourceId, role, assetId: tr.id });
       toast({ text: t("tracks.defaultSet", { role: t(`role.${role}`), track: trackName(tr, detail) }) });
       await load();
     } catch (e) {

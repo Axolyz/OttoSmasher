@@ -57,21 +57,13 @@ export function VisualDialog(props: { target: VisualTarget | null; onClose: () =
   const kind = ["png", "jpg", "jpeg", "webp", "bmp"].includes(ext) ? "image" : ext === "gif" ? "anim" : "video";
   useEffect(() => setMode(kind === "image" ? "image" : kind === "anim" ? "loop" : "sync"), [kind, pick]);
 
-  const version = async (): Promise<number> => {
-    if (tg!.ownerType === "sample") return (await call("samples.get", { id: tg!.id })).version;
-    return (await call("sources.get", { id: tg!.id })).version;
-  };
-  const attach = async (bindingId: string | null) => {
+  // 登记 + 挂上 / 摘下在 Core 里一次编辑完成（visuals.bind，命令行也用同一条）
+  const attach = async (path: string | null) => {
     if (!tg) return;
     setBusy(true);
     try {
-      await call("edits.apply", {
-        batch: {
-          label: { code: "visual-bind", args: { name: tg.name } },
-          ops: [{ entity: tg.ownerType, id: tg.id, version: await version(), fields: { visual_binding_id: bindingId } }],
-        } as never,
-      });
-      toast({ text: t(bindingId ? "visual.bound" : "visual.unbound"), action: { label: t("common.undo"), run: () => void undo().then(() => props.onDone?.()) } });
+      await call("visuals.bind", { ownerType: tg.ownerType, ownerId: tg.id, path, mode: path ? mode : null, offset: mode === "sync" ? offset : 0 });
+      toast({ text: t(path ? "visual.bound" : "visual.unbound"), action: { label: t("common.undo"), run: () => void undo().then(() => props.onDone?.()) } });
       props.onDone?.();
       props.onClose();
     } catch (e) {
@@ -82,12 +74,7 @@ export function VisualDialog(props: { target: VisualTarget | null; onClose: () =
   };
   const bind = async () => {
     if (!tg || !pick) return;
-    try {
-      const r = await call("visuals.prepare", { ownerType: tg.ownerType, ownerId: tg.id, path: pick, mode, offset: mode === "sync" ? offset : 0 });
-      await attach(r.bindingId);
-    } catch (e) {
-      setError(e instanceof CoreFailure ? errorText(e.wire) : String(e));
-    }
+    await attach(pick);
   };
 
   const own = cur && cur.origin === tg?.ownerType;

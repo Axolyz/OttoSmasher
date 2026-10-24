@@ -2,6 +2,11 @@
 // Source of truth: core/ottosmasher/api/types.py and the command registrations in core/ottosmasher/core/server.py.
 /* eslint-disable */
 
+export interface Actor {
+  kind: "agent" | "script" | "user";
+  session: string | null;
+}
+
 export interface AddResult {
   assets?: StreamAssetCreated[];
   episode?: string | null;
@@ -13,6 +18,16 @@ export interface AddResult {
   path: string;
   sourceId?: string;
   work?: string | null;
+}
+
+/** 事件 agent.confirm：外部连接要执行一条撤销不了的命令，等所有者在应用里确认。 */
+export interface AgentConfirm {
+  actor: Actor;
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+  preview: unknown;
+  seconds: number;
 }
 
 export interface AgentConfirmReplyParams {
@@ -136,6 +151,10 @@ export interface Bpm {
   bpm: number | null;
 }
 
+export interface BpmEvent {
+  bpm: number | null;
+}
+
 export interface BpmParams {
   bpm: number | null;
 }
@@ -152,6 +171,10 @@ export interface Classified {
   kind: "line" | "sfx";
   name: string;
   speakers: string[];
+}
+
+export interface ConfirmClosed {
+  id: string;
 }
 
 export interface DeletePreview {
@@ -237,6 +260,28 @@ export interface EditDiff {
   field: string;
 }
 
+export interface EditHistoryActor {
+  kind: string;
+  session: string | null;
+}
+
+export interface EditHistoryItem {
+  actor: EditHistoryActor;
+  changes: number;
+  created_at: string;
+  edit_id: string;
+  label: EditLabel;
+  seq: number;
+  undoOf: string | null;
+  undoneBy: string | null;
+}
+
+export interface EditHistoryParams {
+  actorKind?: "agent" | "script" | "user" | null;
+  limit?: number;
+  session?: string | null;
+}
+
 export interface EditLabel {
   args: Record<string, unknown>;
   code: string;
@@ -257,6 +302,11 @@ export interface EditPreview {
 
 export interface EditRef {
   editId: string;
+}
+
+export interface EditUndoBlocked {
+  edit_id: string;
+  label: EditLabel;
 }
 
 export interface EditUndone {
@@ -790,6 +840,8 @@ export interface ModelsStatus {
 
 export interface NoParams {}
 
+export interface NoPayload {}
+
 export interface OnnxRuntimeStatus {
   error?: string;
   loadable: boolean;
@@ -870,6 +922,11 @@ export interface Peaks {
   start?: number;
   state: "pending" | "ready";
   step?: number;
+}
+
+export interface PeaksEvent {
+  assetIds: string[];
+  error?: ErrorWire;
 }
 
 export interface PeaksParams {
@@ -1576,6 +1633,11 @@ export interface SavedFilter {
   version: number;
 }
 
+export interface ScanFailed {
+  error: ErrorWire;
+  path: string;
+}
+
 export interface SearchCancelled {
   cancelling: boolean;
   searchId: string;
@@ -1588,6 +1650,11 @@ export interface SearchCoverage {
   ready: number;
   stale: number;
   total: number;
+}
+
+export interface SearchCoverageEvent {
+  adopted: number;
+  mode: "metrics" | "pitch" | "speech";
 }
 
 export interface SearchCoverageParams {
@@ -1622,6 +1689,11 @@ export interface SearchSpeechParams {
 }
 
 export interface SearchStarted {
+  searchId: string;
+}
+
+export interface SearchStartedEvent {
+  kind: "pitch" | "speech";
   searchId: string;
 }
 
@@ -1701,6 +1773,17 @@ export interface SeparationSubmitParams {
 export interface SeparationSubmitted {
   job?: JobSummary;
   reused?: string[];
+}
+
+export interface SessionParams {
+  session: string;
+}
+
+/** 整批撤回一个会话：撤了几条；停在哪条（被之后的修改改过）；还剩几条没撤。 */
+export interface SessionUndone {
+  blocked: EditUndoBlocked | null;
+  remaining: number;
+  undone: number;
 }
 
 export interface SettingEntry {
@@ -1829,6 +1912,16 @@ export interface SourceStream {
 export interface SourcesAddParams {
   importRoot?: string | null;
   paths: string[];
+}
+
+export interface SourcesScanned {
+  byWork: [string, number][];
+  failed: ScanFailed[];
+  missing: number;
+  moved: number;
+  new: number;
+  newIds: string[];
+  offline: string[];
 }
 
 export interface SpeakersRegenerated {
@@ -2410,6 +2503,22 @@ export interface ThumbsParams {
   items: ThumbRequest[];
 }
 
+export interface ThumbsReady {
+  items: Record<string, unknown>[];
+}
+
+export interface TrackDefaultParams {
+  assetId: string | null;
+  role: "sfx" | "vocal";
+  sourceId: string;
+}
+
+export interface TrackRoleParams {
+  assetId: string;
+  on: boolean;
+  role: "sfx" | "vocal";
+}
+
 export interface TrackRow {
   duplicates: number;
   id: string;
@@ -2446,6 +2555,14 @@ export interface UndoPeek {
   label: EditLabel;
 }
 
+export interface VideoDone {
+  black: number;
+  content: string;
+  fps: number;
+  jobId: string;
+  path: string;
+}
+
 export interface VideoExportParams {
   audio?: boolean;
   id: string;
@@ -2471,6 +2588,14 @@ export interface VideoRangeParams {
   end: number;
   start: number;
   words?: Record<string, string>;
+}
+
+export interface VisualBindParams {
+  mode?: "image" | "loop" | "sync" | null;
+  offset?: number;
+  ownerId: string;
+  ownerType: "sample" | "source";
+  path: string | null;
 }
 
 /** 有效画面（规格 12 §12.4）。origin：sample = 采样自己的绑定，source = 原片的默认画面，stream = 原片自带的视频流。 */
@@ -2555,12 +2680,16 @@ export interface Commands {
   "dictionary.save": { params: DictionarySaveParams; result: JobSummary; effect: "job" };
   /** Apply an edit batch atomically (undoable). */
   "edits.apply": { params: EditBatchParams; result: EditApplied; effect: "write" };
+  /** Edit records, newest first; filter by actor kind or by command-line session. */
+  "edits.history": { params: EditHistoryParams; result: EditHistoryItem[]; effect: "read" };
   /** What undo would revert next. */
   "edits.peekUndo": { params: NoParams; result: UndoPeek | null; effect: "read" };
   /** Validate an edit batch and show its changes without writing. */
   "edits.preview": { params: EditBatchParams; result: EditPreview; effect: "read" };
   /** Undo the latest edit that can be undone safely. */
   "edits.undo": { params: NoParams; result: EditUndone; effect: "write" };
+  /** Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it. */
+  "edits.undoSession": { params: SessionParams; result: SessionUndone; effect: "write" };
   /** Export an asset range as WAV named by the naming rule (+ fragment word). */
   "exports.range": { params: ExportRangeParams; result: ExportedWav; effect: "write" };
   /** Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths. */
@@ -2813,10 +2942,16 @@ export interface Commands {
   "thumbs.get": { params: ThumbsParams; result: ThumbResult[]; effect: "read" };
   /** For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit). */
   "tracks.originalAsVocal": { params: SourceIdsParams; result: OriginalAsVocal; effect: "write" };
+  /** Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit. */
+  "tracks.setDefault": { params: TrackDefaultParams; result: EditApplied; effect: "write" };
+  /** Turn a role on or off for a track; turning off the role of the current default track also clears that default (one undoable edit). */
+  "tracks.setRole": { params: TrackRoleParams; result: EditApplied; effect: "write" };
   /** Restore UI state of one page. */
   "ui.get": { params: UiGetParams; result: Record<string, unknown>; effect: "ui" };
   /** Save one UI state value (not user data, no undo). */
   "ui.set": { params: UiSetParams; result: null; effect: "ui" };
+  /** Bind a picture file (video / animation / image; mode by file kind unless given) to a sample or source, or unbind with null; one undoable edit. */
+  "visuals.bind": { params: VisualBindParams; result: EditApplied; effect: "write" };
   /** Effective picture of a sample (sample > source binding > source video stream) with its range and mapping. */
   "visuals.forSample": { params: IdParams; result: SamplePicture; effect: "read" };
   /** Effective picture of a source (binding > its first video stream). */
@@ -2836,6 +2971,44 @@ export interface Commands {
 }
 
 export type CommandName = keyof Commands;
+
+/** Core events and their payloads. */
+export interface Events {
+  /** A command-line connection asks to run a command that cannot be undone; the owner answers in the app. */
+  "agent.confirm": AgentConfirm;
+  /** A pending confirmation was answered, timed out or dropped. */
+  "agent.confirmClosed": ConfirmClosed;
+  /** Command-line connections attached or detached. */
+  "agent.sessions": AgentSession[];
+  /** Core could not open the workspace and is exiting. */
+  "core.fatal": ErrorWire;
+  /** Core opened the workspace and accepts requests. */
+  "core.ready": Hello;
+  /** User data changed: entity -> ids. Re-read what you show; nothing refreshes by itself. */
+  "data.changed": Record<string, string[]>;
+  /** A queued video clip export finished; path is the file. */
+  "exports.videoDone": VideoDone;
+  /** A job was queued, progressed or finished (status succeeded / failed / cancelled / interrupted). */
+  "job.updated": JobSummary;
+  /** Model files or their status changed. */
+  "models.changed": NoPayload;
+  /** Building waveform peaks failed for these assets. */
+  "peaks.failed": PeaksEvent;
+  /** Waveform peaks became available for these assets. */
+  "peaks.ready": PeaksEvent;
+  /** The global target BPM changed. */
+  "rhythm.bpm": BpmEvent;
+  /** Background preparation added search index / pitch / metrics for some items. */
+  "search.coverage": SearchCoverageEvent;
+  /** A search ended; when status is done, read hits with results.page(resultId). */
+  "search.finished": SearchFinished;
+  /** A speech or pitch search started. */
+  "search.started": SearchStartedEvent;
+  /** A scan of the source folders finished: counts, new source ids, failures (first 50), offline folders. */
+  "sources.scanned": SourcesScanned;
+  /** List thumbnails became available. */
+  "thumbs.ready": ThumbsReady;
+}
 
 /** Core error codes (argument names: docs/api/commands.json, errors). */
 export type ErrorCode =
