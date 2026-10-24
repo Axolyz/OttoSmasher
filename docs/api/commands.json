@@ -2415,6 +2415,13 @@
    "summary": "Only failed, cancelled or interrupted jobs can be retried."
   },
   {
+   "code": "job-not-succeeded",
+   "args": [
+    "status"
+   ],
+   "summary": "The job ended without succeeding (cancelled or interrupted); see the job summary."
+  },
+  {
    "code": "job-spawn-failed",
    "args": [
     "reason"
@@ -2899,6 +2906,13 @@
     "field"
    ],
    "summary": "Search request is invalid."
+  },
+  {
+   "code": "search-not-done",
+   "args": [
+    "status"
+   ],
+   "summary": "The search ended without a result (cancelled); see the search status."
   },
   {
    "code": "search-not-found",

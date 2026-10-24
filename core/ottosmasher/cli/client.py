@@ -18,6 +18,8 @@ from ..store.workspace import Workspace
 class LinkClient:
     def __init__(self, workspace: Path, *, kind: str = "agent", session: str | None = None) -> None:
         self.workspace = Path(workspace)
+        self.session = session
+        self.video_done: dict[str | None, dict[str, Any]] = {}
         info = agent_link.read_endpoint(Workspace(self.workspace).data)
         if info is None:
             raise CoreError("app-not-running", workspace=str(self.workspace))

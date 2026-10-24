@@ -40,6 +40,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "agent-command-forbidden": (("method", "effect"), "This command belongs to the app's own interface and cannot be called from the command line."),
     "agent-confirm-declined": (("method",), "The owner declined this command in the app (it cannot be undone, so it needs their confirmation)."),
     "agent-confirm-timeout": (("method", "seconds"), "Nobody confirmed this command in the app in time; it was not run."),
+    "job-not-succeeded": (("status",), "The job ended without succeeding (cancelled or interrupted); see the job summary."),
+    "search-not-done": (("status",), "The search ended without a result (cancelled); see the search status."),
     "agent-confirm-unknown": (("id",), "No pending confirmation with this id (already answered, timed out or its connection closed)."),
     # ---- 工作区与数据库
     "workspace-locked": (("path",), "The workspace is open in another OttoSmasher."),
