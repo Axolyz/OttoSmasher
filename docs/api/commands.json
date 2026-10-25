@@ -8260,12 +8260,16 @@
     },
     "speech": {
      "type": "integer"
+    },
+    "unreadable": {
+     "type": "integer"
     }
    },
    "required": [
     "analyzed",
     "ok",
-    "speech"
+    "speech",
+    "unreadable"
    ]
   },
   "PrepSubtitle": {
@@ -11427,7 +11431,7 @@
     "scope": {
      "anyOf": [
       {
-       "$ref": "#/$defs/SampleFilter"
+       "$ref": "#/$defs/PitchSourceScope"
       },
       {
        "type": "null"

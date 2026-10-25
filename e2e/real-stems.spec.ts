@@ -31,16 +31,16 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   // S1.4：导入到文本层后采样数仍为 0
   await req("subtitles.importDefault", { sourceId: sid });
   expect((await req<{ total: number }>("samples.list", { offset: 0, limit: 1 })).total).toBe(0);
-  // S1.6：从台词段建采样（逐句与批量同一个动作）——「（京子(きょうこ)たち）アッカリ～ン」→ 名称「アッカリ～ン」，段 ±0.1 秒，语音，建在默认人声轨 vocals
+  // S1.6：从台词段建采样（逐句与批量同一个动作）——「（京子(きょうこ)たち）アッカリ～ン」→ 名称「アッカリ～ン」、说话人「京子たち」（读音默认去掉），段 ±0.1 秒，语音，建在默认人声轨 vocals
   type Plan = { token: string; items: Array<{ key: string; name: string; status: string; start: number; end: number; sourceStart?: number; speakers?: string[] }> };
   const segFrom = { kind: "segments", sourceId: sid, track: "default" };
   const lp = await req<Plan>("samples.plan", { from: segFrom });
   const akkarin = lp.items.find((l) => l.name === "アッカリ～ン")!;
-  expect([akkarin.status, akkarin.speakers]).toEqual(["pending", ["京子(きょうこ)たち"]]);
+  expect([akkarin.status, akkarin.speakers]).toEqual(["pending", ["京子たち"]]);
   expect(akkarin.start).toBeCloseTo(akkarin.sourceStart! - 0.1, 6); // 整轨声部：局部秒 = 原素材秒
   const made = await req<{ ids: string[] }>("samples.createPlanned", { from: segFrom, token: lp.token, keys: [akkarin.key] });
   const smp = await req<{ name: string; nature: string; asset_id: string; people: string[] }>("samples.get", { id: made.ids[0] });
-  expect([smp.name, smp.nature, smp.asset_id, smp.people]).toEqual(["アッカリ～ン", "speech", vocals.assetId, ["京子(きょうこ)たち"]]);
+  expect([smp.name, smp.nature, smp.asset_id, smp.people]).toEqual(["アッカリ～ン", "speech", vocals.assetId, ["京子たち"]]);
   // S6.2：从音效提示建（批量默认建在默认音效轨）——「（殴る音）」→ 殴る音、非调谐单音；「（悲鳴）」×3
   const hintFrom = { kind: "hints", sourceId: sid, track: "default" };
   const sp = await req<Plan>("samples.plan", { from: hintFrom });

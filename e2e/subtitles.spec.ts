@@ -164,7 +164,7 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
   await sheet.getByTestId("table-check-all").click();
   await expect(sheet.getByTestId("newsamples-run")).toHaveText("创建 3 项");
   await expect(sheet.getByTestId("table-row").first()).toContainText("0.900–2.100");
-  await expect(sheet.getByTestId("table-row").first()).toContainText("京子(きょうこ)たち");
+  await expect(sheet.getByTestId("table-row").first()).toContainText("京子たち");
   await page.screenshot({ path: ".cache/playwright-results/new-samples.png" });
   await sheet.getByTestId("newsamples-run").click();
   await expect(page.getByText(/已建立 3 个采样/)).toBeVisible();
@@ -173,7 +173,7 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
   await refreshLists(page);
   const row = page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" });
   await expect(row).toHaveAttribute("data-nature", "speech");
-  await expect(row).toContainText("京子(きょうこ)たち"); // 判定区间 = 段：扩展部分碰到的結衣不继承
+  await expect(row).toContainText("京子たち"); // 判定区间 = 段：扩展部分碰到的結衣不继承
   await expect(row).not.toContainText("結衣");
   await app.close();
 });

@@ -594,6 +594,8 @@ class PrepSpeech(TypedDict):
     # 句（文本单元）：原片入口范围内的台词行（默认人声轨或原混音上）与语音采样自己的那一句；analyzed = 有成功的当前头
     speech: int
     analyzed: int
+    # 读不了的段：最近一次就是按现在的文字分析、因文字读不出音而失败（例如只有“♪”）；不挡这一项完成
+    unreadable: int
 
 
 class Prep(TypedDict):
@@ -2396,13 +2398,6 @@ class ReaperTemplate(TypedDict):
 # ---------------------------------------------------------------- 三大搜索（阶段 7）
 
 
-class SearchCoverageParams(TypedDict):
-    # pitch = 已保存采样；pitchSources = 已分析原片音轨（整轨测 F0）
-    mode: Literal["speech", "pitch", "pitchSources"]
-    # 当前浏览范围（与 samples.list 同一套条件）
-    scope: NotRequired[SampleFilter | None]
-
-
 class SearchCoverage(TypedDict):
     """范围的检索准备情况：ready = 可以检索；stale = 要先「准备当前范围索引」；noAnalysis = 没有可用的语音分析（语音检索里计入“缺少有效分析”）。"""
 
@@ -2494,6 +2489,14 @@ class PitchSourceScope(TypedDict):
     expr: NotRequired[str]
     metrics: NotRequired[MetricFilter | None]
     languages: NotRequired[list[str] | None]
+
+
+class SearchCoverageParams(TypedDict):
+    # pitch = 已保存采样；pitchSources = 已分析原片音轨（整轨测 F0）
+    mode: Literal["speech", "pitch", "pitchSources"]
+    # 当前浏览范围（与 samples.list 同一套条件）；pitchSources 另可按音轨角色（roles）。
+    # 以前类型是 SampleFilter，roles 在参数校验时被静默丢掉（阶段 A 严格检查在真实素材测试里抓到）
+    scope: NotRequired[PitchSourceScope | None]
 
 
 class SearchPitchParams(TypedDict):

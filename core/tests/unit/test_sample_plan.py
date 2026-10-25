@@ -74,7 +74,7 @@ def test_segment_samples_pads_judge_name_and_single_equals_batch(db, env):
     plan.create(batch, pv["token"], [a["key"]])  # 每次显式创建都新建（R7.1）
     r1, r2 = sample_rows(db)
     assert r1 == r2 and r1["name"] == "アッカリ～ン" and r1["tag_judge_start"] == 1.0 and r1["tag_judge_end"] == 2.0
-    assert loads(r1["origin"]) == {"kind": "segment", "segment": a["key"]} and loads(r1["text_snapshot"])["speakers"] == ["京子(きょうこ)たち"]
+    assert loads(r1["origin"]) == {"kind": "segment", "segment": a["key"]} and loads(r1["text_snapshot"])["speakers"] == ["京子たち"]
     # 在当前查看的轨（原混音）上建：同样的规则，判定区间不变
     mix = asset(db, sid, snapshot="m")
     pvm = plan.plan({"kind": "segments", "sourceId": sid, "track": "current", "assetId": mix, "ids": [a["key"]]})

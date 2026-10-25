@@ -58,7 +58,7 @@ def unit(c, segment):
     return units.unit_id(segment, c.sid)
 
 
-def _adopt(core, job, *, status="ok", mutate=None, phones=None):
+def _adopt(core, job, *, status="ok", mutate=None, phones=None, error=None):
     """不真的跑任务：直接写逐条结果文件并调用采纳函数（模拟任务成功结束）。默认每段一个音素 a 覆盖整个目标。"""
     params = json.loads(core.conn.execute("SELECT params FROM job WHERE id=?", (job["id"],)).fetchone()[0])
     core.jobs.cancel(job["id"])  # 不让真的工作进程跑起来
@@ -72,7 +72,7 @@ def _adopt(core, job, *, status="ok", mutate=None, phones=None):
             (d / f"{it['idx']}.json").write_text(json.dumps({"phones": ph, "morae": ["ア"], "words": [], "frontend": {}}), encoding="utf-8")
             core.jobs._item(job["id"], {"idx": it["idx"], "status": "ok", "ref": f"{it['idx']}.json"})
         else:
-            core.jobs._item(job["id"], {"idx": it["idx"], "status": "failed", "error": {"code": "align-unsupported", "args": {}}})
+            core.jobs._item(job["id"], {"idx": it["idx"], "status": "failed", "error": error or {"code": "align-unsupported", "args": {}}})
     jrow = dict(core.conn.execute("SELECT * FROM job WHERE id=?", (job["id"],)).fetchone())
     core.speech._adopt(jrow, {"probes": []})
     return job["id"]
@@ -275,7 +275,21 @@ def test_results_table_counts_and_rerun_by_unit(core):
     assert core.speech.preview("units", [unit(core, b)], False)["run"] == 1
     assert core.speech.analyzed_counts()[core.sid] == {"speech": 2, "analyzed": 1}
     prep = core.dispatch({"id": 1, "m": "sources.prep", "p": {"id": core.sid}})
-    assert prep["ok"] and prep["r"]["speech"] == {"ok": False, "speech": 2, "analyzed": 1}
+    assert prep["ok"] and prep["r"]["speech"] == {"ok": False, "speech": 2, "analyzed": 1, "unreadable": 0}
+
+
+def test_prep_counts_unreadable_text_as_done(core):
+    # 文字本身读不出音（例如只有“♪”）而失败的段：重跑也没用，准备清单算“读不了”，不挡“语音分析”这一项；改了文字就又算没分析
+    a, b, c = seg(core, 1.0, 2.0, "一"), seg(core, 3.0, 4.0, "♪"), seg(core, 5.0, 6.0, "三")
+    _run(core, [a], entry="segments")
+    _run(core, [b], entry="segments", status="failed", error={"code": "frontend-failed", "args": {"reason": "empty-text"}})
+    _run(core, [c], entry="segments", status="failed")  # 对齐失败不算“读不了”
+    prep = lambda: core.dispatch({"id": 1, "m": "sources.prep", "p": {"id": core.sid}})["r"]["speech"]  # noqa: E731
+    assert prep() == {"ok": False, "speech": 3, "analyzed": 1, "unreadable": 1}
+    _run(core, [c], entry="segments")
+    assert prep() == {"ok": True, "speech": 3, "analyzed": 2, "unreadable": 1}
+    edit_seg(core, b, text="ラララ")
+    assert prep() == {"ok": False, "speech": 3, "analyzed": 2, "unreadable": 0}
 
 
 def test_missing_fcpe_keeps_alignments_and_reports_f0(core, monkeypatch, capsys):

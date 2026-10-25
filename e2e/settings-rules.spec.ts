@@ -53,10 +53,10 @@ test("字幕规则：试算、可选规则、校验、保存与撤销", async ()
   const ed = page.getByTestId("subtitle-rules");
   const trial = ed.getByTestId("subtitle-trial");
 
-  // 默认样例：嵌套读音的说话人整体是一个名字
+  // 默认样例：嵌套读音的说话人整体是一个名字，名字里的读音默认去掉（所有者 2026-10-24【基线变更】）
   await expect(ed.getByTestId("trial-kind")).toHaveText("台词");
   await expect(ed.getByTestId("trial-name")).toHaveText("アッカリ～ン");
-  await expect(ed.getByTestId("trial-speakers")).toHaveText("京子(きょうこ)たち");
+  await expect(ed.getByTestId("trial-speakers")).toHaveText("京子たち");
   // 多行：音效行
   await trial.fill("（悲鳴）\n（倒れる音）");
   await expect(ed.getByTestId("trial-kind")).toHaveText("音效");
@@ -90,6 +90,6 @@ test("字幕规则：试算、可选规则、校验、保存与撤销", async ()
   await page.screenshot({ path: ".cache/playwright-results/settings-subtitle.png" });
   await page.keyboard.press("Escape");
   await page.getByTestId("undo").click();
-  await expect.poll(values).toEqual(["", ""]);
+  await expect.poll(values).toEqual(["", "[（(][^（）()]*[）)]"]);
   await app.close();
 });

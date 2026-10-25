@@ -917,6 +917,7 @@
   "prep.fromSubtitle": "从台词段建…",
   "prep.speech": "语音分析",
   "prep.speechN": "已分析 {analyzed} / {n} 段",
+  "prep.speechUnreadable": "（{n} 段文字读不出音，例如只有“♪”：改段的文字后再分析）",
   "prep.speechAction": "语音分析…",
   "sources.lines": "{n} 段",
   "sources.opedN": "OP/ED {n}",

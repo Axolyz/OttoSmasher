@@ -1048,6 +1048,7 @@ export interface PrepSpeech {
   analyzed: number;
   ok: boolean;
   speech: number;
+  unreadable: number;
 }
 
 export interface PrepSubtitle {
@@ -1688,7 +1689,7 @@ export interface SearchCoverageEvent {
 
 export interface SearchCoverageParams {
   mode: "pitch" | "pitchSources" | "speech";
-  scope?: SampleFilter | null;
+  scope?: PitchSourceScope | null;
 }
 
 /** 事件 ``search.finished`` 与 ``search.status`` 的内容。status = running / done / cancelled / failed。 */

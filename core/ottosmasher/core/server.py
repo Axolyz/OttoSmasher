@@ -1015,7 +1015,7 @@ class Core:
 
     def _sources_prep(self, p: dict[str, Any]) -> dict[str, Any]:
         sp = self.speech.source_counts(p["id"])  # 句（文本单元）：原片入口范围内的台词行与语音采样自己的那一句
-        return text_layer_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["speech"] > 0 and sp["analyzed"] == sp["speech"], **sp}}
+        return text_layer_mod.prep(self.conn, p["id"]) | {"speech": {"ok": sp["analyzed"] > 0 and sp["analyzed"] + sp["unreadable"] == sp["speech"], **sp}}
 
     def _dev_register_stem(self, p: dict[str, Any]) -> dict[str, Any]:
         """开发期测试钩子（S1.2；只在开发模式）：把现成的分离声部文件登记为原片的整轨声部（原地引用，不复制）。

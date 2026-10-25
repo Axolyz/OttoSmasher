@@ -52,7 +52,9 @@ export function PrepPanel(props: { source: SourceRow; onAction: (a: PrepAction) 
       key: "sp",
       ok: prep.speech.ok,
       name: t("prep.speech"),
-      state: t("prep.speechN", { analyzed: prep.speech.analyzed, n: prep.speech.speech }),
+      state:
+        t("prep.speechN", { analyzed: prep.speech.analyzed, n: prep.speech.speech }) +
+        (prep.speech.unreadable ? t("prep.speechUnreadable", { n: prep.speech.unreadable }) : ""),
       action: "speech",
       label: t("prep.speechAction"),
       disabled: prep.speech.speech === 0,

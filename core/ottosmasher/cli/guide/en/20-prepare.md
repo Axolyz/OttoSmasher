@@ -9,9 +9,10 @@ a line that is only a bracket is a sound `（足音）`; lines starting `♪～`
 `otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
 
 Common problems in real subtitles (fix them in the files, never overwrite the owner's original: keep it with a `backup_` prefix, then write the clean same-name version):
-* Translations, furigana or notes mixed into the text; readings inside speakers `（京子(きょうこ)たち）` → drop the reading.
+* Translations or notes mixed into the text → remove them. Readings inside speaker names `（京子(きょうこ)たち）` are dropped by the app by default;
+  but readings in the spoken text `歳納(としのう)京子！` are read as a speaker 「としのう」 (every outermost bracket in a line is a speaker) → remove them from the file.
 * A cue whose first line is a sound and the speech starts on the second line `（ドアチャイム）\nウワーッ！` → the app would read the sound as the speaker; split it into two cues with the same timing.
-* Different OP/ED markers (`♪〜` uses the wave dash U+301C) → normalise to `♪～` / `～♪`, or mark the OP/ED yourself after import.
+* OP/ED markers that do not pair up (e.g. one start followed by two ends) → check `opedErrors` after import and confirm the suggestions of `oped.identify` (section 2). Both wave dashes `♪〜` and `♪～` are recognised.
 * Humming or singing written as `♪（ちなつのハミング）` → becomes a line whose text is just "♪", and speech analysis fails with `frontend-failed` (`empty-text`); make it a sound line `（ちなつのハミング）`, or write out the lyrics.
 * Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
 * No subtitles: you may run speech recognition locally and write a same-name `.srt`; or skip it, see section 3.

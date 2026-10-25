@@ -52,11 +52,21 @@ def run(setup, i: int, text: str):
     return align_item(spec, rt, aligner, cache=cache), runs[i]
 
 
+# 所有者 2026-10-12【基线变更 08 §8.2.2】：只有表示停顿的标点变 pau，其余符号忽略；旧版参考在这几句的符号处多一个 pau。
+# 这几句：去掉 pau 后音素相同，时间只比到第一处分歧之前（分歧处前后的边界因为少了那段停顿而不同）
+NO_SYMBOL_PAUSE = {5}
+
+
 @pytest.mark.parametrize("i", range(1, 9))
 def test_eight_sentences_match_reference(setup, i):
     res, ref = run(setup, i, setup[4][i]["sample_title_in_old_app"].replace("\n", " "))
     ours = [(p["label"], p["start"], p["end"]) for p in res["phones"]]
     theirs = [(p["label"], p["start"], p["end"]) for p in ref["phones"]]
+    if i in NO_SYMBOL_PAUSE:
+        assert [x[0] for x in ours if x[0] != "pau"] == [x[0] for x in theirs if x[0] != "pau"]
+        k = next(j for j, (o, t) in enumerate(zip(ours, theirs, strict=False)) if o[0] != t[0])
+        # 分歧前最后一个音的结束也不比（旧版后面接停顿、新版接下一个音）
+        ours, theirs = [*ours[: k - 1], ours[k - 1][:2] + (0.0,)], [*theirs[: k - 1], theirs[k - 1][:2] + (0.0,)]
     assert [x[0] for x in ours] == [x[0] for x in theirs]
     d = np.abs(np.array([[o[1] - t[1], o[2] - t[2]] for o, t in zip(ours, theirs, strict=True)]))
     assert d.max() < 0.011  # 一帧以内

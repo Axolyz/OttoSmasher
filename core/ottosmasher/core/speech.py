@@ -59,6 +59,9 @@ def _txt(text: str) -> dict[str, Any]:
     return {"text": text, "source": "segment", "version": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], "equalsSubtitle": False}
 
 
+# 文字本身读不出音的失败（重跑不会好，要改段的文字）：准备清单把这些段算作“读不了”，不挡“语音分析”这一项
+UNREADABLE = frozenset({("frontend-failed", "empty-text"), ("frontend-failed", "no-phonemes")})
+
 class SpeechService:
     def __init__(self, conn: sqlite3.Connection, ws: Workspace, jobs: Any, support_dir: Path, on_change: Callable[[ChangeSet], None] | None = None) -> None:
         self.conn = conn
@@ -918,15 +921,25 @@ class SpeechService:
         return out
 
     def source_counts(self, source_id: str) -> dict[str, int]:
-        """原片页「准备」里的语音分析一行：原片入口范围内（默认人声轨或原混音上、不在 OP/ED 里）的段数与有可用分析的段数。"""
+        """原片页「准备」里的语音分析一行：原片入口范围内（默认人声轨或原混音上、不在 OP/ED 里）的段数、有可用分析的段数，
+        以及“读不了”的段数：最近一次分析就是按这段现在的文字做的、因为文字本身读不出音（例如只有“♪”）而失败——不改文字重跑也没用。"""
         blocked: list[dict[str, Any]] = []
         found = self._source_units([source_id], None, {}, blocked)
-        done = 0
+        done = unreadable = 0
         for u in found.values():
             seg = self._segment(u["segment"])
-            if seg is not None and self.usable_run(u["unitId"], seg) is not None:
+            if seg is None:
+                continue
+            if self.usable_run(u["unitId"], seg) is not None:
                 done += 1
-        return {"speech": len(found), "analyzed": done}
+                continue
+            runs = self._runs(u["unitId"])
+            last = runs[0] if runs else None
+            if last is not None and last["status"] == "failed" and units.content_matches(last, seg):
+                err = (loads(last["result"]) or {}).get("error") or {} if last["result"] else {}
+                if (err.get("code"), (err.get("args") or {}).get("reason")) in UNREADABLE:
+                    unreadable += 1
+        return {"speech": len(found), "analyzed": done, "unreadable": unreadable}
 
     def analyzed_counts(self, source_id: str | None = None) -> dict[str, dict[str, int]]:
         """每个原片：语音性质采样数与“已分析”（读到的段都有可用分析，含 ◐）数。"""
