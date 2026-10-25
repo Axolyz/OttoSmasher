@@ -123,6 +123,22 @@ def test_retry_creates_new_job_with_current_device(h):
     assert ei.value.code == "job-not-retryable"
 
 
+def test_retry_restores_batch_rows_without_old_results(h):
+    old = h.s.submit("selftest.sleep", {"seconds": 60})
+    h.s.add_items(old["id"], [("seg:a", "queued"), ("seg:b", "queued"), ("seg:c", "skipped")])
+    h.s._item(old["id"], {"idx": 0, "status": "ok", "ref": "old.json"})
+    h.s._item(old["id"], {"idx": 1, "status": "failed", "error": {"code": "selftest-failed", "args": {}}})
+    h.s.cancel(old["id"])
+
+    new = h.s.retry(old["id"])
+    assert new["items"] == {"total": 2, "ok": 0, "failed": 0}
+    rows = h.db.execute("SELECT idx, target, status, error, result_ref FROM job_item WHERE job_id=? ORDER BY idx", (new["id"],)).fetchall()
+    assert [tuple(r) for r in rows] == [(0, "seg:a", "queued", None, None), (1, "seg:b", "queued", None, None), (2, "seg:c", "skipped", None, None)]
+    h.s._item(new["id"], {"idx": 0, "status": "ok", "ref": "new.json"})
+    assert h.db.execute("SELECT result_ref FROM job_item WHERE job_id=? AND idx=0", (new["id"],)).fetchone()[0] == "new.json"
+    assert h.db.execute("SELECT result_ref FROM job_item WHERE job_id=? AND idx=0", (old["id"],)).fetchone()[0] == "old.json"
+
+
 # R19.2 取消只结束本任务的进程树
 def test_cancel_kills_only_its_own_tree(h, ws):
     a = h.s.submit("selftest.sleep", {"seconds": 60, "children": 2})

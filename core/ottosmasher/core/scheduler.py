@@ -139,7 +139,13 @@ class Scheduler:
         row = self._row(jid)
         if row["status"] not in RETRYABLE:
             raise CoreError("job-not-retryable", id=jid, status=row["status"])
-        return self.submit(row["kind"], loads(row["params"]), loads(row["affects"]), retry_of=jid)
+        job = self.submit(row["kind"], loads(row["params"]), loads(row["affects"]), retry_of=jid)
+        items = self.conn.execute("SELECT target, status FROM job_item WHERE job_id=? ORDER BY idx", (jid,)).fetchall()
+        if items:
+            # Workers report by frozen item index; retry needs a fresh result table
+            # for those updates and the adopter, including the original skipped rows.
+            self.add_items(job["id"], [(it["target"], "skipped" if it["status"] == "skipped" else "queued") for it in items])
+        return self.summary(job["id"])
 
     # ---------- 查询
 
