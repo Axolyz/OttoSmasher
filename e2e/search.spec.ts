@@ -86,8 +86,16 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   await page.screenshot({ path: `${SHOTS}/02-results-hit.png` });
   await row.getByTestId("hit-play").first().click();
   await expect(page.getByTestId("dock-version")).toContainText("原声");
+  // 卡拍版很短（不到 0.2 秒就放完），按退避间隔轮询会错过（L48）：在页面里记下播放条出现过的版本文字
+  await page.evaluate(() => {
+    const seen: string[] = ((window as unknown as { __dockSeen: string[] }).__dockSeen = []);
+    new MutationObserver(() => {
+      const v = document.querySelector('[data-testid="dock-version"]')?.textContent;
+      if (v) seen.push(v);
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
   await row.getByTestId("hit-play").first().click({ button: "right" });
-  await expect(page.getByTestId("dock-version")).toContainText("卡拍");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __dockSeen: string[] }).__dockSeen.join("|"))).toContain("卡拍");
   await row.getByTestId("hit").first().click({ button: "right" });
   await expect(page.getByTestId("hit-menu")).toContainText("导出卡拍 WAV");
   await page.keyboard.press("Escape");

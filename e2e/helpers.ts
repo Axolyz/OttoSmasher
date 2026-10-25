@@ -13,7 +13,8 @@ export interface Launched {
 export async function launch(opts: { locale?: string; workspace?: string } = {}): Promise<Launched> {
   const workspace = opts.workspace ?? join(mkdtempSync(join(tmpdir(), "otto-e2e-")), "工作区 test");
   const app = await electron.launch({
-    args: ["."],
+    // 窗口被遮挡或屏幕关闭时 Chromium 会暂停后台窗口的动画与计时器，弹层的退出动画走不完、一直留在页面上（L48 / 命令面板偶发失败）
+    args: [".", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"],
     // OTTO_MPV_AO=null：测试不出声（仍按实时推进）；OTTO_STRICT_API=1：Core 核对每个命令的返回值与命令目录一致（ROADMAP L2）
     env: { ...process.env, OTTO_WORKSPACE: workspace, OTTO_DEV: "1", OTTO_STRICT_API: "1", OTTO_LOCALE: opts.locale ?? "zh-CN", OTTO_MPV_AO: process.env.OTTO_MPV_AO ?? "null" },
   });
