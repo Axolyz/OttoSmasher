@@ -28,24 +28,43 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
     return smp.r.id;
   }, wav);
 
-  // 命令行打标签：界面提示“资料已更新”（别处的改动，P8），顶栏出现会话标记
+  // 命令行打标签：界面提示“资料已更新”（别处的改动，P8）
   const plan = await otto("call", "samples.batchEdit", JSON.stringify({ ids: [sample], fields: { addTags: ["topic:game"] } }));
   const applied = await otto("call", "edits.apply", JSON.stringify({ batch: plan.batch }));
   expect(applied.edit_id).toBeTruthy();
   await expect(page.getByTestId("refresh-lists")).toBeVisible();
-  await expect(page.getByTestId("agent-badge")).toBeVisible();
 
-  // 会话面板：一处修改 → 撤回
-  await page.getByTestId("agent-badge").click();
-  const row = page.getByTestId("agent-panel").getByTestId("agent-session");
-  await expect(row).toContainText("e2e-agent");
-  await expect(row).toContainText("1 处修改");
-  await page.screenshot({ path: ".cache/playwright-results/agent-panel.png" });
-  await row.getByTestId("agent-undo").click();
+  // 操作历史：agent 的那条写明会话；按会话筛选 → 撤回这个会话
+  await page.getByTestId("history-open").click();
+  const panel = page.getByTestId("history-panel");
+  await expect(panel.getByTestId("history-row").first()).toContainText("e2e-agent");
+  await expect(panel.getByTestId("history-row").first()).toContainText("1 处修改");
+  await panel.getByTestId("history-filter").click();
+  await page.getByRole("option", { name: /e2e-agent/ }).click();
+  await expect(panel.getByTestId("history-row")).toHaveCount(1);
+  await page.screenshot({ path: ".cache/playwright-results/history-panel.png" });
+  await panel.getByTestId("history-undo-session").click();
   await page.getByTestId("agent-undo-confirm").getByTestId("confirm-ok").click();
   await expect(page.getByText("已撤回 1 处修改")).toBeVisible();
   const tags = await otto("call", "tags.ofSamples", JSON.stringify({ ids: [sample] }));
   expect(JSON.stringify(tags)).not.toContain("topic:game");
+
+  // 撤销中间的某一条：命令行先后改两项设置，在历史里撤销较早的那条（之后没人再动它）
+  const set = async (id: string, value: number) => {
+    const st = await otto("call", "settings.list");
+    await otto("call", "edits.apply", JSON.stringify({ batch: { ops: [{ entity: "setting", id, version: st[id].version, fields: { value } }] } }));
+  };
+  await set("jobs.concurrency_light", 3);
+  await set("jobs.concurrency_model", 2);
+  await page.getByTestId("history-open").click();
+  const rows = panel.getByTestId("history-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(2)).toContainText("已撤销");
+  await rows.nth(1).getByTestId("history-undo").click();
+  await expect(page.getByText(/^已撤销：/)).toBeVisible();
+  const st = await otto("call", "settings.list");
+  expect([st["jobs.concurrency_light"].value, st["jobs.concurrency_model"].value]).toEqual([2, 2]);
+  await page.keyboard.press("Escape");
 
   // 撤销不了的命令：先拒绝，再允许
   const declined = run(PY, ["-m", "ottosmasher.cli", "call", "samples.delete", JSON.stringify({ ids: [sample] })], { env }).then(
@@ -59,7 +78,7 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
   await dlg.getByRole("button", { name: "取消" }).click();
   expect(await declined).toBe(3);
   const approved = otto("call", "samples.delete", JSON.stringify({ ids: [sample] }));
-  await expect(dlg).toContainText("会一直等你回答");
+  await expect(dlg).toContainText("秒内不回答就算拒绝");
   await dlg.getByTestId("confirm-ok").click();
   expect((await approved).deleted).toBe(1);
 
@@ -76,6 +95,23 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
   expect(direct).toBe(1);
   await expect(dlg).toHaveCount(0);
 
+  // 没等到回答就断开的请求：留在操作历史的“错过的确认请求”里，按钮上有红点
+  await page.keyboard.press("Meta+,");
+  await page.getByTestId("settings-group-agent").click();
+  await page.getByTestId("setting-agent.skip_confirm").locator("label").click();
+  await page.keyboard.press("Escape");
+  const child = execFile(PY, ["-m", "ottosmasher.cli", "call", "samples.delete", JSON.stringify({ ids: ["gone"] })], { env });
+  await expect(dlg).toBeVisible();
+  child.kill();
+  await expect(dlg).toHaveCount(0);
+  await expect(page.getByTestId("history-dot")).toBeVisible();
+  await page.getByTestId("history-open").click();
+  await expect(page.getByTestId("history-missed")).toContainText("删除采样");
+  await expect(page.getByTestId("history-missed")).toContainText("没有执行");
+  await page.getByTestId("history-missed-clear").click();
+  await expect(page.getByTestId("history-missed")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
   // 命令行提交的任务在任务抽屉里带 agent 标记
   await otto("call", "jobs.submit", JSON.stringify({ kind: "selftest.sleep", params: { seconds: 0.2 } }), "--wait");
   await page.getByTestId("nav-tasks").click();
@@ -86,9 +122,11 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
 test("命令行的会话面板与确认框在伪语言下没有写死的文字", async () => {
   const { app, page, workspace } = await launch({ locale: "pseudo" });
   const env = { ...process.env, OTTO_WORKSPACE: workspace, OTTO_AGENT_SESSION: "pseudo-agent" };
-  await run(PY, ["-m", "ottosmasher.cli", "call", "core.hello"], { env });
-  await page.getByTestId("agent-badge").click();
-  await expect(page.getByTestId("agent-session")).toBeVisible();
+  const v = (await run(PY, ["-m", "ottosmasher.cli", "call", "settings.list"], { env }).then((r) => JSON.parse(r.stdout)))["jobs.concurrency_light"].version;
+  const batch = { batch: { ops: [{ entity: "setting", id: "jobs.concurrency_light", version: v, fields: { value: 3 } }] } };
+  await run(PY, ["-m", "ottosmasher.cli", "call", "edits.apply", JSON.stringify(batch)], { env });
+  await page.getByTestId("history-open").click();
+  await expect(page.getByTestId("history-row")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
   const pending = run(PY, ["-m", "ottosmasher.cli", "call", "samples.delete", JSON.stringify({ ids: ["nope"] })], { env }).catch(() => null);

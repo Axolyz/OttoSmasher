@@ -633,13 +633,15 @@ class LanguageProfile(Protocol):
 
 - 登记命令时标 `danger`（总是，或按参数）：`sources.delete`、`samples.delete`、`works.rename`、`storage.clean`、`samples.independ`（带删原素材时）。目录里写 `"danger": "always" | "conditional"`。
 - 外部连接调用它们 → Core 发 `agent.confirm`（命令、参数、影响预览、会话、秒数）→ 外壳弹确认框 → `agent.confirmReply`（ui 类，只有应用能调）。
-  同意才执行；拒绝 → `agent-confirm-declined`；缺省不限时，一直等到回答（所有者 2026-10-24；环境变量 `OTTO_AGENT_CONFIRM_SECONDS` 设了正数才会超时 → `agent-confirm-timeout`，测试用）；提问的连接断了 → 作废。设置 `agent.skip_confirm`（默认关）打开后不问、直接执行；这一项在 `settings.HUMAN_ONLY` 里，只有用户来源能改或撤销（否则 `setting-human-only`）。等待期间不占主线程；`agent.confirmClosed` 让其他窗口撤下框。
+  同意才执行；拒绝 → `agent-confirm-declined`；缺省 120 秒没人回答 → `agent-confirm-timeout`（`OTTO_AGENT_CONFIRM_SECONDS` 可改，0 = 不限时）；提问的连接断了 → 作废；这两种都记进“错过的请求”（`agent.missed`，本次运行内，最多 50 条）。
+  提问时记下资料指纹（影响预览 + 涉及对象的版本），放行时重算，不同就不执行、带新预览重新问（`{"reasked": true}`）。设置 `agent.skip_confirm`（默认关）打开后不问、直接执行；这一项在 `settings.HUMAN_ONLY` 里，只有用户来源能改或撤销（否则 `setting-human-only`）。等待期间不占主线程；`agent.confirmClosed` 让其他窗口撤下框。
 
 ### 15.3 来源与撤回
 
 - 编辑、任务、新建的原素材 / 资产 / 采样 / 测量都记来源（agent / script + 会话，迁移 0004）。`edits.history` 按来源列编辑；`edits.undoSession` 从新到旧撤回一个会话的编辑，
-  遇到之后又被改过的那条就停下报告（不跳过，免得撤出半套）。新建的采样、资产不走编辑通道，不在撤回范围内（删除要确认）。
-- 任务摘要带 `actor`，任务抽屉给命令行提交的任务一个“agent”小标记；顶栏显示本次运行里出现过的会话（UI_PLAN §23）。
+  遇到之后又被改过的那条就停下报告（不跳过，免得撤出半套）。`edits.undoOne` 撤指定的一条（它改过的东西之后没被再改过才行；`edits.history` 的 `undoable`）。
+  新建的采样、资产不走编辑通道，不在撤回范围内（删除要确认）。
+- 任务摘要带 `actor`，任务抽屉给命令行提交的任务一个“agent”小标记；顶栏「操作历史」面板列出所有人的修改、错过的确认请求（UI_PLAN §23）。
 
 ### 15.4 命令目录与命令行
 
@@ -650,11 +652,11 @@ class LanguageProfile(Protocol):
 
 ### 15.5 说明书
 
-`core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：总览（规则、退出码、数据外发）、概念、准备清单 7 项、采样、检索、导出、组合外部工具、撤回、完整示例。
+`core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：总览（规则、退出码）、概念、准备清单 7 项、采样、检索、导出、组合外部工具、撤回、完整示例。
 `otto guide [主题] [--lang] [--all] [--skill]`；`--skill` 输出 Claude Code skill（用户自己放进 skill 目录，我们不往用户目录写）。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
 
 ### 15.6 还没做的
 
 - **编排层**（自动做音MAD 的时间线编排）：仍按原来的边界——agent 用检索、卡拍、导出，成片在 REAPER 里完成；不在应用里做多轨编辑器。
-- **数据外发**：agent 若用云端大模型，它读到的台词会离开本机；应用没法控制 agent，只在说明书与用户文档里写明，由用户决定。
+- **数据外发**：agent 若用云端大模型，它读到的台词会离开本机；应用没法控制 agent，由用户自己决定（所有者 2026-10-24：说明书里不写禁止外发的规定）。
 - Windows 命名管道与 `otto.cmd` 未实测（L47）；发布包的 `otto` 启动器（L46）。

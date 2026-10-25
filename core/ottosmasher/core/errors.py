@@ -61,6 +61,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "edit-conflict": (("actual", "entity", "expected", "id", "index"), "Object changed since it was read (version mismatch)."),
     "edit-invalid": (("entity", "field", "first", "index", "line", "max", "min", "options", "reason", "role"), "Edit value rejected."),
     "undo-nothing-safe": ((), "Nothing can be undone safely."),
+    "edit-history-unknown": (("id",), "No edit with this id in the edit history."),
+    "edit-not-undoable": (("id", "reason"), "This edit cannot be undone on its own (reason: is-undo, already-undone, before-barrier, or changed-later = something it changed was edited again afterwards)."),
     # ---- 任务
     "job-kind-unknown": (("kind",), "No such job kind."),
     "job-not-found": (("id",), "No such job."),

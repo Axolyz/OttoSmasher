@@ -9,7 +9,32 @@
     "$ref": "#/$defs/AgentConfirmReplyParams"
    },
    "result": {
+    "$ref": "#/$defs/AgentConfirmReplied"
+   }
+  },
+  {
+   "name": "agent.dismissMissed",
+   "effect": "ui",
+   "summary": "Remove missed confirmation requests from the list (all when ids is omitted).",
+   "params": {
+    "$ref": "#/$defs/DismissMissedParams"
+   },
+   "result": {
     "$ref": "#/$defs/NoParams"
+   }
+  },
+  {
+   "name": "agent.missed",
+   "effect": "read",
+   "summary": "Confirmation requests nobody answered in time or whose connection closed (this run of the app, newest first).",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AgentMissed"
+    }
    }
   },
   {
@@ -210,6 +235,17 @@
    "summary": "Undo the latest edit that can be undone safely.",
    "params": {
     "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/EditUndone"
+   }
+  },
+  {
+   "name": "edits.undoOne",
+   "effect": "write",
+   "summary": "Undo one specific edit from the history, if nothing it changed was edited again afterwards (edits.history marks it undoable).",
+   "params": {
+    "$ref": "#/$defs/EditIdParams"
    },
    "result": {
     "$ref": "#/$defs/EditUndone"
@@ -1875,6 +1911,16 @@
    }
   },
   {
+   "name": "agent.missed",
+   "summary": "The list of missed confirmation requests changed (timed out, connection closed, or dismissed).",
+   "payload": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AgentMissed"
+    }
+   }
+  },
+  {
    "name": "agent.sessions",
    "summary": "Command-line connections attached or detached.",
    "payload": {
@@ -2178,6 +2224,13 @@
    "summary": "Edit batch has no operations."
   },
   {
+   "code": "edit-history-unknown",
+   "args": [
+    "id"
+   ],
+   "summary": "No edit with this id in the edit history."
+  },
+  {
    "code": "edit-invalid",
    "args": [
     "entity",
@@ -2201,6 +2254,14 @@
     "index"
    ],
    "summary": "Edited object does not exist."
+  },
+  {
+   "code": "edit-not-undoable",
+   "args": [
+    "id",
+    "reason"
+   ],
+   "summary": "This edit cannot be undone on its own (reason: is-undo, already-undone, before-barrier, or changed-later = something it changed was edited again afterwards)."
   },
   {
    "code": "edit-unknown-entity",
@@ -3490,6 +3551,16 @@
     "seconds"
    ]
   },
+  "AgentConfirmReplied": {
+   "title": "AgentConfirmReplied",
+   "type": "object",
+   "properties": {
+    "reasked": {
+     "type": "boolean"
+    }
+   },
+   "required": []
+  },
   "AgentConfirmReplyParams": {
    "title": "AgentConfirmReplyParams",
    "type": "object",
@@ -3504,6 +3575,44 @@
    "required": [
     "approve",
     "id"
+   ]
+  },
+  "AgentMissed": {
+   "title": "AgentMissed",
+   "description": "没人及时回答（timeout）或提问的连接断了（closed）的确认请求。",
+   "type": "object",
+   "properties": {
+    "actor": {
+     "$ref": "#/$defs/Actor"
+    },
+    "at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "method": {
+     "type": "string"
+    },
+    "params": {
+     "type": "object"
+    },
+    "preview": {},
+    "reason": {
+     "enum": [
+      "closed",
+      "timeout"
+     ]
+    }
+   },
+   "required": [
+    "actor",
+    "at",
+    "id",
+    "method",
+    "params",
+    "preview",
+    "reason"
    ]
   },
   "AgentSession": {
@@ -4447,6 +4556,26 @@
     "text"
    ]
   },
+  "DismissMissedParams": {
+   "title": "DismissMissedParams",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": []
+  },
   "EditApplied": {
    "title": "EditApplied",
    "type": "object",
@@ -4612,6 +4741,9 @@
       }
      ]
     },
+    "undoable": {
+     "type": "boolean"
+    },
     "undoneBy": {
      "anyOf": [
       {
@@ -4631,6 +4763,7 @@
     "label",
     "seq",
     "undoOf",
+    "undoable",
     "undoneBy"
    ]
   },
@@ -4667,6 +4800,18 @@
     }
    },
    "required": []
+  },
+  "EditIdParams": {
+   "title": "EditIdParams",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "editId"
+   ]
   },
   "EditLabel": {
    "title": "EditLabel",

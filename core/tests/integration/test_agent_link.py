@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -164,25 +165,63 @@ def test_app_not_running(tmp_path):
     assert ei.value.code == "app-not-running"
 
 
-def test_confirmation_waits_without_limit_by_default(tmp_path, monkeypatch):
-    # 所有者 2026-10-24：缺省不限时（跑着 agent 人可能去睡觉了），一直等到回答或连接断开
+def test_confirmation_default_limit_and_missed_requests(tmp_path, monkeypatch):
+    # 所有者 2026-10-24 定：缺省限时 2 分钟；超时或连接断了的请求记进“错过的请求”，所有者回来能看到
     monkeypatch.delenv("OTTO_AGENT_CONFIRM_SECONDS", raising=False)
     root = tmp_path / "ws"
     c = CoreProc(root)
     try:
-        with LinkClient(root, session="sleepy") as a:
-            out: dict = {}
-            t = _ask_delete(a, out)
-            ev = _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
-            assert ev["d"]["seconds"] == 0
-            time.sleep(4)
-            assert not _events(c, "agent.confirmClosed") and "res" not in out
-            assert c.call("agent.confirmReply", id=ev["d"]["id"], approve=True)["ok"]
-            t.join(10)
-            assert out["res"]["e"]["code"] == "sample-not-found"
+        a = LinkClient(root, session="late")
+        a.send("samples.delete", {"ids": ["x"]})
+        ev = _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
+        assert ev["d"]["seconds"] == 120
+        a.close()
+        missed = _wait_ui_event(c, lambda e: e["e"] == "agent.missed")["d"]
+        assert [(m["id"], m["reason"], m["method"], m["actor"]["session"]) for m in missed] == [(ev["d"]["id"], "closed", "samples.delete", "late")]
+        assert c.call("agent.missed")["r"] == missed
+        assert c.call("agent.dismissMissed")["ok"] and c.call("agent.missed")["r"] == []
     finally:
         c.p.stdin.close()
         c.p.wait(timeout=20)
+
+
+def test_timeout_is_recorded_as_missed(app):
+    c, root = app
+    with LinkClient(root, session="t") as a:
+        out: dict = {}
+        t = _ask_delete(a, out)
+        _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
+        t.join(15)
+        assert out["res"]["e"]["code"] == "agent-confirm-timeout"
+        missed = _wait_ui_event(c, lambda e: e["e"] == "agent.missed")["d"]
+        assert missed[0]["reason"] == "timeout" and missed[0]["preview"] == {"count": 1, "names": []}
+
+
+def test_approval_rechecks_the_data(app, tmp_path):
+    # 放行时资料和提问时不一样（这里：采样被改了名）→ 不执行，带新预览重新问；再放行才执行
+    c, root = app
+    wav = tmp_path / "a.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=440:sample_rate=48000:duration=2", str(wav)], check=True)
+    sid = c.call("sources.add", paths=[str(wav)])["r"][0]["sourceId"]
+    aid = c.call("assets.listForSource", sourceId=sid)["r"][0]["id"]
+    smp = c.call("samples.create", assetId=aid, start=0.2, end=1.2, name="before")["r"]
+    with LinkClient(root, session="r") as a:
+        out: dict = {}
+        t = threading.Thread(target=lambda: out.update(res=a.request("samples.delete", {"ids": [smp["id"]]}, timeout=30)))
+        t.start()
+        ev = _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
+        assert ev["d"]["preview"]["names"] == ["before"]
+        cur = c.call("samples.get", id=smp["id"])["r"]
+        assert c.call("edits.apply", batch={"ops": [{"entity": "sample", "id": smp["id"], "version": cur["version"], "fields": {"name": "after"}}]})["ok"]
+        c.events.clear()
+        r = c.call("agent.confirmReply", id=ev["d"]["id"], approve=True)
+        assert r["r"] == {"reasked": True}
+        ev2 = _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
+        assert ev2["d"]["id"] != ev["d"]["id"] and ev2["d"]["preview"]["names"] == ["after"]
+        assert "res" not in out
+        assert c.call("agent.confirmReply", id=ev2["d"]["id"], approve=True)["r"] == {}
+        t.join(10)
+        assert out["res"]["ok"] and out["res"]["r"]["deleted"] == 1
 
 
 def _skip_confirm(version: int, value: bool) -> dict:

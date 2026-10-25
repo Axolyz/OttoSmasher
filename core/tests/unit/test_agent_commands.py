@@ -114,3 +114,23 @@ def test_pitch_search_scope_keeps_tag_conditions(core):
     # 原片音轨模式：采样专用条件明确拒绝，不静默忽略
     r = call(core, "search.pitch", blocks=[{"seconds": 0.3, "low": "C4"}], mode="sources", scope={"languages": ["ja"]})
     assert (r["e"]["code"], r["e"]["args"]["field"]) == ("search-invalid", "languages"), r
+
+
+def test_undo_one_from_the_middle_of_history(core):
+    a = _set(core, "jobs.concurrency_light", 3)
+    b = _set(core, "jobs.concurrency_model", 2)
+    c = _set(core, "jobs.concurrency_light", 4)
+    marks = {h["edit_id"]: h["undoable"] for h in ok(call(core, "edits.history"))}
+    # a 改过的那项之后又被 c 改了 → 不能单独撤；b 在中间但没被动过 → 能撤
+    assert marks == {a["edit_id"]: False, b["edit_id"]: True, c["edit_id"]: True}
+    res = call(core, "edits.undoOne", editId=a["edit_id"])
+    assert res["e"]["code"] == "edit-not-undoable" and res["e"]["args"]["reason"] == "changed-later"
+    r = ok(call(core, "edits.undoOne", editId=b["edit_id"]))
+    assert r["undone"] == b["edit_id"]
+    s = ok(call(core, "settings.list"))
+    assert s["jobs.concurrency_model"]["value"] == 1 and s["jobs.concurrency_light"]["value"] == 4
+    hist = {h["edit_id"]: h for h in ok(call(core, "edits.history"))}
+    assert hist[b["edit_id"]]["undoneBy"] == r["edit_id"] and not hist[b["edit_id"]]["undoable"]
+    assert not hist[r["edit_id"]]["undoable"]  # 撤销本身不能再单独撤
+    assert call(core, "edits.undoOne", editId=b["edit_id"])["e"]["args"]["reason"] == "already-undone"
+    assert call(core, "edits.undoOne", editId="nope")["e"]["code"] == "edit-history-unknown"

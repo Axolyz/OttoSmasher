@@ -959,12 +959,40 @@ class EditService:
             "SELECT e.*, (SELECT COUNT(*) FROM edit_change c WHERE c.edit_id = e.id) AS n FROM edit e"
             f" WHERE {' AND '.join(where)} ORDER BY e.seq DESC LIMIT ?", (*args, max(1, min(int(limit), 1000))),
         ).fetchall()
+        barrier = self._barrier_seq()
         return [{
             "edit_id": r["id"], "seq": r["seq"], "created_at": r["created_at"],
             "label": {"code": r["label_code"], "args": loads(r["label_args"])},
             "actor": {"kind": r["actor_kind"], "session": r["actor_session"]},
             "undoOf": r["undo_of"], "undoneBy": r["undone_by"], "changes": r["n"],
+            "undoable": self._undoable(r, barrier),
         } for r in rows]
+
+    def _barrier_seq(self) -> int:
+        return self.conn.execute("SELECT MAX(seq) FROM edit WHERE label_code='barrier'").fetchone()[0] or -1
+
+    def _undoable(self, e: sqlite3.Row, barrier: int) -> bool:
+        """这一条现在能单独撤销：不是撤销本身、没被撤过、在屏障之后、改过的东西之后没被别的修改动过。"""
+        if e["undo_of"] is not None or e["undone_by"] is not None or e["label_code"] == "barrier" or e["seq"] <= barrier:
+            return False
+        changes = self.conn.execute("SELECT * FROM edit_change WHERE edit_id=? ORDER BY idx", (e["id"],)).fetchall()
+        return all(self._still_after(c) for c in changes)
+
+    def undo_one(self, edit_id: str) -> dict[str, Any]:
+        """撤销指定的一条（操作历史面板）：只撤它改过、之后又没被别的修改动过的那条；否则说明为什么不行。"""
+        with transaction(self.conn):
+            e = self.conn.execute("SELECT * FROM edit WHERE id=?", (edit_id,)).fetchone()
+            if e is None:
+                raise CoreError("edit-history-unknown", id=edit_id)
+            if not self._undoable(e, self._barrier_seq()):
+                reason = ("is-undo" if e["undo_of"] is not None else "already-undone" if e["undone_by"] is not None
+                          else "before-barrier" if e["label_code"] == "barrier" or e["seq"] <= self._barrier_seq() else "changed-later")
+                raise CoreError("edit-not-undoable", id=edit_id, reason=reason)
+            changes = self.conn.execute("SELECT * FROM edit_change WHERE edit_id=? ORDER BY idx", (edit_id,)).fetchall()
+            new_id, label, plan = self._undo_one(e, changes)
+        if self.on_change:
+            self.on_change(_changeset(plan))
+        return {"edit_id": new_id, "undone": edit_id, "label": label, "changes": [_wire(p) for p in plan]}
 
     def undo_session(self, session: str) -> dict[str, Any]:
         """整批撤回一个会话（命令行连接）做的修改：从新到旧逐条撤；遇到被之后的修改改过的那条就停下并报告它（不跳过，免得撤出半套）。"""
@@ -972,7 +1000,7 @@ class EditService:
         blocked = None
         all_plans: list[dict[str, Any]] = []
         with transaction(self.conn):
-            barrier = self.conn.execute("SELECT MAX(seq) FROM edit WHERE label_code='barrier'").fetchone()[0] or -1
+            barrier = self._barrier_seq()
             edits = self.conn.execute(
                 "SELECT * FROM edit WHERE actor_session=? AND actor_kind IN ('agent', 'script') AND undo_of IS NULL AND undone_by IS NULL"
                 " AND seq > ? ORDER BY seq DESC", (session, barrier),

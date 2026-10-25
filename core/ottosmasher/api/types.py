@@ -124,6 +124,12 @@ class EditHistoryItem(TypedDict):
     # 已被哪条撤销
     undoneBy: str | None
     changes: int
+    # 现在能单独撤销（edits.undoOne）
+    undoable: bool
+
+
+class EditIdParams(TypedDict):
+    editId: str
 
 
 class SessionParams(TypedDict):
@@ -187,6 +193,27 @@ class AgentSession(TypedDict):
 class AgentConfirmReplyParams(TypedDict):
     id: str
     approve: bool
+
+
+class AgentConfirmReplied(TypedDict):
+    # 提问之后资料变了：没有执行，已带新的影响预览重新问（新的 agent.confirm）
+    reasked: NotRequired[bool]
+
+
+class AgentMissed(TypedDict):
+    """没人及时回答（timeout）或提问的连接断了（closed）的确认请求。"""
+
+    id: str
+    method: str
+    params: dict[str, Any]
+    preview: Any
+    actor: Actor
+    at: str
+    reason: Literal["timeout", "closed"]
+
+
+class DismissMissedParams(TypedDict):
+    ids: NotRequired[list[str] | None]
 
 
 class AgentConfirm(TypedDict):

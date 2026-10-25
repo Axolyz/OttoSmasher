@@ -84,4 +84,5 @@ EVENTS: dict[str, tuple[Any, str]] = {
     "agent.sessions": (list[T.AgentSession], "Command-line connections attached or detached."),
     "agent.confirm": (T.AgentConfirm, "A command-line connection asks to run a command that cannot be undone; the owner answers in the app."),
     "agent.confirmClosed": (ConfirmClosed, "A pending confirmation was answered, timed out or dropped."),
+    "agent.missed": (list[T.AgentMissed], "The list of missed confirmation requests changed (timed out, connection closed, or dismissed)."),
 }

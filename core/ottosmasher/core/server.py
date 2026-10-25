@@ -97,7 +97,12 @@ class Core:
         r("core.hello", "read", T.NoParams, T.Hello, "Core version, workspace and schema version.", self._hello)
         r("agent.sessions", "read", T.NoParams, list[T.AgentSession], "Command-line (agent / script) connections currently attached to this app.",
           lambda p: self.link.sessions() if self.link is not None else [])
-        r("agent.confirmReply", "ui", T.AgentConfirmReplyParams, T.NoParams,
+        r("agent.missed", "read", T.NoParams, list[T.AgentMissed],
+          "Confirmation requests nobody answered in time or whose connection closed (this run of the app, newest first).",
+          lambda p: self.confirms.missed)
+        r("agent.dismissMissed", "ui", T.DismissMissedParams, T.NoParams, "Remove missed confirmation requests from the list (all when ids is omitted).",
+          lambda p: self.confirms.dismiss(p.get("ids")) or {})
+        r("agent.confirmReply", "ui", T.AgentConfirmReplyParams, T.AgentConfirmReplied,
           "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).", self._confirm_reply)
         r("settings.list", "read", T.NoParams, dict[str, T.SettingEntry], "All settings with value, default and version (edit via edits.apply, entity 'setting').",
           lambda p: settings_mod.read_all(self.conn))
@@ -134,6 +139,9 @@ class Core:
           lambda p: self.edits.undo_session(str(p["session"])))
         r("edits.apply", "write", T.EditBatchParams, T.EditApplied, "Apply an edit batch atomically (undoable).", lambda p: self.edits.apply(p["batch"]))
         r("edits.undo", "write", T.NoParams, T.EditUndone, "Undo the latest edit that can be undone safely.", lambda p: self.edits.undo())
+        r("edits.undoOne", "write", T.EditIdParams, T.EditUndone,
+          "Undo one specific edit from the history, if nothing it changed was edited again afterwards (edits.history marks it undoable).",
+          lambda p: self.edits.undo_one(p["editId"]))
         r("edits.peekUndo", "read", T.NoParams, T.UndoPeek | None, "What undo would revert next.", lambda p: self.edits.peek_undo())
         r("jobs.list", "read", T.JobsListParams, list[T.JobSummary], "Recent jobs, newest first.", lambda p: self.jobs.list(int(p.get("limit", 200))))
         r("jobs.submit", "job", T.JobSubmitParams, T.JobSummary, "Submit a job of a registered kind (low-level; prefer the specific commands).",
@@ -663,7 +671,8 @@ class Core:
                 if cmd.effect in ("ui", "app", "dev"):
                     raise CoreError("agent-command-forbidden", method=method, effect=cmd.effect)
                 if not confirmed and cmd.dangerous(params) and not settings_mod.values(self.conn)["agent.skip_confirm"]:
-                    self.confirms.ask(peer, msg, preview=self._danger_preview(method, params))
+                    preview = self._danger_preview(method, params)
+                    self.confirms.ask(peer, msg, preview=preview, state=self._danger_state(method, params, preview))
                     return None
             # 外部连接的请求不带请求标记：界面把它们的改动当作“别处的改动”（P8）
             self._req = rid if peer is None else None
@@ -711,12 +720,33 @@ class Core:
             log.exception("danger preview failed for %s", method)
         return None
 
+    def _danger_state(self, method: str, params: Any, preview: Any) -> Any:
+        """提问时的资料指纹：影响预览 + 涉及对象的版本（放行时重算比较；改过名、打过标签也算变了）。"""
+        ids: list[str] = []
+        if method in ("samples.delete", "samples.independ"):
+            ids = [str(x) for x in params.get("ids") or []]
+            table = "sample"
+        elif method == "sources.delete":
+            ids, table = [str(params["id"])], "source"
+        versions = {}
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            versions.update(dict(self.conn.execute(f"SELECT id, version FROM {table} WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()))
+        return {"preview": preview, "versions": versions}
+
     def _confirm_reply(self, p: dict[str, Any]) -> dict[str, Any]:
         item = self.confirms.take(str(p["id"]))
         peer, msg = item["peer"], item["msg"]
         if not peer.open:
             return {}
         if p["approve"]:
+            method, params = msg.get("m"), self.api.get(msg.get("m")).parse(msg.get("p"))
+            preview = self._danger_preview(method, params)
+            state = self._danger_state(method, params, preview)
+            if state != item["state"]:
+                # 提问之后资料变了：不执行，带新的影响预览重新问（所有者放行的必须是眼前看到的）
+                self.confirms.ask(peer, msg, preview=preview, state=state)
+                return {"reasked": True}
             res = self.dispatch(msg, peer=peer, confirmed=True)
         else:
             res = {"t": "res", "id": msg.get("id"), "ok": False, "e": CoreError("agent-confirm-declined", method=msg.get("m")).to_wire()}

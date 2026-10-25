@@ -20,10 +20,12 @@ commands the app's own interface uses, so everything you do shows up in the app 
 5. **Long work is a job.** Add `--wait` to follow a returned job, search or video export to its end:
    `otto call speech.submit '{...}' --wait`.
 6. **Commands that cannot be undone** (`"danger"` in `otto commands`: deleting sources or samples, renaming a work folder,
-   cleaning storage, independence with source deletion) pop up a confirmation in the app, and your call **waits until the owner
-   answers** (they may be away from the computer for hours). While it waits, stderr shows `"note": "waiting for the owner…"`.
-   So run such calls in the background or without a timeout, and preferably leave them to the end of the task; if your process
-   is killed, the request is withdrawn. Exit code 3 means the owner declined. Do not retry a declined command; ask the owner instead.
+   cleaning storage, independence with source deletion) pop up a confirmation in the app; your call waits up to 2 minutes
+   (stderr shows `"note": "waiting for the owner…"` meanwhile). Exit code 3 means it did not run: the owner declined
+   (`agent-confirm-declined`) or nobody answered within 2 minutes (`agent-confirm-timeout`; the owner may be away, and the request
+   stays in the app's history for them to see). **Do not retry.** Stop the work that depends on this step, tell the owner what you
+   wanted to do and why, carry on with work that does not depend on it, and report at the end; send it again when the owner tells you to continue.
+   On approval the app re-checks that the data is still as it was when you asked; if it changed, the owner is asked again with the new impact.
    The owner can turn the confirmation off in the app's settings (Settings › Command line & agent); then these commands run right away.
    Only the owner can change that setting; the command line cannot.
 

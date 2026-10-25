@@ -34,7 +34,8 @@ from . import actor as actor_mod
 log = logging.getLogger(__name__)
 
 ENDPOINT_FILE = "agent-endpoint.json"
-CONFIRM_SECONDS = 0.0  # 0 = 不限时，一直等到所有者回答（所有者 2026-10-24：跑着 agent 人可能去睡觉了）；测试用环境变量设短
+CONFIRM_SECONDS = 120.0  # 0 = 不限时。所有者 2026-10-24 先改不限时、后定回限时 + 错过的请求留在操作历史里 + 放行时核对
+MISSED_MAX = 50
 EXTERNAL_KINDS = ("agent", "script")
 
 _enc = msgspec.msgpack.Encoder()
@@ -252,7 +253,11 @@ class AgentLink:
 
 
 class Confirmations:
-    """危险命令的确认：主线程登记、发 ``agent.confirm``；所有者回答或超时后在主线程执行 / 回错误。"""
+    """危险命令的确认：主线程登记、发 ``agent.confirm``；所有者回答或超时后在主线程执行 / 回错误。
+
+    超时或提问的连接断了 → 记进“错过的请求”（本次运行内，事件 ``agent.missed``），所有者回来能看到 agent 想做什么。
+    ``state`` 是提问时的资料指纹（影响预览 + 对象版本）：放行时重算，不一样就不执行、带新预览重新问。
+    """
 
     def __init__(self, *, emit: Callable[[str, Any], None], post: Callable[[Callable[[], None]], None],
                  seconds: float = CONFIRM_SECONDS) -> None:
@@ -260,10 +265,11 @@ class Confirmations:
         self._post = post
         self.seconds = seconds
         self.pending: dict[str, dict[str, Any]] = {}
+        self.missed: list[dict[str, Any]] = []
 
-    def ask(self, peer: Peer, msg: dict[str, Any], *, preview: Any = None) -> str:
+    def ask(self, peer: Peer, msg: dict[str, Any], *, preview: Any = None, state: Any = None) -> str:
         cid = new_id()
-        self.pending[cid] = {"peer": peer, "msg": msg, "at": time.monotonic()}
+        self.pending[cid] = {"peer": peer, "msg": msg, "at": time.monotonic(), "preview": preview, "state": state}
         if self.seconds > 0:
             t = threading.Timer(self.seconds, lambda: self._post(lambda: self.expire(cid)))
             t.daemon = True
@@ -281,17 +287,30 @@ class Confirmations:
         self._emit("agent.confirmClosed", {"id": cid})
         return item
 
+    def _miss(self, cid: str, item: dict[str, Any], reason: str) -> None:
+        msg, peer = item["msg"], item["peer"]
+        self.missed.insert(0, {"id": cid, "method": msg.get("m"), "params": msg.get("p") or {}, "preview": item.get("preview"),
+                               "actor": {"kind": peer.kind, "session": peer.session}, "at": now_iso(), "reason": reason})
+        del self.missed[MISSED_MAX:]
+        self._emit("agent.missed", self.missed)
+
+    def dismiss(self, ids: list[str] | None) -> None:
+        self.missed = [] if ids is None else [m for m in self.missed if m["id"] not in set(ids)]
+        self._emit("agent.missed", self.missed)
+
     def expire(self, cid: str) -> None:
         item = self.pending.pop(cid, None)
         if item is None:
             return
         self._emit("agent.confirmClosed", {"id": cid})
+        self._miss(cid, item, "timeout")
         msg = item["msg"]
         item["peer"].send({"t": "res", "id": msg.get("id"), "ok": False,
                            "e": CoreError("agent-confirm-timeout", method=msg.get("m"), seconds=int(self.seconds)).to_wire()})
 
     def drop_peer(self, peer_id: str) -> None:
-        """连接断了：它等着的确认作废（不在提问的人走了之后再执行危险操作）。"""
+        """连接断了：它等着的确认作废（不在提问的人走了之后再执行危险操作），记进错过的请求。"""
         for cid in [c for c, v in self.pending.items() if v["peer"].id == peer_id]:
-            self.pending.pop(cid, None)
+            item = self.pending.pop(cid)
             self._emit("agent.confirmClosed", {"id": cid})
+            self._miss(cid, item, "closed")

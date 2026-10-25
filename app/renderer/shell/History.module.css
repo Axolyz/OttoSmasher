@@ -1,0 +1,16 @@
+/* 操作历史：顶栏按钮的小圆点与锚定小面板 */
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accentbg); }
+.dot[data-missed] { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 20%, transparent); }
+.bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-width: 0; }
+.bar > :first-child { flex: 1; min-width: 0; }
+.list { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow: auto; min-width: 0; }
+.row, .missedRow { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 0; }
+.row[data-undone] .main b { color: var(--muted); text-decoration: line-through; }
+.time { flex: none; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; width: 3em; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.meta { font-size: var(--fs-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { font-size: var(--fs-sm); color: var(--muted); padding: 8px 0; }
+.missed { border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); border-radius: 8px; padding: 6px 8px; margin-bottom: 10px; }
+.missedHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--bad); font-size: var(--fs-sm); }
+.bar:focus { outline: none; }

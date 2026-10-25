@@ -30,9 +30,24 @@ export interface AgentConfirm {
   seconds: number;
 }
 
+export interface AgentConfirmReplied {
+  reasked?: boolean;
+}
+
 export interface AgentConfirmReplyParams {
   approve: boolean;
   id: string;
+}
+
+/** 没人及时回答（timeout）或提问的连接断了（closed）的确认请求。 */
+export interface AgentMissed {
+  actor: Actor;
+  at: string;
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+  preview: unknown;
+  reason: "closed" | "timeout";
 }
 
 /** 一条正在连着的命令行连接。 */
@@ -232,6 +247,10 @@ export interface DictionaryTextParams {
   text: string;
 }
 
+export interface DismissMissedParams {
+  ids?: string[] | null;
+}
+
 export interface EditApplied {
   changes: EditChange[];
   edit_id: string | null;
@@ -273,6 +292,7 @@ export interface EditHistoryItem {
   label: EditLabel;
   seq: number;
   undoOf: string | null;
+  undoable: boolean;
   undoneBy: string | null;
 }
 
@@ -280,6 +300,10 @@ export interface EditHistoryParams {
   actorKind?: "agent" | "script" | "user" | null;
   limit?: number;
   session?: string | null;
+}
+
+export interface EditIdParams {
+  editId: string;
 }
 
 export interface EditLabel {
@@ -2658,7 +2682,11 @@ export interface WorkSettingsParams {
 /** All Core commands: params, result and effect. */
 export interface Commands {
   /** The owner's answer to an agent.confirm request (approve runs the command for the waiting connection). */
-  "agent.confirmReply": { params: AgentConfirmReplyParams; result: NoParams; effect: "ui" };
+  "agent.confirmReply": { params: AgentConfirmReplyParams; result: AgentConfirmReplied; effect: "ui" };
+  /** Remove missed confirmation requests from the list (all when ids is omitted). */
+  "agent.dismissMissed": { params: DismissMissedParams; result: NoParams; effect: "ui" };
+  /** Confirmation requests nobody answered in time or whose connection closed (this run of the app, newest first). */
+  "agent.missed": { params: NoParams; result: AgentMissed[]; effect: "read" };
   /** Command-line (agent / script) connections currently attached to this app. */
   "agent.sessions": { params: NoParams; result: AgentSession[]; effect: "read" };
   /** Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start). */
@@ -2693,6 +2721,8 @@ export interface Commands {
   "edits.preview": { params: EditBatchParams; result: EditPreview; effect: "read" };
   /** Undo the latest edit that can be undone safely. */
   "edits.undo": { params: NoParams; result: EditUndone; effect: "write" };
+  /** Undo one specific edit from the history, if nothing it changed was edited again afterwards (edits.history marks it undoable). */
+  "edits.undoOne": { params: EditIdParams; result: EditUndone; effect: "write" };
   /** Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it. */
   "edits.undoSession": { params: SessionParams; result: SessionUndone; effect: "write" };
   /** Export an asset range as WAV named by the naming rule (+ fragment word). */
@@ -2983,6 +3013,8 @@ export interface Events {
   "agent.confirm": AgentConfirm;
   /** A pending confirmation was answered, timed out or dropped. */
   "agent.confirmClosed": ConfirmClosed;
+  /** The list of missed confirmation requests changed (timed out, connection closed, or dismissed). */
+  "agent.missed": AgentMissed[];
   /** Command-line connections attached or detached. */
   "agent.sessions": AgentSession[];
   /** Core could not open the workspace and is exiting. */
@@ -3042,8 +3074,10 @@ export type ErrorCode =
   | "edit-conflict"
   | "edit-duplicate-object"
   | "edit-empty"
+  | "edit-history-unknown"
   | "edit-invalid"
   | "edit-not-found"
+  | "edit-not-undoable"
   | "edit-unknown-entity"
   | "edit-unknown-field"
   | "export-exists"
