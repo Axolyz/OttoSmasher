@@ -751,6 +751,7 @@ export interface JobSummary {
   progress: JobProgress | null;
   result: unknown;
   retry_of: string | null;
+  separationDevice?: SeparationDevice;
   started_at: string | null;
   status: "cancelled" | "failed" | "interrupted" | "queued" | "running" | "succeeded";
 }
@@ -1789,6 +1790,12 @@ export interface SegmentSplitParams {
 export interface SegmentsSplit {
   editId: string | null;
   ids: string[];
+}
+
+/** Frozen PyMSS request, not a claim about the backend selected by auto. */
+export interface SeparationDevice {
+  deviceId: number | null;
+  requested: "auto" | "cpu" | "cuda" | "mps" | null;
 }
 
 export interface SeparationSubmitParams {

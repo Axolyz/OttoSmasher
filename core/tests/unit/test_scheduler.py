@@ -212,3 +212,22 @@ def test_unknown_and_dev_kinds(db, ws):
         with pytest.raises(CoreError) as ei:
             s.submit(kind, {})
         assert ei.value.code == "job-kind-unknown"
+
+
+def test_separation_device_uses_frozen_studio_settings_and_retry_refreshes_them(h):
+    a = h.s.submit('separate', {'device': 'auto', 'deviceId': 0})
+    assert a['device']['accelerate'] is False
+    assert a['separationDevice'] == {'requested': 'auto', 'deviceId': 0}
+    h.s.cancel(a['id'])
+    h.set('studio.device', 'cuda')
+    h.set('studio.device_id', 2)
+    assert h.s.summary(a['id'])['separationDevice']['requested'] == 'auto'
+    b = h.s.retry(a['id'])
+    assert b['separationDevice'] == {'requested': 'cuda', 'deviceId': 2}
+    h.s.cancel(b['id'])
+    legacy = h.s.submit('separate', {})
+    assert legacy['separationDevice'] == {'requested': None, 'deviceId': None}
+    h.s.cancel(legacy['id'])
+    non_sep = h.s.submit('selftest.sleep', {'seconds': 0})
+    assert 'separationDevice' not in non_sep
+    h.s.cancel(non_sep['id'])

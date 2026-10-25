@@ -6868,6 +6868,9 @@
       }
      ]
     },
+    "separationDevice": {
+     "$ref": "#/$defs/SeparationDevice"
+    },
     "started_at": {
      "anyOf": [
       {
@@ -11882,6 +11885,42 @@
    "required": [
     "editId",
     "ids"
+   ]
+  },
+  "SeparationDevice": {
+   "title": "SeparationDevice",
+   "description": "Frozen PyMSS request, not a claim about the backend selected by auto.",
+   "type": "object",
+   "properties": {
+    "deviceId": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "requested": {
+     "anyOf": [
+      {
+       "enum": [
+        "auto",
+        "cpu",
+        "cuda",
+        "mps"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "deviceId",
+    "requested"
    ]
   },
   "SeparationSubmitParams": {

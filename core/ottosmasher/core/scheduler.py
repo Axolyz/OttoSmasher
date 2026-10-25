@@ -140,7 +140,10 @@ class Scheduler:
         row = self._row(jid)
         if row["status"] not in RETRYABLE:
             raise CoreError("job-not-retryable", id=jid, status=row["status"])
-        job = self.submit(row["kind"], loads(row["params"]), loads(row["affects"]), retry_of=jid)
+        params = loads(row["params"])
+        if row["kind"] == "separate":
+            params = {**params, "device": self.get_setting("studio.device"), "deviceId": self.get_setting("studio.device_id")}
+        job = self.submit(row["kind"], params, loads(row["affects"]), retry_of=jid)
         items = self.conn.execute("SELECT target, status FROM job_item WHERE job_id=? ORDER BY idx", (jid,)).fetchall()
         if items:
             # Workers report by frozen item index; retry needs a fresh result table
@@ -315,7 +318,7 @@ def _small(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _summary(row: sqlite3.Row) -> dict[str, Any]:
-    return {
+    result = {
         "id": row["id"],
         "kind": row["kind"],
         "channel": row["channel"],
@@ -334,3 +337,11 @@ def _summary(row: sqlite3.Row) -> dict[str, Any]:
         # 谁提交的（用户 / 脚本 / agent + 会话；任务抽屉给命令行提交的任务一个小标记）
         "actor": {"kind": row["actor_kind"], "session": row["actor_session"]},
     }
+    if row["kind"] == "separate":
+        params = loads(row["params"]) or {}
+        requested = params.get("device")
+        result["separationDevice"] = {
+            "requested": requested if requested in ("auto", "cpu", "cuda", "mps") else None,
+            "deviceId": params.get("deviceId"),
+        }
+    return result

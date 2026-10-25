@@ -46,6 +46,18 @@ function kindLabel(kind: string): string {
   return hasKey(`tasks.kind.${kind}`) ? t(`tasks.kind.${kind}`) : kind;
 }
 
+export function jobDeviceText(job: JobSummary): string {
+  if (job.kind === "separate") {
+    const device = job.separationDevice;
+    const requested = device?.requested;
+    const label = requested === "auto" ? t("tasks.device.studioAuto")
+      : requested === "cuda" ? t("tasks.device.cuda", { n: device?.deviceId ?? t("tasks.device.unknown") })
+      : requested ? t(`settings.studio.device.${requested}`) : t("tasks.device.unknown");
+    return t("tasks.device.separation", { device: label });
+  }
+  return t("tasks.device", { device: job.device.accelerate ? t("tasks.device.accel", { n: job.device.directml_device }) : t("tasks.device.cpu") });
+}
+
 function JobRow({ job }: { job: JobSummary }) {
   const toast = useApp((st) => st.toast);
   const openProduct = useOpenProduct();
@@ -110,7 +122,7 @@ function JobRow({ job }: { job: JobSummary }) {
       ) : null}
       <div className={s.meta}>
         <span className="num">{job.created_at.replace("T", " ").slice(0, 19)}</span>
-        <span>{t("tasks.device", { device: job.device.accelerate ? t("tasks.device.accel", { n: job.device.directml_device }) : t("tasks.device.cpu") })}</span>
+        <span>{jobDeviceText(job)}</span>
         {job.retry_of ? <span>{t("tasks.retryOf", { id: job.retry_of.slice(0, 8) })}</span> : null}
         <div className={s.grow} />
         {active ? (

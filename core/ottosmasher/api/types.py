@@ -402,6 +402,13 @@ class ModelProbe(TypedDict):
     tested_at: str
 
 
+class SeparationDevice(TypedDict):
+    """Frozen PyMSS request, not a claim about the backend selected by auto."""
+
+    requested: Literal["auto", "cpu", "cuda", "mps"] | None
+    deviceId: int | None
+
+
 class JobSummary(TypedDict):
     id: str
     kind: str
@@ -412,6 +419,7 @@ class JobSummary(TypedDict):
     error: ErrorWire | None
     result: Any
     device: JobDevice
+    separationDevice: NotRequired[SeparationDevice]
     retry_of: str | None
     items: JobItems | None
     created_at: str
