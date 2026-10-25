@@ -2,20 +2,33 @@
 
 ## 0. Tidy the subtitle files first (your own tools)
 
-The app recognises things by file layout: one folder per **work** under the root; subtitles next to the media with the **same file name**
-(`.srt` preferred, `.ass` also works), **UTF-8**.
+**Goal**: for each episode, one **UTF-8 `.srt`** with **exactly the same name** as the video, each cue holding **only the Japanese actually spoken** —
+speech analysis aligns this text to the audio, and Chinese text, notes or anything else make it fail or misalign. Put the speaker in a leading bracket when you can tell;
+otherwise leave it out (fansub subtitles usually have no speakers; that is normal, do not invent them).
+The app also reads `.ass`, but write your cleaned result as a same-name `.srt`: with the same name the app prefers `.srt` (also over suffixed names like `<video name>.ja.srt`), so the original `.ass` can stay untouched.
+
+The app recognises things by file layout: one folder per **work** under the root; subtitles next to the media.
 How the app reads subtitles: a full-width bracket at the start is the speaker `（京子）こんにちは` (every outermost bracket in a line counts);
 a line that is only a bracket is a sound `（足音）`; lines starting `♪～` / ending `～♪` mark the OP / ED. See how the app reads one line with `subtitles.ruleTest`:
 `otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
 
 Common problems in real subtitles (fix them in the files, never overwrite the owner's original: keep it with a `backup_` prefix, then write the clean same-name version):
+* **Fansub bilingual Chinese–Japanese subtitles** (the most common case): when reading `.ass` the app takes the Dialogue lines of **every style**, without telling styles apart, so the Chinese line also becomes a line of speech.
+  Keep only the Japanese, by style name (`JP` / `CN` and the like) or by the text itself; when one event stacks two languages with `\N`, keep only the Japanese line. Remove `{\…}` override tags, Comment lines,
+  and effect-only lines (titles, notes, translations of on-screen text). Delete the lyric lines of the OP/ED and insert songs, and write `♪～` / `～♪` markers at the lyric timings instead, or mark them with `oped.add` after importing.
 * Translations or notes mixed into the text → remove them. Readings inside speaker names `（京子(きょうこ)たち）` are dropped by the app by default;
   but readings in the spoken text `歳納(としのう)京子！` are read as a speaker 「としのう」 (every outermost bracket in a line is a speaker) → remove them from the file.
 * A cue whose first line is a sound and the speech starts on the second line `（ドアチャイム）\nウワーッ！` → the app would read the sound as the speaker; split it into two cues with the same timing.
 * OP/ED markers that do not pair up (e.g. one start followed by two ends) → check `opedErrors` after import and confirm the suggestions of `oped.identify` (section 2). Both wave dashes `♪〜` and `♪～` are recognised.
 * Humming or singing written as `♪（ちなつのハミング）` → becomes a line whose text is just "♪", and speech analysis fails with `frontend-failed` (`empty-text`); make it a sound line `（ちなつのハミング）`, or write out the lyrics.
 * Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
+* **Timing does not match**: when the subtitles come from another release than the video (e.g. TV subtitles on a BD video) they are off by a few seconds overall, or start drifting after where a commercial break used to be.
+  Spot-check a few lines at the start, middle and end: cut that audio with `ffmpeg -ss <s> -t <s>` and compare with local speech recognition or the loudness on/offsets. Shift all times for an overall offset, or from the point where it starts.
 * No subtitles: you may run speech recognition locally and write a same-name `.srt`; or skip it, see section 3.
+
+**Check before importing**: register first (section 1) if you have not; if already registered and you wrote a new same-name file, run `otto call sources.rescan --wait`; then `otto call subtitles.preview '{"sourceId": "<id>"}'` (read-only, imports nothing):
+`speakers` (names and counts; pieces of speech, readings or odd names = brackets left over), `problems` (blocks whose timing cannot be read),
+the `text` of `segments` (exactly the text that will be aligned), `hints` (sounds), `oped` (OP/ED pairs). Fix the file and check again.
 
 ## 1. Register and scan
 
