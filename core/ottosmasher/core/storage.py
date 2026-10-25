@@ -20,6 +20,7 @@ from typing import Any
 from ..store.workspace import Workspace
 from . import settings as settings_mod
 from .errors import CoreError
+from .job_artifacts import separation_files
 
 RECENT = 15 * 60
 IDLE = 5 * 60
@@ -63,11 +64,18 @@ class StorageService:
     # ------------------------------------------------------------ 统计
 
     def _cleanable(self) -> list[tuple[Path, int, float]]:
-        return _walk(self.ws.data / "Cache") + _walk(self.ws.staging)
+        return _walk(self.ws.data / "Cache") + _walk(self.ws.staging) + self._job_cleanable()
+
+    def _job_cleanable(self) -> list[tuple[Path, int, float]]:
+        # Older builds left successful separation WAVs behind. Failed/cancelled jobs
+        # retain evidence; only the known private directories of successful jobs qualify.
+        return [f for row in self.conn.execute("SELECT id FROM job WHERE kind='separate' AND status='succeeded'")
+                for f in separation_files(self.ws.jobs, row[0])]
 
     def report(self) -> dict[str, Any]:
         now = time.time()
-        cache = self._cleanable()
+        cache = _walk(self.ws.data / "Cache") + _walk(self.ws.staging)
+        job_files = self._job_cleanable()
         lib = self.ws.library
         db = sum(p.stat().st_size for p in self.ws.data.glob("library.sqlite3*") if p.is_file())
         speech_index = self.conn.execute("SELECT COALESCE(SUM(length(data)), 0), COUNT(*) FROM speech_index").fetchone()
@@ -82,7 +90,8 @@ class StorageService:
             {"key": "independent", "bytes": _size(lib / "Independent"), "cleanable": 0, "files": len(_walk(lib / "Independent")), "recent": 0},
             {"key": "exports", "bytes": _size(lib / "Exports") + _size(lib / "REAPER"), "cleanable": 0,
              "files": len(_walk(lib / "Exports")) + len(_walk(lib / "REAPER")), "recent": 0},
-            {"key": "jobs", "bytes": _size(self.ws.jobs), "cleanable": 0, "files": len(_walk(self.ws.jobs)), "recent": 0},
+            {"key": "jobs", "bytes": _size(self.ws.jobs), "cleanable": sum(s for _p, s, m in job_files if now - m >= RECENT),
+             "files": len(_walk(self.ws.jobs)), "recent": sum(1 for _p, _s, m in job_files if now - m < RECENT)},
             {"key": "database", "bytes": db, "cleanable": 0, "files": 1, "recent": 0},
         ]
         # 按原片：库内持久音轨（分离、拉平、回导）与独立化切片的占用（引用来自数据库，不靠路径字符串）
@@ -124,9 +133,10 @@ class StorageService:
     def _remove(self, files: list[tuple[Path, int, float]]) -> int:
         freed = 0
         roots = [(self.ws.data / "Cache").resolve(), self.ws.staging.resolve()]
+        job_files = {p for p, _s, _m in self._job_cleanable()}
         for p, s, _m in files:
             rp = p.resolve()
-            if not any(r in rp.parents for r in roots) or os.path.islink(p):
+            if (not any(r in rp.parents for r in roots) and p not in job_files) or os.path.islink(p):
                 continue  # 只删缓存目录里的普通文件
             try:
                 p.unlink()

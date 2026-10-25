@@ -29,6 +29,7 @@ from . import actor as actor_mod
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
+from .job_artifacts import cleanup_separation
 
 log = logging.getLogger(__name__)
 
@@ -282,6 +283,8 @@ class Scheduler:
                 self._finish(jid, "failed", error=exc.to_wire())
             else:
                 self._finish(jid, "succeeded", result=_small(run.result))
+                if row["kind"] == "separate":
+                    cleanup_separation(self.jobs_dir, jid)
         else:
             err = run.error or {"code": "job-worker-exited", "args": {"exit_code": code}}
             err = {**err, "args": {**err.get("args", {}), "log": str(self.jobs_dir / jid / "log.txt")}}

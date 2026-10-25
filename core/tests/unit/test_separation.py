@@ -84,6 +84,11 @@ def test_full_separation_registers_stems_and_reuses(db, ws, env):
     # L23：Library/Tracks/<作品 集数> [id8]/Separation/
     assert path.is_file() and mf["path"].startswith("Library/Tracks/") and f"[{sid[:8]}]/Separation/" in mf["path"]
     assert 0 <= mp3.decoded_frames(path, 2) - 144000 <= 1152  # 无缝
+    private = ws.jobs / job["id"]
+    assert (private / "input.json").exists() and (private / "log.txt").exists()
+    assert not list((private / "input").rglob("*.wav"))
+    assert not list((private / "out").rglob("*.wav"))
+    assert not list((private / "tracks").rglob("*.mp3"))
     # 复用：同一输入 + 同一模型 + 所需声部都在 → 不重跑
     r = svc.submit(aid, None, None, "fake_vocals", ["Vocals"])
     assert r == {"reused": [v["id"]]}
@@ -127,6 +132,7 @@ def test_failures_register_nothing(db, ws, env, mode, code):
     assert s["status"] == "failed" and s["error"]["code"] == code, s
     assert db.execute("SELECT COUNT(*) FROM sound_asset WHERE origin='separation'").fetchone()[0] == 0
     assert not list((ws.root / "Library" / "Tracks").rglob("*.mp3"))
+    assert (ws.jobs / job["id"] / "input" / "input.wav").exists()  # Failure evidence is retained.
 
 
 def test_cancel_kills_studio_and_registers_nothing(db, ws, env):
@@ -147,3 +153,16 @@ def test_cancel_kills_studio_and_registers_nothing(db, ws, env):
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)  # Studio 子进程也结束了（进程树）
     assert db.execute("SELECT COUNT(*) FROM sound_asset WHERE origin='separation'").fetchone()[0] == 0
+
+
+def test_failed_adoption_keeps_private_files(db, ws, env):
+    h, svc, sid, aid, _ = env
+    list_models(h, svc)
+    def reject(_job, _result):
+        raise CoreError('sep-output-invalid', reason='synthetic-adoption-failure')
+    h.s.adopters['separate'] = reject
+    job = svc.submit(aid, None, None, 'fake_vocals', ['Vocals'])['job']
+    h.wait_status(job['id'], 'failed', timeout=60)
+    assert (ws.jobs / job['id'] / 'input' / 'input.wav').exists()
+    assert list((ws.jobs / job['id'] / 'tracks').glob('*.mp3'))
+    assert not svc.results(job['id'])

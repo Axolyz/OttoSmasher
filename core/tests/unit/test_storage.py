@@ -61,3 +61,39 @@ def test_idle_auto_cleanup_watermarks(db, ws, monkeypatch):
     left = sum(p.stat().st_size for p in files if p.exists())
     assert left <= 600 and files[-1].exists() and not files[0].exists()  # 从最旧的删到低水位以下
     assert svc.tick() is None  # 一小时内不再整理
+
+
+def test_successful_separation_leftovers_are_cleanable_but_evidence_is_not(db, ws, tmp_path):
+    svc = StorageService(db, ws, Jobs())
+    for jid, kind, status in [('ok', 'separate', 'succeeded'), ('bad', 'separate', 'failed'),
+                              ('cancel', 'separate', 'cancelled'), ('other', 'speech.analyze', 'succeeded')]:
+        db.execute("INSERT INTO job(id,kind,channel,status,params,device,created_at) VALUES (?,?,'model',?,'{}','{}','2026-01-01')",
+                   (jid, kind, status))
+    gone = [make(ws.jobs / 'ok' / directory / 'audio.wav', 100, age=3600) for directory in ('input', 'out', 'tracks')]
+    keep = [make(ws.jobs / jid / 'input' / 'input.wav', 100, age=3600) for jid in ('bad', 'cancel', 'other')]
+    keep += [make(ws.jobs / 'ok' / name, 10, age=3600) for name in ('log.txt', 'studio.log', 'input.json', 'result.json')]
+    keep.append(make(ws.jobs / 'ok' / 'out' / 'recent.wav', 10, age=60))
+    outside = make(tmp_path / 'outside' / 'audio.wav', 100, age=3600)
+    (ws.jobs / 'ok' / 'out' / 'linked').symlink_to(outside.parent)
+    (ws.jobs / 'ok' / 'out' / 'link.wav').symlink_to(outside)
+    rep = {r['key']: r for r in svc.report()['categories']}
+    assert rep['jobs']['cleanable'] == 300 and rep['jobs']['recent'] == 1
+    assert rep['cache']['cleanable'] == 0
+    result = svc.clean()
+    assert result['bytes'] == 300
+    assert all(not p.exists() for p in gone)
+    assert all(p.exists() for p in keep) and outside.exists()
+
+
+def test_private_cleanup_refuses_job_or_directory_symlinks(tmp_path):
+    from ottosmasher.core.job_artifacts import cleanup_separation
+    jobs = tmp_path / 'jobs'
+    outside = make(tmp_path / 'outside' / 'input' / 'audio.wav')
+    jobs.mkdir()
+    (jobs / 'linked').symlink_to(outside.parent.parent)
+    cleanup_separation(jobs, 'linked')
+    cleanup_separation(jobs, '../outside')
+    (jobs / 'real').mkdir()
+    (jobs / 'real' / 'input').symlink_to(outside.parent)
+    cleanup_separation(jobs, 'real')
+    assert outside.exists()
