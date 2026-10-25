@@ -1,46 +1,49 @@
-# Prepare sources (the 7-item checklist)
+# Preparing sources (the 7-item "prep" checklist)
 
-## 0. Files first (your own tools)
+## 0. Tidy the subtitle files first (your own tools)
 
-The app recognises things by layout, so tidy the files before registering:
+The app recognises things by file layout: one folder per **work** under the root; subtitles next to the media with the **same file name**
+(`.srt` preferred, `.ass` also works), **UTF-8**.
+How the app reads subtitles: a full-width bracket at the start is the speaker `（京子）こんにちは` (every outermost bracket in a line counts);
+a line that is only a bracket is a sound `（足音）`; lines starting `♪～` / ending `～♪` mark the OP / ED. See how the app reads one line with `subtitles.ruleTest`:
+`otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
 
-* One folder per **work** under a root folder; any sub-folders inside a work.
-* Subtitles next to the media with the **same file name** (`.srt` preferred, or `.ass`), **UTF-8**.
-* Each line contains only the Japanese that is actually spoken. Remove translations, furigana, translator notes.
-* Speakers go in a leading full-width bracket: `（京子）こんにちは`. All outermost brackets on a line count as speakers,
-  so leave no other brackets in the text. A line with only brackets is a sound effect: `（足音）`.
-* A line starting with `♪～` / ending with `～♪` marks OP / ED (skipped later).
-* Pictures with the same name as an audio file (`.png`, `.jpg`, `.gif`, video) are bound as its picture automatically.
-* Check a cleaned line against the app's rules: `otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
-* Do not delete or move the owner's media; show the owner your plan first if you change many files.
+Common problems in real subtitles (fix them in the files, never overwrite the owner's original: keep it with a `backup_` prefix, then write the clean same-name version):
+* Translations, furigana or notes mixed into the text; readings inside speakers `（京子(きょうこ)たち）` → drop the reading.
+* A cue whose first line is a sound and the speech starts on the second line `（ドアチャイム）\nウワーッ！` → the app would read the sound as the speaker; split it into two cues with the same timing.
+* Different OP/ED markers (`♪〜` uses the wave dash U+301C) → normalise to `♪～` / `～♪`, or mark the OP/ED yourself after import.
+* Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
+* No subtitles: you may run speech recognition locally and write a same-name `.srt`; or skip it, see section 3.
 
 ## 1. Register and scan
 
 ```sh
-otto call roots.add '{"path": "/path/to/root"}' --wait     # adopts and scans; files are not copied
-otto call sources.list                                     # every source with counts
-otto call works.list
+otto call roots.add '{"path": "/path/to/root"}' --wait     # adopt + scan; files are never copied
+otto call sources.list                                     # all sources (work = work folder name, episode, subtitle_path, counts)
 ```
-Rescan after you changed files: `otto call sources.rescan --wait`. Files added later are picked up the same way.
+After changing files, rescan: `otto call sources.rescan --wait`.
 
 ## 2. The checklist
 
-`otto call sources.prep '{"id": "<sourceId>"}'` shows the seven items for one source (each with `ok`):
+`otto call sources.prep '{"id": "<sourceId>"}'` returns the seven items (each with `ok`):
 
-| Item | How to complete it |
+| item | how to complete it |
 |---|---|
-| `subtitle` (text layer) | `subtitles.previewMany {"sourceIds": [...]}` → for every row with a `token`, `subtitles.importMany {"items": [{"sourceId", "token"}]}`. Rows with `skipped` have no subtitle; rows with `error` need fixing. One source: `subtitles.importDefault {"sourceId"}`. |
-| `oped` | `oped.identifyMany {"sourceIds": [...]}` (from the ♪ lines). Manual: `oped.add`. |
-| `separation` | `studio.status` (models; needs PyMSS Studio installed — if `ok` is false, tell the owner). Then `assets.tracks {"sourceId"}` → the `origin: stream` track id → `separation.submit {"assetId", "model"} --wait` → `separation.results {"jobId"}` lists the stems. Identical input + model returns `reused` without a job. |
-| `defaultVocal` | `tracks.setDefault {"sourceId", "role": "vocal", "assetId": "<vocal stem>"}`. Already-clean voice (game lines): `tracks.originalAsVocal {"sourceIds": [...]}` sets the original mix for many sources at once. |
-| `defaultSfx` | `tracks.setDefault {"sourceId", "role": "sfx", "assetId": "<instrumental / sfx stem>"}` |
-| `lineSamples` | Samples from segments, see topic `samples`. |
-| `speech` | `speech.preview {"entry": "source", "ids": [...]}` → `speech.submit` (same params) `--wait` → `speech.results {"jobId"}`. Needs the text layer and a vocal track that covers each segment. |
+| `subtitle` (text layer) | `subtitles.previewMany {"sourceIds": [...]}` → pass rows with a `token` to `subtitles.importMany {"items": [{"sourceId", "token"}]}`. OP/ED markers in the subtitles are imported too. |
+| `oped` | Pairs that did not match on import (`opedErrors`): `oped.identify {"sourceId"}` still suggests `pairs` (`suggest` = OP / ED) and lists `errors`; decide and confirm with `oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}`. No subtitles: see `combine`. |
+| `separation` | `studio.status` (models; if `ok` is false tell the owner to install PyMSS Studio) → the `origin: stream` track from `assets.tracks {"sourceId"}` → `separation.submit {"assetId", "model"}` → `separation.results {"jobId"}`. |
+| `defaultVocal` | `tracks.setDefault {"sourceId", "role": "vocal", "assetId": "<vocal stem>"}`. Without separation (clear dialogue, or for now): `tracks.originalAsVocal {"sourceIds": [...]}` sets the original mix for many sources at once; switch after separating. |
+| `defaultSfx` | `tracks.setDefault {"sourceId", "role": "sfx", "assetId": "<instrumental stem>"}` |
+| `lineSamples` | samples from the line segments, see topic `samples`. |
+| `speech` | `speech.preview {"entry": "source", "ids": [...]}` → `speech.submit` with the same params → `speech.results {"jobId"}`. Needs a text layer and a vocal track. |
 
-The items have no fixed order and are not mandatory, but analysis is better on a separated vocal track, and the subtitles and OP/ED
-should be in before creating samples. Separation is slow (minutes per episode, one job at a time): submit all, then wait.
+No fixed order, and no item is mandatory (sources without subtitles are normal).
+
+**Queue**: separation and speech analysis run in one "model" queue, one at a time, first come first served. Separating an episode takes
+ten to several tens of minutes; submit the analyses you need before a big batch of separations, or submit in batches. There is no reorder command;
+if needed, `jobs.cancel` queued jobs and submit them again later.
 
 ## 3. Without subtitles
 
-Add lines by hand: `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}` (source seconds). If you produce
-text with your own speech recognition, keep it local, write it as a same-name `.srt`, and import it as above.
+Add lines by hand: `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}` (source seconds).
+Without lines you can still cut, separate, flatten, export, and run pitch search on source tracks (topic `search`).

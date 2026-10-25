@@ -99,3 +99,22 @@ def test_wait_follows_a_search(app):
     assert rc == 0 and st["status"] == "done" and st["resultId"]
     rc, page, _ = otto(root, "call", "results.page", json.dumps({"id": st["resultId"]}))
     assert rc == 0 and page is not None
+
+
+def test_run_gives_the_script_one_session(app, tmp_path):
+    # otto run：agent 自己的脚本用应用的 Python 跑，LinkClient.from_env() 连到同一个应用、整个脚本记在一个会话下
+    c, root = app
+    script = tmp_path / "my script.py"
+    script.write_text(
+        "import json, sys\n"
+        "from ottosmasher.cli.client import LinkClient\n"
+        "with LinkClient.from_env() as c:\n"
+        "    v = c.call('settings.list')['jobs.concurrency_light']['version']\n"
+        "    c.call('edits.apply', {'batch': {'ops': [{'entity': 'setting', 'id': 'jobs.concurrency_light', 'version': v, 'fields': {'value': int(sys.argv[1])}}]}})\n"
+        "    print(json.dumps({'session': c.session}))\n",
+        encoding="utf-8",
+    )
+    rc, out, err = otto(root, "run", str(script), "3", session="scripted")
+    assert rc == 0 and out == {"session": "scripted"}, err
+    h = c.call("edits.history", session="scripted")["r"]
+    assert len(h) == 1 and h[0]["actor"] == {"kind": "agent", "session": "scripted"}

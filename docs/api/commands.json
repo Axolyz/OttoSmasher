@@ -7462,7 +7462,10 @@
      "type": "number"
     },
     "kind": {
-     "type": "string"
+     "enum": [
+      "ED",
+      "OP"
+     ]
     },
     "refs": {
      "anyOf": [
@@ -7484,7 +7487,10 @@
      "type": "number"
     },
     "via": {
-     "type": "string"
+     "enum": [
+      "confirm",
+      "mark"
+     ]
     }
    },
    "required": [

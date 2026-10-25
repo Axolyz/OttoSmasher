@@ -234,8 +234,9 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 - **目标**：外部 LLM agent 在应用开着时，用命令行 `otto` 调用与界面同一组 Core 命令，把应用能力、数据库、自己的推理与外部工具组合起来（QUESTIONS「命令行与 agent 接入」）。
 - **必读**：规格 03 §3.6、07 §7.7；ARCHITECTURE §15；`docs/api/commands.json`；`core/actor.py`；`core/server.py` 的队列与 `emit`。
 - **已定**：只在应用开着时可用（不起无界面 Core）；危险、撤销不了的操作要所有者在应用里点确认；只做命令行、不做 MCP；说明书中英双语两份。
+  **上下文优先**（所有者 2026-10-24）：判断类、算法本身不稳的事不进应用，应用提供原子能力与写回点，判断交给 agent；稳定的流程照旧、不用 agent 也完整可用。阶段 11 的“脚本”并入本阶段（`otto run` + `LinkClient.from_env()`）。
 - **容易漏的**：外部连接的 actor 由握手决定、不能在消息里改成 user；`ui` / `app` / `dev` 命令不对外；事件要广播给所有连接，`data.changed` 的请求标记按连接区分（界面照 P8 提示）；
-  验证只用合成素材（真实台词不能经过云端模型，AGENTS §5）；完整 agent 场景由所有者用自己的 agent 人工验收；Windows 命名管道未实测（L47）。
+  测试用合成素材；fixtures 的台词不经过云端模型（AGENTS §5）。所有者 2026-10-24 让开发者用 `bangumi/` 里的素材当 agent 实测（结果见 STATUS）；Windows 命名管道未实测（L47）。
 
 ### 阶段 10 Windows 与发布
 
@@ -253,7 +254,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
   - 模型权重不随包、应用内下载（L37）：发布包要带 `third_party/model-support/` 的三个支持文件（tokenizer、metadata、声码器 config），打包时把各组件许可全文收进 `licenses/`（清单在 docs/THIRD_PARTY.md）；README 的“安装”一节写的是发布版的做法，发布包出来后核对一遍（未公证的打开方式、SHA-256、工作区默认位置）。SudachiDict-core 193 MB 是 tsqyomi 的依赖，看能否只带用得到的部分。
   - 命令面板的命令来自各页登记的来源（`state/commands.ts` 的 `useCommands`，打开时现取）；新页面或新菜单要进面板，就在那一页登记，不要另写一份动作。
 
-### 阶段 11 附加（P2）
+### 阶段 11 附加（P2）（脚本入口已并入阶段 A，所有者 2026-10-24）
 
 - **必读**：规格 03 §3.6、07 §7.7；ARCHITECTURE §15。
 - **已定**：脚本只能调用公开、有文档的命令；写入先预览、原子应用、可撤销；有超时与取消。agent 接入属于基线之外的扩展，要按 02 §2.7 提议。

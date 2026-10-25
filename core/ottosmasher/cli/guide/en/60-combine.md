@@ -1,34 +1,41 @@
-# Combining the app with your own tools
+# Your judgement and tools, written back into the app
 
-The app is the library and the analysis engine; you bring judgement and other tools. Patterns:
+The app is the library and the analysis engine; judgement and other tools are yours. The pattern is always: **read the data → decide or
+process it yourself → write the conclusion back into the app**.
 
-## Judge content, then write it back as tags
+## Where conclusions go
 
-Read text (`textLayer.list`; the segments a sample reads: `speech.sample`), decide with your own
-reasoning, then tag (`samples.batchEdit` → `edits.apply`) or create samples from the segments you picked (topic `samples`).
-Tags are the hand-off point: later searches and exports filter by them.
+| your conclusion | write it back with |
+|---|---|
+| these samples belong to a class (topic, character, tone…) | `samples.batchEdit {"ids", "fields": {"addTags": [...]}}` → `edits.apply` |
+| this line should become a sample | `samples.plan` → `samples.createPlanned` (topic `samples`) |
+| the OP / ED is here | `oped.add {"sourceId", "kind": "OP" / "ED", "start", "end"}` (source seconds) |
+| a line is spoken here (missing from the subtitles) | `segments.add`; to change an existing segment: version from `segments.get` → `edits.apply` (entity `segment`) |
+| which track is the vocal / sfx | `tracks.setDefault`, `tracks.setRole` |
+| processed audio goes back into the library | `reimport.preview {"assetId", "start", "path"}` → `reimport.commit` |
+| a picture or clip as a sample's picture | `visuals.bind {"ownerType": "sample", "ownerId", "path"}` |
 
-## Pictures of samples → image tools → back
+All of these are undoable and recorded under your session.
 
-1. Get the samples: `otto call samples.ids '{"tags": {"expr": "topic:game"}}'`.
-2. For each, either export a clip (`exports.video {"id", "version": "original"} --wait`) or read where its picture comes from:
-   `visuals.forSample {"id"}` → `binding.path` (the media file), `binding.mode`, `binding.offset`, and the sample's `start`/`end`
-   with `mapping` (asset time → source time). Extract frames with your own ffmpeg from the clip or the original file.
-3. Process them with your tools (for example a local cut-out model). Write results **outside** the workspace.
-4. Optionally bind a result back as the sample's picture: `visuals.bind {"ownerType": "sample", "ownerId", "path"}`
-   (images become still pictures, gifs loops, videos synced). `path: null` removes the binding. Undoable.
+## Getting the raw material
 
-## Audio processed elsewhere → back into the library
+* Text: `textLayer.list {"sourceId"}` (segments, sound hints, OP/ED); the subtitle files themselves.
+* Audio: the source media file (`path` in `sources.list`; read it directly with ffmpeg, **read-only**); or export: `exports.range`, `exports.samples` (WAV).
+* Pictures: `visuals.forSample {"id"}` (which file and range the picture comes from); `exports.video`, `exports.videoRange` (clips).
+* Analysis: `speech.sample` (the segments and phonemes a sample reads), `measure.f0` (pitch curve).
 
-`reimport.preview {"assetId", "start", "path"}` → `reimport.commit` brings a processed file back at a position on a track
-(copied into the library, a new whole sample is created). Separation and flattening are built in (`separation.submit`, `flatten.*`).
+## Examples
 
-## Subtitles from elsewhere
+* **Choosing lines**: do not read thousands of lines into your context. Prefilter locally by keywords or rules, then read each candidate
+  with its neighbours and decide. Keywords misfire (in Kemono Friends 「ボス」 is a character and 「プレーリー」 an animal); judge by meaning.
+* **Finding the OP / ED without subtitles**: every episode of a work has the same OP / ED song. Extract the first and last minutes of
+  audio of several episodes with ffmpeg and compare them; the longest stretch of near-identical audio is the OP (or ED); then `oped.add`.
+  Report episodes that do not match (different version, no OP) to the owner instead of guessing.
+* **Messy subtitles**: clean the files as in topic `prepare` section 0, then import.
+* **An analysis result looks wrong**: find the cause first (typos in the subtitle, wrong vocal track, inaccurate segment bounds), fix it and
+  analyse again; when unsure, export that audio and listen to it yourself.
 
-Speech recognition, translation removal, speaker guessing: do it on the files, keep the same file name, then
-`subtitles.previewMany` → `subtitles.importMany`. Re-importing shows what is new / unchanged / replaced; hand-edited segments are protected.
+## Keep the owner informed
 
-## Keep the owner in the loop
-
-Large or ambiguous decisions (which lines count as "about games", which model to separate with) are worth a short summary to the
-owner before you write. Your changes appear in the app as "data updated" and can be undone per session.
+Before writing, summarise big or ambiguous decisions for the owner (which lines count as "about games", which separation model,
+how many files you will change). Your changes show up as "data updated" in the app and under your session in its **History** panel, and can be undone as a whole.

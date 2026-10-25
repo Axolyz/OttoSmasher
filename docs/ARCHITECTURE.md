@@ -647,12 +647,13 @@ class LanguageProfile(Protocol):
 
 - `docs/api/commands.json`（目录版本 2）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
 - 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包启动器 L46）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
-  `wait`、`events`、`guide`。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
+  `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 
 ### 15.5 说明书
 
-`core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：总览（规则、退出码）、概念、准备清单 7 项、采样、检索、导出、组合外部工具、撤回、完整示例。
+`core/ottosmasher/cli/guide/{en,zh-CN}/*.md`（“上下文优先”，所有者 2026-10-24）：总览（分工、规则、退出码）、概念、准备清单 7 项（含真实字幕的常见问题、队列）、采样、检索、导出、
+组合（写回点表、拿到原始材料、例子）、写脚本（`otto run`）、撤回、完整示例（提纲）。
 `otto guide [主题] [--lang] [--all] [--skill]`；`--skill` 输出 Claude Code skill（用户自己放进 skill 目录，我们不往用户目录写）。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
 
 ### 15.6 还没做的

@@ -1,46 +1,47 @@
 # 准备原素材（“准备”清单 7 项）
 
-## 0. 先整理文件（用你自己的工具）
+## 0. 先整理字幕文件（用你自己的工具）
 
-应用按文件布局认东西，所以登记前先整理：
+应用按文件布局认东西：总文件夹下每个**作品**一个文件夹；字幕和媒体放在一起、**文件名相同**（优先 `.srt`，也可以 `.ass`），**UTF-8**。
+应用读字幕的规则：全角括号开头的是说话人 `（京子）こんにちは`（一行里所有最外层括号都算）；只有括号的行是音效 `（足音）`；
+`♪～` 开头 / `～♪` 结尾的行标出 OP / ED。用 `subtitles.ruleTest` 看应用怎么读一行：
+`otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`。
 
-* 总文件夹下每个**作品**一个文件夹；作品里怎么分子文件夹都行。
-* 字幕和媒体放在一起、**文件名相同**（优先 `.srt`，也可以 `.ass`），**UTF-8** 编码。
-* 每行只写实际说出来的日语。删掉翻译、注音假名、译注。
-* 说话人写在行首的全角括号里：`（京子）こんにちは`。一行里所有最外层括号都算说话人，
-  所以正文里不要留别的括号。只有括号的行是音效：`（足音）`。
-* `♪～` 开头 / `～♪` 结尾的行标出 OP / ED（之后会跳过）。
-* 和音频同名的图片（`.png`、`.jpg`、`.gif`、视频）会自动绑定为它的画面。
-* 用应用的规则检查清理后的一行：`otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`。
-* 不要删除或移动所有者的媒体文件；要改很多文件时先把计划给所有者看。
+真实字幕常见的问题（都在文件上改，不要改所有者的原文件——先留一份 `backup_` 前缀的原件，再写同名的干净版本）：
+* 翻译、注音、译注混在正文里；说话人带注音 `（京子(きょうこ)たち）` → 去掉注音。
+* 一个条目第一行是音效、第二行起才是台词 `（ドアチャイム）\nウワーッ！` → 应用会把音效当成说话人；拆成两个时间相同的条目。
+* OP/ED 标记写法不同（`♪〜` 用的是波浪号 U+301C）→ 统一成 `♪～` / `～♪`，或者导入后自己标 OP/ED。
+* 字幕文件名和视频不同（多了前缀、语言后缀）→ 写一份同名的。有机器转写（`.ja.srt`）和正式字幕两份时，优先正式字幕（有说话人）。
+* 没有字幕：可以在本机做语音识别生成同名 `.srt`；不做也行，见第 3 节。
 
 ## 1. 登记并扫描
 
 ```sh
 otto call roots.add '{"path": "/path/to/root"}' --wait     # 收编并扫描；不复制文件
-otto call sources.list                                     # 所有原素材与计数
-otto call works.list
+otto call sources.list                                     # 所有原素材（work = 作品文件夹名、episode、subtitle_path、counts）
 ```
-改过文件后重新扫描：`otto call sources.rescan --wait`。之后新增的文件也这样收进来。
+改过文件后重新扫描：`otto call sources.rescan --wait`。
 
 ## 2. 清单
 
-`otto call sources.prep '{"id": "<sourceId>"}'` 显示一个原素材的七项（每项带 `ok`）：
+`otto call sources.prep '{"id": "<sourceId>"}'` 返回七项（各带 `ok`）：
 
 | 项 | 怎么完成 |
 |---|---|
-| `subtitle`（文本层） | `subtitles.previewMany {"sourceIds": [...]}` → 对每个带 `token` 的行，`subtitles.importMany {"items": [{"sourceId", "token"}]}`。带 `skipped` 的行没有字幕；带 `error` 的要修。单个原素材：`subtitles.importDefault {"sourceId"}`。 |
-| `oped` | `oped.identifyMany {"sourceIds": [...]}`（按 ♪ 行识别）。手动：`oped.add`。 |
-| `separation` | `studio.status`（模型列表；需要装好 PyMSS Studio——`ok` 为 false 就告诉所有者）。然后 `assets.tracks {"sourceId"}` → `origin: stream` 那条轨的 ID → `separation.submit {"assetId", "model"} --wait` → `separation.results {"jobId"}` 列出各声部。同输入同模型直接返回 `reused`，不起任务。 |
-| `defaultVocal` | `tracks.setDefault {"sourceId", "role": "vocal", "assetId": "<人声声部>"}`。本来就是干声的（游戏语音）：`tracks.originalAsVocal {"sourceIds": [...]}` 一次给很多原素材把原混音设好。 |
-| `defaultSfx` | `tracks.setDefault {"sourceId", "role": "sfx", "assetId": "<伴奏 / 音效声部>"}` |
+| `subtitle`（文本层） | `subtitles.previewMany {"sourceIds": [...]}` → 带 `token` 的交给 `subtitles.importMany {"items": [{"sourceId", "token"}]}`。字幕里的 OP/ED 标记同时导入。 |
+| `oped` | 导入时没配成对（`opedErrors`）：`oped.identify {"sourceId"}` 仍会给出建议的 `pairs`（`suggest` = OP / ED）和 `errors`；你判断后用 `oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}` 确认。没有字幕：见 `combine`。 |
+| `separation` | `studio.status`（模型列表；`ok` 为 false 就告诉所有者装 PyMSS Studio）→ `assets.tracks {"sourceId"}` 里 `origin: stream` 的轨 → `separation.submit {"assetId", "model"}` → `separation.results {"jobId"}`。 |
+| `defaultVocal` | `tracks.setDefault {"sourceId", "role": "vocal", "assetId": "<人声声部>"}`。不分离（对白清楚、或先凑合用）：`tracks.originalAsVocal {"sourceIds": [...]}` 一次把原混音设好，之后分离了再换。 |
+| `defaultSfx` | `tracks.setDefault {"sourceId", "role": "sfx", "assetId": "<伴奏声部>"}` |
 | `lineSamples` | 从台词段建采样，见主题 `samples`。 |
-| `speech` | `speech.preview {"entry": "source", "ids": [...]}` → `speech.submit`（同样的参数）`--wait` → `speech.results {"jobId"}`。需要文本层，以及一条盖住整句的人声轨。 |
+| `speech` | `speech.preview {"entry": "source", "ids": [...]}` → `speech.submit` 同样参数 → `speech.results {"jobId"}`。需要文本层和一条人声轨。 |
 
-这几项没有固定顺序、也不强制，但在分离出的人声轨上分析效果更好，建采样前应先导入字幕、标好 OP/ED。
-分离很慢（每集几分钟，一次一个任务）：全部提交，再一起等。
+没有固定顺序，也不强制每项都做（没有字幕本来就是正常的）。
+
+**队列**：分离和语音分析在同一条“模型”队列里，一次一个、按提交顺序。分离一集要十几到几十分钟；
+先把要的分析提交了再提交大批分离，或者分批提交。没有插队命令；必要时 `jobs.cancel` 排队中的任务、之后再提交。
 
 ## 3. 没有字幕时
 
-手动加台词：`segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}`（原素材秒）。如果你用自己的语音识别
-生成文本，要在本机做，写成同名 `.srt`，再按上面导入。
+手动加台词：`segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}`（原素材秒）。
+不加台词也能截取、分离、拉平、导出，以及在原素材音轨上做音高检索（主题 `search`）。

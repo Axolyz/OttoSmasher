@@ -885,11 +885,11 @@ export interface Oped {
 
 export interface OpedAddParams {
   end: number;
-  kind: string;
+  kind: "ED" | "OP";
   refs?: string[] | null;
   sourceId: string;
   start: number;
-  via?: string;
+  via?: "confirm" | "mark";
 }
 
 export interface OpedAdded {

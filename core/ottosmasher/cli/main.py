@@ -365,6 +365,14 @@ def guide_topics(lang: str) -> list[Path]:
     return sorted((GUIDE / lang).glob("*.md"))
 
 
+def cmd_run(args: argparse.Namespace) -> None:
+    """用应用自带的 Python 跑 agent 自己的脚本：脚本里 ``LinkClient.from_env()`` 连同一个工作区、记同一个会话（整个脚本一个会话）。"""
+    import subprocess
+
+    env = {**os.environ, "OTTO_WORKSPACE": str(workspace_of(args)), "OTTO_AGENT_SESSION": session_of(args), "OTTO_AGENT_KIND": args.as_}
+    raise Exit(subprocess.run([sys.executable, args.script, *args.args], env=env).returncode)
+
+
 def cmd_guide(args: argparse.Namespace) -> None:
     lang = lang_of(args)
     topics = guide_topics(lang)
@@ -430,6 +438,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--count", type=int)
     p.add_argument("--timeout", type=float, default=None)
     p.set_defaults(fn=cmd_events)
+    p = sub.add_parser("run", parents=[common], help="run your own Python script with the app's Python (LinkClient.from_env() inside)")
+    p.add_argument("script")
+    p.add_argument("args", nargs=argparse.REMAINDER)
+    p.set_defaults(fn=cmd_run)
     p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, recipes, rules)")
     p.add_argument("topic", nargs="?")
     p.add_argument("--lang", choices=LANGS)

@@ -1764,10 +1764,11 @@ class IdentifyManyRow(TypedDict):
 
 class OpedAddParams(TypedDict):
     sourceId: str
-    kind: str
+    kind: Literal["OP", "ED"]
     start: float
     end: float
-    via: NotRequired[str]
+    # mark = 手动标记（缺省）；confirm = 确认识别给出的建议（带 refs）
+    via: NotRequired[Literal["confirm", "mark"]]
     refs: NotRequired[list[str] | None]
 
 

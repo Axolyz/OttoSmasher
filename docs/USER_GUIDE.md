@@ -415,8 +415,9 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 ## 17. 让 agent 操作 OttoSmasher
 
 能在你电脑上跑命令的 LLM agent（Claude Code、Codex 等）可以通过命令行 `otto` 操作**正在运行的** OttoSmasher：
-它调用的就是界面用的那组功能，所以 agent 做的每件事你都能在应用里看到、撤销。应用里没有的能力（判断台词内容、语音识别、抠图、剪视频……）由 agent 自己用别的工具做，
-再把结果带回来（字幕文件、标签、画面绑定）。
+它调用的就是界面用的那组功能，所以 agent 做的每件事你都能在应用里看到、撤销。
+分工是：应用做确定的事（存资料、分离、分析、检索、卡拍、导出）；需要判断的事交给 agent——清理写法乱的字幕、挑出说某类内容的台词、
+没有字幕时找 OP / ED、看分析结果哪里不对……它用自己的推理和工具做完，再把结论写回应用（标签、台词段、OP/ED、默认轨等）。
 
 **怎么开始**
 1. 打开 OttoSmasher（命令行只连接开着的应用；关着时 `otto status` 会说没在运行）。
@@ -429,7 +430,7 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 用 otto 操作我开着的 OttoSmasher（先运行 otto guide 读说明书，设 OTTO_AGENT_SESSION=game-1）。
 ~/Movies/otomad素材/某番 里是新下的几集和字幕：先把字幕清理成说明书要求的写法（改之前把计划给我看），
 登记文件夹，把准备清单做完（分离用 HyperACE v2），把说到游戏的台词都建成语音采样、分析、打上 topic:game，
-然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中的采样画面抽帧后用本机的抠图工具处理，结果放到 ~/Desktop/cutouts。做完告诉我建了哪些采样。
+然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中导出到 ~/Desktop/game-hits。做完告诉我建了哪些采样、哪些拿不准。
 ```
 
 **你会看到什么**

@@ -11,7 +11,7 @@ from ottosmasher.api import catalog
 from ottosmasher.api.registry import extra_keys
 from ottosmasher.cli.main import GUIDE, main
 
-CMD_RE = re.compile(r"`([a-z]+\.[a-zA-Z]+)")
+CMD_RE = re.compile(r"`([a-z]+\.[a-zA-Z0-9]+)")
 CALL_RE = re.compile(r"otto call ([a-z]+\.[a-zA-Z]+) '(\{.*?\})'")
 
 
@@ -37,7 +37,7 @@ def test_named_commands_exist_and_examples_fit():
     for p in _files("en") + _files("zh-CN"):
         text = p.read_text(encoding="utf-8")
         for name in CMD_RE.findall(text):
-            if name.split(".")[0] in ("video", "binding", "error"):  # 结果里的字段（video.path、binding.path），不是命令
+            if name.split(".")[0] in ("video", "binding", "error", "c"):  # 结果里的字段（video.path、binding.path）与脚本里的 c.call，不是命令
                 continue
             assert name in api or name in events, f"{p.name}: {name}"
         for name, raw in CALL_RE.findall(text):
