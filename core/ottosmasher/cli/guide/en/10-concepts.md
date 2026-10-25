@@ -12,6 +12,13 @@
 | **Fixed result** | The saved outcome of a rhythm or pitch search. | `results.list`, `results.page` |
 | **Job** | Any long or model-based work (scan, separation, analysis, export of video). | `jobs.list`, event `job.updated` |
 
+A file may have several audio streams (the main mix, a commentary, a dub in another language…). Each is registered as an `origin: stream` track, but a source has only one **analysis track**
+(`default_audio_stream` in `sources.get` = the `ordinal` of an audio stream in `streams`; `audio_streams` in `sources.list` is how many there are):
+subtitle import, setting the original mix as vocal, creating samples from lines and playback all use it. On registration the app picks the stream whose language tag matches the source language in the settings, else the first one —
+with no tags, or a commentary tagged with the same language, it picks wrong; to change it see topic `combine`. Changing it does not switch the default vocal track.
+The app's convention is one original track per source: line segments and phonemes belong to the source's timeline, and any other track given the vocal role shows the same phonemes.
+To use another stream on its own, extract it to a separate file and register that as another source.
+
 ## Time
 
 Every time value says which clock it uses: **source seconds** (segments, OP/ED, `source_start`/`source_end` of a sample),

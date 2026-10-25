@@ -2,8 +2,8 @@
 
 ## 0. Tidy the subtitle files first (your own tools)
 
-**Goal**: for each episode, one **UTF-8 `.srt`** with **exactly the same name** as the video, each cue holding **only the Japanese actually spoken** —
-speech analysis aligns this text to the audio, and Chinese text, notes or anything else make it fail or misalign. Put the speaker in a leading bracket when you can tell;
+**Goal**: for each episode, one **UTF-8 `.srt`** with **exactly the same name** as the video, each cue holding **only the words actually spoken** (speech analysis currently supports Japanese only) —
+speech analysis aligns this text to the audio, and translations, notes or anything else make it fail or misalign. Put the speaker in a leading bracket when you can tell;
 otherwise leave it out (fansub subtitles usually have no speakers; that is normal, do not invent them).
 The app also reads `.ass`, but write your cleaned result as a same-name `.srt`: with the same name the app prefers `.srt` (also over suffixed names like `<video name>.ja.srt`), so the original `.ass` can stay untouched.
 

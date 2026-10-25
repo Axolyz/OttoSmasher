@@ -10,6 +10,7 @@
 | 这句台词该建成采样 | `samples.plan` → `samples.createPlanned`（主题 `samples`） |
 | OP / ED 在这里 | `oped.add {"sourceId", "kind": "OP" / "ED", "start", "end"}`（原素材秒） |
 | 这里说了一句话（字幕没有） | `segments.add`；改已有的段：`segments.get` 拿版本 → `edits.apply`（实体 `segment`） |
+| 原素材该用哪条音频流（分析音轨） | `sources.get` 拿 `version` → `edits.apply`（实体 `source`，字段 `default_audio_stream`） |
 | 用哪条音轨当人声 / 音效 | `tracks.setDefault`、`tracks.setRole` |
 | 处理过的音频要放回素材库 | `reimport.preview {"assetId", "start", "path"}` → `reimport.commit` |
 | 一张图或一段视频当采样的画面 | `visuals.bind {"ownerType": "sample", "ownerId", "path"}` |

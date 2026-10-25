@@ -14,6 +14,7 @@ The app does the **deterministic work**: storing data, separation, alignment and
 who is speaking in a clip… The app gives you primitives (read the data, get audio and pictures, write your conclusions back as tags,
 text segments, OP/ED, default tracks…) and you chain them with your own reasoning and tools.
 When a rule or automatic detection in the app falls short, do not wait for the app to change: read the data, decide, write the result back (topic `combine`).
+The procedures and orderings in this guide are examples that show how the app works; the only things you must follow are the basic rules below.
 
 ## Ground rules
 

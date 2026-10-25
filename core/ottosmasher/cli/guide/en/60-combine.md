@@ -11,6 +11,7 @@ process it yourself → write the conclusion back into the app**.
 | this line should become a sample | `samples.plan` → `samples.createPlanned` (topic `samples`) |
 | the OP / ED is here | `oped.add {"sourceId", "kind": "OP" / "ED", "start", "end"}` (source seconds) |
 | a line is spoken here (missing from the subtitles) | `segments.add`; to change an existing segment: version from `segments.get` → `edits.apply` (entity `segment`) |
+| which audio stream the source should use (analysis track) | `sources.get` for the `version` → `edits.apply` (entity `source`, field `default_audio_stream`) |
 | which track is the vocal / sfx | `tracks.setDefault`, `tracks.setRole` |
 | processed audio goes back into the library | `reimport.preview {"assetId", "start", "path"}` → `reimport.commit` |
 | a picture or clip as a sample's picture | `visuals.bind {"ownerType": "sample", "ownerId", "path"}` |

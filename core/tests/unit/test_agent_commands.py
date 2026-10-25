@@ -8,6 +8,7 @@ import pytest
 
 from conftest import make_sample, make_source
 from ottosmasher.core.server import Core
+from test_sources import needs_ffmpeg, two_audio_mkv
 from test_tracks import asset
 
 
@@ -134,3 +135,19 @@ def test_undo_one_from_the_middle_of_history(core):
     assert not hist[r["edit_id"]]["undoable"]  # 撤销本身不能再单独撤
     assert call(core, "edits.undoOne", editId=b["edit_id"])["e"]["args"]["reason"] == "already-undone"
     assert call(core, "edits.undoOne", editId="nope")["e"]["code"] == "edit-history-unknown"
+
+
+@needs_ffmpeg
+def test_agent_switches_analysis_stream(core, tmp_path):
+    # 说明书（概念）：多条音频流时按语言标记自动选的分析音轨可能是解说；agent 用编辑改过来，之后“原混音设为人声”跟着它
+    f = two_audio_mkv(tmp_path / "ep [01].mkv")
+    [r] = ok(call(core, "sources.add", paths=[str(f)]))
+    sid = r["sourceId"]
+    assert next(s for s in ok(call(core, "sources.list")) if s["id"] == sid)["audio_streams"] == 2
+    src = ok(call(core, "sources.get", id=sid))
+    assert src["default_audio_stream"] == 1  # 标成日语的是解说那条
+    agent = {"kind": "agent", "session": "streams"}
+    ok(call(core, "edits.apply", agent, batch={"ops": [{"entity": "source", "id": sid, "version": src["version"], "fields": {"default_audio_stream": 0}}]}))
+    ok(call(core, "tracks.originalAsVocal", agent, sourceIds=[sid]))
+    first = {a["stream_ordinal"]: a["id"] for a in ok(call(core, "assets.listForSource", sourceId=sid)) if a["origin"] == "stream"}[0]
+    assert defaults(core, sid) == {"vocal": first}
