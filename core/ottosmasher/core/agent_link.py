@@ -218,9 +218,11 @@ class AgentLink:
                 conn.close()
                 return
             peer = Peer(conn, new_id(), kind, session)
+            # Do not expose this connection to broadcasts until hello is written:
+            # the client must receive its handshake before any event.
+            peer.send({"t": "hello", "ok": True, "r": {**self._hello(), "peer": peer.id}})
             with self._peers_lock:
                 self.peers[peer.id] = peer
-            peer.send({"t": "hello", "ok": True, "r": {**self._hello(), "peer": peer.id}})
             self._on_peers()
             while True:
                 msg = _dec.decode(conn.recv_bytes())
