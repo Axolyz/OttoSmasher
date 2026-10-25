@@ -303,7 +303,15 @@ def cmd_call(args: argparse.Namespace) -> None:
             if words:
                 params["words"] = words
     with connect(args) as c:
-        res = c.request(args.method, params)
+        def waiting(ev: dict[str, Any]) -> None:
+            d = ev.get("d") or {}
+            if ev.get("e") == "agent.confirm" and d.get("actor", {}).get("session") == c.session and d.get("method") == args.method:
+                limit = d.get("seconds") or 0
+                note({"note": "waiting for the owner to approve this in the app"
+                      + (f" (declined after {limit} s)" if limit else " (no time limit; stopping this process withdraws the request)"),
+                      "confirmId": d.get("id")})
+
+        res = c.request(args.method, params, on_event=waiting)
         if not res.get("ok"):
             fail(res.get("e") or {}, args.pretty)
         result = res.get("r")

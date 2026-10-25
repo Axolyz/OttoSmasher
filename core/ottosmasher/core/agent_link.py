@@ -34,7 +34,7 @@ from . import actor as actor_mod
 log = logging.getLogger(__name__)
 
 ENDPOINT_FILE = "agent-endpoint.json"
-CONFIRM_SECONDS = 120.0
+CONFIRM_SECONDS = 0.0  # 0 = 不限时，一直等到所有者回答（所有者 2026-10-24：跑着 agent 人可能去睡觉了）；测试用环境变量设短
 EXTERNAL_KINDS = ("agent", "script")
 
 _enc = msgspec.msgpack.Encoder()
@@ -264,9 +264,10 @@ class Confirmations:
     def ask(self, peer: Peer, msg: dict[str, Any], *, preview: Any = None) -> str:
         cid = new_id()
         self.pending[cid] = {"peer": peer, "msg": msg, "at": time.monotonic()}
-        t = threading.Timer(self.seconds, lambda: self._post(lambda: self.expire(cid)))
-        t.daemon = True
-        t.start()
+        if self.seconds > 0:
+            t = threading.Timer(self.seconds, lambda: self._post(lambda: self.expire(cid)))
+            t.daemon = True
+            t.start()
         self._emit("agent.confirm", {
             "id": cid, "method": msg.get("m"), "params": msg.get("p") or {}, "preview": preview,
             "actor": {"kind": peer.kind, "session": peer.session}, "seconds": int(self.seconds),

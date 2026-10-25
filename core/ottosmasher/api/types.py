@@ -198,6 +198,7 @@ class AgentConfirm(TypedDict):
     # 影响预览（有对应的预览命令时带上，例如 sources.deletePreview）
     preview: Any
     actor: Actor
+    # 等多久算拒绝；0 = 不限时
     seconds: int
 
 

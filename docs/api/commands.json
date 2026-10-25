@@ -2983,6 +2983,13 @@
    "summary": "Requested stems are not produced by this model."
   },
   {
+   "code": "setting-human-only",
+   "args": [
+    "key"
+   ],
+   "summary": "Only the owner can change this setting, in the app's settings; the command line cannot change or undo it."
+  },
+  {
    "code": "setting-invalid",
    "args": [
     "max",

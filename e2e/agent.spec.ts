@@ -59,8 +59,22 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
   await dlg.getByRole("button", { name: "取消" }).click();
   expect(await declined).toBe(3);
   const approved = otto("call", "samples.delete", JSON.stringify({ ids: [sample] }));
+  await expect(dlg).toContainText("会一直等你回答");
   await dlg.getByTestId("confirm-ok").click();
   expect((await approved).deleted).toBe(1);
+
+  // 设置里关掉确认：撤销不了的命令直接执行，不弹框（这里执行结果是“没有这个采样”）
+  await page.keyboard.press("Meta+,");
+  await page.getByTestId("settings-group-agent").click();
+  await page.getByTestId("setting-agent.skip_confirm").locator("label").click();
+  await expect(page.getByText("已保存")).toBeVisible();
+  await page.keyboard.press("Escape");
+  const direct = await run(PY, ["-m", "ottosmasher.cli", "call", "samples.delete", JSON.stringify({ ids: [sample] })], { env }).then(
+    () => 0,
+    (e: { code: number }) => e.code,
+  );
+  expect(direct).toBe(1);
+  await expect(dlg).toHaveCount(0);
 
   // 命令行提交的任务在任务抽屉里带 agent 标记
   await otto("call", "jobs.submit", JSON.stringify({ kind: "selftest.sleep", params: { seconds: 0.2 } }), "--wait");

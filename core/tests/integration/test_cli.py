@@ -70,8 +70,10 @@ def test_dangerous_call_waits_for_the_owner(app):
     ev = c.wait_event(lambda e: e.get("e") == "agent.confirm", 30)
     assert ev["d"]["actor"] == {"kind": "agent", "session": "d"}
     assert c.call("agent.confirmReply", id=ev["d"]["id"], approve=False)["ok"]
-    out, _ = p.communicate(timeout=30)
+    out, err = p.communicate(timeout=30)
     assert p.returncode == 3 and json.loads(out)["error"]["code"] == "agent-confirm-declined"
+    # 等待时在 stderr 告诉 agent 正在等所有者放行
+    assert any(json.loads(line).get("confirmId") == ev["d"]["id"] for line in err.splitlines() if line.startswith("{"))
 
 
 def test_offline_commands(tmp_path):

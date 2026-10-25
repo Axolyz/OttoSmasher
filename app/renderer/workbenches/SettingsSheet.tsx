@@ -18,7 +18,7 @@ import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
 import s from "./Settings.module.css";
 
-export const SETTINGS_GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "export", "studio", "jobs", "storage", "models"] as const;
+export const SETTINGS_GROUPS = ["general", "inference", "source", "subtitle", "frontend", "analysis", "flatten", "export", "studio", "jobs", "storage", "agent", "models"] as const;
 const GROUPS = SETTINGS_GROUPS;
 type Group = (typeof GROUPS)[number];
 

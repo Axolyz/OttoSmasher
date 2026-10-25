@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import collections
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -53,8 +54,9 @@ class LinkClient:
         self.conn.send_bytes(agent_link.pack({"t": "req", "id": rid, "m": method, "p": params or {}}))
         return rid
 
-    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> dict[str, Any]:
-        """原始响应 ``{"ok", "r"|"e"}``。timeout 秒内没有响应 → agent-link-failed。"""
+    def request(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None,
+                on_event: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+        """原始响应 ``{"ok", "r"|"e"}``。timeout 秒内没有响应 → agent-link-failed。等待途中的事件先给 on_event 看一眼再放进缓冲。"""
         rid = self.send(method, params)
         end = None if timeout is None else time.monotonic() + timeout
         while True:
@@ -65,6 +67,8 @@ class LinkClient:
             if msg.get("t") == "res" and msg.get("id") == rid:
                 return msg
             if msg.get("t") == "evt":
+                if on_event is not None:
+                    on_event(msg)
                 self.events.append(msg)
 
     def call(self, method: str, params: dict[str, Any] | None = None, *, timeout: float | None = None) -> Any:

@@ -21,6 +21,7 @@ from typing import Any
 import msgspec
 
 from ..store.db import transaction
+from . import actor as actor_mod
 from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .errors import CoreError
@@ -813,6 +814,8 @@ class EditService:
 
     def _update(self, spec: EntitySpec, entity_id: str, values: dict[str, Any], version: int, ts: str) -> int:
         if spec.name == "setting":
+            if entity_id in settings_mod.HUMAN_ONLY and actor_mod.current(self.conn)[0] != "user":
+                raise CoreError("setting-human-only", key=entity_id)
             if version == 0:
                 self.conn.execute(
                     "INSERT INTO setting(key, value, version, updated_at) VALUES (?, ?, 1, ?)",

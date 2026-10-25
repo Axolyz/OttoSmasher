@@ -662,7 +662,7 @@ class Core:
                 kind, session = peer.kind, peer.session
                 if cmd.effect in ("ui", "app", "dev"):
                     raise CoreError("agent-command-forbidden", method=method, effect=cmd.effect)
-                if not confirmed and cmd.dangerous(params):
+                if not confirmed and cmd.dangerous(params) and not settings_mod.values(self.conn)["agent.skip_confirm"]:
                     self.confirms.ask(peer, msg, preview=self._danger_preview(method, params))
                     return None
             # 外部连接的请求不带请求标记：界面把它们的改动当作“别处的改动”（P8）

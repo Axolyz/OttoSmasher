@@ -49,6 +49,14 @@ def _installed(conn: sqlite3.Connection) -> bool:
     return conn.execute("SELECT 1 FROM temp.sqlite_master WHERE name='actor_ctx'").fetchone() is not None
 
 
+def current(conn: sqlite3.Connection) -> tuple[str, str | None]:
+    """当前来源 (kind, session)；没装 = 用户。"""
+    if not _installed(conn):
+        return "user", None
+    row = conn.execute("SELECT kind, session FROM temp.actor_ctx").fetchone()
+    return row[0], row[1]
+
+
 @contextmanager
 def acting(conn: sqlite3.Connection, kind: str, session: str | None) -> Iterator[None]:
     """在这段里写入的行记为 (kind, session)；结束后恢复。"""

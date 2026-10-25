@@ -162,3 +162,50 @@ def test_app_not_running(tmp_path):
     with pytest.raises(CoreError) as ei:
         LinkClient(root)
     assert ei.value.code == "app-not-running"
+
+
+def test_confirmation_waits_without_limit_by_default(tmp_path, monkeypatch):
+    # 所有者 2026-10-24：缺省不限时（跑着 agent 人可能去睡觉了），一直等到回答或连接断开
+    monkeypatch.delenv("OTTO_AGENT_CONFIRM_SECONDS", raising=False)
+    root = tmp_path / "ws"
+    c = CoreProc(root)
+    try:
+        with LinkClient(root, session="sleepy") as a:
+            out: dict = {}
+            t = _ask_delete(a, out)
+            ev = _wait_ui_event(c, lambda e: e["e"] == "agent.confirm")
+            assert ev["d"]["seconds"] == 0
+            time.sleep(4)
+            assert not _events(c, "agent.confirmClosed") and "res" not in out
+            assert c.call("agent.confirmReply", id=ev["d"]["id"], approve=True)["ok"]
+            t.join(10)
+            assert out["res"]["e"]["code"] == "sample-not-found"
+    finally:
+        c.p.stdin.close()
+        c.p.wait(timeout=20)
+
+
+def _skip_confirm(version: int, value: bool) -> dict:
+    return {"batch": {"label": {"code": "setting", "args": {"key": "agent.skip_confirm"}},
+                      "ops": [{"entity": "setting", "id": "agent.skip_confirm", "version": version, "fields": {"value": value}}]}}
+
+
+def test_skip_confirm_setting_is_human_only(app):
+    c, root = app
+    with LinkClient(root, session="sneaky") as a:
+        # 命令行改不了这一项
+        with pytest.raises(CoreError) as ei:
+            a.call("edits.apply", _skip_confirm(0, True))
+        assert ei.value.code == "setting-human-only"
+        # 所有者在界面里打开 → 撤销不了的命令直接执行，不弹框
+        assert c.call("edits.apply", **_skip_confirm(0, True))["ok"]
+        c.events.clear()
+        with pytest.raises(CoreError) as ei:
+            a.call("samples.delete", {"ids": ["no-such-sample"]}, timeout=10)
+        assert ei.value.code == "sample-not-found"
+        assert not _events(c, "agent.confirm")
+        # 命令行也撤销不了所有者对它的修改（撤销最近一次 = 这一条）
+        with pytest.raises(CoreError) as ei:
+            a.call("edits.undo")
+        assert ei.value.code == "setting-human-only"
+        assert c.call("settings.list")["r"]["agent.skip_confirm"]["value"] is True

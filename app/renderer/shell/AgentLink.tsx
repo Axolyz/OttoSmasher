@@ -177,7 +177,7 @@ export function AgentConfirmHost() {
   });
   const cur = queue[0] ?? null;
   useEffect(() => {
-    if (!cur) return;
+    if (!cur || cur.seconds <= 0) return;
     const h = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(h);
   }, [cur?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -211,7 +211,9 @@ export function AgentConfirmHost() {
         <b>{methodName(cur.method)}</b>
       </p>
       {preview ? <p data-user-data="">{preview}</p> : null}
-      <p className={s.meta}>{t("agent.confirmCountdown", { s: Math.max(0, Math.round((cur.until - now) / 1000)) })}</p>
+      <p className={s.meta}>
+        {cur.seconds > 0 ? t("agent.confirmCountdown", { s: Math.max(0, Math.round((cur.until - now) / 1000)) }) : t("agent.confirmWaiting")}
+      </p>
     </ConfirmDialog>
   );
 }

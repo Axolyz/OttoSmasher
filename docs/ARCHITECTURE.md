@@ -633,7 +633,7 @@ class LanguageProfile(Protocol):
 
 - 登记命令时标 `danger`（总是，或按参数）：`sources.delete`、`samples.delete`、`works.rename`、`storage.clean`、`samples.independ`（带删原素材时）。目录里写 `"danger": "always" | "conditional"`。
 - 外部连接调用它们 → Core 发 `agent.confirm`（命令、参数、影响预览、会话、秒数）→ 外壳弹确认框 → `agent.confirmReply`（ui 类，只有应用能调）。
-  同意才执行；拒绝 → `agent-confirm-declined`；120 秒没人回答 → `agent-confirm-timeout`；提问的连接断了 → 作废。等待期间不占主线程；`agent.confirmClosed` 让其他窗口撤下框。
+  同意才执行；拒绝 → `agent-confirm-declined`；缺省不限时，一直等到回答（所有者 2026-10-24；环境变量 `OTTO_AGENT_CONFIRM_SECONDS` 设了正数才会超时 → `agent-confirm-timeout`，测试用）；提问的连接断了 → 作废。设置 `agent.skip_confirm`（默认关）打开后不问、直接执行；这一项在 `settings.HUMAN_ONLY` 里，只有用户来源能改或撤销（否则 `setting-human-only`）。等待期间不占主线程；`agent.confirmClosed` 让其他窗口撤下框。
 
 ### 15.3 来源与撤回
 

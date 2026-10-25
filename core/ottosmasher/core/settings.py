@@ -173,8 +173,14 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("jobs.concurrency_light", 2, _int_range(1, 4), "jobs"),
         # 存储：空闲时整理可重建缓存
         SettingSpec("storage.idle_cleanup", True, _bool, "storage"),
+        # 命令行 / agent（阶段 A，所有者 2026-10-24）：撤销不了的命令也不弹确认框，直接执行。只有界面能改（HUMAN_ONLY）
+        SettingSpec("agent.skip_confirm", False, _bool, "agent"),
     ]
 }
+
+
+# 只有用户（界面）能改的设置：命令行 / agent 改不了，也撤销不了对它们的修改（否则 agent 能自己关掉确认）
+HUMAN_ONLY = frozenset({"agent.skip_confirm"})
 
 
 def spec(key: str) -> SettingSpec:

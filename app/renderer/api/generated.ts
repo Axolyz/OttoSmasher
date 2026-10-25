@@ -3146,6 +3146,7 @@ export type ErrorCode =
   | "sep-model-changed"
   | "sep-output-invalid"
   | "sep-stems-invalid"
+  | "setting-human-only"
   | "setting-invalid"
   | "setting-unknown"
   | "source-changed"
