@@ -12,6 +12,7 @@ Common problems in real subtitles (fix them in the files, never overwrite the ow
 * Translations, furigana or notes mixed into the text; readings inside speakers `（京子(きょうこ)たち）` → drop the reading.
 * A cue whose first line is a sound and the speech starts on the second line `（ドアチャイム）\nウワーッ！` → the app would read the sound as the speaker; split it into two cues with the same timing.
 * Different OP/ED markers (`♪〜` uses the wave dash U+301C) → normalise to `♪～` / `～♪`, or mark the OP/ED yourself after import.
+* Humming or singing written as `♪（ちなつのハミング）` → becomes a line whose text is just "♪", and speech analysis fails with `frontend-failed` (`empty-text`); make it a sound line `（ちなつのハミング）`, or write out the lyrics.
 * Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
 * No subtitles: you may run speech recognition locally and write a same-name `.srt`; or skip it, see section 3.
 
