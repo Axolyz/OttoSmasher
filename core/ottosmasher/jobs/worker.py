@@ -376,6 +376,7 @@ def _measure_f0(plan: list[dict[str, Any]], ctx: Ctx, models: Path, support: Pat
                 errors.append({"asset": e["asset"], "chunk": k, "error": exc.to_wire()})
         if ok:
             done.append({"asset": e["asset"], "identity": e["identity"], "chunks": ok})
+    ctx.progress("f0", total, total, "speech-f0")  # 每块之前报一次，最后补上“全部完成”（不然成功的任务停在 (n-1)/n）
     return done, errors
 
 
