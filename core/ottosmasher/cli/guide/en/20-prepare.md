@@ -11,6 +11,7 @@ The app recognises things by file layout: one folder per **work** under the root
 How the app reads subtitles: a full-width bracket at the start is the speaker `（京子）こんにちは` (every outermost bracket in a line counts);
 a line that is only a bracket is a sound `（足音）`; lines starting `♪～` / ending `～♪` mark the OP / ED. See how the app reads one line with `subtitles.ruleTest`:
 `otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
+The app does not read subtitle streams embedded in video files: to use one, extract it to a same-name file first (e.g. `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`); image subtitles (PGS, VobSub) come out as pictures and need text recognition first.
 
 Common problems in real subtitles (fix them in the files, never overwrite the owner's original: keep it with a `backup_` prefix, then write the clean same-name version):
 * **Fansub bilingual Chinese–Japanese subtitles** (the most common case): when reading `.ass` the app takes the Dialogue lines of **every style**, without telling styles apart, so the Chinese line also becomes a line of speech.
