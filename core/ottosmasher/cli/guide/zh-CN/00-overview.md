@@ -22,6 +22,7 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
    之后所有者（或你）可以整批撤回这个会话（主题 `undo`）。
 3. **stdout 只输出 JSON**，进度写在 stderr。退出码：`0` 成功，`1` 业务错误（JSON 里的 `error.code`），
    `2` 用法 / 连接 / 参数错误，`3` 所有者拒绝或没人确认。
+   音高帧、频谱等二进制字段按命令结构中的 `contentEncoding: base64` 输出为字符串；`otto run` 的 Python 客户端直接返回 `bytes`。
 4. **先查再猜**：`otto commands [--effect read|write|job] [--grep 词]`、`otto describe <命令>`（完整的参数与返回结构）、
    `otto describe <事件>`、`otto errors [错误码]`。
 5. **耗时的工作是任务。** 加 `--wait` 就会一直跟到返回的任务、检索或视频导出结束：

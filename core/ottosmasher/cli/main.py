@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import secrets
@@ -39,13 +40,21 @@ class Exit(Exception):
 # ---------------------------------------------------------------- 输出
 
 
+def json_default(value: Any) -> str:
+    # Command schemas describe binary arrays as base64 strings in JSON.
+    # LinkClient retains native bytes for Python scripts.
+    if isinstance(value, bytes):
+        return base64.b64encode(value).decode("ascii")
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
 def out(value: Any, pretty: bool) -> None:
-    sys.stdout.write(json.dumps(value, ensure_ascii=False, indent=1 if pretty else None) + "\n")
+    sys.stdout.write(json.dumps(value, ensure_ascii=False, indent=1 if pretty else None, default=json_default) + "\n")
     sys.stdout.flush()
 
 
 def note(value: dict[str, Any]) -> None:
-    sys.stderr.write(json.dumps(value, ensure_ascii=False) + "\n")
+    sys.stderr.write(json.dumps(value, ensure_ascii=False, default=json_default) + "\n")
     sys.stderr.flush()
 
 

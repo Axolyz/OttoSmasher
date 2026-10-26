@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import os
 import subprocess
 import sys
@@ -60,6 +61,27 @@ def test_wait_follows_a_job(app):
     assert any(json.loads(line).get("event") == "job.updated" for line in err.splitlines() if line.startswith("{"))
     rc, j2, _ = otto(root, "wait", "job", j["id"])
     assert rc == 0 and j2["id"] == j["id"]
+
+
+def test_binary_measurements_and_spectrum_are_base64_json(app, tmp_path):
+    import numpy as np
+    from ottosmasher.media import wavfile
+
+    c, root = app
+    path = tmp_path / "tone.wav"
+    t = np.arange(16000, dtype=np.float32) / 16000
+    wavfile.save_wav24(path, (0.2 * np.sin(2 * np.pi * 220 * t))[:, None], 16000)
+    aid = c.call("sources.add", paths=[str(path)])["r"][0]["assets"][0]["assetId"]
+    for method, params, fields in [
+        ("measure.f0", {"assetId": aid, "start": 0, "end": 0.5}, ["f0", "confidence", "energy"]),
+        ("spectrum.get", {"assetId": aid, "start": 0, "end": 0.5, "cols": 32, "rows": 32, "scale": "log"}, ["data"]),
+    ]:
+        expected = c.call(method, **params)["r"]
+        for pretty in [[], ["--pretty"]]:
+            rc, actual, err = otto(root, "call", method, json.dumps(params), *pretty)
+            assert rc == 0, err
+            for field in fields:
+                assert base64.b64decode(actual[field], validate=True) == expected[field]
 
 
 def test_dangerous_call_waits_for_the_owner(app):

@@ -24,6 +24,7 @@ The procedures and orderings in this guide are examples that show how the app wo
    and the owner (or you) can undo the whole session later (topic `undo`).
 3. **Output is JSON on stdout**; progress lines go to stderr. Exit codes: `0` ok, `1` business error (JSON `error.code`),
    `2` usage / connection / bad parameters, `3` the owner declined or nobody confirmed.
+   Binary fields such as pitch frames and spectrograms are base64 strings, as declared by `contentEncoding: base64` in the schema; the Python client in `otto run` returns native `bytes`.
 4. **Discover before you guess**: `otto commands [--effect read|write|job] [--grep word]`, `otto describe <command>` (full
    parameter and result schema), `otto describe <event>`, `otto errors [code]`.
 5. **Long work is a job.** Add `--wait` to follow a returned job, search or video export to its end:
