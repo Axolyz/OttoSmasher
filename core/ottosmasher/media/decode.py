@@ -66,13 +66,18 @@ class FrameIndex:
     def frame_at_or_before(self, sample: int) -> int:
         return max(0, int(np.searchsorted(self.start, sample, side="right")) - 1)
 
-    def sample_of_pts(self, pts: float, sample_rate: int) -> int:
-        """实际输出的第一帧时间戳 → 它的确切样本序号；与最近一帧的偏差超过半帧就报错（不猜）。"""
+    def sample_of_pts(self, pts: float, sample_rate: int, frame_samples: int) -> int:
+        """首帧时间戳与长度 → 首个实际输出样本的序号。
+
+        Opus 中途启动解码器会再次丢弃 pre-skip，首帧只剩后半段；索引来自整条解码，
+        对应帧却是完整的。用帧长差恢复起点，不能把缩短后的首帧仍放在索引帧首。
+        时间戳仅用于找帧（容器会舍入到毫秒），不用于估算丢弃了几个样本。
+        """
         k = int(np.argmin(np.abs(self.pts_time - pts)))
         n = int(self.start[k + 1] - self.start[k]) if k + 1 < len(self.start) else int(self.total - self.start[k])
-        if abs(self.pts_time[k] - pts) > 0.5 * max(n, 1) / sample_rate:
+        if abs(self.pts_time[k] - pts) > 0.5 * max(n, 1) / sample_rate or not 0 < frame_samples <= n:
             raise CoreError("decode-misaligned", pts=pts)
-        return int(self.start[k])
+        return int(self.start[k]) + n - frame_samples
 
 
 def _index_path(cache: Path, ref: StreamRef) -> Path:
@@ -130,7 +135,7 @@ def save_index(ref: StreamRef, cache: Path, idx: FrameIndex) -> None:
 # ---------------------------------------------------------------- 解码
 
 
-_SHOWINFO = re.compile(r"Parsed_ashowinfo_\d+ @ [^\]]*\] n:\s*0 .*?pts_time:\s*(-?[\d.]+)")
+_SHOWINFO = re.compile(r"Parsed_ashowinfo_\d+ @ [^\]]*\] n:\s*0 .*?pts_time:\s*(-?[\d.]+).*?nb_samples:\s*(\d+)")
 
 
 def _run_ffmpeg(ref: StreamRef, seek: float, duration: float) -> np.ndarray:
@@ -159,7 +164,7 @@ def _stream_indexed(ref: StreamRef, seek: float, b: int, idx: FrameIndex) -> tup
         cmd += ["-ss", f"{seek:.9f}"]
     cmd += ["-i", ref.path, "-map", f"0:a:{ref.ordinal}", "-af", "ashowinfo", "-f", "f32le", "-c:a", "pcm_f32le", "-"]
     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    found: list[float] = []
+    found: list[tuple[float, int]] = []
     log: list[str] = []
     seen = threading.Event()
 
@@ -171,7 +176,7 @@ def _stream_indexed(ref: StreamRef, seek: float, b: int, idx: FrameIndex) -> tup
             if not found:
                 m = _SHOWINFO.search(line)
                 if m:
-                    found.append(float(m.group(1)))
+                    found.append((float(m.group(1)), int(m.group(2))))
                     seen.set()
         seen.set()
 
@@ -188,7 +193,7 @@ def _stream_indexed(ref: StreamRef, seek: float, b: int, idx: FrameIndex) -> tup
             break
         buf += chunk
         if first is None and found:
-            first = idx.sample_of_pts(found[0], ref.sample_rate)
+            first = idx.sample_of_pts(found[0][0], ref.sample_rate, found[0][1])
         if first is not None and len(buf) // frame_bytes >= b - first:
             killed = True
             p.kill()
@@ -200,7 +205,7 @@ def _stream_indexed(ref: StreamRef, seek: float, b: int, idx: FrameIndex) -> tup
         seen.wait(timeout=5)
         if not found:
             raise CoreError("decode-failed", path=ref.path, detail="".join(log).strip()[-300:] or "no-first-frame-info")
-        first = idx.sample_of_pts(found[0], ref.sample_rate)
+        first = idx.sample_of_pts(found[0][0], ref.sample_rate, found[0][1])
     if not killed and p.returncode != 0:
         raise CoreError("decode-failed", path=ref.path, detail="".join(log).strip()[-300:])
     usable = len(buf) - len(buf) % frame_bytes

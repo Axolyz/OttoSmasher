@@ -29,7 +29,8 @@ def ramp(tmp_path_factory) -> dict[str, Path]:
     stereo.tofile(raw)
     out = {}
     for ext, codec in [("wav", []), ("flac", []), ("mkv", ["-c:a", "flac"]), ("mp3", ["-c:a", "libmp3lame", "-q:a", "0"]),
-                       ("m4a", ["-c:a", "aac", "-b:a", "256k"])]:  # fmt: skip
+                       ("m4a", ["-c:a", "aac", "-b:a", "256k"]),
+                       ("opus.mkv", ["-c:a", "libopus"])]:  # fmt: skip
         f = d / f"斜坡 [x] ♪.{ext}"
         subprocess.run(
             ["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "2", "-i", str(raw), *codec, str(f)],
@@ -46,7 +47,7 @@ def ref_of(f: Path) -> dec.StreamRef:
 
 
 @pytest.mark.parametrize(
-    "ext,method", [("wav", "direct"), ("flac", "direct"), ("mkv", "indexed"), ("mp3", "preroll"), ("m4a", "indexed")]
+    "ext,method", [("wav", "direct"), ("flac", "direct"), ("mkv", "indexed"), ("mp3", "preroll"), ("m4a", "indexed"), ("opus.mkv", "indexed")]
 )
 def test_range_equals_full_decode(ramp, tmp_path, ext, method):
     ref = ref_of(ramp[ext])
@@ -78,6 +79,28 @@ def test_mp3_first_sample_not_shifted(ramp, tmp_path):
         seg = dec.decode_range(ref, start, start + 0.2, cache=tmp_path)
         assert seg[0, 0] != 0
         assert np.array_equal(seg, full[round(start * SR) : round((start + 0.2) * SR)])
+
+
+@pytest.mark.parametrize("index_source", ["probe", "peaks"])
+def test_opus_seek_through_exact_eof(ramp, tmp_path, index_source):
+    """Opus seeks reapply pre-skip: the first decoded frame is shorter than its indexed frame.
+
+    Reproduce the F0 last-chunk failure without models; exercise both index producers.
+    """
+    from ottosmasher.media import peaks
+
+    ref = ref_of(ramp["opus.mkv"])
+    full = dec.decode_all(ref)
+    if index_source == "peaks":
+        peaks.build(ref, tmp_path)
+    else:
+        dec.frame_index(ref, tmp_path)
+    a = 25 * SR
+    seg = dec.decode_frames(ref, a, len(full), cache=tmp_path)
+    assert np.array_equal(seg, full[a:])
+    with pytest.raises(CoreError) as ei:
+        dec.decode_frames(ref, a, len(full) + 1, cache=tmp_path)
+    assert ei.value.code == "range-invalid"
 
 
 def test_index_is_cached_and_invalidated(ramp, tmp_path):
