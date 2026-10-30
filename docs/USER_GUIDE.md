@@ -425,7 +425,9 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 **怎么开始**
 1. 打开 OttoSmasher（命令行只连接开着的应用；关着时 `otto status` 会说没在运行）。
 2. 在终端里（开发版在仓库目录下用 `tools/otto`，Windows 用 `tools\otto.cmd`）让 agent 先读说明书：`otto guide`（中文，`--lang en` 英文，`--all` 全部）。
-   Claude Code 可以存成 skill：`otto guide --skill > <你的 skill 目录>/ottosmasher/SKILL.md`。
+   也可以装成 skill（agent 需要时才读对应部分，更省上下文）：`otto guide --skill-dir <目录>` 写出 `<目录>/ottosmasher/` 文件夹。
+   Claude Code 放在 `~/.claude/skills/`（或项目里的 `.claude/skills/`），Codex 放在 `~/.agents/skills/`（或 `.agents/skills/`）。
+   说明书分两层：正式主题（应用的事实和必须遵守的规则）和 `notes`（实测攒下的经验，不是规定）。
 3. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
 
 **示例提示词**
@@ -435,6 +437,20 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 登记文件夹，把准备清单做完（分离用 HyperACE v2），把说到游戏的台词都建成语音采样、分析、打上 topic:game，
 然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中导出到 ~/Desktop/game-hits。做完告诉我建了哪些采样、哪些拿不准。
 ```
+
+**agent 听不到声音时**：很多 agent 只能看文字和图片，听不到声音。可以给它接一个音频分析工具 audio-mcp
+（看频谱图、量响度、用 Whisper 转写并给出每个词的时间）。需要装好 `uv`；在终端里运行（Claude Code）：
+```
+claude mcp add audio -s user -e AUDIO_MCP_WHISPER_MODEL=turbo -- uvx --from "audio-mcp[speech]==0.4.0" audio-mcp
+```
+Codex 写进 `~/.codex/config.toml`：
+```
+[mcp_servers.audio]
+command = "uvx"
+args = ["--from", "audio-mcp[speech]==0.4.0", "audio-mcp"]
+env = { AUDIO_MCP_WHISPER_MODEL = "turbo" }
+```
+第一次用会下载程序和 Whisper 模型（约 1.6 GB，放在 uv 与 Hugging Face 的默认缓存里）。它只用 CPU，长音频转写较慢。
 
 **你会看到什么**
 - 顶栏 ↶ 左边的「操作历史」按钮（agent 正连着时亮一个小圆点）：按时间列出所有资料修改，写明是你还是哪个 agent 会话做的、改了几处；

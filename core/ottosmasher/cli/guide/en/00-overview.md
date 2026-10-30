@@ -28,7 +28,8 @@ The procedures and orderings in this guide are examples that show how the app wo
 4. **Discover before you guess**: `otto commands [--effect read|write|job] [--grep word]`, `otto describe <command>` (full
    parameter and result schema), `otto describe <event>`, `otto errors [code]`.
 5. **Long work is a job.** Add `--wait` to follow a returned job, search or video export to its end:
-   `otto call speech.submit '{...}' --wait`. Separation and speech analysis share one first-come-first-served queue (topic `prepare`).
+   `otto call speech.submit '{...}' --wait`. Separation, speech analysis and pitch measurement share the "model" channel (queueing: topic `prepare`).
+   A `succeeded` job only means it ran to the end: per-item failures of batch jobs are in the result; check them (topic `concepts`).
 6. **Commands that cannot be undone** (`"danger"` in `otto commands`: deleting sources or samples, renaming a work folder,
    cleaning storage, independence with source deletion) pop up a confirmation in the app; your call waits up to 2 minutes
    (stderr shows `"note": "waiting for the owner…"` meanwhile). Exit code 3 means it did not run: the owner declined
@@ -52,5 +53,7 @@ Undeclared parameters are rejected (`bad-request` with the offending key). All i
 
 ## Topics
 
-`otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints everything; `--skill` prints a Claude Code skill):
+`otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints every regular topic):
 `concepts`, `prepare`, `samples`, `search`, `export`, `combine`, `scripts`, `undo`, `example`.
+There is also `notes`: experience and pitfalls from real tasks, **not rules**; read it when stuck or looking for an approach.
+`otto guide --skill-dir <dir>` writes all of this as a skill folder (Claude Code and Codex both read it) to load on demand.

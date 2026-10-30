@@ -24,6 +24,8 @@
 每个时间值都说明它属于哪个时钟：**原素材秒**（段、OP/ED、采样的 `source_start`/`source_end`）、
 **资产局部秒**（采样的 `start`/`end`、分离区间）、**文件秒**（媒体文件内部）。应用负责换算；
 通常把应用给你的值原样交回给同一个对象就行。
+资产的 `mapping`（`assets.get`）是 `[[资产秒, 原素材秒], …]` 折线点：例如局部分离出的声部 `[[0, 100], [10, 110]]` = 资产 0–10 秒对应原片 100–110 秒。
+WAV 导出的结果直接带着这个文件的 `mapping`（文件秒 → 原素材秒），外部工具给出的时间按它换算回原片（主题 `export`）。
 
 ## 标签
 
@@ -47,5 +49,6 @@
 任务命令返回任务摘要（`id`、`status` = queued / running / succeeded / failed / cancelled / interrupted、`progress`、
 `error`、`result`）。用 `--wait`，或 `otto wait job <id>`，或 `otto events --name job.updated` 观察。
 检索返回 `{"searchId"}`，以事件 `search.finished` 结束；`--wait` 同样能处理。
-批量任务保留逐条结果（`speech.results`、`flatten.results`）；单条失败不会让整批失败。
+批量任务保留逐条结果（`speech.results`、`flatten.results`）；单条失败不会让整批失败——所以 `succeeded` 只表示跑完了，
+逐项失败要看结果（逐条结果、`result` 里的 `warnings`、`f0Errors` 等）。
 所有事件：`otto commands --events`。

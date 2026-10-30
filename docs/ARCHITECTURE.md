@@ -654,7 +654,8 @@ class LanguageProfile(Protocol):
 
 `core/ottosmasher/cli/guide/{en,zh-CN}/*.md`（“上下文优先”，所有者 2026-10-24）：总览（分工、规则、退出码）、概念、准备清单 7 项（含真实字幕的常见问题、队列）、采样、检索、导出、
 组合（写回点表、拿到原始材料、例子）、写脚本（`otto run`）、撤回、完整示例（提纲）。
-`otto guide [主题] [--lang] [--all] [--skill]`；`--skill` 输出 Claude Code skill（用户自己放进 skill 目录，我们不往用户目录写）。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
+`otto guide [主题] [--lang] [--all] [--skill-dir 目录]`。两层：正式主题（看不出来的事实 + 硬规定）与经验层 `notes`（`guide/notes/{en,zh-CN}.md`，实测经验，不是规定）。
+`--skill-dir` 写出标准 skill 文件夹 `<目录>/ottosmasher/`：`SKILL.md`（总览 + 参考文件目录）、`references/<主题>.md`、`references/field-notes.md`，按需读取；由用户指定目录，我们不默认写用户目录。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
 
 ### 15.6 还没做的
 

@@ -383,20 +383,53 @@ def cmd_run(args: argparse.Namespace) -> None:
     raise Exit(subprocess.run([sys.executable, args.script, *args.args], env=env).returncode)
 
 
+def guide_notes(lang: str) -> Path:
+    """经验层（主题 ``notes``）：实测里攒下的做法与坑，不是规定，可能过时；与正式主题冲突时以正式主题为准。"""
+    return GUIDE / "notes" / f"{lang}.md"
+
+
+SKILL_DESC = ("Operate the OttoSmasher desktop app (otomad sample library with anime sources, subtitles, vocal separation, Japanese speech "
+              "alignment, samples, tags, rhythm/pitch search, WAV/video/REAPER exports) through its `otto` command line while the app is open. "
+              "Use when a task involves OttoSmasher, its library, or preparing otomad material with it.")
+
+
+def write_skill(root: Path, lang: str) -> Path:
+    """标准 skill 文件夹（Claude Code ``.claude/skills``、Codex ``.agents/skills`` 都认）：SKILL.md = 总览 + 参考文件目录；
+    references/ = 正式主题原样 + field-notes（经验层）。只读需要的那一份，不必一次全读。"""
+    topics = guide_topics(lang)
+    d = root / "ottosmasher"
+    ref = d / "references"
+    ref.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for p in topics[1:]:
+        name = p.stem.split("-", 1)[-1]
+        (ref / f"{name}.md").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        title = p.read_text(encoding="utf-8").splitlines()[0].lstrip("# ").strip()
+        lines.append(f"- `references/{name}.md`: {title}")
+    (ref / "field-notes.md").write_text(guide_notes(lang).read_text(encoding="utf-8"), encoding="utf-8")
+    title = guide_notes(lang).read_text(encoding="utf-8").splitlines()[0].lstrip("# ").strip()
+    lines.append(f"- `references/field-notes.md`: {title}")
+    body = topics[0].read_text(encoding="utf-8").rstrip()
+    (d / "SKILL.md").write_text(f"---\nname: ottosmasher\ndescription: {json.dumps(SKILL_DESC)}\n---\n\n{body}\n\n## References\n\nEach topic above (`otto guide <topic>`) is also the file `references/<topic>.md` here; read only the one you need.\n\n" + "\n".join(lines) + "\n",
+                                encoding="utf-8")
+    return d
+
+
 def cmd_guide(args: argparse.Namespace) -> None:
     lang = lang_of(args)
     topics = guide_topics(lang)
-    if args.skill:
-        body = "\n\n".join(p.read_text(encoding="utf-8").strip() for p in topics)
-        desc = ("Operate the OttoSmasher app (otomad sample library: sources, subtitles, separation, speech analysis, samples, tags, "
-                "rhythm/pitch search, exports) through its `otto` command line while the app is open.")
-        sys.stdout.write(f"---\nname: ottosmasher\ndescription: {desc}\n---\n\n{body}\n")
+    if args.skill_dir:
+        d = write_skill(Path(args.skill_dir).expanduser().resolve(), lang)
+        out({"skill": str(d), "files": sorted(str(p.relative_to(d)) for p in d.rglob("*.md"))}, args.pretty)
+        return
+    if args.topic == "notes":
+        sys.stdout.write(guide_notes(lang).read_text(encoding="utf-8"))
         return
     if args.topic:
         match = [p for p in topics if p.stem == args.topic or p.stem.split("-", 1)[-1] == args.topic]
         if not match:
             out({**error_wire("bad-request", {"method": "guide", "reason": f"no topic {args.topic}"}),
-                 "topics": [p.stem.split("-", 1)[-1] for p in topics]}, args.pretty)
+                 "topics": [p.stem.split("-", 1)[-1] for p in topics] + ["notes"]}, args.pretty)
             raise Exit(2)
         sys.stdout.write(match[0].read_text(encoding="utf-8"))
         return
@@ -404,7 +437,7 @@ def cmd_guide(args: argparse.Namespace) -> None:
         sys.stdout.write("\n\n".join(p.read_text(encoding="utf-8").strip() for p in topics) + "\n")
         return
     sys.stdout.write(topics[0].read_text(encoding="utf-8").rstrip() + "\n\n")
-    sys.stdout.write("Topics: " + ", ".join(p.stem.split("-", 1)[-1] for p in topics[1:]) + "\n")
+    sys.stdout.write("Topics: " + ", ".join(p.stem.split("-", 1)[-1] for p in topics[1:]) + ", notes\n")
 
 
 # ---------------------------------------------------------------- 入口
@@ -456,7 +489,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("topic", nargs="?")
     p.add_argument("--lang", choices=LANGS)
     p.add_argument("--all", action="store_true", help="print every topic")
-    p.add_argument("--skill", action="store_true", help="print as a Claude Code skill (SKILL.md)")
+    p.add_argument("--skill-dir", help="write a skill folder <dir>/ottosmasher/ (SKILL.md + references/) for Claude Code or Codex")
     p.set_defaults(fn=cmd_guide)
     return ap
 

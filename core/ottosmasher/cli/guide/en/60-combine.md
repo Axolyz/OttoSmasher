@@ -21,9 +21,10 @@ All of these are undoable and recorded under your session.
 ## Getting the raw material
 
 * Text: `textLayer.list {"sourceId"}` (segments, sound hints, OP/ED); the subtitle files themselves.
-* Audio: the source media file (`path` in `sources.list`; read it directly with ffmpeg, **read-only**); or export: `exports.range`, `exports.samples` (WAV).
+* Audio: the source media file (`path` in `sources.list`; read it directly with ffmpeg, **read-only**); or export: `exports.wav`, `exports.range` (WAV; the result carries the file-seconds → source-seconds `mapping`), `exports.samples`.
 * Pictures: `visuals.forSample {"id"}` (which file and range the picture comes from); `exports.video`, `exports.videoRange` (clips).
 * Analysis: `speech.sample` (the segments and phonemes a sample reads), `measure.f0` (pitch curve).
+* If you cannot hear, look at exported WAVs with an audio analysis tool in your environment (e.g. audio-mcp's spectrograms, loudness, timed transcripts) (topic `notes`).
 
 ## Examples
 

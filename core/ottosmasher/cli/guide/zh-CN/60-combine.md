@@ -20,9 +20,10 @@
 ## 拿到原始材料
 
 * 文本：`textLayer.list {"sourceId"}`（段、音效提示、OP/ED）；字幕文件本身。
-* 音频：原素材的媒体文件（`sources.list` 的 `path`，可以直接用 ffmpeg 读，**只读**）；或导出：`exports.range`、`exports.samples`（WAV）。
+* 音频：原素材的媒体文件（`sources.list` 的 `path`，可以直接用 ffmpeg 读，**只读**）；或导出：`exports.wav`、`exports.range`（WAV，结果带文件秒 → 原片秒的 `mapping`）、`exports.samples`。
 * 画面：`visuals.forSample {"id"}`（画面来自哪个文件、哪一段）；`exports.video`、`exports.videoRange`（视频片段）。
 * 分析：`speech.sample`（采样读到的段与音素）、`measure.f0`（音高曲线）。
+* 听不到声音时，用你环境里的音频分析工具（例如 audio-mcp 的频谱图、响度、带时间的转写）看导出的 WAV（主题 `notes`）。
 
 ## 例子
 

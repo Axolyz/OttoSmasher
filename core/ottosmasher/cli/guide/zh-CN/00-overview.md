@@ -26,7 +26,8 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 4. **先查再猜**：`otto commands [--effect read|write|job] [--grep 词]`、`otto describe <命令>`（完整的参数与返回结构）、
    `otto describe <事件>`、`otto errors [错误码]`。
 5. **耗时的工作是任务。** 加 `--wait` 就会一直跟到返回的任务、检索或视频导出结束：
-   `otto call speech.submit '{...}' --wait`。分离和语音分析共用一条按提交顺序执行的队列（主题 `prepare`）。
+   `otto call speech.submit '{...}' --wait`。分离、语音分析、测音高共用“模型”通道（排队方式见主题 `prepare`）。
+   任务 `succeeded` 只表示跑完了：批量任务里逐项的失败写在结果里，要看（主题 `concepts`）。
 6. **撤销不了的命令**（`otto commands` 里带 `"danger"`：删除原素材或采样、给作品文件夹改名、清理存储、独立化后删原素材）
    会在应用里弹出确认框，你的调用最多等 2 分钟（等待时 stderr 有一行 `"note": "waiting for the owner…"`）。
    退出码 3 表示没有执行：所有者拒绝了（`agent-confirm-declined`），或 2 分钟没人回答（`agent-confirm-timeout`，所有者可能不在电脑前；
@@ -48,5 +49,7 @@ otto run my_script.py                     # 一次要调很多命令时写成 Py
 
 ## 主题
 
-`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部；`--skill` 打印成 Claude Code skill）：
+`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部正式主题）：
 `concepts`、`prepare`、`samples`、`search`、`export`、`combine`、`scripts`、`undo`、`example`。
+另有 `notes`：实测攒下的经验和坑，**不是规定**，卡住或想找做法时再看。
+`otto guide --skill-dir <目录>` 把这些写成一个 skill 文件夹（Claude Code、Codex 都认），按需读取。

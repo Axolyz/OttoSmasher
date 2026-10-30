@@ -24,6 +24,8 @@ To use another stream on its own, extract it to a separate file and register tha
 Every time value says which clock it uses: **source seconds** (segments, OP/ED, `source_start`/`source_end` of a sample),
 **asset-local seconds** (sample `start`/`end`, separation ranges), **file seconds** (inside a media file). The app converts between
 them; you normally pass back the values it gave you for the same object.
+An asset's `mapping` (`assets.get`) is a polyline `[[asset seconds, source seconds], …]`: e.g. a partially separated stem `[[0, 100], [10, 110]]` = asset 0–10 s is source 100–110 s.
+WAV export results carry the `mapping` of the file itself (file seconds → source seconds); convert times from external tools back to the source with it (topic `export`).
 
 ## Tags
 
@@ -47,5 +49,6 @@ Tag expressions: `NOT` > `AND` > `OR`, parentheses, double quotes, `ns:*` for a 
 Job commands return a job summary (`id`, `status` = queued / running / succeeded / failed / cancelled / interrupted, `progress`,
 `error`, `result`). Use `--wait`, or `otto wait job <id>`, or watch `otto events --name job.updated`.
 Searches return `{"searchId"}` and end with event `search.finished`; `--wait` handles that too.
-Batch jobs keep per-item results (`speech.results`, `flatten.results`); one failed item does not fail the batch.
+Batch jobs keep per-item results (`speech.results`, `flatten.results`); one failed item does not fail the batch — so `succeeded` only means it ran to the end;
+check per-item failures in the results (per-item results, `warnings` or `f0Errors` in `result`, etc.).
 List all events with `otto commands --events`.

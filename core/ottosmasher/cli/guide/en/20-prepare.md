@@ -55,9 +55,21 @@ After changing files, rescan: `otto call sources.rescan --wait`.
 
 No fixed order, and no item is mandatory (sources without subtitles are normal).
 
-**Queue**: separation and speech analysis run in one "model" queue, one at a time, first come first served. Separating an episode takes
-ten to several tens of minutes; submit the analyses you need before a big batch of separations, or submit in batches. There is no reorder command;
-if needed, `jobs.cancel` queued jobs and submit them again later.
+**Queue**: separation, speech analysis and pitch measurement use the "model" channel; scans etc. use the "light" channel. How many run at once is set by
+`jobs.concurrency_model` (default 1) / `jobs.concurrency_light` (default 2) (read with `settings.list`, change with `edits.apply`, entity `setting`).
+While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; running jobs are never interrupted
+and there is no reorder command. A successful separation deletes its intermediate files; a failed one keeps them. Separating an episode takes
+ten to several tens of minutes; if needed, `jobs.cancel` queued jobs and submit them again later.
+
+**Separation range**: `separation.submit` takes an optional `start` / `end` (asset seconds) to separate one part only; the stems cover just that part and can be exported or cut,
+but the default vocal / sfx track must cover the whole source, so a partial stem cannot become the default.
+**Outside audio**: any audio file registered with `sources.add {"paths": [...]}` becomes a source and can be separated, given lines and analysed; results stay in the library and can be undone.
+
+**Re-importing subtitles**: only old objects that overlap a new cue in time are replaced; old segments that no new cue overlaps stay (by design). Delete them with edits if they should go.
+
+**A successful analysis is not proof of a good alignment**: alignment only looks inside "the segment's time ± the tolerance in the settings (default 0.1 s before, 0.2 s after)",
+and it always fits the whole line into that window — when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds.
+Get the boundaries roughly right first (within a few tenths of a second), then analyse.
 
 ## 3. Without subtitles
 
