@@ -2,7 +2,8 @@
 
 - 模型列表：轻量任务 ``studio.models`` 跑 Studio 的 list_models，结果缓存在 ``Data/Cache/studio-models.json``（Studio 安装、环境或模型目录变了就失效）。
 - 提交（模型通道任务 ``separate``）：输入 = 当前音源资产的选区（整片 = 整个资产），**提交时冻结**；可以一次给多段（``ranges``，所有者 2026-10-30）：
-  没复用的段放进同一个任务，Studio 一次推理多个输入、模型只加载一次（实测每个任务启动约 8 秒）；每段各登记一组声部；模型必须在 Studio 的可用列表里；
+  没复用的段放进同一个任务，worker 把它们拼成一个输入（段间 1 秒静音）分离一次再切回（Studio 按约 22 秒的块推理，短输入也按整块算；
+  10 段 × 6 秒实测 31 秒 vs 分开约 100 秒；和单独分离一样接近“放在上下文里分离”的结果）；每段各登记一组声部；模型必须在 Studio 的可用列表里；
   选区分离可选任意模型，整片的“人声方式 / 三轨方式”按能力筛（界面负责，Core 只查模型存在且声部有效）；设备取设置（不计入复用身份）。
 - 复用（05 §5.5.2）：同一输入资产 + 同一区间 + 同一模型（名称 + 文件大小/修改时间）已经分离过且所需声部都在 → 直接返回已有资产，不重跑。
 - 登记（任务成功后在 Core 主线程）：每个声部一个新资产——MP3 移入 ``Library/Tracks/<原片>/``；映射 = 输入映射裁到所选区间；
@@ -141,6 +142,9 @@ class SeparationService:
             })
         if not inputs:
             return {"reused": reused}
+        if len({(i["ref"]["sample_rate"], i["ref"]["channels"]) for i in inputs}) > 1:
+            # 多段要拼成一个输入：存放在采样率或声道不同的文件里的段（回导拼起来的音轨）分开提交
+            raise CoreError("range-invalid", reason="ranges-differ-in-format", start=None, end=None, duration=asset["duration"])
         values = settings_mod.values(self.conn)
         params = {
             "env": env.wire(),

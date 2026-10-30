@@ -103,11 +103,19 @@ def _studio_models(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return {"env": env.wire(), "models": models}
 
 
+JOIN_GAP = 1.0  # 多段拼接时段与段之间的静音（秒）：模型的上下文不把相邻段的声音带过来
+
+
 def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     """分离（规格 05 §5.5、14 §14.6.4）：解码输入 → Studio infer → 校验输出 → MP3 V0（无缝校验）。登记由 Core 做。
-    一个任务可以有多段输入（``inputs``，2026-10-30）：一次 infer、模型只加载一次；每段各出一组声部（``items`` 与输入一一对应）。"""
+
+    多段（``inputs``，2026-10-30）：Studio 按固定长度的块推理（实测约 22 秒一块，短输入也按整块算，一块约 6.5 秒），
+    所以把各段**拼成一个输入**（段间 1 秒静音），分离一次，再按位置把每个声部切回各段。``items`` 与输入一一对应。"""
+    import numpy as np
+
     from ..media import decode as dec
     from ..media import mp3, wavfile
+    from ..media import probe as probe_mod
     from ..studio import protocol
     from ..studio.discovery import StudioEnv
 
@@ -117,21 +125,35 @@ def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     ctx.progress("fingerprint", 0, 1, "sep-fingerprint")
     fp0 = protocol.fingerprint(env, model)
 
-    # 输入：资产选区解码成 PCM WAV（保持源采样率与声道）
+    # 输入：资产选区解码成 PCM（保持源采样率与声道）；多段时拼成一个
     inputs = params.get("inputs") or [params["input"]]
     in_dir = ctx.job_dir / "input"
     in_dir.mkdir(parents=True, exist_ok=True)
-    frames_in: list[tuple[int, int]] = []  # 每段（帧数, 采样率）
-    tasks = []
+    parts: list[tuple[int, int]] = []  # 每段在拼接输入里的 (起点帧, 帧数)
+    pcms = []
+    rate = 0
     for k, inp in enumerate(inputs):
         ref = dec.StreamRef(**inp["ref"])
         ctx.progress("decoding", k, len(inputs), "sep-decoding")
         pcm = dec.decode_frames(ref, inp["a"], inp["b"], cache=Path(params["cache"]))
-        in_path = in_dir / f"input-{k}.wav"
-        wavfile.save_wav24(in_path, pcm, ref.sample_rate)
-        frames_in.append((int(pcm.shape[0]), ref.sample_rate))
-        tasks.append({"taskId": f"input-{k}", "input": str(in_path)})
-        del pcm
+        rate = ref.sample_rate
+        pcms.append(pcm)
+    gap = np.zeros((round(JOIN_GAP * rate), pcms[0].shape[1]), dtype=np.float32)
+    pos = 0
+    chunks = []
+    for k, pcm in enumerate(pcms):
+        if k:
+            chunks.append(gap)
+            pos += gap.shape[0]
+        parts.append((pos, int(pcm.shape[0])))
+        chunks.append(pcm)
+        pos += int(pcm.shape[0])
+    joined = chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
+    del pcms, chunks
+    in_path = in_dir / "input-0.wav"
+    wavfile.save_wav24(in_path, joined, rate)
+    in_frames = int(joined.shape[0])
+    del joined
 
     out_dir = ctx.job_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -151,7 +173,7 @@ def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     device = params.get("device", "auto")
     payload: dict[str, Any] = {
         "model": model["name"],
-        "tasks": tasks,
+        "tasks": [{"taskId": "input-0", "input": str(in_path)}],
         "output": str(out_dir),
         "outputFormat": "wav",
         "selectedStems": stems,
@@ -161,55 +183,68 @@ def _separate(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     }
     if device == "cuda":
         payload["deviceIds"] = [int(params.get("deviceId", 0))]
-    seconds = sum(n / sr for n, sr in frames_in)
+    seconds = in_frames / rate
     protocol.run(
         env, "infer", payload, work_dir=ctx.job_dir, log_path=ctx.job_dir / "studio.log",
         timeout=max(600.0, seconds * 10 + 600.0), on_event=on_event,
     )  # fmt: skip
 
     # 只信任 task_done.outputs；所有输入都有 task_done；路径在输出目录内且存在；所选声部全部产出；时长一致（±1 帧）
+    td = done.get("input-0")
+    if td is None:
+        raise CoreError("sep-output-invalid", reason="no-task-done")
+    outputs = {}
     root = out_dir.resolve()
-    per_input: list[dict[str, tuple[Path, tuple[int, int, int]]]] = []
-    for k, (in_frames, in_rate) in enumerate(frames_in):
-        td = done.get(f"input-{k}")
-        if td is None:
-            raise CoreError("sep-output-invalid", reason="no-task-done")
-        outputs = {}
-        for o in td.get("outputs") or []:
-            if not isinstance(o, dict) or "path" not in o or "stem" not in o:
-                continue
-            path = Path(o["path"]).resolve()
-            if root not in path.parents or not path.is_file():
-                raise CoreError("sep-output-invalid", reason="outside-or-missing", path=str(path))
-            outputs[str(o["stem"])] = path
-        missing = [st for st in stems if st not in outputs]
-        if missing:
-            raise CoreError("sep-output-invalid", reason="missing-stem", stems=", ".join(missing))
-        checked = {}
-        for st in stems:
-            frames, rate, ch = mp3.wav_info(outputs[st])
-            expect = round(in_frames * rate / in_rate)
-            if abs(frames - expect) > 1:
-                raise CoreError("sep-output-invalid", reason="length", stem=st, expected=expect, got=frames)
-            checked[st] = (outputs[st], (frames, rate, ch))
-        per_input.append(checked)
+    for o in td.get("outputs") or []:
+        if not isinstance(o, dict) or "path" not in o or "stem" not in o:
+            continue
+        path = Path(o["path"]).resolve()
+        if root not in path.parents or not path.is_file():
+            raise CoreError("sep-output-invalid", reason="outside-or-missing", path=str(path))
+        outputs[str(o["stem"])] = path
+    missing = [st for st in stems if st not in outputs]
+    if missing:
+        raise CoreError("sep-output-invalid", reason="missing-stem", stems=", ".join(missing))
+    infos = {}
+    for st in stems:
+        frames, out_rate, ch = mp3.wav_info(outputs[st])
+        expect = round(in_frames * out_rate / rate)
+        if abs(frames - expect) > 1:
+            raise CoreError("sep-output-invalid", reason="length", stem=st, expected=expect, got=frames)
+        infos[st] = (frames, out_rate, ch)
     if protocol.fingerprint(env, model) != fp0:
         raise CoreError("sep-model-changed", model=model["name"])
 
     tracks = ctx.job_dir / "tracks"
     tracks.mkdir(exist_ok=True)
-    items = []
-    total, n = len(inputs) * len(stems), 0
-    for k, checked in enumerate(per_input):
-        result_stems = []
-        for i, st in enumerate(stems):
-            ctx.progress("encoding", n, total, "sep-encoding", stem=st)
-            n += 1
-            src, (frames, rate, ch) = checked[st]
+    items: list[dict[str, Any]] = [{"stems": [], "inputFrames": n, "inputRate": rate} for _, n in parts]
+    total, n_done = len(parts) * len(stems), 0
+    for i, st in enumerate(stems):
+        frames, out_rate, ch = infos[st]
+        if len(parts) == 1:
+            pieces = [(outputs[st], frames)]
+        else:
+            # 拼接输入的输出：按位置切回各段（输出采样率可能与输入不同，按比例换算），先写浮点 WAV 再编码
+            pr = probe_mod.probe(outputs[st])
+            a0 = pr.audio[0]
+            full = dec.decode_all(dec.StreamRef(str(outputs[st]), 0, int(a0.sample_rate), int(a0.channels or ch), a0.codec, pr.format_name))
+            scale = out_rate / rate
+            pieces = []
+            for k, (off, n) in enumerate(parts):
+                a, m = round(off * scale), round(n * scale)
+                seg = full[a : a + m]
+                if seg.shape[0] < m:  # 末尾差一帧时补静音，不改长度
+                    seg = np.concatenate([seg, np.zeros((m - seg.shape[0], seg.shape[1]), dtype=np.float32)])
+                p = tracks / f"part-{k:03d}-{i:02d}.wav"
+                wavfile.save_wav_f32(p, seg, out_rate)
+                pieces.append((p, m))
+            del full
+        for k, (src, m) in enumerate(pieces):
+            ctx.progress("encoding", n_done, total, "sep-encoding", stem=st)
+            n_done += 1
             dst = tracks / f"{k:03d}-{i:02d}.mp3"
-            manifest = mp3.encode_v0(src, dst, frames=frames, rate=rate, channels=ch)
-            result_stems.append({"stem": st, "mp3": str(dst), "frames": manifest["frames"], "rate": manifest["rate"], "channels": ch, "manifest": manifest})
-        items.append({"stems": result_stems, "inputFrames": frames_in[k][0], "inputRate": frames_in[k][1]})
+            manifest = mp3.encode_v0(src, dst, frames=m, rate=out_rate, channels=ch)
+            items[k]["stems"].append({"stem": st, "mp3": str(dst), "frames": manifest["frames"], "rate": manifest["rate"], "channels": ch, "manifest": manifest})
     ctx.progress("encoding", total, total, "sep-encoding")
     return {"items": items, "fingerprint": fp0, "studioVersion": env.version}
 
