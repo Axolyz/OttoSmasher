@@ -185,7 +185,6 @@ export function LibraryPage() {
     if (!nowPlaying) {
       setPlaying(null);
       setPlayingVer(null);
-      setHitPlaying(null); // 命中的试听播完也要复位（原来只有再点一次或出错才清）
     }
   }, [nowPlaying]);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
