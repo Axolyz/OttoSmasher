@@ -111,7 +111,20 @@ export function CommandPalette(props: {
         <Dialog className={s.paletteDialog} aria-label={props.label} data-testid="palette">
           <Autocomplete inputValue={query} onInputChange={setQuery}>
             <SearchField aria-label={props.label} autoFocus className={s.paletteField}>
-              <Input className={s.paletteInput} placeholder={props.placeholder} data-testid="palette-input" />
+              <Input
+                className={s.paletteInput}
+                placeholder={props.placeholder}
+                data-testid="palette-input"
+                onKeyDown={(e) => {
+                  // 回车执行：有高亮项时由菜单执行；没有高亮项（过滤后第一项有时没拿到高亮，例如列表在输入后又重建）就执行第一个能用的
+                  if (e.key !== "Enter" || e.currentTarget.getAttribute("aria-activedescendant")) return;
+                  const sec = shown.find((x) => x.items.some((c) => !c.disabled));
+                  const first = sec?.items.find((c) => !c.disabled);
+                  if (!sec || !first) return;
+                  e.preventDefault();
+                  run(`${sec.id}\x1f${first.key}`);
+                }}
+              />
             </SearchField>
             <RacMenu
               className={s.paletteList}
