@@ -1,15 +1,13 @@
 # AGENTS.md — OttoSmasher 新版开发规则
 
 > 所有在本仓库工作的开发者（人或 AI 代理）都必须遵守本文件。`CLAUDE.md` 只是指向这里。
-> 需求来源只有交接包：`~/Documents/OttoSmasher-Rewrite-Handoff/`（README.md、docs/01–19、fixtures/）。
+> 需求来源只有所有者的交接包（README.md、docs/01–19、fixtures/；不公开，本机位置见本地的 `AGENTS.local.md`，它不进 Git）。
 > 架构见 `docs/ARCHITECTURE.md`，界面方案见 `docs/UI_PLAN.md`（所有者已确认），所有者的每条答复与基线变更见 `docs/QUESTIONS.md`。
 > 新会话开工顺序：本文件 → 本地 `STATUS.md`（进度与下一步）→ 需要时再读上面三份文档和交接包的相关规格。
 
 ## 1. 禁区
 
-- **不要打开**旧仓库 `/Users/a/Documents/OttoSmasher` 里的任何代码、文档、数据库、配置或数据，
-  也不要打开 `~/Documents/OttoSmasher-Handoff-Archive-2026-10-03`。
-  唯一例外：阶段 0 已从 `…/dist/OttoSmasher-1.0.0-models/models/` 复制了 pydomino、tsqyomi、features、flatten 四个目录（已完成，不要再碰）。
+- **不要打开**旧版仓库和交接包存档里的任何代码、文档、数据库、配置或数据（本机位置见 `AGENTS.local.md`）。
 - 旧版没有兼容义务：不迁移旧数据，不参考旧的表结构、接口、文件布局。
 - 不在旧工作区或任何非本项目目录里写东西。开发工作区是仓库内的 `dev-workspace/`（已在 .gitignore）。
 - PyMSS Studio（`/Applications/Pymss Studio.app`，数据目录 `~/.pymss-studio`）只按 docs/14 §14.6 的 worker 协议调用，

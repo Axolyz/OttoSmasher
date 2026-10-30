@@ -5,7 +5,7 @@
 - 开发规则：[AGENTS.md](../AGENTS.md)（环境全部装在仓库内、不进 Git 的东西、提交与授权）
 - 架构：[ARCHITECTURE.md](ARCHITECTURE.md)；界面方案：[UI_PLAN.md](UI_PLAN.md)，可点原型 [ui/prototype.html](ui/prototype.html)
 - 阶段与遗留事项：[ROADMAP.md](ROADMAP.md)；规格疑问与所有者的决定：[QUESTIONS.md](QUESTIONS.md)
-- 需求来源：交接包 `~/Documents/OttoSmasher-Rewrite-Handoff/`（不在本仓库）
+- 需求来源：所有者的交接包（规格 docs/01–19，不在本仓库、不公开；文档里“规格 xx §y”指它）
 
 ## 准备环境（macOS arm64）
 
@@ -31,7 +31,7 @@ node tools/build-native.mjs                           # mpv 渲染桥（Electron
 OTTO_DEV=1 tools/npm start          # 构建并启动（开发模式：工具页有任务自检与 mpv 探针）
 ```
 
-也可以在访达里双击仓库根目录的 `启动 OttoSmasher.command`。
+也可以在访达里双击仓库根目录的 `start OttoSmasher.command`。
 
 ## 测试
 
@@ -43,7 +43,7 @@ tools/npm run i18n:check                              # 源码里没有写死的
 tools/npm run e2e                                     # Playwright 驱动真实 Electron（临时工作区、静音输出）
 ```
 
-- 真实素材（第三方版权内容，只在本地用，不复制进仓库）：设 `OTTO_FIXTURES=~/Documents/OttoSmasher-Rewrite-Handoff/fixtures` 再跑
+- 真实素材（第三方版权内容，只在本地用，不复制进仓库）：设 `OTTO_FIXTURES=<素材目录>` 再跑
   pytest 或 `e2e/real-*.spec.ts`；需要模型的测试另要 `dev-workspace/Models`。
 - `OTTO_STRICT_API=1`：Core 核对每个命令的返回值与命令目录一致。
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。

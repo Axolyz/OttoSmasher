@@ -58,3 +58,8 @@ fixtures/
 .DS_Store
 Thumbs.db
 /app/native/*/build/
+
+# --- 本机私有（AGENTS.local.md：本机路径约定）与实测素材 ---
+/AGENTS.local.md
+/bangumi/
+*.mid

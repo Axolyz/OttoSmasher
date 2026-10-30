@@ -55,7 +55,7 @@
 | D2 | 独立化后的采样能否再截取、拉平 | 能；物化切片范围外报“原片媒体已释放” |
 | D3 | 内容指纹算法 | 废弃（见上） |
 | D4 | “最近一次成功试听的版本”跨窗口 | 同一进程内共享，不跨重启 |
-| D5 | git 提交身份 | 本仓库本地 `OttoSmasher Dev <samuj0220@gmail.com>` |
+| D5 | git 提交身份 | 本仓库本地 `OttoSmasher Dev` |
 | D6 | tsqyomi 目录里旧版的 `preparation.json` | 不读、不用 |
 
 ## 四、仍待确认
