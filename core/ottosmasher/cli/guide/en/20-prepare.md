@@ -13,7 +13,7 @@ Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once
 
 ## How the app finds and reads subtitles
 
-- **Association**: a `.srt` with **exactly the same name** in the media's folder wins, then `.ass`; then same name plus a suffix (`<video name>.ja.srt`, Japanese suffixes first), then the same in a `Subs` / `字幕` subfolder. Association only; importing is a separate step. UTF-8 is required.
+- **Association**: a `.srt` with **exactly the same name** in the media's folder wins, then `.ass`; then same name plus a suffix (`<video name>.ja.srt`, Japanese suffixes first), then the same in a subtitle subfolder of that folder (`Subs`, `Sub`, `Subtitles`, `字幕` and the like, case-insensitive). Association only; importing is a separate step. UTF-8 is required.
 - Subtitle streams **embedded** in video files are **not read**; image subtitles (PGS, VobSub) are pictures, not text.
 - **ASS**: Dialogue lines of every style are read, without telling styles apart (the Chinese line of bilingual subtitles also becomes a line); `{…}` override tags and `<…>` are removed, `\N` is a line break, Comment lines are skipped.
 - **How each line is read** (the rules are in the settings and can be changed):
@@ -33,7 +33,7 @@ To see how the app reads things:
 | The associated subtitles of registered sources, before importing | `subtitles.preview {"sourceId"}` / `subtitles.previewMany {"sourceIds"}`: `segments`, `speakers` (names and counts), `hints` (sounds), `oped`, `problems`, `token` |
 
 Importing: pass the preview's `token` to `subtitles.import` / `subtitles.importMany {"items": [{"sourceId", "token"}]}`; OP/ED markers in the subtitles are imported too.
-**Re-importing** replaces only old objects that overlap a new cue in time; old segments that no new cue overlaps stay (by design); delete them with edits.
+**Re-importing** replaces only old objects that overlap a new cue in time; old segments that no new cue overlaps stay (by design); delete them with edits. A new cue that touches a **protected** old object (a segment that was edited or has manual phonemes, an edited or hand-added sound hint, a hand-marked OP/ED) is skipped (`status: skip`, `reason: protected` in the preview); with `replace: false` in `options` all old objects are kept, and `force` overrides per cue (`otto describe subtitles.preview`).
 
 ## The prep checklist
 
@@ -54,7 +54,7 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 - `studio.status`: whether PyMSS Studio is installed and which models it has (if `ok` is false, tell the owner to install PyMSS Studio).
 - `separation.submit {"assetId", "model"}` separates the whole track; add `start` / `end` (asset seconds) to separate one part; `ranges: [[start, end], ...]` separates several parts in one job by joining them into one input (Studio works in blocks of about 22 s, so a short part alone still costs a whole block). Results: `separation.results {"jobId"}`, one new track per stem with its time mapping.
-  Stems from a partial separation cover only that part; the vocal stem gets the vocal role automatically. An identical request (same track, same range, same model) returns the existing result (`reused`; with several ranges, already separated ones go to `reused` and the rest into the job); every stem of a partial separation also gets a sample automatically; a different range, even an overlapping one, makes a new copy. Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
+  Stems from a partial separation cover only that part; the vocal stem gets the vocal role automatically; **every stem of a partial separation also gets a sample automatically** (whole-track separation does not) — those samples cannot be undone and deleting them needs the owner's confirmation, so a many-range separation creates many samples. An identical request (same track, same range, same model) returns the existing result (`reused`; with several ranges, already separated ones go to `reused` and the rest into the job); a different range, even an overlapping one, makes a new copy. Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
 - The default vocal / sfx track must cover the whole source, so a partial stem cannot be the default. But wherever a track can be named, you can pass it:
   `speech.preview` / `speech.submit` with `"assetId"` analyse on that track (only segments inside its range), and `samples.create`, `exports.wav` and the primitives take an `assetId` too.
 - A line's phonemes exist once and belong to the source's timeline: whichever track analysed them, the original mix, a full vocal stem and partial stems all read the same ones.
@@ -62,12 +62,12 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 ## Jobs and the queue
 
-Separation, speech analysis and pitch measurement use the "model" channel; scans etc. use the "light" channel. How many run at once is set by
+Separation, speech analysis and pitch measurement (including the primitives `speech.align` and `f0.track`) use the "model" channel; scans, `text.analyze` etc. use the "light" channel. How many run at once is set by
 `jobs.concurrency_model` (default 1) / `jobs.concurrency_light` (default 2) (read with `settings.list`, change with `edits.apply`, entity `setting`).
 While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; running jobs are never interrupted
 and there is no reorder command (if needed, `jobs.cancel` queued jobs and submit them again later). A successful separation deletes its intermediate files; a failed one keeps them.
 
 ## A successful analysis is not proof of a good alignment
 
-Alignment only looks inside "the segment's time ± the tolerance in the settings (default 0.1 s before, 0.2 s after)", and it always fits the whole line into that window —
-when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds. Get the boundaries roughly right first (within a few tenths of a second), then analyse (numbers in topic `primitives`).
+Alignment only looks inside "the segment's time ± the tolerance in the settings (`analysis.tolerance_before` / `analysis.tolerance_after`, 0.65 s each by default; current values in `settings.list`)", and it always fits the whole line into that window —
+when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds. When boundaries are off from the actual speech by more than a few tenths of a second, the result is unreliable (numbers in topic `primitives`).

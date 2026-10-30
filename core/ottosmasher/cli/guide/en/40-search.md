@@ -1,7 +1,7 @@
 # Search: rhythm (speech) and pitch
 
 Both searches run over a **scope** (the same filter as `samples.ids`) and end in a **fixed result** that does not change when data
-changes later. Check readiness first: `search.coverage` (index built / pitch measured); `search.prepare` queues the missing parts.
+changes later. Readiness: `search.coverage` (index built / pitch measured); `search.prepare` queues the missing parts.
 
 ## Speech / rhythm search
 

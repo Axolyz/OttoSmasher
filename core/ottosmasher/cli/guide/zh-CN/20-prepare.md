@@ -13,7 +13,7 @@ otto call sources.rescan --wait                            # 改过、新加过�
 
 ## 应用怎么认字幕
 
-- **关联**：和媒体同一文件夹、**完全同名**的 `.srt` 优先，其次 `.ass`；再其次同名加后缀（`<视频名>.ja.srt`，日语后缀优先），再其次同一文件夹 `Subs` / `字幕` 子文件夹里的。只关联，导入要另外做。要求 UTF-8。
+- **关联**：和媒体同一文件夹、**完全同名**的 `.srt` 优先，其次 `.ass`；再其次同名加后缀（`<视频名>.ja.srt`，日语后缀优先），再其次同一文件夹的字幕子文件夹（`Subs`、`Sub`、`Subtitles`、`字幕` 等，不分大小写）里的。只关联，导入要另外做。要求 UTF-8。
 - **不读**视频文件里内挂的字幕流；图形字幕（PGS、VobSub）是图片，不是文字。
 - **ASS**：所有样式的 Dialogue 都读进来，不按样式区分（双语字幕的中文那条也会变成台词）；`{…}` 特效标签、`<…>` 去掉，`\N` 是换行，Comment 行不读。
 - **每一行的解释**（规则在设置里，可改）：
@@ -33,7 +33,7 @@ otto call sources.rescan --wait                            # 改过、新加过�
 | 已登记原素材的关联字幕，导入前预览 | `subtitles.preview {"sourceId"}` / `subtitles.previewMany {"sourceIds"}`：`segments`、`speakers`（名字和次数）、`hints`（音效）、`oped`、`problems`、`token` |
 
 导入：把预览给的 `token` 交给 `subtitles.import` / `subtitles.importMany {"items": [{"sourceId", "token"}]}`；字幕里的 OP/ED 标记一起导入。
-**重新导入**只替换和新字幕时间有交叠的旧对象；时间不交叠的旧段会留下（按规格），要删就用编辑。
+**重新导入**只替换和新字幕时间有交叠的旧对象；时间不交叠的旧段会留下（按规格），要删就用编辑。新字幕碰到**受保护**的旧对象（段被改过、或有手动音素；音效提示被改过或手动加的；OP/ED 人工标过）时，这一条新字幕跳过（预览里 `status: skip`、`reason: protected`）；`options` 里 `replace: false` 则保留所有旧对象，`force` 可以逐条强制替换（`otto describe subtitles.preview`）。
 
 ## 准备清单
 
@@ -54,7 +54,7 @@ otto call sources.rescan --wait                            # 改过、新加过�
 
 - `studio.status`：PyMSS Studio 装没装、有哪些模型（`ok` 为 false 就告诉所有者装 PyMSS Studio）。
 - `separation.submit {"assetId", "model"}` 分离整条；加 `start` / `end`（资产秒）只分离一段；`ranges: [[start, end], ...]` 一次分离多段——拼成一个输入一起分离（Studio 按约 22 秒的块推理，短段单独交也按整块算）。结果 `separation.results {"jobId"}`：每个声部一条新音轨，带时间映射。
-  局部分离出来的声部只盖住那一段，人声声部自动带人声角色。完全相同的请求（同一条轨、同一段、同一模型）直接返回已有结果（`reused`；多段时已分离过的段进 `reused`，其余的进任务）；局部分离的每个声部还会自动建一个采样；范围不同（哪怕重叠）就是新的一份。整集分离要十几到几十分钟（长任务的等法见总览第 5 条）。
+  局部分离出来的声部只盖住那一段，人声声部自动带人声角色；**局部分离的每个声部还会自动建一个采样**（整轨分离不建）——这些采样撤销不了，删除要所有者确认，多段分离就会建很多个。完全相同的请求（同一条轨、同一段、同一模型）直接返回已有结果（`reused`；多段时已分离过的段进 `reused`，其余的进任务）；范围不同（哪怕重叠）就是新的一份。整集分离要十几到几十分钟（长任务的等法见总览第 5 条）。
 - 默认人声 / 音效轨必须盖住整个原素材，局部声部不能当默认轨。但需要指定音轨的地方都能直接给它：
   `speech.preview` / `speech.submit` 加 `"assetId"` 就用那条轨分析（只分析落在它范围里的段），`samples.create`、`exports.wav`、原始能力也都收 `assetId`。
 - 一句台词的音素只有一份，属于原素材的时间线：不论用哪条轨分析，原混音、整轨人声、局部声部上都读同一份。
@@ -62,11 +62,11 @@ otto call sources.rescan --wait                            # 改过、新加过�
 
 ## 任务与队列
 
-分离、语音分析、测音高走“模型”通道，扫描等走“轻量”通道；同时跑几个由设置 `jobs.concurrency_model`（默认 1）/ `jobs.concurrency_light`（默认 2）决定
+分离、语音分析、测音高（包括原始能力 `speech.align`、`f0.track`）走“模型”通道，扫描、`text.analyze` 等走“轻量”通道；同时跑几个由设置 `jobs.concurrency_model`（默认 1）/ `jobs.concurrency_light`（默认 2）决定
 （`settings.list` 读，`edits.apply` 的 `setting` 实体改）。排队时你和所有者提交的任务先于应用自动准备的任务，其余按提交顺序；运行中的不会被打断，没有插队命令
 （必要时 `jobs.cancel` 排队中的任务、之后再提交）。分离成功后中间文件会自动删掉，失败的保留现场。
 
 ## 分析成功 ≠ 对得准
 
-对齐只在“段的时间 ± 设置里的容差（默认前 0.1、后 0.2 秒）”这个窗口里找，并且总会把整句塞进窗口——
-段的边界偏了，音素会被硬拉到旁边的声音上，任务照样成功。边界要先大致对准（误差在零点几秒内），再分析（主题 `primitives` 有试验数字）。
+对齐只在“段的时间 ± 设置里的容差（`analysis.tolerance_before` / `analysis.tolerance_after`，默认各 0.65 秒；`settings.list` 看当前值）”这个窗口里找，并且总会把整句塞进窗口——
+段的边界偏了，音素会被硬拉到旁边的声音上，任务照样成功。边界和实际说话差零点几秒以上时，结果就不可靠（主题 `primitives` 有试验数字）。

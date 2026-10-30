@@ -1,7 +1,8 @@
 # Export
 
 Exports are written under the workspace (`Library/Exports` by default; `exports.wav` takes a `directory` to write elsewhere) with names built by the app's naming rule; the command returns the
-paths. Copy files from there to where you need them; do not rename or delete inside the workspace.
+paths. Copy files from there to where you need them; do not rename or delete inside the workspace. `content` / `track` of `exports.wav` are required (they are only words in the file name).
+When an existing video export is reused, the call returns `path` directly (no job and no `video`).
 
 | What | Command |
 |---|---|

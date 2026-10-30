@@ -645,9 +645,9 @@ class LanguageProfile(Protocol):
 
 ### 15.4 命令目录与命令行
 
-- `docs/api/commands.json`（目录版本 2）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
+- `docs/api/commands.json`（目录版本 3：每条带 `layer`）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
 - 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包启动器 L46）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
-  `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
+  `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 
 ### 15.5 说明书（三层，所有者 2026-10-30）
@@ -657,7 +657,7 @@ class LanguageProfile(Protocol):
 - **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
 - 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
   agent 自己下载、按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、「安装 otto 命令」
-  （`~/.local/bin/otto` 链接；Windows 未实现）和「复制给 agent 的开场白」（`app/shared/repo.ts` 里的仓库地址，发布前是占位）。
+  （`~/.local/bin/otto` 链接；Windows 未实现）和「复制给 agent 的开场白」（skill 地址在 `app/shared/repo.ts`：`raw.githubusercontent.com/Axolyz/OttoSmasher/main/skills/ottosmasher/SKILL.md`）。
   `otto status` 的 `environment` 报 otto 的位置、模型、PyMSS Studio、有没有 playbook，并给出 `hints`；`otto setup playbook` / `otto setup audio`（只打印接 audio-mcp 的命令 / 配置）。
 - `otto session`：这个会话的任务与修改，长任务之后接着干用。
 

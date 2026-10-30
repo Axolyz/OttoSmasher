@@ -2,7 +2,7 @@
 
 Commands come in two layers (`otto commands --layer library|primitive`): **library commands** work on objects in the library (sources, samples, edits, undo);
 **primitives** only compute and never change the library, and their sound can be a track in the library or any file, no registration needed. Both layers use the same engine and models, so results match the app.
-Use library commands when the result should stay in the library (searchable, undoable); use primitives to just compute something, or to work on sound outside the library.
+Use library commands when the result should stay in the library (searchable, usable later); use primitives to just compute something, or to work on sound outside the library.
 
 ## Register first, or call directly?
 
@@ -12,7 +12,7 @@ It depends on whether the result should stay and connect to the rest of the libr
 |---|---|---|
 | A one-off answer: check how a line reads or its timing, look at the pitch of a stretch, see how a subtitle file would be read | primitives, give the file directly | nothing enters the library, nothing to clean up |
 | **Separation** | register first | separation only takes tracks in the library (`separation.submit` needs an `assetId`); there is no un-stored separation |
-| Samples, search, beat-fitting, stretched exports, or anything the owner should see in the app and be able to undo | register first, use library commands | these only work on library objects |
+| Samples, search, beat-fitting, stretched exports, or anything the owner should see in the app | register first, use library commands | these only work on library objects; note that partial separation creates samples automatically (topic `prepare`) |
 | The same file used again and again (analysis, alignment, pitch several times) | register first | speech analysis is stored once and read afterwards; primitives recompute every time, and their results stay only in that job — not searchable, no samples |
 
 What registering costs: the app then prepares in the background (pitch measurement, search index), using the model channel for a while; **deleting a source cannot be undone and needs the owner's confirmation** — so do not register files you only want to compute something on once.
@@ -31,7 +31,7 @@ Without `start` / `end` the whole track is used.
 | `text.analyze {"texts": [...]}` | Japanese reading: phonemes, morae (katakana), words and readings (with the user dictionary) | `text.analyzeResults {"jobId"}` |
 | `f0.track <sound input>` | Pitch (FCPE, the same model as the app's pitch search): pitch, confidence and energy every 10 ms + median pitch | `f0.trackResults {"jobId"}` |
 | `subtitles.parse {"path", "duration"}` | How the app would read this subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs) | returned directly |
-| `subtitles.ruleTest`, `dictionary.check`, `spectrum.get` | How one subtitle line is read, user dictionary validation, the spectrum of a track range | returned directly |
+| `subtitles.ruleTest`, `dictionary.check`, `spectrum.get` | How one subtitle line is read, user dictionary validation, the spectrum of a track range (`spectrum.get` takes only an `assetId`, with a required range of at most 30 s) | returned directly |
 
 The first three are jobs: with `--wait` the call waits for the end and prints the per-item results too (`{"job", "results"}`). One failed item in a batch (e.g. text that is only symbols) does not affect the others.
 `subtitles.parse` decides OP vs ED from the media duration, so pass `duration` (by default the last cue's end is used and the decision may be wrong).

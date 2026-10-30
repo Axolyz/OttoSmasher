@@ -16,7 +16,7 @@ parameters from `otto describe`, and the owner's playbook (`otto guide playbook`
 ## Cleaning subtitles
 
 Goal: one UTF-8 `.srt` per episode with **exactly the same name** as the video, each cue holding only the words actually spoken; put the speaker in a leading bracket when you can tell, otherwise leave it out (fansub subtitles usually have no speakers; that is normal).
-The original `.ass` can stay (with the same name the app prefers `.srt`). Before changing the owner's files, keep a copy with a `backup_` prefix.
+The original `.ass` can stay (with the same name the app prefers `.srt`). (Keep a `backup_` copy before changing the owner's files — see the ground rules in the overview.)
 
 Common problems and fixes:
 - **Fansub bilingual Chinese–Japanese ASS** (most common): keep only the Japanese, by style name (`JP` / `CN` and the like) or by the text; when one event stacks two languages with `\N`, keep the Japanese line;
@@ -30,7 +30,7 @@ Common problems and fixes:
   against the voice (word times from a transcript, loudness on/offsets); shift everything for an overall offset, or from the point where it starts.
 - No subtitles: you may run speech recognition locally and write a same-name `.srt`.
 
-Checking the result: `subtitles.parse {"path"}`, or (for registered sources) `sources.rescan --wait` → `subtitles.preview {"sourceId"}`;
+Checking the result: `subtitles.parse {"path", "duration"}`, or (for registered sources) `sources.rescan --wait` → `subtitles.preview {"sourceId"}`;
 look at `speakers` (pieces of speech, readings or odd names = brackets left over), `problems`, the `text` to be aligned, and `oped`.
 
 ## Retiming: rough first, then refine with alignment

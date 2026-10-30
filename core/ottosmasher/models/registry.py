@@ -91,7 +91,17 @@ def locate(model_id: str, rel_path: str, models_dir: Path, support_dir: Path) ->
 
 
 def file_path(f: ModelFile, models_dir: Path, support_dir: Path) -> Path:
-    return (models_dir if f.role == "weight" else support_dir) / f.rel_path
+    """权重：工作区 Models/ 里有就用它（导入的替换版本），否则用随包的（发布版，2026-10-30 所有者：除 PyMSS 外模型随包）。"""
+    if f.role != "weight":
+        return support_dir / f.rel_path
+    p = models_dir / f.rel_path
+    if not p.exists():
+        from .. import resources
+
+        bundled = resources.bundled_models()
+        if bundled is not None and (bundled / f.rel_path).is_file():
+            return bundled / f.rel_path
+    return p
 
 
 def snapshot(path: Path) -> tuple[int, int] | None:
@@ -171,4 +181,6 @@ def default_support_dir() -> Path:
     env = os.environ.get("OTTO_MODEL_SUPPORT_DIR")
     if env:
         return Path(env)
-    return Path(__file__).resolve().parents[3] / "third_party" / "model-support"
+    from .. import resources
+
+    return resources.root() / "third_party" / "model-support"

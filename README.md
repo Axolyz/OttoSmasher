@@ -97,7 +97,7 @@
 
    ```
    我电脑上开着 OttoSmasher，请用它的命令行 otto 操作（<otto 的位置>）。
-   第一次用的话，从 https://github.com/Axolyz/OttoSmasher/blob/main/skills/ottosmasher/SKILL.md 下载这个 skill，按你的工具的方式装到当前项目（不要装成全局）；
+   第一次用的话，从 https://raw.githubusercontent.com/Axolyz/OttoSmasher/main/skills/ottosmasher/SKILL.md 下载这个 skill，按你的工具的方式装到当前项目（不要装成全局）；
    你的工具不支持 skill，就把它的内容存进项目的长期说明。
    任务：……
    ```

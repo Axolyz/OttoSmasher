@@ -45,7 +45,9 @@ def native_dir() -> Path:
     env = os.environ.get("OTTO_NATIVE_DIR")
     if env:
         return Path(env)
-    return Path(__file__).resolve().parents[3] / "third_party" / "native" / platform_tag()
+    from .. import resources
+
+    return resources.root() / "third_party" / "native" / platform_tag()
 
 
 def native() -> ModuleType:

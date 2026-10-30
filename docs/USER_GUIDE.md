@@ -438,13 +438,12 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 
 **长任务**：整集分离要十几到几十分钟。能在后台等的 agent（例如 Claude Code）会后台等，不耗 token；不能的会明确告诉你“先停在这里，跑完后对我说继续”，
 你回来说一句“继续”，它用 `otto session` 看这个会话的任务结果接着做。
-3. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
 
 **示例提示词**
 ```
-用 otto 操作我开着的 OttoSmasher（先运行 otto guide 读说明书，设 OTTO_AGENT_SESSION=game-1）。
-~/Movies/otomad素材/某番 里是新下的几集和字幕：先把字幕清理成说明书要求的写法（改之前把计划给我看），
-登记文件夹，把准备清单做完（分离用 HyperACE v2），把说到游戏的台词都建成语音采样、分析、打上 topic:game，
+（先贴设置里复制的开场白）
+任务：~/Movies/otomad素材/某番 里是新下的几集和字幕。登记文件夹、整集分离（用 HyperACE v2），对着人声把字幕洗干净（改文件之前把计划给我看），
+导入字幕，把说到游戏的台词都建成语音采样、分析、打上 topic:game，
 然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中导出到 ~/Desktop/game-hits。做完告诉我建了哪些采样、哪些拿不准。
 ```
 

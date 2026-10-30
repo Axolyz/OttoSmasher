@@ -1,4 +1,4 @@
-# Samples: choose lines, create, analyse, tag
+# Samples: creating, speech analysis, tags, finding
 
 ## Read the lines
 

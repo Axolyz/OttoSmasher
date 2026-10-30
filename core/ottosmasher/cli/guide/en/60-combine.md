@@ -1,7 +1,7 @@
 # Your judgement and tools, written back into the app
 
-The app is the library and the analysis engine; judgement and other tools are yours. The pattern is always: **read the data → decide or
-process it yourself → write the conclusion back into the app**.
+The app is the library and the analysis engine; judgement and other tools are yours: you read the data, decide or process it yourself,
+and write back the conclusions that should stay.
 
 ## Where conclusions go
 
@@ -16,7 +16,7 @@ process it yourself → write the conclusion back into the app**.
 | processed audio goes back into the library | `reimport.preview {"assetId", "start", "path"}` → `reimport.commit` |
 | a picture or clip as a sample's picture | `visuals.bind {"ownerType": "sample", "ownerId", "path"}` |
 
-All of these are undoable and recorded under your session.
+All are recorded under your session. Edits (tags, segments, OP/ED, default tracks, pictures) can be undone; newly created samples (`samples.plan` / `samples.create`) and reimported tracks cannot — they can only be deleted (with the owner's confirmation).
 
 ## Getting the raw material
 

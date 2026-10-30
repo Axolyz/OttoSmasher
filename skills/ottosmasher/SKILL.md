@@ -6,7 +6,7 @@ description: "Operate the OttoSmasher desktop app (otomad / 音MAD sample librar
 # OttoSmasher
 
 OttoSmasher is a desktop app for building otomad sample libraries. You operate the **running** app through its command line `otto`:
-everything you do shows up in the app and can be undone there. This skill is only an entry point — the instructions themselves come
+everything you do shows up in the app (edits can be undone there; newly created samples and sources cannot). This skill is only an entry point — the instructions themselves come
 from `otto`, so they always match the version the user has installed.
 
 ## Find `otto`
@@ -15,7 +15,8 @@ from `otto`, so they always match the version the user has installed.
 2. Otherwise the full path shown in that same settings section — ask the user to copy it.
 3. In a source checkout of the repository: `tools/otto` (Windows: `tools\otto.cmd`).
 
-`otto status` tells you whether the app is running and what is missing in the environment; if it is not running, ask the user to open the app.
+`otto status` tells you whether the app is running, which workspace it talks to and what is missing in the environment; if it is not running, ask the user to open the app.
+If the user's workspace is not in the default place, set `OTTO_WORKSPACE` to it (or pass `--workspace`).
 
 ## Then
 

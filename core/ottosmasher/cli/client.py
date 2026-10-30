@@ -21,7 +21,9 @@ class LinkClient:
     @classmethod
     def from_env(cls) -> LinkClient:
         """给 agent 自己的脚本用（``otto run script.py``）：工作区、会话、来源都取 otto 设好的环境变量。"""
-        ws = os.environ.get("OTTO_WORKSPACE") or str(Path(__file__).resolve().parents[3] / "dev-workspace")
+        from .. import resources
+
+        ws = os.environ.get("OTTO_WORKSPACE") or str(resources.default_workspace())
         return cls(Path(ws).expanduser(), kind=os.environ.get("OTTO_AGENT_KIND", "agent"), session=os.environ.get("OTTO_AGENT_SESSION"))
 
     def __init__(self, workspace: Path, *, kind: str = "agent", session: str | None = None) -> None:

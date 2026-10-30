@@ -4,7 +4,7 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 维护一个带标签的**采样**库，按节奏或音高找采样，导出 WAV、视频片段和 REAPER 条目。
 
 你用命令行 `otto` 操作它。`otto` 连接**正在运行的应用**（所有者开着它），调用的就是应用界面自己用的那组命令，
-所以你做的一切都会出现在应用里，也能在应用里撤销。
+所以你做的一切都会出现在应用里；对资料的修改能在应用里撤销，新建的采样、原素材、音轨撤销不了（主题 `undo`）。
 
 ## 分工
 
@@ -29,7 +29,9 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 ## 基本规则
 
 1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、有没有约定文件）。显示 `"running": false`（退出码 2）就请所有者打开应用。
-   不要自己打开数据库或 `Library/` 文件夹，只用命令。原素材的媒体文件和字幕可以直接读。
+   `otto status` 也写着连的是哪个**工作区**（`workspace`）；所有者的工作区不在默认位置时设 `OTTO_WORKSPACE`（或 `--workspace`），`"running": false` 也可能是应用开在别的工作区上。
+   不要直接读写数据库；`Library/` 里只读或复制命令返回给你的路径，不在里面改名、删除或写东西。
+   **所有者的文件**（原素材的媒体与字幕）可以读；改之前（例如写一份同名字幕）先在旁边留一份 `backup_` 前缀的原件，媒体文件不改不删。你自己的工作文件放在自己的临时目录，不放进工作区或素材文件夹，做完说明留下了什么。
 2. **每个任务设一次会话 ID**：`export OTTO_AGENT_SESSION=<简短任务名>`。你的每个修改都记在它名下，
    之后所有者（或你）可以整批撤回这个会话（主题 `undo`）。
 3. **stdout 只输出 JSON**，进度写在 stderr。退出码：`0` 成功，`1` 业务错误（JSON 里的 `error.code`），
@@ -64,6 +66,6 @@ otto run my_script.py                     # 一次要调很多命令时写成 Py
 
 ## 主题
 
-`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部）：
+`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印本说明书的全部主题，不含 notes 与 playbook）：
 `concepts`、`prepare`、`samples`、`search`、`primitives`、`export`、`combine`、`scripts`、`undo`；另有 `notes`（做法与经验）、`playbook`（所有者的约定）。
 辅助：`otto setup playbook`（在工作区生成所有者约定的模板）、`otto setup audio --for claude-code|codex|other`（接音频工具的命令或配置）。

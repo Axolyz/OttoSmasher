@@ -16,9 +16,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .. import resources
 from ..core.errors import ERRORS, CoreError
 
-ROOT = Path(__file__).resolve().parents[3]
 GUIDE = Path(__file__).resolve().parent / "guide"
 LANGS = ("zh-CN", "en")
 TERMINAL_JOB = ("succeeded", "failed", "cancelled", "interrupted")
@@ -101,7 +101,7 @@ def workspace_of(args: argparse.Namespace) -> Path:
     env = os.environ.get("OTTO_WORKSPACE")
     if env:
         return Path(env).expanduser()
-    return ROOT / "dev-workspace"  # 开发期默认（与 app/main/paths.ts 相同）；发布版的默认位置见 ROADMAP L46
+    return resources.default_workspace()  # 与 app/main/paths.ts 相同：源码运行 = dev-workspace，发布版 = ~/Documents/OttoSmasher Workspace
 
 
 def session_of(args: argparse.Namespace) -> str:
@@ -124,7 +124,7 @@ def connect(args: argparse.Namespace):  # noqa: ANN201
 
 @lru_cache(maxsize=4)
 def export_words(lang: str) -> dict[str, str] | None:
-    path = ROOT / "app" / "renderer" / "i18n" / "locales" / f"{lang}.json"
+    path = resources.root() / "app" / "renderer" / "i18n" / "locales" / f"{lang}.json"
     try:
         texts = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -431,7 +431,7 @@ def playbook_path(ws: Path) -> Path:
 
 def otto_command() -> str:
     """agent 该怎么叫 otto：开发版 = 仓库里的 tools/otto；发布版的启动器见 ROADMAP L46。"""
-    dev = Path(__file__).resolve().parents[3] / "tools" / ("otto.cmd" if sys.platform == "win32" else "otto")
+    dev = resources.root() / ("bin" if resources.packaged() else "tools") / ("otto.cmd" if sys.platform == "win32" else "otto")
     return str(dev) if dev.is_file() else "otto"
 
 
@@ -503,7 +503,7 @@ def cmd_session(args: argparse.Namespace) -> None:
     with connect(args) as c:
         jobs = [j for j in c.call("jobs.list", {"limit": 500}) if (j.get("actor") or {}).get("session") == s]
         edits = c.call("edits.history", {"session": s, "limit": 200})
-    keep = ("id", "kind", "status", "progress", "error", "items", "created_at", "finished_at")
+    keep = ("id", "kind", "status", "progress", "error", "items", "result", "created_at", "finished_at")  # result：视频路径、检索结果等
     out({"session": s,
          "jobs": [{k: j[k] for k in keep if k in j} for j in jobs],
          "running": sum(1 for j in jobs if j["status"] in ("queued", "running")),
@@ -556,7 +556,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("script")
     p.add_argument("args", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_run)
-    p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, recipes, rules)")
+    p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, commands, rules); also `notes` and `playbook`")
     p.add_argument("topic", nargs="?")
     p.add_argument("--lang", choices=LANGS)
     p.add_argument("--all", action="store_true", help="print every topic")
