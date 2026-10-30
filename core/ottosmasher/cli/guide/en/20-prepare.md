@@ -64,10 +64,10 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 Separation, speech analysis and pitch measurement (including the primitives `speech.align` and `f0.track`) use the "model" channel; scans, `text.analyze` etc. use the "light" channel. How many run at once is set by
 `jobs.concurrency_model` (default 1) / `jobs.concurrency_light` (default 2) (read with `settings.list`, change with `edits.apply`, entity `setting`).
-While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; running jobs are never interrupted
-and there is no reorder command (if needed, `jobs.cancel` queued jobs and submit them again later). A successful separation deletes its intermediate files; a failed one keeps them.
+While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; `jobs.promote` moves a queued job to the front of its channel
+(the most recently promoted first); running jobs are never interrupted. A successful separation deletes its intermediate files; a failed one keeps them.
 
 ## A successful analysis is not proof of a good alignment
 
-Alignment only looks inside "the segment's time ± the tolerance in the settings (`analysis.tolerance_before` / `analysis.tolerance_after`, 0.65 s each by default; current values in `settings.list`)", and it always fits the whole line into that window —
+Alignment only looks inside "the segment's time ± the tolerance in the settings (`analysis.tolerance_before` / `analysis.tolerance_after`, 0.2 s each by default; current values in `settings.list`)", and it always fits the whole line into that window —
 when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds. When boundaries are off from the actual speech by more than a few tenths of a second, the result is unreliable (numbers in topic `primitives`).

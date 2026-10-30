@@ -98,7 +98,7 @@ def test_source_entry_analyzes_segments_without_samples(core):
     assert (pv["run"], pv["fresh"], pv["blocked"]) == (2, 0, 0) and pv["mixBound"] == 2  # 没有默认人声轨：原混音
     # 目标 = 段区间（不含字幕采样扩展），窗口 = 目标 ± 容差
     it = next(i for i in core.speech.plan("source", [core.sid], False)["run"] if i["owner"] == unit(core, a))
-    assert it["target"] == [pytest.approx(1.0), pytest.approx(2.0)] and it["window"][0] == pytest.approx(0.35)
+    assert it["target"] == [pytest.approx(1.0), pytest.approx(2.0)] and it["window"][0] == pytest.approx(0.8)
     _run(core, [core.sid], entry="source")
     assert core.speech.preview("source", [core.sid], False)["fresh"] == 2
     layer = core.speech.for_asset(core.aid, 0.0, 20.0)
@@ -113,10 +113,10 @@ def test_source_entry_analyzes_segments_without_samples(core):
 
 
 def test_window_truncation_at_asset_edges(core):
-    a, b = seg(core, 0.3, 1.0), seg(core, 19.5, 20.0)
+    a, b = seg(core, 0.1, 1.0), seg(core, 19.5, 20.0)
     run = {i["owner"]: i for i in core.speech.plan("segments", [a, b], False)["run"]}
     ia, ib = run[unit(core, a)], run[unit(core, b)]
-    assert ia["window"][0] == pytest.approx(0.0) and ia["truncated"] == [True, False] and ia["actual"][0] == pytest.approx(0.3)
+    assert ia["window"][0] == pytest.approx(0.0) and ia["truncated"] == [True, False] and ia["actual"][0] == pytest.approx(0.1)
     assert ib["window"][1] == pytest.approx(20.0) and ib["truncated"] == [False, True]
 
 

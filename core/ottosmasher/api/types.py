@@ -427,6 +427,8 @@ class JobSummary(TypedDict):
     finished_at: str | None
     # 自动准备之类的后台任务（排在用户提交的任务后面）
     background: NotRequired[bool]
+    # 排队时被提到最前（jobs.promote）
+    promoted: NotRequired[bool]
     actor: NotRequired[Actor]
 
 

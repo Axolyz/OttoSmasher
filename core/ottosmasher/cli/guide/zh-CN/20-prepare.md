@@ -63,10 +63,10 @@ otto call sources.rescan --wait                            # 改过、新加过�
 ## 任务与队列
 
 分离、语音分析、测音高（包括原始能力 `speech.align`、`f0.track`）走“模型”通道，扫描、`text.analyze` 等走“轻量”通道；同时跑几个由设置 `jobs.concurrency_model`（默认 1）/ `jobs.concurrency_light`（默认 2）决定
-（`settings.list` 读，`edits.apply` 的 `setting` 实体改）。排队时你和所有者提交的任务先于应用自动准备的任务，其余按提交顺序；运行中的不会被打断，没有插队命令
-（必要时 `jobs.cancel` 排队中的任务、之后再提交）。分离成功后中间文件会自动删掉，失败的保留现场。
+（`settings.list` 读，`edits.apply` 的 `setting` 实体改）。排队时你和所有者提交的任务先于应用自动准备的任务，其余按提交顺序；`jobs.promote` 把排队中的任务提到同一通道最前面
+（最近提的在前），运行中的不会被打断。分离成功后中间文件会自动删掉，失败的保留现场。
 
 ## 分析成功 ≠ 对得准
 
-对齐只在“段的时间 ± 设置里的容差（`analysis.tolerance_before` / `analysis.tolerance_after`，默认各 0.65 秒；`settings.list` 看当前值）”这个窗口里找，并且总会把整句塞进窗口——
+对齐只在“段的时间 ± 设置里的容差（`analysis.tolerance_before` / `analysis.tolerance_after`，默认各 0.2 秒；`settings.list` 看当前值）”这个窗口里找，并且总会把整句塞进窗口——
 段的边界偏了，音素会被硬拉到旁边的声音上，任务照样成功。边界和实际说话差零点几秒以上时，结果就不可靠（主题 `primitives` 有试验数字）。

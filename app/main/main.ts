@@ -190,8 +190,8 @@ ipcMain.on("files:startDrag", (e, files: unknown) => {
   const ok = files.filter((f): f is string => typeof f === "string" && existsSync(f) && statSync(f).isFile());
   if (ok.length !== files.length) return;
   if (!dragIcon) {
-    // 1×1 透明图：Electron 把拖拽图居中放在指针上，而 Finder（图标视图）等按图的左上角放文件——
-    // 原来 48 点的图标会让文件落在指针左上方 24 点处（所有者 2026-10-30 报告）。图小到 1 点，左上角就是指针。
+    // 1×1 透明图：Electron 把拖拽图居中放在指针上，有的软件按图的左上角而不是指针放文件——
+    // 原来 48 点的图标在 HiFiShifter 里落在指针左上方（所有者 2026-10-30；Logic Pro 按指针，没问题）。图小到 1 点，左上角就是指针。
     // macOS 不接受空图（createEmpty 会让 startDrag 抛错），所以用一个透明像素。
     dragIcon = nativeImage.createFromBitmap(Buffer.alloc(4), { width: 1, height: 1 });
   }

@@ -96,9 +96,11 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   const times = page.getByTestId("speech-times-text");
   const lines = (await times.inputValue()).split("\n");
   const [a0, b0, l0] = lines[0]!.split("\t");
-  const nb = (Number(b0) - 0.02).toFixed(3);
-  lines[0] = [a0, nb, l0].join("\t");
   const [, b1, l1] = lines[1]!.split("\t");
+  // 前两个音素的分界挪到两者合起来的中点（第一个音素可能只有一点落在采样里，固定减几十毫秒会不合法）
+  let nb = ((Number(a0) + Number(b1)) / 2).toFixed(3);
+  if (nb === b0) nb = ((Number(a0) + Number(nb)) / 2).toFixed(3);
+  lines[0] = [a0, nb, l0].join("\t");
   lines[1] = [nb, b1, l1].join("\t");
   await times.fill(lines.join("\n"));
   await page.getByTestId("speech-times-save").click();

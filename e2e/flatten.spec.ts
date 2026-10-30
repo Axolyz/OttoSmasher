@@ -126,7 +126,9 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await bsheet.getByTestId("flatten-batch-go").click();
   await page.getByTestId("nav-tasks").click();
   const bjob = page.getByTestId("job").filter({ hasText: "拉平" }).first();
-  await expect(bjob).toHaveAttribute("data-status", "succeeded", { timeout: 60000 });
+  // 一条都没做成 = 任务失败（L51），结果表照样能打开
+  await expect(bjob).toHaveAttribute("data-status", "failed", { timeout: 60000 });
+  await expect(bjob).toContainText("全部 1 条都没有做成");
   await expect(bjob.getByTestId("speech-summary")).toHaveText("0 条成功 · 1 条失败");
   await bjob.getByTestId("job-results").click();
   const res = bjob.getByTestId("flatten-results");

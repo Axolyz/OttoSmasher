@@ -75,7 +75,7 @@ test("真实素材 YY1-01：原素材入口语音分析、再发起跳过、舞�
   type Row = { id: string; name: string; asset_id: string; start: number; end: number; analysis: string };
   const all = await req<{ rows: Row[] }>("samples.list", { offset: 0, limit: 500, text: "アッカリ" });
   const ak = all.rows.find((r) => r.name === "アッカリ～ン")!;
-  // 对齐窗口 = 段 ± 0.65 秒，采样 = 段 ± 0.1 秒：边上的音素伸出采样范围时是 ◐（只读到这段的一部分）
+  // 对齐窗口 = 段 ± 0.2 秒，采样 = 段 ± 0.1 秒：边上的音素伸出采样范围时是 ◐（只读到这段的一部分）
   expect(["ok", "partial"]).toContain(ak.analysis);
   console.log("akkarin analysis", ak.analysis);
   type Phones = { phones: Array<{ label: string; start: number; end: number }> };

@@ -147,6 +147,8 @@ class Core:
         r("jobs.submit", "job", T.JobSubmitParams, T.JobSummary, "Submit a job of a registered kind (low-level; prefer the specific commands).",
           lambda p: self.jobs.submit(p["kind"], p.get("params", {}), p.get("affects")))
         r("jobs.cancel", "job", T.IdParams, T.JobSummary, "Cancel a queued or running job (kills its whole process tree).", lambda p: self.jobs.cancel(p["id"]))
+        r("jobs.promote", "job", T.IdParams, T.JobSummary,
+          "Move a queued job to the front of its channel's queue (running jobs are not interrupted).", lambda p: self.jobs.promote(p["id"]))
         r("jobs.retry", "job", T.IdParams, T.JobSummary, "Retry a failed, cancelled or interrupted job as a new job.", lambda p: self.jobs.retry(p["id"]))
         # ---- 原片
         r("sources.add", "write", T.SourcesAddParams, list[T.AddResult], "Register source files (each succeeds or fails on its own).",

@@ -238,8 +238,8 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
             if ev is not None and ev["e"] == "exports.videoDone" and ev["d"].get("jobId") == job["id"]:
                 done = ev["d"]
         return {"job": final, "video": done}, done is not None
-    if ok and method in PRIMITIVE_RESULTS:
-        # 原始能力的任务：结果在任务目录里，跟着读出来（逐条；单条失败写在条目里）
+    if method in PRIMITIVE_RESULTS and (ok or (final.get("error") or {}).get("code") == "job-all-items-failed"):
+        # 原始能力的任务：结果在任务目录里，跟着读出来（逐条；单条失败写在条目里，全部失败时也读出原因）
         rows: list[Any] = []
         while True:
             page = client.call(PRIMITIVE_RESULTS[method], {"jobId": job["id"], "offset": len(rows), "limit": 200})

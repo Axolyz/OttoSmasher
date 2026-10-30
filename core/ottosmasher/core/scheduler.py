@@ -5,6 +5,8 @@
 - 排队任务不占进程；取消排队任务直接改为“已取消”。
 - 取消运行中的任务 = 结束它的整棵进程树；结果不登记。
 - 重试 = 相同业务参数的新任务（新 ID），设备设置用**当前**设置。
+- 排队顺序：提到最前的（最近提的在前）→ 用户提交的 → 后台的，各自按提交时间（L50）。
+- 有逐条工作、一条都没做成 = 失败（``job-all-items-failed``）；结果与逐条原因照样登记（L51）。
 - Core 启动时，上次没完成的（排队、运行中）标为“已中断”。
 
 数据库只在 Core 主线程访问：监视子进程的线程把回调投递回主线程（``post``）。
@@ -136,6 +138,15 @@ class Scheduler:
             raise CoreError("job-not-cancellable", id=jid, status=row["status"])
         return self.summary(jid)
 
+    def promote(self, jid: str) -> dict[str, Any]:
+        """排队中的任务提到同一通道的最前面（L50）；不打断运行中的。"""
+        row = self._row(jid)
+        if row["status"] != "queued":
+            raise CoreError("job-not-queued", id=jid, status=row["status"])
+        self.conn.execute("UPDATE job SET promote_seq=(SELECT COALESCE(MAX(promote_seq), 0) + 1 FROM job) WHERE id=?", (jid,))
+        self._emit(jid)
+        return self.summary(jid)
+
     def retry(self, jid: str) -> dict[str, Any]:
         row = self._row(jid)
         if row["status"] not in RETRYABLE:
@@ -191,7 +202,7 @@ class Scheduler:
             limit = int(self.get_setting(key))
             while self.running_count(channel) < limit:
                 row = self.conn.execute(
-                    "SELECT * FROM job WHERE status='queued' AND channel=? ORDER BY background, created_at, rowid LIMIT 1", (channel,)
+                    "SELECT * FROM job WHERE status='queued' AND channel=? ORDER BY promote_seq IS NULL, promote_seq DESC, background, created_at, rowid LIMIT 1", (channel,)
                 ).fetchone()
                 if row is None:
                     break
@@ -286,7 +297,8 @@ class Scheduler:
             except CoreError as exc:
                 self._finish(jid, "failed", error=exc.to_wire())
             else:
-                self._finish(jid, "succeeded", result=_small(run.result))
+                err = _all_failed(self._row(jid), run.result)
+                self._finish(jid, "failed" if err else "succeeded", error=err, result=_small(run.result))
                 if row["kind"] == "separate":
                     cleanup_separation(self.jobs_dir, jid)
         else:
@@ -307,6 +319,15 @@ class Scheduler:
                 hook(jid, kind, status)
             except Exception:  # noqa: BLE001 — 回调出错不影响任务记录
                 log.exception("finish hook failed")
+
+
+def _all_failed(row: sqlite3.Row, result: dict[str, Any]) -> dict[str, Any] | None:
+    """有逐条工作、一条都没做成 → 失败的原因；否则 None。语音分析里只有音高没测成不算（对齐结果在，记成提醒）。"""
+    if row["items_total"] and not row["items_ok"] and row["items_failed"]:
+        return {"code": "job-all-items-failed", "args": {"failed": row["items_failed"]}}
+    if row["kind"] == "f0.measure" and result.get("f0Errors") and not result.get("f0"):
+        return {"code": "job-all-items-failed", "args": {"failed": len(result["f0Errors"])}}
+    return None
 
 
 def _small(result: dict[str, Any]) -> dict[str, Any]:
@@ -335,6 +356,7 @@ def _summary(row: sqlite3.Row) -> dict[str, Any]:
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
         "background": bool(row["background"]),
+        "promoted": row["promote_seq"] is not None,
         # 谁提交的（用户 / 脚本 / agent + 会话；任务抽屉给命令行提交的任务一个小标记）
         "actor": {"kind": row["actor_kind"], "session": row["actor_session"]},
     }

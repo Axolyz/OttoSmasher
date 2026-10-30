@@ -138,11 +138,11 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("studio.device_id", 0, _int_range(0, 16), "studio"),
         # 分离声部名 → 角色别名表（规格 05 §5.4、推定 A9；不分大小写）
         SettingSpec("separation.role_aliases", [list(x) for x in rules_defaults()["separation.role_aliases"]], _role_aliases, "studio"),
-        # 语音分析：对齐前/后容差
+        # 语音分析：对齐前/后容差（默认各 0.2 秒：窗口要紧贴说话，放宽到 0.5 秒约一半句子偏 0.3 秒以上；所有者 2026-10-30）
         # 文本前端（08 §8.2.4）：用户辞典 = 源文本 + 编译产物名；只能由「保存」任务在编译成功后写入（产物名必须与内容一致）
         SettingSpec("frontend.user_dictionary", {"text": "", "compiled": None}, _user_dictionary, "frontend"),
-        SettingSpec("analysis.tolerance_before", 0.65, _float_range(0.0, 5.0), "analysis"),
-        SettingSpec("analysis.tolerance_after", 0.65, _float_range(0.0, 5.0), "analysis"),
+        SettingSpec("analysis.tolerance_before", 0.2, _float_range(0.0, 5.0), "analysis"),
+        SettingSpec("analysis.tolerance_after", 0.2, _float_range(0.0, 5.0), "analysis"),
         # 节奏（09 §9.3–§9.4、03 §3.7）：大数字惩罚度只作用于原节奏路线，改了只重建派生节奏；
         # 停顿灵敏度与语段阈值是**新采样**的默认值（创建时写进采样，之后可逐采样改；改设置不影响已有采样）
         SettingSpec("analysis.penalty", 1.0, _float_range(0.0, 3.0), "analysis"),

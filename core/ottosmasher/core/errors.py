@@ -68,6 +68,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "job-not-found": (("id",), "No such job."),
     "job-results-unavailable": (("id", "kind"), "This job's kind has no results of that type; use the results command that matches the job."),
     "job-not-cancellable": (("id", "status"), "Job already finished."),
+    "job-not-queued": (("id", "status"), "Only queued jobs can be moved to the front."),
+    "job-all-items-failed": (("failed",), "Every item of the job failed; per-item reasons are in its results."),
     "job-not-retryable": (("id", "status"), "Only failed, cancelled or interrupted jobs can be retried."),
     "job-interrupted": ((), "Job was running when the app exited."),
     "job-spawn-failed": (("reason",), "Could not start the job process."),

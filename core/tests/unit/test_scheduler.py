@@ -139,6 +139,40 @@ def test_retry_restores_batch_rows_without_old_results(h):
     assert h.db.execute("SELECT result_ref FROM job_item WHERE job_id=? AND idx=0", (old["id"],)).fetchone()[0] == "old.json"
 
 
+# L50 排队中的任务可以提到最前（最近提的在前，后台任务也一样），运行中的不打断
+def test_promote_moves_queued_job_to_front(h):
+    h.set("jobs.concurrency_light", 1)
+    a = h.s.submit("selftest.sleep", {"seconds": 30})
+    h.wait_status(a["id"], "running")
+    b = h.s.submit("selftest.sleep", {"seconds": 30})
+    c = h.s.submit("selftest.sleep", {"seconds": 30})
+    d = h.s.submit("selftest.sleep", {"seconds": 30}, background=True)
+    with pytest.raises(CoreError) as ei:
+        h.s.promote(a["id"])
+    assert ei.value.code == "job-not-queued"
+    assert h.s.promote(c["id"])["promoted"] is True
+    h.s.promote(d["id"])
+    order = [r[0] for r in h.db.execute(
+        "SELECT id FROM job WHERE status='queued' ORDER BY promote_seq IS NULL, promote_seq DESC, background, created_at, rowid")]
+    assert order == [d["id"], c["id"], b["id"]]
+    h.s.cancel(a["id"])
+    h.wait_status(d["id"], "running")
+    assert h.status(a["id"]) == "cancelled" and h.status(c["id"]) == h.status(b["id"]) == "queued"
+
+
+# L51 有逐条工作、一条都没做成 = 失败；结果照样登记。有一条做成就是成功
+@pytest.mark.parametrize("statuses, expect", [(["failed", "failed"], "failed"), (["ok", "failed"], "succeeded")])
+def test_all_items_failed_fails_the_job(h, statuses, expect):
+    job = h.s.submit("selftest.sleep", {"seconds": 0.1})
+    h.s.add_items(job["id"], [("a", "queued"), ("b", "queued"), ("c", "skipped")])
+    for i, st in enumerate(statuses):
+        h.s._item(job["id"], {"idx": i, "status": st, "error": None if st == "ok" else {"code": "selftest-failed", "args": {}}})
+    h.wait_status(job["id"], "succeeded", "failed")
+    s = h.s.summary(job["id"])
+    assert s["status"] == expect and s["result"]["slept"] == 0.1
+    assert s["error"] == ({"code": "job-all-items-failed", "args": {"failed": 2}} if expect == "failed" else None)
+
+
 # R19.2 取消只结束本任务的进程树
 def test_cancel_kills_only_its_own_tree(h, ws):
     a = h.s.submit("selftest.sleep", {"seconds": 60, "children": 2})

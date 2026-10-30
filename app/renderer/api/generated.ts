@@ -842,6 +842,7 @@ export interface JobSummary {
   items: JobItems | null;
   kind: string;
   progress: JobProgress | null;
+  promoted?: boolean;
   result: unknown;
   retry_of: string | null;
   separationDevice?: SeparationDevice;
@@ -2960,6 +2961,8 @@ export interface Commands {
   "jobs.cancel": { params: IdParams; result: JobSummary; effect: "job" };
   /** Recent jobs, newest first. */
   "jobs.list": { params: JobsListParams; result: JobSummary[]; effect: "read" };
+  /** Move a queued job to the front of its channel's queue (running jobs are not interrupted). */
+  "jobs.promote": { params: IdParams; result: JobSummary; effect: "job" };
   /** Retry a failed, cancelled or interrupted job as a new job. */
   "jobs.retry": { params: IdParams; result: JobSummary; effect: "job" };
   /** Submit a job of a registered kind (low-level; prefer the specific commands). */
@@ -3301,11 +3304,13 @@ export type ErrorCode =
   | "import-expired"
   | "independ-invalid"
   | "internal-error"
+  | "job-all-items-failed"
   | "job-exception"
   | "job-interrupted"
   | "job-kind-unknown"
   | "job-not-cancellable"
   | "job-not-found"
+  | "job-not-queued"
   | "job-not-retryable"
   | "job-not-succeeded"
   | "job-results-unavailable"

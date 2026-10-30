@@ -44,6 +44,26 @@ test("三页常驻、设置走编辑通道且可撤销、任务可取消与重�
   await page.screenshot({ path: ".cache/playwright-results/shell-tasks.png" });
   await page.getByTestId("job").first().getByRole("button", { name: "取消" }).click();
   await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "cancelled");
+
+  // 提到最前（L50）：模型通道一次一个；第三个提前后，第一个结束时先跑它
+  const ids: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    ids.push(await page.evaluate(async () => {
+      const r = await window.otto.core.request<{ id: string }>("jobs.submit", { kind: "selftest.sleep_model", params: { seconds: 60 } });
+      if (!r.ok) throw new Error("submit failed");
+      return r.r.id;
+    }));
+  }
+  const rowOf = (id: string) => page.locator(`[data-testid="job"][data-job-id="${id}"]`);
+  await expect(rowOf(ids[0]!)).toHaveAttribute("data-status", "running");
+  await expect(rowOf(ids[1]!).getByTestId("job-promote")).toBeVisible();
+  await rowOf(ids[2]!).getByTestId("job-promote").click();
+  await expect(rowOf(ids[2]!)).toContainText("已提前");
+  await rowOf(ids[0]!).getByRole("button", { name: "取消" }).click();
+  await expect(rowOf(ids[2]!)).toHaveAttribute("data-status", "running");
+  await expect(rowOf(ids[1]!)).toHaveAttribute("data-status", "queued");
+  for (const id of [ids[2]!, ids[1]!]) await rowOf(id).getByRole("button", { name: "取消" }).click();
+  await expect(rowOf(ids[2]!)).toHaveAttribute("data-status", "cancelled");
   await app.close();
 });
 

@@ -43,7 +43,7 @@ The owner's playbook wins over practices and experience; the ground rules below 
    parameter and result schema), `otto describe <event>`, `otto errors [code]`.
 5. **Long work is a job.** Add `--wait` to follow a returned job, search or video export to its end:
    `otto call speech.submit '{...}' --wait`. Separation, speech analysis and pitch measurement share the "model" channel (queueing: topic `prepare`).
-   A `succeeded` job only means it ran to the end: per-item failures of batch jobs are in the result; check them (topic `concepts`).
+   A `succeeded` batch job does not mean every item worked: per-item failures are in the result; check them (topic `concepts`).
    **Do not idle-wait on long jobs** (separating an episode takes ten to several tens of minutes, batch analysis a few minutes): do not poll the status over and over.
    If your environment can run a command in the background and wake you when it ends, run `otto wait job <id>` in the background (it exits only when the job ends).
    If it cannot, **tell the owner plainly**: what you submitted, roughly how long it takes, that your environment cannot wait without spending tokens,

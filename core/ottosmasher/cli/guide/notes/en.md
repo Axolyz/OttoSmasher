@@ -84,7 +84,6 @@ RAR / UnRAR for subtitle archives. Clean up tools and models when done, and list
 
 ## Pitfalls met
 
-- A pitch measurement job can be `succeeded` with an empty result and the errors in `f0Errors`; check the result, not only the status.
 - Keeping one connection open through long external computations can let events pile up; short connections (one `otto call` each) are steadier.
 - Separating 65 whole episodes once filled the disk with intermediate files (fixed: deleted after success); check free space before big batches and submit in batches.
 - Do not pile working files in the workspace root; use your own temporary folder and list what you left behind.

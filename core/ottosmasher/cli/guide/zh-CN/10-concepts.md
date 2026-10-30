@@ -49,6 +49,6 @@ WAV 导出的结果直接带着这个文件的 `mapping`（文件秒 → 原素�
 任务命令返回任务摘要（`id`、`status` = queued / running / succeeded / failed / cancelled / interrupted、`progress`、
 `error`、`result`）。用 `--wait`，或 `otto wait job <id>`，或 `otto events --name job.updated` 观察。
 检索返回 `{"searchId"}`，以事件 `search.finished` 结束；`--wait` 同样能处理。
-批量任务保留逐条结果（`speech.results`、`flatten.results`）；单条失败不会让整批失败——所以 `succeeded` 只表示跑完了，
-逐项失败要看结果（逐条结果、`result` 里的 `warnings`、`f0Errors` 等）。
+批量任务保留逐条结果（`speech.results`、`flatten.results`）；一条都没做成时任务是 `failed`（`job-all-items-failed`，逐条原因照样在结果里），
+只要有一条做成就是 `succeeded`——所以 `succeeded` 不等于每条都成了，逐项失败要看结果（逐条结果、`result` 里的 `warnings`、`f0Errors` 等）。
 所有事件：`otto commands --events`。

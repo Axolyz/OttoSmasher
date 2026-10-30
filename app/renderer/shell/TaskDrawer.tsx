@@ -1,4 +1,4 @@
-// 任务抽屉（UI_PLAN §1）：进度、取消、重试、错误与日志位置。
+// 任务抽屉（UI_PLAN §1）：进度、取消、提到最前、重试、错误与日志位置。
 import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { JobSummary } from "../api/types";
@@ -70,7 +70,7 @@ function JobRow({ job }: { job: JobSummary }) {
     if (pid) openProduct(pid);
     else toast({ text: t("flatten.results.none"), tone: "error" });
   };
-  const act = async (method: "jobs.cancel" | "jobs.retry") => {
+  const act = async (method: "jobs.cancel" | "jobs.promote" | "jobs.retry") => {
     try {
       await call(method, { id: job.id });
     } catch (e) {
@@ -79,13 +79,16 @@ function JobRow({ job }: { job: JobSummary }) {
   };
   const p = job.progress;
   const active = job.status === "queued" || job.status === "running";
+  // 一条都没做成也是失败，但逐条原因仍要能看（L51）
+  const hasResults = job.status === "succeeded" || job.error?.code === "job-all-items-failed";
   return (
-    <div className={s.job} data-testid="job" data-status={job.status}>
+    <div className={s.job} data-testid="job" data-status={job.status} data-job-id={job.id}>
       <div className={s.head}>
         <span className={`${s.dot} ${s[job.status]}`} />
         <b className={s.kind}>{kindLabel(job.kind)}</b>
         <span className={s.chip}>{t(`tasks.channel.${job.channel}`)}</span>
         {job.background ? <span className={s.chip}>{t("tasks.background")}</span> : null}
+        {job.promoted && job.status === "queued" ? <span className={s.chip}>{t("tasks.promoted")}</span> : null}
         {job.actor && job.actor.kind !== "user" ? (
           <span className={s.chip} title={job.actor.session ?? undefined} data-testid="job-agent">
             {t("tasks.byAgent")}
@@ -125,6 +128,11 @@ function JobRow({ job }: { job: JobSummary }) {
         <span>{jobDeviceText(job)}</span>
         {job.retry_of ? <span>{t("tasks.retryOf", { id: job.retry_of.slice(0, 8) })}</span> : null}
         <div className={s.grow} />
+        {job.status === "queued" ? (
+          <Button size="sm" variant="flat" onPress={() => void act("jobs.promote")} data-testid="job-promote">
+            {t("tasks.promote")}
+          </Button>
+        ) : null}
         {active ? (
           <Button size="sm" onPress={() => void act("jobs.cancel")}>
             {t("tasks.cancel")}
@@ -135,7 +143,7 @@ function JobRow({ job }: { job: JobSummary }) {
             {t("tasks.openResults")}
           </Button>
         ) : null}
-        {(job.kind === "separate" || job.kind === "speech.analyze" || (job.kind === "flatten" && !singleFlatten)) && job.status === "succeeded" ? (
+        {(job.kind === "separate" || job.kind === "speech.analyze" || (job.kind === "flatten" && !singleFlatten)) && hasResults ? (
           <Button size="sm" variant={open ? "secondary" : "flat"} onPress={() => setOpen((v) => !v)} data-testid="job-results">
             {t("tasks.openResults")}
           </Button>

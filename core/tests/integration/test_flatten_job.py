@@ -116,7 +116,8 @@ def test_flatten_end_to_end(tmp_path):
         smp2 = c.call("samples.create", assetId=aid, start=0.6, end=1.4, name="t2", nature="speech")["r"]["id"]
         jb = c.call("flatten.submitBatch", ids=[smp, smp2], options={"range": "vowels", "target": "auto"})["r"]
         jbr = wait(c, jb["id"])
-        assert jbr["status"] == "succeeded" and jbr["items"] == {"total": 2, "ok": 0, "failed": 2}
+        # 一条都没做成 = 任务失败（L51），逐条原因照样在结果里
+        assert jbr["status"] == "failed" and jbr["error"]["code"] == "job-all-items-failed" and jbr["items"] == {"total": 2, "ok": 0, "failed": 2}
         assert {r["error"]["code"] for r in c.call("flatten.results", jobId=jb["id"])["r"]} == {"flatten-needs-alignment"}
         # 批量不接受手动 / 内部（Q10）
         assert c.call("flatten.submitBatch", ids=[smp], options={"range": "whole", "target": "manual", "manual": "A4"})["e"]["code"] == "flatten-invalid"

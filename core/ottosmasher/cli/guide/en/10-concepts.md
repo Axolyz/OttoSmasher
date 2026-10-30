@@ -49,6 +49,6 @@ Tag expressions: `NOT` > `AND` > `OR`, parentheses, double quotes, `ns:*` for a 
 Job commands return a job summary (`id`, `status` = queued / running / succeeded / failed / cancelled / interrupted, `progress`,
 `error`, `result`). Use `--wait`, or `otto wait job <id>`, or watch `otto events --name job.updated`.
 Searches return `{"searchId"}` and end with event `search.finished`; `--wait` handles that too.
-Batch jobs keep per-item results (`speech.results`, `flatten.results`); one failed item does not fail the batch — so `succeeded` only means it ran to the end;
-check per-item failures in the results (per-item results, `warnings` or `f0Errors` in `result`, etc.).
+Batch jobs keep per-item results (`speech.results`, `flatten.results`); a job where no item succeeded is `failed` (`job-all-items-failed`; per-item reasons are still in the results),
+and one success is enough for `succeeded` — so `succeeded` does not mean every item worked; check per-item failures in the results (per-item results, `warnings` or `f0Errors` in `result`, etc.).
 List all events with `otto commands --events`.

@@ -600,6 +600,18 @@
    }
   },
   {
+   "name": "jobs.promote",
+   "effect": "job",
+   "layer": "library",
+   "summary": "Move a queued job to the front of its channel's queue (running jobs are not interrupted).",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "jobs.retry",
    "effect": "job",
    "layer": "library",
@@ -2695,6 +2707,13 @@
    "summary": "Unexpected failure inside Core (a bug)."
   },
   {
+   "code": "job-all-items-failed",
+   "args": [
+    "failed"
+   ],
+   "summary": "Every item of the job failed; per-item reasons are in its results."
+  },
+  {
    "code": "job-exception",
    "args": [
     "message",
@@ -2728,6 +2747,14 @@
     "id"
    ],
    "summary": "No such job."
+  },
+  {
+   "code": "job-not-queued",
+   "args": [
+    "id",
+    "status"
+   ],
+   "summary": "Only queued jobs can be moved to the front."
   },
   {
    "code": "job-not-retryable",
@@ -7464,6 +7491,9 @@
        "type": "null"
       }
      ]
+    },
+    "promoted": {
+     "type": "boolean"
     },
     "result": {},
     "retry_of": {
