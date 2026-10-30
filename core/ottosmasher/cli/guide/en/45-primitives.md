@@ -4,6 +4,20 @@ Commands come in two layers (`otto commands --layer library|primitive`): **libra
 **primitives** only compute and never change the library, and their sound can be a track in the library or any file, no registration needed. Both layers use the same engine and models, so results match the app.
 Use library commands when the result should stay in the library (searchable, undoable); use primitives to just compute something, or to work on sound outside the library.
 
+## Register first, or call directly?
+
+It depends on whether the result should stay and connect to the rest of the library:
+
+| What you want | Which layer | Why |
+|---|---|---|
+| A one-off answer: check how a line reads or its timing, look at the pitch of a stretch, see how a subtitle file would be read | primitives, give the file directly | nothing enters the library, nothing to clean up |
+| **Separation** | register first | separation only takes tracks in the library (`separation.submit` needs an `assetId`); there is no un-stored separation |
+| Samples, search, beat-fitting, stretched exports, or anything the owner should see in the app and be able to undo | register first, use library commands | these only work on library objects |
+| The same file used again and again (analysis, alignment, pitch several times) | register first | speech analysis is stored once and read afterwards; primitives recompute every time, and their results stay only in that job — not searchable, no samples |
+
+What registering costs: the app then prepares in the background (pitch measurement, search index), using the model channel for a while; **deleting a source cannot be undone and needs the owner's confirmation** — so do not register files you only want to compute something on once.
+For sources that are already registered, primitives can use their tracks directly (`assetId`); the results still do not enter the library.
+
 ## Sound input
 
 `{"assetId": "<track>", "start": s, "end": s}` (asset seconds) or `{"path": "/some/file.wav", "stream": 0, "start": s, "end": s}` (file seconds; videos work too, `stream` = which audio stream).

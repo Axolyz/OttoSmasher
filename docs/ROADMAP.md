@@ -242,7 +242,7 @@ docs/ui/PROTOTYPE_GUIDE.md 对应行，再读当前阶段相关的交接包规�
 - **容易漏的**：外部连接的 actor 由握手决定、不能在消息里改成 user；`ui` / `app` / `dev` 命令不对外；事件要广播给所有连接，`data.changed` 的请求标记按连接区分（界面照 P8 提示）；
   测试用合成素材；fixtures 的台词不经过云端模型（AGENTS §5）。所有者 2026-10-24 让开发者用 `bangumi/` 里的素材当 agent 实测（结果见 STATUS）；Windows 命名管道未实测（L47）。
 
-### 阶段 10 Windows 与发布
+### 阶段 10 Windows 与发布（2026-10-30【基线变更】：暂时只发布 macOS、本地构建、所有者手动推送与上传 Release、除 PyMSS 外模型随包——见 QUESTIONS 末节；下面原文中与此冲突的以那一节为准）
 
 - **必读**：规格 15 全部；ARCHITECTURE §13–§14；AGENTS §6。
 - **验收**：R23；15 §15.8 冒烟检查；ZIP 每个 < 2 GB；发布包不含 PyTorch 和模型权重。

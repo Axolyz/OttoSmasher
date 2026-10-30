@@ -13,7 +13,8 @@ The app does the **deterministic work**: storing data, separation, alignment and
 **Judgement is yours**: how to clean messy subtitles, which lines "talk about games", where the OP is when there are no subtitles,
 who is speaking in a clip… The app gives you primitives (read the data, get audio and pictures, write your conclusions back as tags,
 text segments, OP/ED, default tracks…) and you chain them with your own reasoning and tools.
-Commands come in two layers: **library commands** change objects in the library; **primitives** only compute (alignment, readings, pitch, reading subtitle files…) and accept any file as sound (topic `primitives`).
+Commands come in two layers: **library commands** change objects in the library; **primitives** only compute (alignment, readings, pitch, reading subtitle files…) and accept any file as sound.
+Whether to register a file first (separation requires it; so do results you want to keep, samples and search): see "Register first, or call directly?" in topic `primitives`.
 When a rule or automatic detection in the app falls short, do not wait for the app to change: read the data, decide, write the result back (topic `combine`).
 When you need to judge sound (checking an alignment, finding the OP, telling who speaks…) and you cannot hear: use an audio tool in your environment
 (spectrograms, timed transcripts); if there is none, ask the owner to run `otto setup audio --for <your tool>` (e.g. audio-mcp) instead of guessing from text.
