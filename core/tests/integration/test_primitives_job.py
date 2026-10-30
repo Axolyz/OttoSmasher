@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 import numpy as np
@@ -67,6 +68,27 @@ def test_align_analyze_and_f0_without_storing(tmp_path):
         assert not any((root / "Data" / "Measurements").rglob(f"*{job['id']}*"))
         # 结果命令和任务种类要对上
         assert c.call("speech.alignResults", jobId=job["id"])["e"]["code"] == "job-results-unavailable"
+    finally:
+        c.p.stdin.close()
+        c.p.wait(timeout=15)
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="Windows 未验收（L47）")
+def test_cli_wait_prints_primitive_results(tmp_path):
+    from test_cli import otto
+
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "Models").symlink_to(MODELS)
+    wav = tmp_path / "v.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-ar", "44100", "-ac", "1", str(wav)], check=True)
+    c = CoreProc(root)
+    try:
+        rc, out, _ = otto(root, "call", "text.analyze", '{"texts": ["ゲーム"]}', "--wait")
+        assert rc == 0 and out["job"]["status"] == "succeeded"
+        assert out["results"][0]["result"]["morae"] == ["ゲ", "ー", "ム"]
+        rc, out, _ = otto(root, "call", "speech.align", json.dumps({"items": [{"text": "ゲーム", "path": str(wav), "start": 0.5, "end": 1.5}]}), "--wait")
+        assert rc == 0 and out["results"][0]["status"] == "ok" and len(out["results"][0]["result"]["morae"]) == 3
     finally:
         c.p.stdin.close()
         c.p.wait(timeout=15)
