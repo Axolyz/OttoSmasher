@@ -1,77 +1,73 @@
-# Preparing sources (the 7-item "prep" checklist)
+# Sources, subtitles and vocals
 
-## 0. Tidy the subtitle files first (your own tools)
+## Registering
 
-**Goal**: for each episode, one **UTF-8 `.srt`** with **exactly the same name** as the video, each cue holding **only the words actually spoken** (speech analysis currently supports Japanese only) —
-speech analysis aligns this text to the audio, and translations, notes or anything else make it fail or misalign. Put the speaker in a leading bracket when you can tell;
-otherwise leave it out (fansub subtitles usually have no speakers; that is normal, do not invent them).
-The app also reads `.ass`, but write your cleaned result as a same-name `.srt`: with the same name the app prefers `.srt` (also over suffixed names like `<video name>.ja.srt`), so the original `.ass` can stay untouched.
-
-The app recognises things by file layout: one folder per **work** under the root; subtitles next to the media.
-How the app reads subtitles: a full-width bracket at the start is the speaker `（京子）こんにちは` (every outermost bracket in a line counts);
-a line that is only a bracket is a sound `（足音）`; lines starting `♪～` / ending `～♪` mark the OP / ED. See how the app reads one line with `subtitles.ruleTest`:
-`otto call subtitles.ruleTest '{"text": "（京子）こんにちは"}'`.
-The app does not read subtitle streams embedded in video files: to use one, extract it to a same-name file first (e.g. `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`); image subtitles (PGS, VobSub) come out as pictures and need text recognition first.
-
-Common problems in real subtitles (fix them in the files, never overwrite the owner's original: keep it with a `backup_` prefix, then write the clean same-name version):
-* **Fansub bilingual Chinese–Japanese subtitles** (the most common case): when reading `.ass` the app takes the Dialogue lines of **every style**, without telling styles apart, so the Chinese line also becomes a line of speech.
-  Keep only the Japanese, by style name (`JP` / `CN` and the like) or by the text itself; when one event stacks two languages with `\N`, keep only the Japanese line. Remove `{\…}` override tags, Comment lines,
-  and effect-only lines (titles, notes, translations of on-screen text). Delete the lyric lines of the OP/ED and insert songs, and write `♪～` / `～♪` markers at the lyric timings instead, or mark them with `oped.add` after importing.
-* Translations or notes mixed into the text → remove them. Readings inside speaker names `（京子(きょうこ)たち）` are dropped by the app by default;
-  but readings in the spoken text `歳納(としのう)京子！` are read as a speaker 「としのう」 (every outermost bracket in a line is a speaker) → remove them from the file.
-* A cue whose first line is a sound and the speech starts on the second line `（ドアチャイム）\nウワーッ！` → the app would read the sound as the speaker; split it into two cues with the same timing.
-* OP/ED markers that do not pair up (e.g. one start followed by two ends) → check `opedErrors` after import and confirm the suggestions of `oped.identify` (section 2). Both wave dashes `♪〜` and `♪～` are recognised.
-* Humming or singing written as `♪（ちなつのハミング）` → becomes a line whose text is just "♪", and speech analysis fails with `frontend-failed` (`empty-text`); make it a sound line `（ちなつのハミング）`, or write out the lyrics.
-* Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
-* **Timing does not match**: when the subtitles come from another release than the video (e.g. TV subtitles on a BD video) they are off by a few seconds overall, or start drifting after where a commercial break used to be.
-  Spot-check a few lines at the start, middle and end: cut that audio with `ffmpeg -ss <s> -t <s>` and compare with local speech recognition or the loudness on/offsets. Shift all times for an overall offset, or from the point where it starts.
-* No subtitles: you may run speech recognition locally and write a same-name `.srt`; or skip it, see section 3.
-
-**Check before importing**: register first (section 1) if you have not; if already registered and you wrote a new same-name file, run `otto call sources.rescan --wait`; then `otto call subtitles.preview '{"sourceId": "<id>"}'` (read-only, imports nothing):
-`speakers` (names and counts; pieces of speech, readings or odd names = brackets left over), `problems` (blocks whose timing cannot be read),
-the `text` of `segments` (exactly the text that will be aligned), `hints` (sounds), `oped` (OP/ED pairs). Fix the file and check again.
-
-## 1. Register and scan
+The app recognises things by file layout: under a registered root folder, each first-level subfolder is a **work**; sources are referenced in place, never copied.
 
 ```sh
-otto call roots.add '{"path": "/path/to/root"}' --wait     # adopt + scan; files are never copied
-otto call sources.list                                     # all sources (work = work folder name, episode, subtitle_path, counts)
+otto call roots.add '{"path": "/path/to/root"}' --wait     # adopt + scan
+otto call sources.list                                     # all sources (work, episode, subtitle_path, counts, audio_streams)
+otto call sources.rescan --wait                            # rescan after changing or adding files
 ```
-After changing files, rescan: `otto call sources.rescan --wait`.
+Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once registered they can be separated, given lines and analysed; results stay in the library and can be undone.
 
-## 2. The checklist
+## How the app finds and reads subtitles
 
-`otto call sources.prep '{"id": "<sourceId>"}'` returns the seven items (each with `ok`):
+- **Association**: a `.srt` with **exactly the same name** in the media's folder wins, then `.ass`; then same name plus a suffix (`<video name>.ja.srt`, Japanese suffixes first), then the same in a `Subs` / `字幕` subfolder. Association only; importing is a separate step. UTF-8 is required.
+- Subtitle streams **embedded** in video files are **not read**; image subtitles (PGS, VobSub) are pictures, not text.
+- **ASS**: Dialogue lines of every style are read, without telling styles apart (the Chinese line of bilingual subtitles also becomes a line); `{…}` override tags and `<…>` are removed, `\N` is a line break, Comment lines are skipped.
+- **How each line is read** (the rules are in the settings and can be changed):
+  - A full-width bracket holds the speaker: `（京子）こんにちは`. **Every** outermost bracket in a line counts, so a reading inside the spoken text `歳納(としのう)京子` becomes a speaker 「としのう」;
+    readings nested inside speaker names are dropped by default: `（京子(きょうこ)たち）` → 「京子たち」.
+  - A line that is only a bracket is a sound: `（足音）`. When a cue's first line is a sound and the second is speech, the whole cue is read as "speaker + speech", so the sound becomes a speaker.
+  - Lines starting `♪～` / ending `～♪` mark the OP / ED (`〜` is recognised too).
+  - A line like `♪（ハミング）` becomes speech that is just "♪"; speech analysis fails with `frontend-failed` (`empty-text`).
+- **Line text is the alignment text**: speech analysis aligns the audio to it, so it must be the words actually spoken (Japanese only for now); translations or notes inside make alignment wrong or fail.
 
-| item | how to complete it |
+To see how the app reads things:
+
+| What | Command |
 |---|---|
-| `subtitle` (text layer) | `subtitles.previewMany {"sourceIds": [...]}` → pass rows with a `token` to `subtitles.importMany {"items": [{"sourceId", "token"}]}`. OP/ED markers in the subtitles are imported too. |
-| `oped` | Pairs that did not match on import (`opedErrors`): `oped.identify {"sourceId"}` still suggests `pairs` (`suggest` = OP / ED) and lists `errors`; decide and confirm with `oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}`. No subtitles: see `combine`. |
-| `separation` | `studio.status` (models; if `ok` is false tell the owner to install PyMSS Studio) → the `origin: stream` track from `assets.tracks {"sourceId"}` → `separation.submit {"assetId", "model"}` → `separation.results {"jobId"}`. |
-| `defaultVocal` | `tracks.setDefault {"sourceId", "role": "vocal", "assetId": "<vocal stem>"}`. Without separation (clear dialogue, or for now): `tracks.originalAsVocal {"sourceIds": [...]}` sets the original mix for many sources at once; switch after separating. |
-| `defaultSfx` | `tracks.setDefault {"sourceId", "role": "sfx", "assetId": "<instrumental stem>"}` |
-| `lineSamples` | samples from the line segments, see topic `samples`. |
-| `speech` | `speech.preview {"entry": "source", "ids": [...]}` → `speech.submit` with the same params → `speech.results {"jobId"}`. Needs a text layer and a vocal track. |
+| One line | `subtitles.ruleTest {"text": "（京子）こんにちは"}` |
+| Any subtitle file (no registering, no importing) | `subtitles.parse {"path", "duration"}` (topic `primitives`) |
+| The associated subtitles of registered sources, before importing | `subtitles.preview {"sourceId"}` / `subtitles.previewMany {"sourceIds"}`: `segments`, `speakers` (names and counts), `hints` (sounds), `oped`, `problems`, `token` |
 
-No fixed order, and no item is mandatory (sources without subtitles are normal).
+Importing: pass the preview's `token` to `subtitles.import` / `subtitles.importMany {"items": [{"sourceId", "token"}]}`; OP/ED markers in the subtitles are imported too.
+**Re-importing** replaces only old objects that overlap a new cue in time; old segments that no new cue overlaps stay (by design); delete them with edits.
 
-**Queue**: separation, speech analysis and pitch measurement use the "model" channel; scans etc. use the "light" channel. How many run at once is set by
+## The prep checklist
+
+`sources.prep {"id"}` returns seven status items (each with `ok`). It is a status summary: no fixed order, and no item is mandatory (sources without subtitles are normal):
+
+| item | related commands |
+|---|---|
+| `subtitle` (text layer) | subtitle preview and import (above); without subtitles `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}` (source seconds) |
+| `oped` | `opedErrors` when pairs did not match on import; `oped.identify {"sourceId"}` suggests `pairs` and lists `errors`; `oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}` |
+| `separation` | see the next section |
+| `defaultVocal` / `defaultSfx` | `tracks.setDefault {"sourceId", "role": "vocal" / "sfx", "assetId"}`; `tracks.originalAsVocal {"sourceIds"}` sets the original mix as vocal for many sources at once |
+| `lineSamples` | topic `samples` |
+| `speech` | `speech.preview {"entry": "source", "ids"}` → `speech.submit` with the same params → `speech.results {"jobId"}` |
+
+In the `speech` item, segments that failed because their text has nothing to pronounce (e.g. just "♪") are counted as unreadable and do not block completion.
+
+## Separation and vocal tracks
+
+- `studio.status`: whether PyMSS Studio is installed and which models it has (if `ok` is false, tell the owner to install PyMSS Studio).
+- `separation.submit {"assetId", "model"}` separates the whole track; add `start` / `end` (asset seconds) to separate one part. Results: `separation.results {"jobId"}`, one new track per stem with its time mapping.
+  Stems from a partial separation cover only that part. Separating the same part twice gives two copies; nothing is reused. Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
+- The default vocal / sfx track must cover the whole source, so a partial stem cannot be the default. But wherever a track can be named, you can pass it:
+  `speech.preview` / `speech.submit` with `"assetId"` analyse on that track (only segments inside its range), and `samples.create`, `exports.wav` and the primitives take an `assetId` too.
+- A line's phonemes exist once and belong to the source's timeline: whichever track analysed them, the original mix, a full vocal stem and partial stems all read the same ones.
+- When a file has several audio streams, only the "analysis track" takes part (topic `concepts`).
+
+## Jobs and the queue
+
+Separation, speech analysis and pitch measurement use the "model" channel; scans etc. use the "light" channel. How many run at once is set by
 `jobs.concurrency_model` (default 1) / `jobs.concurrency_light` (default 2) (read with `settings.list`, change with `edits.apply`, entity `setting`).
 While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; running jobs are never interrupted
-and there is no reorder command. A successful separation deletes its intermediate files; a failed one keeps them. Separating an episode takes
-ten to several tens of minutes; if needed, `jobs.cancel` queued jobs and submit them again later.
+and there is no reorder command (if needed, `jobs.cancel` queued jobs and submit them again later). A successful separation deletes its intermediate files; a failed one keeps them.
 
-**Separation range**: `separation.submit` takes an optional `start` / `end` (asset seconds) to separate one part only; the stems cover just that part and can be exported or cut,
-but the default vocal / sfx track must cover the whole source, so a partial stem cannot become the default.
-**Outside audio**: any audio file registered with `sources.add {"paths": [...]}` becomes a source and can be separated, given lines and analysed; results stay in the library and can be undone.
+## A successful analysis is not proof of a good alignment
 
-**Re-importing subtitles**: only old objects that overlap a new cue in time are replaced; old segments that no new cue overlaps stay (by design). Delete them with edits if they should go.
-
-**A successful analysis is not proof of a good alignment**: alignment only looks inside "the segment's time ± the tolerance in the settings (default 0.1 s before, 0.2 s after)",
-and it always fits the whole line into that window — when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds.
-Get the boundaries roughly right first (within a few tenths of a second), then analyse.
-
-## 3. Without subtitles
-
-Add lines by hand: `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}` (source seconds).
-Without lines you can still cut, separate, flatten, export, and run pitch search on source tracks (topic `search`).
+Alignment only looks inside "the segment's time ± the tolerance in the settings (default 0.1 s before, 0.2 s after)", and it always fits the whole line into that window —
+when a segment's boundaries are off, phonemes get stretched onto neighbouring sounds and the job still succeeds. Get the boundaries roughly right first (within a few tenths of a second), then analyse (numbers in topic `primitives`).

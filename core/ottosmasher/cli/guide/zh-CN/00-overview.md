@@ -13,11 +13,21 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 应用给你原子能力——读资料、拿到音频和画面、把结论写回去（标签、台词段、OP/ED、默认轨……）——你用自己的推理和工具把它们串起来。
 命令分两层：**业务命令**改资料库里的对象，**原始能力**只做计算（对齐、读音、测音高、读字幕文件……），声音可以是任意文件（主题 `primitives`）。
 应用里的规则或自动识别不灵时，不要等应用改：读资料、自己判断、把结果写回去（主题 `combine`）。
-说明书里的做法和顺序都是例子，用来说明应用怎么工作；必须遵守的只有下面的基本规则。
+要判断声音（核对对齐、找 OP、听是谁在说……）而你听不到：用你环境里的音频工具（频谱图、带时间的转写）；没有的话，告诉所有者运行
+`otto setup audio --for <你的工具>`（例如 audio-mcp），不要凭文字硬猜。
+
+## 说明分三层
+
+1. **本说明书**（`otto guide`）：怎么正确操作应用——对象、命令、应用会怎样、必须遵守的规则；和正在运行的应用一致。
+2. **做法与经验**（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、踩过的坑……不是规定，可能过时。
+3. **所有者的约定**（`otto guide playbook`，文件在工作区 `Agent/playbook.md`）：所有者自己的习惯和要求，随时会改。
+   所有者让你“记下这个做法”时，就写进这个文件。
+
+冲突时所有者的约定优先于做法与经验；但下面的基本规则谁也改不了。**开工时先看一眼 playbook。**
 
 ## 基本规则
 
-1. **应用必须开着。** 用 `otto status` 看。显示 `"running": false`（退出码 2）就请所有者打开应用。
+1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、skill 是不是最新）。显示 `"running": false`（退出码 2）就请所有者打开应用。
    不要自己打开数据库或 `Library/` 文件夹，只用命令。原素材的媒体文件和字幕可以直接读。
 2. **每个任务设一次会话 ID**：`export OTTO_AGENT_SESSION=<简短任务名>`。你的每个修改都记在它名下，
    之后所有者（或你）可以整批撤回这个会话（主题 `undo`）。
@@ -29,6 +39,9 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 5. **耗时的工作是任务。** 加 `--wait` 就会一直跟到返回的任务、检索或视频导出结束：
    `otto call speech.submit '{...}' --wait`。分离、语音分析、测音高共用“模型”通道（排队方式见主题 `prepare`）。
    任务 `succeeded` 只表示跑完了：批量任务里逐项的失败写在结果里，要看（主题 `concepts`）。
+   **长任务别空等**（整集分离十几到几十分钟，批量分析几分钟）：不要反复查状态。你的环境能在后台跑命令、命令结束时叫醒你，
+   就在后台跑 `otto wait job <id>`（任务结束它才退出）。不能的话，**明确告诉所有者**：提交了什么、大概要多久、你的环境没法不耗 token 地等，
+   所以先停在这里，跑完后对你说“继续”——然后结束这一轮。回来时用 `otto session` 看这个会话的任务和修改。
 6. **撤销不了的命令**（`otto commands` 里带 `"danger"`：删除原素材或采样、给作品文件夹改名、清理存储、独立化后删原素材）
    会在应用里弹出确认框，你的调用最多等 2 分钟（等待时 stderr 有一行 `"note": "waiting for the owner…"`）。
    退出码 3 表示没有执行：所有者拒绝了（`agent-confirm-declined`），或 2 分钟没人回答（`agent-confirm-timeout`，所有者可能不在电脑前；
@@ -50,7 +63,6 @@ otto run my_script.py                     # 一次要调很多命令时写成 Py
 
 ## 主题
 
-`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部正式主题）：
-`concepts`、`prepare`、`samples`、`search`、`primitives`、`export`、`combine`、`scripts`、`undo`、`example`。
-另有 `notes`：实测攒下的经验和坑，**不是规定**，卡住或想找做法时再看。
-`otto guide --skill-dir <目录>` 把这些写成一个 skill 文件夹（Claude Code、Codex 都认），按需读取。
+`otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部）：
+`concepts`、`prepare`、`samples`、`search`、`primitives`、`export`、`combine`、`scripts`、`undo`；另有 `notes`（做法与经验）、`playbook`（所有者的约定）。
+安装：`otto setup skill --for claude-code|codex`（把本说明装成 skill）、`otto setup audio --for claude-code|codex|other`（接音频工具）。

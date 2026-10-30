@@ -140,3 +140,17 @@ def test_run_gives_the_script_one_session(app, tmp_path):
     assert rc == 0 and out == {"session": "scripted"}, err
     h = c.call("edits.history", session="scripted")["r"]
     assert len(h) == 1 and h[0]["actor"] == {"kind": "agent", "session": "scripted"}
+
+
+def test_session_and_status_environment(app):
+    _, root = app
+    rc, j, _ = otto(root, "call", "jobs.submit", '{"kind": "selftest.sleep", "params": {"seconds": 0.2}}', "--wait", session="long-1")
+    assert rc == 0
+    rc, s, _ = otto(root, "session", session="long-1")
+    assert rc == 0 and s["session"] == "long-1" and [x["id"] for x in s["jobs"]] == [j["id"]] and s["jobs"][0]["status"] == "succeeded"
+    assert s["running"] == 0 and s["edits"]["count"] == 0
+    rc, s, _ = otto(root, "session", session="nobody")
+    assert rc == 0 and s["jobs"] == []
+    rc, st, _ = otto(root, "status")
+    env = st["environment"]
+    assert rc == 0 and env["guideVersion"] and "models" in env and set(env["skills"]) >= {"claude-code", "codex"} and env["playbook"] is None

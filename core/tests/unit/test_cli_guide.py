@@ -63,22 +63,48 @@ def test_guide_command_prints_topics(lang, capsys):
     assert "edits.undoSession" in capsys.readouterr().out
     assert main(["guide", "notes", "--lang", lang]) == 0
     assert "edits.apply" in capsys.readouterr().out
+    assert main(["guide", "--all", "--lang", lang]) == 0
+    assert "primitives" in capsys.readouterr().out
     assert main(["guide", "nope", "--lang", lang]) == 2
 
 
 @pytest.mark.parametrize("lang", ["en", "zh-CN"])
-def test_skill_folder(lang, tmp_path, capsys):
+def test_thin_skill_folder_and_version(lang, tmp_path, capsys):
     import yaml
 
-    assert main(["guide", "--skill-dir", str(tmp_path), "--lang", lang]) == 0
-    res = json.loads(capsys.readouterr().out)
+    from ottosmasher.cli.main import guide_version, skill_state
+
+    (tmp_path / "ottosmasher" / "references").mkdir(parents=True)  # 旧版整本复制留下的：重新安装时清掉
+    assert main(["setup", "skill", "--dir", str(tmp_path), "--lang", lang]) == 0  # 不加 --apply 只给计划
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["state"] == "absent" and "--apply" in plan["apply"]
+    assert main(["setup", "skill", "--dir", str(tmp_path), "--lang", lang, "--apply"]) == 0
+    capsys.readouterr()
     d = tmp_path / "ottosmasher"
-    assert res["skill"] == str(d)
     text = (d / "SKILL.md").read_text(encoding="utf-8")
     head = yaml.safe_load(text.split("---\n")[1])
-    assert head["name"] == "ottosmasher" and "otto" in head["description"]
-    refs = sorted(p.name for p in (d / "references").glob("*.md"))
-    assert refs == sorted([p.stem.split("-", 1)[-1] + ".md" for p in sorted((GUIDE / lang).glob("*.md"))[1:]] + ["field-notes.md"])
-    for name in refs:  # SKILL.md 里列出每个参考文件
-        assert f"references/{name}" in text
-    assert "samples.createPlanned" in (d / "references" / "samples.md").read_text(encoding="utf-8")
+    assert head["name"] == "ottosmasher" and head["metadata"]["otto-guide"] == guide_version()
+    assert "otto guide playbook" in text and "otto guide notes" in text and not (d / "references").exists()
+    assert skill_state(tmp_path) == "current"
+    (d / "SKILL.md").write_text(text.replace(guide_version(), "old"), encoding="utf-8")
+    assert skill_state(tmp_path) == "outdated"
+
+
+def test_playbook_template_and_setup(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
+    assert main(["guide", "playbook", "--lang", "en"]) == 0
+    assert "does not exist yet" in capsys.readouterr().out
+    assert main(["setup", "playbook", "--lang", "en"]) == 0
+    assert json.loads(capsys.readouterr().out)["created"] is True
+    f = tmp_path / "Agent" / "playbook.md"
+    f.write_text("# mine\nalways separate whole episodes\n", encoding="utf-8")
+    assert main(["guide", "playbook"]) == 0
+    assert "always separate whole episodes" in capsys.readouterr().out
+    assert main(["setup", "playbook"]) == 0 and json.loads(capsys.readouterr().out)["created"] is False  # 不覆盖
+
+
+def test_setup_audio_prints_only(capsys):
+    assert main(["setup", "audio", "--for", "claude-code"]) == 0
+    assert "claude mcp add audio" in json.loads(capsys.readouterr().out)["run"]
+    assert main(["setup", "audio", "--for", "codex"]) == 0
+    assert "[mcp_servers.audio]" in json.loads(capsys.readouterr().out)["append"]

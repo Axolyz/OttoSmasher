@@ -26,17 +26,6 @@ All of these are undoable and recorded under your session.
 * Analysis: `speech.sample` (the segments and phonemes a sample reads), `measure.f0` (pitch curve).
 * If you cannot hear, look at exported WAVs with an audio analysis tool in your environment (e.g. audio-mcp's spectrograms, loudness, timed transcripts) (topic `notes`).
 
-## Examples
-
-* **Choosing lines**: do not read thousands of lines into your context. Prefilter locally by keywords or rules, then read each candidate
-  with its neighbours and decide. Keywords misfire (in Kemono Friends 「ボス」 is a character and 「プレーリー」 an animal); judge by meaning.
-* **Finding the OP / ED without subtitles**: every episode of a work has the same OP / ED song. Extract the first and last minutes of
-  audio of several episodes with ffmpeg and compare them; the longest stretch of near-identical audio is the OP (or ED); then `oped.add`.
-  Report episodes that do not match (different version, no OP) to the owner instead of guessing.
-* **Messy subtitles**: clean the files as in topic `prepare` section 0, then import.
-* **An analysis result looks wrong**: find the cause first (typos in the subtitle, wrong vocal track, inaccurate segment bounds), fix it and
-  analyse again; when unsure, export that audio and listen to it yourself.
-
 ## Keep the owner informed
 
 Before writing, summarise big or ambiguous decisions for the owner (which lines count as "about games", which separation model,

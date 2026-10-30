@@ -15,11 +15,21 @@ who is speaking in a clip… The app gives you primitives (read the data, get au
 text segments, OP/ED, default tracks…) and you chain them with your own reasoning and tools.
 Commands come in two layers: **library commands** change objects in the library; **primitives** only compute (alignment, readings, pitch, reading subtitle files…) and accept any file as sound (topic `primitives`).
 When a rule or automatic detection in the app falls short, do not wait for the app to change: read the data, decide, write the result back (topic `combine`).
-The procedures and orderings in this guide are examples that show how the app works; the only things you must follow are the basic rules below.
+When you need to judge sound (checking an alignment, finding the OP, telling who speaks…) and you cannot hear: use an audio tool in your environment
+(spectrograms, timed transcripts); if there is none, ask the owner to run `otto setup audio --for <your tool>` (e.g. audio-mcp) instead of guessing from text.
+
+## Three layers of instructions
+
+1. **This guide** (`otto guide`): how to operate the app correctly — objects, commands, what the app does, the rules you must follow; it always matches the running app.
+2. **Practices and experience** (`otto guide notes`): cleaning subtitles, retiming, finding the OP, separation strategy, pitfalls… not rules, may be out of date.
+3. **The owner's playbook** (`otto guide playbook`, the file `Agent/playbook.md` in the workspace): the owner's own habits and requirements; they change it any time.
+   When the owner asks you to "remember this approach", write it into that file.
+
+The owner's playbook wins over practices and experience; the ground rules below cannot be overridden by anyone. **Look at the playbook when you start.**
 
 ## Ground rules
 
-1. **The app must be running.** Check with `otto status`. If it says `"running": false` (exit code 2), ask the owner to open the app.
+1. **The app must be running.** Start with `otto status` (it also reports the environment: models, PyMSS Studio, whether the skill is current). If it says `"running": false` (exit code 2), ask the owner to open the app.
    Never open the database or the `Library/` folder yourself; use commands. The sources' own media and subtitle files may be read directly.
 2. **Set a session id once per task**: `export OTTO_AGENT_SESSION=<short-task-name>`. Every change you make is recorded under it,
    and the owner (or you) can undo the whole session later (topic `undo`).
@@ -31,6 +41,10 @@ The procedures and orderings in this guide are examples that show how the app wo
 5. **Long work is a job.** Add `--wait` to follow a returned job, search or video export to its end:
    `otto call speech.submit '{...}' --wait`. Separation, speech analysis and pitch measurement share the "model" channel (queueing: topic `prepare`).
    A `succeeded` job only means it ran to the end: per-item failures of batch jobs are in the result; check them (topic `concepts`).
+   **Do not idle-wait on long jobs** (separating an episode takes ten to several tens of minutes, batch analysis a few minutes): do not poll the status over and over.
+   If your environment can run a command in the background and wake you when it ends, run `otto wait job <id>` in the background (it exits only when the job ends).
+   If it cannot, **tell the owner plainly**: what you submitted, roughly how long it takes, that your environment cannot wait without spending tokens,
+   so you stop here and they should say "continue" when it is done — then end your turn. When you resume, `otto session` shows this session's jobs and changes.
 6. **Commands that cannot be undone** (`"danger"` in `otto commands`: deleting sources or samples, renaming a work folder,
    cleaning storage, independence with source deletion) pop up a confirmation in the app; your call waits up to 2 minutes
    (stderr shows `"note": "waiting for the owner…"` meanwhile). Exit code 3 means it did not run: the owner declined
@@ -54,7 +68,6 @@ Undeclared parameters are rejected (`bad-request` with the offending key). All i
 
 ## Topics
 
-`otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints every regular topic):
-`concepts`, `prepare`, `samples`, `search`, `primitives`, `export`, `combine`, `scripts`, `undo`, `example`.
-There is also `notes`: experience and pitfalls from real tasks, **not rules**; read it when stuck or looking for an approach.
-`otto guide --skill-dir <dir>` writes all of this as a skill folder (Claude Code and Codex both read it) to load on demand.
+`otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints everything):
+`concepts`, `prepare`, `samples`, `search`, `primitives`, `export`, `combine`, `scripts`, `undo`; plus `notes` (practices and experience) and `playbook` (the owner's playbook).
+Setup: `otto setup skill --for claude-code|codex` (install this guide as a skill), `otto setup audio --for claude-code|codex|other` (connect an audio tool).

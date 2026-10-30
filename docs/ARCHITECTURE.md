@@ -650,12 +650,14 @@ class LanguageProfile(Protocol):
   `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 
-### 15.5 说明书
+### 15.5 说明书（三层，所有者 2026-10-30）
 
-`core/ottosmasher/cli/guide/{en,zh-CN}/*.md`（“上下文优先”，所有者 2026-10-24）：总览（分工、规则、退出码）、概念、准备清单 7 项（含真实字幕的常见问题、队列）、采样、检索、导出、
-组合（写回点表、拿到原始材料、例子）、写脚本（`otto run`）、撤回、完整示例（提纲）。
-`otto guide [主题] [--lang] [--all] [--skill-dir 目录]`。两层：正式主题（看不出来的事实 + 硬规定）与经验层 `notes`（`guide/notes/{en,zh-CN}.md`，实测经验，不是规定）。
-`--skill-dir` 写出标准 skill 文件夹 `<目录>/ottosmasher/`：`SKILL.md`（总览 + 参考文件目录）、`references/<主题>.md`、`references/field-notes.md`，按需读取；由用户指定目录，我们不默认写用户目录。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
+- **第 1 层 说明书** `core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定（含“长任务别空等：能后台等就后台 `otto wait`，不能就告诉所有者并结束这一轮”）。测试核对两份逐节对应、提到的命令存在、示例参数合法。
+- **第 2 层 做法与经验** `guide/notes/{en,zh-CN}.md`（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、踩过的坑；写明不是规定、可能过时。
+- **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
+- 交付：`otto setup skill --for claude-code|codex [--dir] --apply` 写“薄” skill（SKILL.md = 总览 + 怎么读其余各层 + otto 的实际路径；frontmatter `metadata.otto-guide` = 说明书版本）；
+  `otto status` 的 `environment` 报模型、PyMSS Studio、各位置的 skill 是否最新、有没有 playbook，并给出 `hints`。`otto setup audio` 只打印接 audio-mcp 的命令 / 配置。
+- `otto session`：这个会话的任务与修改，长任务之后接着干用。
 
 ### 15.6 两层命令与引擎边界（所有者 2026-10-30）
 

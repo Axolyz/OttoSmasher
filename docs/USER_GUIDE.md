@@ -425,9 +425,18 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 **怎么开始**
 1. 打开 OttoSmasher（命令行只连接开着的应用；关着时 `otto status` 会说没在运行）。
 2. 在终端里（开发版在仓库目录下用 `tools/otto`，Windows 用 `tools\otto.cmd`）让 agent 先读说明书：`otto guide`（中文，`--lang en` 英文，`--all` 全部）。
-   也可以装成 skill（agent 需要时才读对应部分，更省上下文）：`otto guide --skill-dir <目录>` 写出 `<目录>/ottosmasher/` 文件夹。
-   Claude Code 放在 `~/.claude/skills/`（或项目里的 `.claude/skills/`），Codex 放在 `~/.agents/skills/`（或 `.agents/skills/`）。
-   说明书分两层：正式主题（应用的事实和必须遵守的规则）和 `notes`（实测攒下的经验，不是规定）。
+   也可以装成 skill，之后 agent 遇到相关任务会自己想起来：`otto setup skill --for claude-code`（或 `--for codex`）先看会写到哪，加 `--apply` 才写。
+   skill 里只放总览，其余内容 agent 从 `otto guide` 读，所以应用更新后说明总是最新的；`otto status` 发现装的 skill 过期会提醒重新装。
+3. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
+
+**说明分三层**
+- **说明书**（`otto guide`）：怎么正确操作应用，随应用更新。
+- **做法与经验**（`otto guide notes`）：洗字幕、对轴、找 OP、整集还是局部分离……是经验不是规定。
+- **你自己的约定**（`otto guide playbook`）：工作区里的 `Agent/playbook.md`，用平常的话写你的习惯和要求（例如“总是整集分离”“导出放到桌面某文件夹”）。
+  `otto setup playbook` 生成一份带示例的模板。agent 开工先看它；你让 agent“记下这个做法”时它会写进去。它优先于经验，但改不了说明书里的基本规则（例如撤销不了的操作要你放行）。
+
+**长任务**：整集分离要十几到几十分钟。能在后台等的 agent（例如 Claude Code）会后台等，不耗 token；不能的会明确告诉你“先停在这里，跑完后对我说继续”，
+你回来说一句“继续”，它用 `otto session` 看这个会话的任务结果接着做。
 3. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
 
 **示例提示词**
@@ -442,7 +451,7 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 它们只计算、不改你的资料，声音可以是库外的任意文件（说明书主题 `primitives`）。
 
 **agent 听不到声音时**：很多 agent 只能看文字和图片，听不到声音。可以给它接一个音频分析工具 audio-mcp
-（看频谱图、量响度、用 Whisper 转写并给出每个词的时间）。需要装好 `uv`；在终端里运行（Claude Code）：
+（看频谱图、量响度、用 Whisper 转写并给出每个词的时间）。`otto setup audio --for claude-code|codex|other` 会给出对应的命令或配置。需要装好 `uv`；Claude Code 是在终端里运行：
 ```
 claude mcp add audio -s user -e AUDIO_MCP_WHISPER_MODEL=turbo -- uvx --from "audio-mcp[speech]==0.4.0" audio-mcp
 ```
@@ -454,6 +463,7 @@ args = ["--from", "audio-mcp[speech]==0.4.0", "audio-mcp"]
 env = { AUDIO_MCP_WHISPER_MODEL = "turbo" }
 ```
 第一次用会下载程序和 Whisper 模型（约 1.6 GB，放在 uv 与 Hugging Face 的默认缓存里）。它只用 CPU，长音频转写较慢。
+不支持 MCP 的 agent 工具也能用它的命令行看频谱、量响度，但转写只能经 MCP。
 
 **你会看到什么**
 - 顶栏 ↶ 左边的「操作历史」按钮（agent 正连着时亮一个小圆点）：按时间列出所有资料修改，写明是你还是哪个 agent 会话做的、改了几处；
