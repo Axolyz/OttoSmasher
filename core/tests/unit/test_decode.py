@@ -30,7 +30,9 @@ def ramp(tmp_path_factory) -> dict[str, Path]:
     out = {}
     for ext, codec in [("wav", []), ("flac", []), ("mkv", ["-c:a", "flac"]), ("mp3", ["-c:a", "libmp3lame", "-q:a", "0"]),
                        ("m4a", ["-c:a", "aac", "-b:a", "256k"]),
-                       ("opus.mkv", ["-c:a", "libopus"])]:  # fmt: skip
+                       ("opus.mkv", ["-c:a", "libopus"]),
+                       ("opus10.mkv", ["-c:a", "libopus", "-frame_duration", "10"]),  # pre-skip（312）大于半帧
+                       ("opus5.mkv", ["-c:a", "libopus", "-frame_duration", "5"])]:  # fmt: skip
         f = d / f"斜坡 [x] ♪.{ext}"
         subprocess.run(
             ["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "2", "-i", str(raw), *codec, str(f)],
@@ -47,7 +49,7 @@ def ref_of(f: Path) -> dec.StreamRef:
 
 
 @pytest.mark.parametrize(
-    "ext,method", [("wav", "direct"), ("flac", "direct"), ("mkv", "indexed"), ("mp3", "preroll"), ("m4a", "indexed"), ("opus.mkv", "indexed")]
+    "ext,method", [("wav", "direct"), ("flac", "direct"), ("mkv", "indexed"), ("mp3", "preroll"), ("m4a", "indexed"), ("opus.mkv", "indexed"), ("opus10.mkv", "indexed"), ("opus5.mkv", "indexed")]
 )
 def test_range_equals_full_decode(ramp, tmp_path, ext, method):
     ref = ref_of(ramp[ext])

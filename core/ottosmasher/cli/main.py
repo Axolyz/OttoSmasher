@@ -365,7 +365,7 @@ def cmd_events(args: argparse.Namespace) -> None:
                 continue
             if names and not any(ev["e"] == x or ev["e"].startswith(x.rstrip("*")) for x in names):
                 continue
-            sys.stdout.write(json.dumps({"event": ev["e"], "data": ev["d"]}, ensure_ascii=False) + "\n")
+            sys.stdout.write(json.dumps({"event": ev["e"], "data": ev["d"]}, ensure_ascii=False, default=json_default) + "\n")
             sys.stdout.flush()
             n += 1
 

@@ -41,6 +41,7 @@ htmlcov/
 *.srt
 *.ass
 *.onnx
+*.gguf
 *.npy
 *.npz
 *.sqlite3

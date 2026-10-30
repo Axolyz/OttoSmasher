@@ -71,13 +71,16 @@ class FrameIndex:
 
         Opus 中途启动解码器会再次丢弃 pre-skip，首帧只剩后半段；索引来自整条解码，
         对应帧却是完整的。用帧长差恢复起点，不能把缩短后的首帧仍放在索引帧首。
-        时间戳仅用于找帧（容器会舍入到毫秒），不用于估算丢弃了几个样本。
+        输出首帧的时间戳是“第一个保留样本”的时间：按每帧“帧首 + 丢掉的样本”比对找帧；
+        只按帧首找时，pre-skip（常见 312 样本）大于半帧（10 ms 及更短的帧）会错到下一帧。
         """
-        k = int(np.argmin(np.abs(self.pts_time - pts)))
-        n = int(self.start[k + 1] - self.start[k]) if k + 1 < len(self.start) else int(self.total - self.start[k])
-        if abs(self.pts_time[k] - pts) > 0.5 * max(n, 1) / sample_rate or not 0 < frame_samples <= n:
+        n = np.diff(self.start, append=self.total)
+        kept = np.where(n >= frame_samples, self.pts_time + (n - frame_samples) / sample_rate, np.inf)  # 比首帧短的帧不可能是它
+        k = int(np.argmin(np.abs(kept - pts)))
+        nk = int(n[k])
+        if abs(kept[k] - pts) > 0.5 * max(nk, 1) / sample_rate or not 0 < frame_samples <= nk:
             raise CoreError("decode-misaligned", pts=pts)
-        return int(self.start[k]) + n - frame_samples
+        return int(self.start[k]) + nk - frame_samples
 
 
 def _index_path(cache: Path, ref: StreamRef) -> Path:

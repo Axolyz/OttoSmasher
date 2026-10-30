@@ -149,6 +149,7 @@ class Scheduler:
             # Workers report by frozen item index; retry needs a fresh result table
             # for those updates and the adopter, including the original skipped rows.
             self.add_items(job["id"], [(it["target"], "skipped" if it["status"] == "skipped" else "queued") for it in items])
+            self.emit("job.updated", self.summary(job["id"]))  # submit 时还没有条目，补发一次让任务抽屉显示条数
         return self.summary(job["id"])
 
     # ---------- 查询

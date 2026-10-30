@@ -43,7 +43,7 @@ export function StoragePanel() {
         columns={[
           { id: "k", label: t("storage.col.category"), isRowHeader: true, render: (c) => <span title={t(`storage.cat.${c.key}.hint`)}>{t(`storage.cat.${c.key}`)}</span> },
           { id: "b", label: t("storage.col.size"), width: "90px", align: "end", render: (c) => <span className="num">{fileSize(c.bytes)}</span> },
-          { id: "c", label: t("storage.col.cleanable"), width: "90px", align: "end", render: (c) => <span className="num">{c.key === "cache" || c.key === "searchIndex" ? fileSize(c.cleanable) : t("storage.never")}</span> },
+          { id: "c", label: t("storage.col.cleanable"), width: "90px", align: "end", render: (c) => <span className="num">{c.key === "cache" || c.key === "searchIndex" || c.key === "jobs" ? fileSize(c.cleanable) : t("storage.never")}</span> },
           { id: "r", label: t("storage.col.recent"), width: "90px", align: "end", render: (c) => <span className="num">{c.recent || ""}</span> },
         ]}
       />
