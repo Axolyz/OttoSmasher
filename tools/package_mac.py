@@ -1,0 +1,378 @@
+"""本地构建 macOS 发布包（阶段 10，所有者 2026-10-30【基线变更】：只发 macOS、本地构建、所有者手动上传 Release、除 PyMSS 外模型随包）。
+
+用法（仓库根目录）：``.venv/bin/python tools/package_mac.py``（``--skip-build`` 跳过前端构建，``--no-zip`` 不打包 ZIP）。
+产物：``out/release/OttoSmasher.app``、``out/release/OttoSmasher-<版本>-macos-arm64.zip`` 与同名 ``.sha256``。
+
+.app 的 Contents/Resources 布局（``app/main/paths.ts``、``core/ottosmasher/resources.py`` 按这个找）：
+- ``app/``：应用代码（``out/`` 的主进程、preload、界面；``app/renderer/i18n/locales``；mpv 渲染桥与 libmpv）
+- ``python/``：python-build-standalone（与开发环境同一个）+ Core 及依赖（按 uv.lock，不含开发依赖）
+- ``third_party/``：模型支持文件、pydomino 扩展
+- ``models/``：随包的模型权重（按 registry 的 SHA-256 核对后复制）
+- ``bin/``、``lib/``：ffmpeg、ffprobe、rubberband（取本机 Homebrew 的，连同它们依赖的动态库一起复制并改成包内相对路径）与 ``otto`` 启动器
+- ``licenses/``：本项目与第三方的许可
+全部 Mach-O 文件逐个 ad-hoc 签名，最后签整个 .app（没有 Apple 开发者证书，不公证）。
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import plistlib
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "out" / "release"
+NAME = "OttoSmasher"
+BUNDLE_ID = "io.github.axolyz.ottosmasher"
+MIN_MACOS = "14.0"
+HELPERS = ("", " (GPU)", " (Renderer)", " (Plugin)")
+TOOLS = ("ffmpeg", "ffprobe", "rubberband")
+SYSTEM_PREFIXES = ("/usr/lib/", "/System/")
+
+
+def run(*cmd: str | Path, **kw) -> subprocess.CompletedProcess:
+    return subprocess.run([str(c) for c in cmd], check=True, **kw)
+
+
+def step(msg: str) -> None:
+    print(f"==> {msg}", flush=True)
+
+
+# ---------------------------------------------------------------- 检查
+
+
+def preflight() -> dict[str, Path]:
+    if sys.platform != "darwin" or os.uname().machine != "arm64":
+        sys.exit("只支持在 Apple 芯片的 macOS 上构建")
+    base = Path(sys.base_prefix)
+    need = {
+        "electron": ROOT / "node_modules" / "electron" / "dist" / "Electron.app",
+        "python": base,
+        "bridge": ROOT / "app" / "native" / "mpv-bridge" / "build" / "Release" / "mpv_bridge.node",
+        "libmpv": ROOT / "third_party" / "libmpv" / "macos-arm64",
+        "support": ROOT / "third_party" / "model-support",
+        "native": ROOT / "third_party" / "native" / "darwin-arm64",
+        "models": ROOT / "dev-workspace" / "Models",
+    }
+    missing = [f"{k}: {v}" for k, v in need.items() if not v.exists()]
+    for t in TOOLS:
+        p = shutil.which(t)
+        if not p:
+            missing.append(f"{t}: 不在 PATH 上（需要 Homebrew 的 ffmpeg 与 rubberband）")
+        else:
+            need[t] = Path(p).resolve()
+    if missing:
+        sys.exit("缺少：\n  " + "\n  ".join(missing))
+    return need
+
+
+# ---------------------------------------------------------------- Electron 外壳与改名
+
+
+def make_shell(src: Path, app: Path, version: str) -> None:
+    if app.exists():
+        shutil.rmtree(app)
+    run("ditto", src, app)  # 保留框架里的符号链接
+    c = app / "Contents"
+    (c / "MacOS" / "Electron").rename(c / "MacOS" / NAME)
+    for h in HELPERS:
+        old = c / "Frameworks" / f"Electron Helper{h}.app"
+        new = c / "Frameworks" / f"{NAME} Helper{h}.app"
+        (old / "Contents" / "MacOS" / f"Electron Helper{h}").rename(old / "Contents" / "MacOS" / f"{NAME} Helper{h}")
+        edit_plist(old / "Contents" / "Info.plist", {
+            "CFBundleExecutable": f"{NAME} Helper{h}", "CFBundleName": f"{NAME} Helper{h}", "CFBundleDisplayName": f"{NAME} Helper{h}",
+            "CFBundleIdentifier": f"{BUNDLE_ID}.helper{h.strip(' ()').lower() and '.' + h.strip(' ()').lower()}",
+        })
+        old.rename(new)
+    edit_plist(c / "Info.plist", {
+        "CFBundleExecutable": NAME, "CFBundleName": NAME, "CFBundleDisplayName": NAME, "CFBundleIdentifier": BUNDLE_ID,
+        "CFBundleShortVersionString": version, "CFBundleVersion": version, "CFBundleIconFile": f"{NAME}.icns",
+        "LSMinimumSystemVersion": MIN_MACOS, "LSApplicationCategoryType": "public.app-category.music", "NSHumanReadableCopyright": "GPL-3.0-or-later",
+    })
+    res = c / "Resources"
+    for f in ("default_app.asar", "electron.icns"):
+        (res / f).unlink(missing_ok=True)
+    make_icon(res / f"{NAME}.icns")
+
+
+def edit_plist(path: Path, values: dict[str, str]) -> None:
+    with open(path, "rb") as fh:
+        pl = plistlib.load(fh)
+    pl.update(values)
+    with open(path, "wb") as fh:
+        plistlib.dump(pl, fh)
+
+
+def make_icon(dst: Path) -> None:
+    src = ROOT / "assets" / "brand" / "logo.png"
+    with tempfile.TemporaryDirectory() as tmp:
+        iconset = Path(tmp) / "icon.iconset"
+        iconset.mkdir()
+        for size in (16, 32, 128, 256, 512):
+            for scale in (1, 2):
+                px = size * scale
+                name = f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
+                run("sips", "-z", px, px, src, "--out", iconset / name, stdout=subprocess.DEVNULL)
+        run("iconutil", "-c", "icns", iconset, "-o", dst)
+
+
+# ---------------------------------------------------------------- 应用代码
+
+
+def copy_app_code(res: Path, need: dict[str, Path], version: str) -> None:
+    code = res / "app"
+    for d in ("main", "preload", "renderer"):
+        shutil.copytree(ROOT / "out" / d, code / "out" / d)
+    shutil.copytree(ROOT / "app" / "renderer" / "i18n" / "locales", code / "app" / "renderer" / "i18n" / "locales")
+    rel = code / "app" / "native" / "mpv-bridge" / "build"
+    (rel / "Release").mkdir(parents=True)
+    shutil.copy2(need["bridge"], rel / "Release" / "mpv_bridge.node")
+    shutil.copytree(need["libmpv"], rel / "libmpv", symlinks=True)  # 渲染桥的 rpath：@loader_path/../libmpv
+    pkg = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+    (code / "package.json").write_text(json.dumps({"name": pkg["name"], "productName": NAME, "version": version, "main": pkg["main"]}, indent=2), encoding="utf-8")
+
+
+# ---------------------------------------------------------------- Python
+
+
+def copy_python(res: Path, need: dict[str, Path]) -> None:
+    py = res / "python"
+    run("ditto", need["python"], py)
+    (py / "lib" / "python3.12" / "EXTERNALLY-MANAGED").unlink(missing_ok=True)
+    for d in ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3"):
+        shutil.rmtree(py / "lib" / "python3.12" / d, ignore_errors=True)
+    exe = py / "bin" / "python3"
+    uv = ROOT / "tools" / "uv"
+    with tempfile.TemporaryDirectory() as tmp:
+        req = Path(tmp) / "requirements.txt"
+        run(uv, "export", "--frozen", "--no-dev", "--no-hashes", "--no-emit-project", "--format", "requirements-txt", "-o", req, stdout=subprocess.DEVNULL)
+        run(uv, "pip", "install", "--python", exe, "-r", req)
+    run(uv, "pip", "install", "--python", exe, "--no-deps", "--reinstall-package", "ottosmasher-core", ROOT)
+    run(exe, "-c", "import ottosmasher.core.server, onnxruntime, pyopenjtalk, numpy, scipy, regex, msgspec; print('python ok')")
+
+
+# ---------------------------------------------------------------- 支持文件与模型
+
+
+def copy_support(res: Path, need: dict[str, Path]) -> None:
+    tp = res / "third_party"
+    shutil.copytree(need["support"], tp / "model-support")
+    shutil.copytree(need["native"], tp / "native" / "darwin-arm64")
+
+
+def copy_models(res: Path, need: dict[str, Path]) -> None:
+    sys.path.insert(0, str(ROOT / "core"))
+    from ottosmasher.models import registry
+
+    dst = res / "models"
+    for m in registry.MODELS:
+        for f in m.files:
+            if f.role != "weight":
+                continue
+            src = need["models"] / f.rel_path
+            if not src.is_file() or registry.sha256_file(src) != f.sha256:
+                sys.exit(f"模型文件缺失或不对：{src}（先在开发版里下载 / 导入模型）")
+            (dst / f.rel_path).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst / f.rel_path)
+
+
+# ---------------------------------------------------------------- 媒体工具（Homebrew → 包内）
+
+
+def macho_deps(path: Path) -> list[str]:
+    out = subprocess.run(["otool", "-L", str(path)], capture_output=True, text=True, check=True).stdout.splitlines()[1:]
+    return [ln.strip().split(" (")[0] for ln in out if ln.strip()]
+
+
+def rpaths(path: Path) -> list[str]:
+    out = subprocess.run(["otool", "-l", str(path)], capture_output=True, text=True, check=True).stdout.splitlines()
+    return [out[i + 2].split()[1] for i, ln in enumerate(out) if "LC_RPATH" in ln]
+
+
+def resolve_dep(dep: str, owner: Path) -> Path | None:
+    if dep.startswith(SYSTEM_PREFIXES):
+        return None
+    if dep.startswith("@rpath/"):
+        for rp in rpaths(owner):
+            p = Path(rp.replace("@loader_path", str(owner.parent)).replace("@executable_path", str(owner.parent))) / dep[len("@rpath/") :]
+            if p.exists():
+                return p.resolve()
+        raise SystemExit(f"找不到 {dep}（{owner}）")
+    if dep.startswith("@loader_path/"):
+        return (owner.parent / dep[len("@loader_path/") :]).resolve()
+    return Path(dep).resolve()
+
+
+def bundle_tools(res: Path, need: dict[str, Path]) -> None:
+    bin_dir, lib_dir = res / "bin", res / "lib"
+    bin_dir.mkdir()
+    lib_dir.mkdir()
+    queue: list[tuple[Path, Path]] = []  # (原文件, 包内文件)
+    for t in TOOLS:
+        dst = bin_dir / t
+        shutil.copy2(need[t], dst)
+        queue.append((need[t], dst))
+    done: dict[Path, str] = {}
+    while queue:
+        src, dst = queue.pop()
+        os.chmod(dst, 0o755)
+        for dep in macho_deps(dst):
+            real = resolve_dep(dep, src)
+            if real is None or real == src:
+                continue
+            name = real.name
+            if real not in done:
+                target = lib_dir / name
+                if not target.exists():
+                    shutil.copy2(real, target)
+                    queue.append((real, target))
+                done[real] = name
+            new = f"@loader_path/{'../lib/' if dst.parent == bin_dir else ''}{name}"
+            run("install_name_tool", "-change", dep, new, dst, stderr=subprocess.DEVNULL)
+        if dst.parent == lib_dir:
+            run("install_name_tool", "-id", f"@loader_path/{dst.name}", dst, stderr=subprocess.DEVNULL)
+        for rp in rpaths(dst):
+            subprocess.run(["install_name_tool", "-delete_rpath", rp, str(dst)], stderr=subprocess.DEVNULL)
+    for t in TOOLS:
+        bad = [d for d in macho_deps(bin_dir / t) if not d.startswith(SYSTEM_PREFIXES + ("@loader_path/",))]
+        if bad:
+            sys.exit(f"{t} 还引用包外的库：{bad}")
+
+
+LAUNCHER = """#!/bin/sh
+# OttoSmasher 命令行 otto（发布版）：用包里的 Python 运行；可以经 ~/.local/bin/otto 的链接调用
+self="$0"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in /*) self="$link" ;; *) self="$(dirname "$self")/$link" ;; esac
+done
+R="$(cd "$(dirname "$self")/.." && pwd -P)"
+unset PYTHONHOME PYTHONPATH PYTHONSTARTUP VIRTUAL_ENV
+export PYTHONNOUSERSITE=1 OTTO_RESOURCES="$R" OTTO_FFMPEG="$R/bin/ffmpeg" OTTO_FFPROBE="$R/bin/ffprobe" OTTO_RUBBERBAND="$R/bin/rubberband"
+exec "$R/python/bin/python3" -m ottosmasher.cli "$@"
+"""
+
+
+def write_launcher(res: Path) -> None:
+    p = res / "bin" / "otto"
+    p.write_text(LAUNCHER, encoding="utf-8")
+    os.chmod(p, 0o755)
+
+
+# ---------------------------------------------------------------- 许可
+
+
+VOCODER_NOTICE = """PC-NSF-HiFiGAN (models/flatten/pc_nsf_hifigan.onnx)
+
+Original work: OpenVPI. Converted model from ARounder-183/HiFiShifter @6432687.
+License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+This model is a separate component distributed with OttoSmasher under its own license; it is NOT covered by
+OttoSmasher's GPL-3.0-or-later license. OttoSmasher is distributed free of charge (non-commercial).
+Commercial use or commercial redistribution of this model is not permitted. To redistribute OttoSmasher
+commercially, remove Contents/Resources/models/flatten/ first. Check OpenVPI's terms before using audio
+produced with this model commercially.
+"""
+
+
+def copy_licenses(res: Path, need: dict[str, Path]) -> None:
+    d = res / "licenses"
+    d.mkdir()
+    shutil.copy2(ROOT / "LICENSE", d / "OttoSmasher-LICENSE.txt")
+    shutil.copy2(ROOT / "docs" / "THIRD_PARTY.md", d / "THIRD_PARTY.md")
+    el = need["electron"].parent
+    shutil.copy2(el / "LICENSE", d / "Electron-LICENSE.txt")
+    shutil.copy2(el / "LICENSES.chromium.html", d / "Chromium-LICENSES.html")
+    shutil.copy2(need["python"] / "lib" / "python3.12" / "LICENSE.txt", d / "Python-LICENSE.txt")
+    # 模型：各按自己的许可作为单独组件随包（THIRD_PARTY.md 的那一节原样放进来）；声码器的非商业条款单独写一份
+    tp = (ROOT / "docs" / "THIRD_PARTY.md").read_text(encoding="utf-8")
+    start = tp.index("### 模型权重")
+    (d / "MODELS.md").write_text(tp[start : tp.index("### ", start + 4)], encoding="utf-8")
+    (d / "PC-NSF-HiFiGAN-NOTICE.txt").write_text(VOCODER_NOTICE, encoding="utf-8")
+    for t in ("ffmpeg", "rubberband"):  # Homebrew 安装目录里的许可文件
+        prefix = need[t].parents[1]
+        for lic in list(prefix.glob("LICENSE*")) + list(prefix.glob("COPYING*")):
+            shutil.copy2(lic, d / f"{t}-{lic.name}")
+
+
+# ---------------------------------------------------------------- 签名与打包
+
+
+def is_macho(p: Path) -> bool:
+    try:
+        with open(p, "rb") as fh:
+            magic = fh.read(4)
+    except OSError:
+        return False
+    return magic in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xcf", b"\xbe\xba\xfe\xca")
+
+
+def sign(app: Path) -> None:
+    files = [p for p in app.rglob("*") if p.is_file() and not p.is_symlink() and is_macho(p)]
+    for p in sorted(files, key=lambda x: -len(x.parts)):  # 先里后外
+        run("codesign", "--force", "--sign", "-", "--timestamp=none", p, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for b in sorted([*app.rglob("*.framework"), *app.rglob("*.app")], key=lambda x: -len(x.parts)):
+        if b != app:
+            run("codesign", "--force", "--sign", "-", "--timestamp=none", b, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run("codesign", "--force", "--sign", "-", "--timestamp=none", app)
+    run("codesign", "--verify", "--deep", "--strict", app)
+
+
+def make_zip(app: Path, version: str) -> Path:
+    z = OUT / f"{NAME}-{version}-macos-arm64.zip"
+    z.unlink(missing_ok=True)
+    run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, z)
+    size = z.stat().st_size
+    if size >= 2_000_000_000:
+        sys.exit(f"ZIP 超过 2 GB：{size}")
+    h = hashlib.sha256(z.read_bytes()).hexdigest()
+    (OUT / f"{z.name}.sha256").write_text(f"{h}  {z.name}\n", encoding="utf-8")
+    print(f"{z}  {size / 1e6:.0f} MB  sha256 {h}")
+    return z
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--skip-build", action="store_true")
+    ap.add_argument("--no-zip", action="store_true")
+    a = ap.parse_args()
+    need = preflight()
+    version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+    if not a.skip_build:
+        step("构建主进程、preload 与界面")
+        run(ROOT / "tools" / "npm", "run", "build", cwd=ROOT)
+    OUT.mkdir(parents=True, exist_ok=True)
+    app = OUT / f"{NAME}.app"
+    res = app / "Contents" / "Resources"
+    step("Electron 外壳（改名、图标、Info.plist）")
+    make_shell(need["electron"], app, version)
+    step("应用代码、mpv 渲染桥与 libmpv")
+    copy_app_code(res, need, version)
+    step("Python 运行时与 Core（按 uv.lock）")
+    copy_python(res, need)
+    step("模型支持文件、pydomino 扩展、模型权重")
+    copy_support(res, need)
+    copy_models(res, need)
+    step("ffmpeg / ffprobe / rubberband 与它们的动态库、otto 启动器")
+    bundle_tools(res, need)
+    write_launcher(res)
+    step("许可")
+    copy_licenses(res, need)
+    step("ad-hoc 签名")
+    sign(app)
+    total = sum(p.stat().st_size for p in app.rglob("*") if p.is_file() and not p.is_symlink())
+    print(f"{app}  {total / 1e6:.0f} MB")
+    if not a.no_zip:
+        step("ZIP")
+        make_zip(app, version)
+
+
+if __name__ == "__main__":
+    main()

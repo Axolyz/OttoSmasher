@@ -15,12 +15,22 @@ const t = createT(zhCN as Record<string, string>, { pseudo: locale === PSEUDO })
 const devServer = process.env.OTTO_DEV_SERVER; // 开发期 Vite 地址
 const isDev = process.env.OTTO_DEV === "1";
 
+if (!paths.repo) {
+  // 发布版：Core 用随包的 Python 与媒体工具；用户环境里的 Python 变量不能漏进来（15 §15.8 冒烟：清空 Python/Conda 环境变量）
+  for (const k of ["PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "VIRTUAL_ENV", "CONDA_PREFIX", "CONDA_DEFAULT_ENV"]) delete process.env[k];
+  process.env.PYTHONNOUSERSITE = "1";
+  process.env.OTTO_RESOURCES = paths.resources;
+  process.env.OTTO_FFMPEG = join(paths.resources, "bin", "ffmpeg");
+  process.env.OTTO_FFPROBE = join(paths.resources, "bin", "ffprobe");
+  process.env.OTTO_RUBBERBAND = join(paths.resources, "bin", "rubberband");
+}
+
 const core = new CoreClient({
   python: paths.python,
   workspace: paths.workspace,
   supportDir: paths.supportDir,
   dev: isDev,
-  cwd: paths.repo ?? undefined,
+  cwd: paths.resources,
 });
 
 function logDesktopEvent(kind: string, detail: Record<string, unknown>): void {
@@ -148,7 +158,7 @@ ipcMain.handle("links:open", (_e, id: string) => {
 // 命令行 otto（设置 › 命令行与 agent）：源码版 = 仓库的 tools/otto；发布版的启动器还没做（ROADMAP L46，阶段 10）。
 // “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）；Windows 未实现（未验收）。
 function ottoInfo(): OttoInfo {
-  const path = paths.repo ? join(paths.repo, "tools", process.platform === "win32" ? "otto.cmd" : "otto") : null;
+  const path = join(paths.resources, paths.repo ? "tools" : "bin", process.platform === "win32" ? "otto.cmd" : "otto");
   const link = process.platform === "win32" ? null : join(homedir(), ".local", "bin", "otto");
   let linked = false;
   let conflict = false;
@@ -157,7 +167,7 @@ function ottoInfo(): OttoInfo {
     if (st.isSymbolicLink()) linked = readlinkSync(link) === path;
     else conflict = true;
   }
-  return { path: path && existsSync(path) ? path : null, link, linked, conflict };
+  return { path: existsSync(path) ? path : null, link, linked, conflict };
 }
 ipcMain.handle("agent:ottoInfo", () => ottoInfo());
 ipcMain.handle("agent:installOtto", () => {
@@ -263,7 +273,7 @@ app.on("before-quit", (e) => {
 
 app.whenReady().then(() => {
   // 开发期 Dock 图标用所有者的 logo（发布版的 .icns/.ico 在阶段 10 生成）
-  if (process.platform === "darwin" && paths.repo) app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png"));
+  if (process.platform === "darwin" && paths.repo) app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png")); // 发布版用 .app 自己的图标
   installCsp();
   core.start();
   createWindow();

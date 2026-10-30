@@ -122,6 +122,9 @@ def file_status(
     cached_sha: dict[str, tuple[int, int, str]],
 ) -> list[dict[str, Any]]:
     """每个模型的文件状态。``cached_sha``：路径 → (大小, 修改时间 ns, sha256)。"""
+    from .. import resources
+
+    bundled_root = resources.root().resolve() if resources.packaged() else None
     out: list[dict[str, Any]] = []
     for m in MODELS:
         files = []
@@ -132,6 +135,8 @@ def file_status(
                 state = "missing"
             elif f.size is not None and snap[0] != f.size:
                 state = "size-mismatch"
+            elif bundled_root is not None and bundled_root in p.resolve().parents:
+                state = "ok"  # 随包的文件：构建时按 SHA-256 核对过，.app 有签名、程序目录只读，不在每个工作区再算一遍
             else:
                 c = cached_sha.get(str(p))
                 if c is None or (c[0], c[1]) != snap:

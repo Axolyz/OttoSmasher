@@ -597,21 +597,21 @@ class LanguageProfile(Protocol):
 
 ---
 
-## 14. 分发（阶段 10 细化）
+## 14. 分发（阶段 10；2026-10-30【基线变更】：只发 macOS、本地构建、模型随包）
 
-- electron-builder 生成目录产物：macOS `.app`（ad-hoc 签名；原生扩展与 libmpv 去绝对 rpath）、Windows 便携目录；各打成 ZIP，严格 < 2,000,000,000 字节。
-- 包含：Electron 运行时、前端、mpv 渲染桥与 libmpv、Python 运行时（python-build-standalone）与 Core 依赖、ONNX Runtime、ffmpeg/ffprobe、rubberband、
-  G2P 辞典与 tokenizer、模型配置等非权重支持文件。不包含：模型权重、PyTorch、PyMSS Studio、用户素材。
-- 程序目录只读；工作区与程序分离；不需要首次启动“释放运行库”。
-- 冒烟检查：含中文与空格的隔离路径、清空 Python/Conda 环境变量、空工作区、运行库探测、原生播放截停一段短区间、媒体工具可用。
-- 许可证：GPL-3.0-or-later（Rubber Band 为 GPL）；随包附第三方声明（清单 [THIRD_PARTY.md](THIRD_PARTY.md)；全文在打包时收集到程序目录 `licenses/`）。
-- **模型权重的准备**（所有者 2026-10-10）：权重不随包，应用内显式下载——设置 → 环境与模型「下载缺少的模型」（`models.download`：每个模型一个轻量任务，
-  固定修订的直链、边下边算 SHA-256、一致才原子放进工作区 `Models/`，失败报 `model-download-failed` 带网址与放置路径）、
-  「从文件导入…」（`models.import`：别处下好的文件按 SHA-256 认，文件名不对也认）；新工作区第一次打开、缺模型时提醒一次（不自动下载）。
-  `models/download.py`；下载用标准库 urllib（系统证书；跟随 Hugging Face 的跨域重定向）。
+- `tools/package_mac.py` 直接组装 `.app`（不用 electron-builder）：复制 Electron 的 `Electron.app`，改名（主程序与四个 Helper）、改 Info.plist（`io.github.axolyz.ottosmasher`、macOS 14+）、
+  由 `assets/brand/logo.png` 生成图标；逐个 ad-hoc 签名所有 Mach-O，再签整个 .app；`ditto` 打 ZIP（< 2 GB）并写 SHA-256。
+- `Contents/Resources/` 布局（`app/main/paths.ts` 与 `core/ottosmasher/resources.py` 按它找；源码运行时同样的相对路径在仓库里）：
+  `app/`（`out/` 与界面文案、mpv 渲染桥 + `libmpv/`）、`python/`（与开发环境同一个 python-build-standalone 3.12 + 按 uv.lock 装的 Core 与依赖）、
+  `third_party/`（模型支持文件、pydomino 扩展）、`models/`（四个模型权重；工作区 `Models/` 里有同名文件时优先用工作区的）、
+  `bin/` + `lib/`（ffmpeg、ffprobe、rubberband 取自本机 Homebrew，依赖的动态库一起复制、改成 `@loader_path`；`otto` 启动器）、`licenses/`。
+- 发布版运行时：主进程设 `OTTO_RESOURCES`、`OTTO_FFMPEG` / `OTTO_FFPROBE` / `OTTO_RUBBERBAND`，清掉 `PYTHONHOME` / `PYTHONPATH` / Conda 等变量；
+  默认工作区 `~/Documents/OttoSmasher Workspace`（L3，`OTTO_WORKSPACE` 可改）；随包的模型文件直接算已核对（构建时按 SHA-256 核对、.app 有签名）。
+- 程序目录只读；工作区与程序分离；不需要首次启动“释放运行库”。冒烟检查：`e2e/packaged.spec.ts`（清空环境变量、中文与空格路径、空工作区、随包模型就绪、登记、试听截停、otto 路径）。
+- 许可：GPL-3.0-or-later（Rubber Band、带 libx264 的 ffmpeg 为 GPL）；模型各按自己的许可作为单独组件随包，PC-NSF-HiFiGAN 是 CC BY-NC-SA 4.0（非商业），
+  见 [THIRD_PARTY.md](THIRD_PARTY.md) 与包内 `licenses/`。
 - **PyMSS Studio 不随包**：设置 → PyMSS Studio 没找到时说明要另外安装，并给发布页（主进程 `links:open` 只开固定列表里的网址）。
-- 随包 / 不随包的理由与清单见 [README](../README.md)「发布包里有什么、没有什么」与 [THIRD_PARTY.md](THIRD_PARTY.md)。体积估算：Electron 约 300 MB、
-  Python 与 Core 依赖约 500 MB（最大的是 SudachiDict-core 193 MB 与 pyopenjtalk 123 MB）、ffmpeg 约 80 MB、libmpv 24 MB，解压后约 1 GB，ZIP 远小于 2 GB。
+- 体积：Electron 约 290 MB、Python 与 Core 依赖约 590 MB、模型 187 MB、媒体工具与动态库约 40 MB；.app 约 1.2 GB。
 
 ---
 

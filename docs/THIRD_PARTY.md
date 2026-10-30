@@ -3,7 +3,7 @@
 OttoSmasher 本身以 **GPL-3.0-or-later** 发布（见 [LICENSE](../LICENSE)）。选 GPL-3.0-or-later 的原因：
 随包的 Rubber Band（GPL-2.0-or-later）和带 libx264 的 ffmpeg（GPL）都要求整体以 GPL 兼容的条款分发；旧版也是这个许可（交接包 15 §15.9）。
 
-本页是清单（2026-10-10，按当前锁定的版本）。发布包里会另附各组件的许可全文（阶段 10 打包时由构建脚本收集，放在程序目录的 `licenses/` 下）。
+本页是清单（2026-10-10 起，按当前锁定的版本）。发布包里另附各组件的许可（`tools/package_mac.py` 收集，放在 `OttoSmasher.app/Contents/Resources/licenses/`）。
 
 ## 一、随应用分发
 
@@ -50,18 +50,9 @@ OttoSmasher 本身以 **GPL-3.0-or-later** 发布（见 [LICENSE](../LICENSE)）
 | FFmpeg / ffprobe（含 libx264、AAC、ProRes 编码器，用于视频片段） | 发布时选定 | **GPL**（带 libx264 的构建） |
 | Rubber Band（命令行，R3 引擎，卡拍的保音高伸缩） | 4.x | **GPL-2.0-or-later** |
 
-### 模型的非权重支持文件
+### 模型权重（随应用分发，所有者 2026-10-30【基线变更】）
 
-| 文件 | 来源 | 许可 |
-|---|---|---|
-| tsqyomi v4 的 `tokenizer.json`、`metadata.json` | tsukumijima/tsqyomi-models @680596d | MIT |
-| PC-NSF-HiFiGAN 的 `config.json` | ARounder-183/HiFiShifter @6432687 | MIT（HiFiShifter 仓库） |
-
-## 二、不随应用分发
-
-### 模型权重（由用户下载：设置 → 环境与模型）
-
-下载前请看清许可；下载即表示你接受该模型的条款。
+四个模型都放在发布包的 `Contents/Resources/models/` 里，构建时按下表的 SHA-256 核对。它们是**单独的数据文件、各按自己的许可分发**，不属于本应用的 GPL 部分。
 
 | 模型 | 用途 | 来源（固定修订） | 大小 | 许可 |
 |---|---|---|---|---|
@@ -70,8 +61,19 @@ OttoSmasher 本身以 **GPL-3.0-or-later** 发布（见 [LICENSE](../LICENSE)）
 | FCPE `fcpe.onnx` | 音高测量 | ARounder-183/HiFiShifter @6432687 | 41.3 MB | MIT |
 | PC-NSF-HiFiGAN `pc_nsf_hifigan.onnx` | 拉平声码器 | ARounder-183/HiFiShifter @6432687（原作 OpenVPI） | 54.0 MB | **CC BY-NC-SA 4.0**：署名、**非商业**、相同方式共享 |
 
-PC-NSF-HiFiGAN 的非商业条款是它不能和本应用打包在一起再分发的原因之一：GPL 不允许附加“非商业”限制。
-用它拉平出来的声音用于商业用途前，请自行确认 OpenVPI 的条款。
+
+**PC-NSF-HiFiGAN 不是 GPL、也不是开源许可**：CC BY-NC-SA 4.0（https://creativecommons.org/licenses/by-nc-sa/4.0/），原作 OpenVPI。
+本发布包免费分发，属于非商业用途；**任何人把发布包或其中的这个模型用于商业用途（包括收费再分发）都不被允许**，需要商业用途时请删掉 `models/flatten/` 并自己确认 OpenVPI 的条款。用它拉平出来的声音用于商业用途前，也请自行确认。
+程序目录里另有 `licenses/MODELS.md`（这一节）与 `licenses/PC-NSF-HiFiGAN-NOTICE.txt`。
+
+### 模型的非权重支持文件
+
+| 文件 | 来源 | 许可 |
+|---|---|---|
+| tsqyomi v4 的 `tokenizer.json`、`metadata.json` | tsukumijima/tsqyomi-models @680596d | MIT |
+| PC-NSF-HiFiGAN 的 `config.json` | ARounder-183/HiFiShifter @6432687 | MIT（HiFiShifter 仓库） |
+
+## 二、不随应用分发
 
 ### PyMSS Studio（人声 / 三轨分离）
 

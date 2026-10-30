@@ -49,7 +49,16 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。
 - 3 万条合成库的性能测试：`OTTO_PERF_WS=.cache/perf/ws .venv/bin/python -m pytest core/tests/perf -s`。
 
-## 发布（阶段 10）
+## 发布（阶段 10，macOS）
 
-见 [ARCHITECTURE.md §14](ARCHITECTURE.md) 的分发方案：electron-builder 目录产物（macOS `.app`、Windows 便携目录）各打一个 ZIP（< 2 GB），
-随包与不随包的组件见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建、所有者手动推送并把 ZIP 传到 GitHub Release；除 PyMSS Studio 外模型随包。
+
+```bash
+tools/npm run build && .venv/bin/python tools/package_mac.py   # → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip 与 .sha256
+OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # 发布包冒烟：清空环境变量、中文与空格路径、随包模型、播放、otto 路径
+```
+
+构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
+本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。
+版本号取 `package.json` 的 `version`。包是 ad-hoc 签名、没有公证（没有 Apple 开发者证书），README 写了用户第一次打开的办法。
+布局与原因见 [ARCHITECTURE.md §14](ARCHITECTURE.md)，随包组件与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)。

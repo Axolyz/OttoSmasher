@@ -631,3 +631,7 @@ R8.7、R11.9（再分析替换这句的那一份）、R11.10；本文件「原�
 | 模型权重不随包、应用内下载（2026-10-10，L37；ARCHITECTURE §14） | **除 PyMSS Studio 的分离模型外，全部模型随包**（pydomino、tsqyomi、FCPE、拉平声码器，约 190 MB）；PyMSS Studio 仍不随包、另外安装 |
 
 影响：ARCHITECTURE §14、ROADMAP 阶段 10、README「安装 / 发布包里有什么」、THIRD_PARTY（模型许可随包）、设置 › 环境与模型（下载变成只在随包文件缺失或损坏时才需要）在阶段 10 实施时一起改。
+
+补充（2026-10-30）：拉平声码器 PC-NSF-HiFiGAN 是 CC BY-NC-SA 4.0（非商业），10-10 曾因此决定不随包。问过所有者后定为**四个模型都随包**：
+声码器作为单独的组件、按它自己的许可随包（不属于 GPL 部分），README、THIRD_PARTY 与包内 `licenses/MODELS.md`、`licenses/PC-NSF-HiFiGAN-NOTICE.txt` 写明非商业条款，
+商业再分发前要删掉 `Contents/Resources/models/flatten/`。另：发布版 ad-hoc 签名、不公证；只支持 Apple 芯片、macOS 14+；版本 0.1.0（按 package.json）。
