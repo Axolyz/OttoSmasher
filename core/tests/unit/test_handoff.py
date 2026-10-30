@@ -84,7 +84,9 @@ def test_stretched_export_and_manifest(core):  # noqa: F811
     assert man["scheme"]["bpm"] == 120 and man["mapping"][0] == [0.0, pytest.approx(2.0)]
     assert man["mapping"][-1][1] == pytest.approx(5.6) and man["mapping"][-1][0] == pytest.approx(frames / rate)
     # 同一请求复用；拖出跟随版本
-    assert core.handoff.export_stretched(s, WORDS)["reused"] is True
+    assert r["mapping"] == man["mapping"] and r["frames"] == frames and r["sampleRate"] == rate  # 返回里就有合成映射
+    again = core.handoff.export_stretched(s, WORDS)
+    assert again["reused"] is True and again["mapping"] == man["mapping"] and again["frames"] == frames
     paths = core.handoff.export_samples([s], WORDS, {s: "stretched"})
     assert paths == [r["path"]]
     orig = core.handoff.export_samples([s], WORDS)
@@ -219,6 +221,7 @@ def test_stretched_video_synced_and_original_speed(core, tmp_path):  # noqa: F81
     res = run_job(params, type("C", (), {"progress": lambda *a, **k: None})())
     core.video_export._adopt({"id": "job-1", "params": job}, res)
     assert "卡拍-120BPM" in params["target"] and params["target"].endswith(".mp4")
+    assert res["path"] == params["target"] and res["fps"] == params["fps"]  # 成品路径记进任务结果（事后按任务查）
     orig = core.video_export.sample(s, version="stretched", picture="original", words=WORDS)
     p2 = json.loads(core.conn.execute("SELECT params FROM job WHERE id = ?", (orig["job"]["id"],)).fetchone()[0])
     assert p2["duration"] == pytest.approx(3.6) and orig["stretchedWav"].endswith(".wav")

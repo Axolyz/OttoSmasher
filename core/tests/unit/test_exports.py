@@ -68,6 +68,10 @@ def test_export_equals_original_and_reuses(env, db, ws):
     assert np.max(np.abs(pcm[:, 1] - (-y[a:b] - 1) / 32768)) <= 2**-23
     again = export(env)
     assert again == {**out, "reused": True}
+    # 交给外部工具的坐标：实际导出区间、文件本身、文件秒 → 原片秒（整轨资产 = 恒等，起点平移）
+    assert (out["sourceId"], out["assetId"], out["sampleRate"], out["frames"]) == (env["sid"], env["asset"], SR, b - a)
+    assert out["range"] == [pytest.approx(a / SR), pytest.approx(b / SR)]
+    assert out["mapping"] == [[0.0, pytest.approx(a / SR)], [pytest.approx((b - a) / SR), pytest.approx(b / SR)]]
     assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 0
     assert db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0
     assert not list(ws.staging.iterdir())  # 暂存区不留东西

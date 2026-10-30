@@ -1359,9 +1359,18 @@ class ExportRangeParams(TypedDict):
 
 
 class ExportedWav(TypedDict):
+    """交给外部工具的坐标：``range`` = 实际导出的资产区间（资产秒，按源样本取整后）；``mapping`` = 导出文件秒 → 原片秒的折线点
+    ``[[文件秒, 原片秒], …]``（原声 = 资产映射截取这段；卡拍 = 清单里的合成映射）；``frames`` / ``sampleRate`` = 文件本身。"""
+
     path: str
     reused: bool
     key: str
+    sourceId: str
+    assetId: str
+    range: list[float]
+    sampleRate: int
+    frames: int
+    mapping: list[list[float]]
 
 
 class PromoteParams(TypedDict):

@@ -215,8 +215,10 @@ class VideoExportService:
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{params['key'][:24]}.json").write_text(dumps({**params["manifest"], "file": str(target), "black": result.get("black", 0),
                                                              "createdAt": now_iso()}), encoding="utf-8")
+        done = {"jobId": job["id"], "path": str(target), "black": int(result.get("black", 0)), "fps": params["fps"], "content": params["content"]}
+        result.update({k: v for k, v in done.items() if k != "jobId"})  # 成品路径也记进任务结果：事后按任务查得到（不靠事件、不重发导出）
         if self.emit:
-            self.emit("exports.videoDone", {"jobId": job["id"], "path": str(target), "black": int(result.get("black", 0)), "fps": params["fps"], "content": params["content"]})
+            self.emit("exports.videoDone", done)
 
 
 def _bpm(v: float) -> str:

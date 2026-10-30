@@ -5128,22 +5128,56 @@
   },
   "ExportedWav": {
    "title": "ExportedWav",
+   "description": "交给外部工具的坐标：``range`` = 实际导出的资产区间（资产秒，按源样本取整后）；``mapping`` = 导出文件秒 → 原片秒的折线点\n    ``[[文件秒, 原片秒], …]``（原声 = 资产映射截取这段；卡拍 = 清单里的合成映射）；``frames`` / ``sampleRate`` = 文件本身。",
    "type": "object",
    "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "frames": {
+     "type": "integer"
+    },
     "key": {
      "type": "string"
+    },
+    "mapping": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
     },
     "path": {
      "type": "string"
     },
+    "range": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
     "reused": {
      "type": "boolean"
+    },
+    "sampleRate": {
+     "type": "integer"
+    },
+    "sourceId": {
+     "type": "string"
     }
    },
    "required": [
+    "assetId",
+    "frames",
     "key",
+    "mapping",
     "path",
-    "reused"
+    "range",
+    "reused",
+    "sampleRate",
+    "sourceId"
    ]
   },
   "ExprCheck": {

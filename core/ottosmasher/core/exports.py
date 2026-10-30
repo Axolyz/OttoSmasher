@@ -27,7 +27,7 @@ from ottosmasher.store.workspace import Workspace
 
 from . import assets as assets_mod
 from .clock import new_id, now_iso
-from .edits import dumps
+from .edits import dumps, loads
 from .errors import CoreError
 
 VERSION_ORIGINAL = "original"
@@ -95,6 +95,17 @@ class ExportService:
         assets_mod.check_media(media)
         sr = ref.sample_rate
         a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
+        lo, hi = win.to_local(a / sr), win.to_local(b / sr)  # 实际导出的资产区间（按源样本取整后）
+
+        def handoff(path: str, key: str, frames: int, rate: int) -> dict[str, Any]:
+            # 交给外部工具的坐标：文件秒 → 原片秒（原声 = 资产映射截取这段；卡拍等 = 清单里的合成映射）
+            m = mapping.crop(lo, hi).to_list()
+            if manifest is not None:  # 读生成时写下的清单（复用时生成函数没跑，不能再算一遍）
+                f = self.ws.data / "Manifests" / f"{key[:24]}.json"
+                m = loads(f.read_text(encoding="utf-8"))["mapping"] if f.is_file() else manifest(path, key)["mapping"]
+            return {"sourceId": asset["source_id"], "assetId": asset_id, "range": [round(lo, 6), round(hi, 6)],
+                    "sampleRate": rate, "frames": frames, "mapping": m}
+
         key = hashlib.sha256(
             dumps([asset_id, media["media_file_id"], media["snapshot"], a, b, sr, *version, content, track, processing]).encode()
         ).hexdigest()
@@ -127,7 +138,8 @@ class ExportService:
                 st = p.stat()
                 if (st.st_size, st.st_mtime_ns) != (row[1], row[2]):
                     raise CoreError("export-modified", path=str(p))
-                return {"path": str(p), "reused": True, "key": key}
+                rate, _ch, _bits, frames = wavfile.info(p)
+                return {"path": str(p), "reused": True, "key": key, **handoff(str(p), key, frames, rate)}
         target = target_dir / name
         if target.exists():
             raise CoreError("export-exists", path=str(target))
@@ -151,7 +163,7 @@ class ExportService:
             d = self.ws.data / "Manifests"
             d.mkdir(parents=True, exist_ok=True)
             (d / f"{key[:24]}.json").write_text(dumps(manifest(str(target), key)), encoding="utf-8")
-        return {"path": str(target), "reused": False, "key": key}
+        return {"path": str(target), "reused": False, "key": key, **handoff(str(target), key, len(pcm), out_sr)}
 
     def _publish(self, staged: Path, target: Path) -> None:
         """原子发布，不覆盖已有文件。"""

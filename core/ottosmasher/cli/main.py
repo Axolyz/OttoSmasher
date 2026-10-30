@@ -227,8 +227,9 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
     final = wait_job(client, job, timeout, pretty)
     ok = final["status"] == "succeeded"
     if ok and method in ("exports.video", "hits.video", "exports.videoRange"):
-        # 视频片段：等登记完成的事件拿到文件路径（登记与任务状态的先后不固定，最多再等 10 秒）
-        done = client.video_done.get(job["id"])
+        # 视频片段：成品路径在任务结果里（登记后才写入任务状态）；旧任务没有时再等完成事件，最多 10 秒
+        res = final.get("result") or {}
+        done = {"jobId": job["id"], **res} if res.get("path") else client.video_done.get(job["id"])
         end = time.monotonic() + 10
         while done is None and time.monotonic() < end:
             ev = client.next_event(max(0.0, end - time.monotonic()))
