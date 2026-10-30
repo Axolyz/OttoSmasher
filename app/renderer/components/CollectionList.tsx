@@ -63,6 +63,8 @@ export function CollectionList<T extends CollectionRow>(props: {
   /** 行上额外的 data-* 属性（样式与测试用） */
   rowData?: (item: T) => Record<string, string>;
   renderItem: (item: T, st: RowState) => ReactNode;
+  /** 行内容还依赖的其他状态（例如正在试听哪一行）：GridList 按 items 缓存行，不声明就不重画 */
+  renderDeps?: unknown[];
   renderGroup?: (item: T, open: boolean) => ReactNode;
   checkLabel: (item: T) => string;
   empty?: ReactNode;
@@ -267,7 +269,7 @@ export function CollectionList<T extends CollectionRow>(props: {
           disabledBehavior="all"
           onAction={onAction}
           // 行的渲染依赖焦点、勾选与菜单对象：GridList 默认按 items 缓存行，必须声明这些依赖
-          dependencies={[props.focus, props.checked, menuFor, props.isGroupOpen]}
+          dependencies={[props.focus, props.checked, menuFor, props.isGroupOpen, ...(props.renderDeps ?? [])]}
           className={s.list}
           renderEmptyState={() => props.empty ?? null}
         >

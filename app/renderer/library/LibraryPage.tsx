@@ -185,6 +185,7 @@ export function LibraryPage() {
     if (!nowPlaying) {
       setPlaying(null);
       setPlayingVer(null);
+      setHitPlaying(null); // 命中的试听播完也要复位（原来只有再点一次或出错才清）
     }
   }, [nowPlaying]);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
@@ -1111,6 +1112,8 @@ export function LibraryPage() {
         checkLabel={(r) => t("library.check", { name: r.name })}
         testId="sample-list"
         rowTestId="sample-row"
+        // 行里的试听按钮跟着这些状态变（所有者 2026-10-30：播完按钮停在“停止”，因为行被缓存、没重画）
+        renderDeps={[playing, playingVer, hitPlaying]}
         rowData={(r): Record<string, string> => (r._res ? { "data-nature": r.nature, "data-top": "" } : { "data-nature": r.nature })}
         onRowPointerDown={(e, r) => {
           // ⌥ 拖出原声、⌥⇧ 拖出卡拍（所有者 2026-10-08 选丙）；在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
