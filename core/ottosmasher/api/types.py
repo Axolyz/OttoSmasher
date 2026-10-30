@@ -2876,3 +2876,176 @@ class OriginalAsVocal(TypedDict):
     applied: int
     skipped: int
 
+
+
+# ---------------------------------------------------------------- 原始能力（layer = primitive，所有者 2026-10-30）
+
+
+class AudioRef(TypedDict):
+    """一段声音：库里的音轨（``assetId``，时间 = 资产秒）或任意音频 / 视频文件（``path``，时间 = 文件秒；``stream`` = 第几条音频流，缺省 0）。
+    ``start`` / ``end`` 缺省 = 整条。两者给且只给一个。"""
+
+    assetId: NotRequired[str]
+    path: NotRequired[str]
+    stream: NotRequired[int]
+    start: NotRequired[float]
+    end: NotRequired[float]
+
+
+class AlignItemParams(TypedDict):
+    """一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。"""
+
+    text: str
+    assetId: NotRequired[str]
+    path: NotRequired[str]
+    stream: NotRequired[int]
+    start: NotRequired[float]
+    end: NotRequired[float]
+
+
+class SpeechAlignParams(TypedDict):
+    items: list[AlignItemParams]
+
+
+class TextAnalyzeParams(TypedDict):
+    texts: list[str]
+
+
+class SubtitleParseParams(TypedDict):
+    """``duration``：媒体时长（秒），用于 OP/ED 区间的范围检查与 OP / ED 判定；缺省用最后一条字幕的结束时间。"""
+
+    path: str
+    duration: NotRequired[float | None]
+
+
+class SubtitleParsedCue(TypedDict):
+    no: int
+    ref: str
+    start: float
+    end: float
+    raw: str
+    kind: Literal["line", "sfx"]
+    text: str
+    speakers: list[str]
+
+
+class SubtitleParsedPair(TypedDict):
+    start: float
+    end: float
+    kind: Literal["OP", "ED"]
+    refs: list[str]
+
+
+class SubtitleParsedOped(TypedDict):
+    pairs: list[SubtitleParsedPair]
+    errors: list[dict[str, Any]]
+
+
+class SubtitleParsed(TypedDict):
+    """应用按当前字幕规则会把这个文件读成什么（不登记、不导入）：台词（``kind: line``，``text`` = 对齐用文字）与音效（``sfx``）、说话人、OP/ED 配对、读不出时间的块。"""
+
+    path: str
+    format: str
+    fingerprint: str
+    cues: list[SubtitleParsedCue]
+    speakers: list[SubtitleSpeaker]
+    oped: SubtitleParsedOped
+    problems: list[SubtitleProblem]
+
+
+class PrimitiveResultsParams(TypedDict):
+    jobId: str
+    offset: NotRequired[int]
+    limit: NotRequired[int]
+
+
+class TextAnalysisWord(TypedDict):
+    """``start`` / ``end`` = 原文里的字符范围（数字展开等对不上时为 null）；``moraStart`` = 第一个音拍在整句里的序号。"""
+
+    text: str
+    reading: str
+    start: int | None
+    end: int | None
+    morae: list[str]
+    moraStart: int
+    mapped: bool
+
+
+class TextAnalysis(TypedDict):
+    """日语前端（tsqyomi + pyopenjtalk-plus + 用户辞典，与语音分析同一套）：音素（含停顿 pau）、音拍（片假名）、词与读音。"""
+
+    text: str
+    normalized: str
+    phonemes: list[str]
+    morae: list[str]
+    words: list[TextAnalysisWord]
+    dictionary: str
+
+
+class TextAnalysisRow(TypedDict):
+    idx: int
+    status: str
+    error: dict[str, Any] | None
+    result: NotRequired[TextAnalysis]
+
+
+class AlignPhone(TypedDict):
+    """时间 = 输入的时钟（资产秒或文件秒）；音轨输入另给 ``sourceStart`` / ``sourceEnd``（原片秒）。``mora`` / ``word`` = 序号。"""
+
+    label: str
+    start: float
+    end: float
+    mora: int | None
+    word: int | None
+    sourceStart: NotRequired[float]
+    sourceEnd: NotRequired[float]
+
+
+class AlignSpan(TypedDict):
+    text: str
+    start: float
+    end: float
+    sourceStart: NotRequired[float]
+    sourceEnd: NotRequired[float]
+
+
+class AlignResult(TypedDict):
+    """对齐结果。对齐总会把整句放进窗口，不会报“找不到”：``edges`` = 窗口两端到首尾音素的空白秒数（接近 0 = 说话可能被窗口截断），
+    ``longestPhone`` = 最长的音素；这些只是事实，判断交给你。"""
+
+    text: str
+    clock: Literal["asset", "file"]
+    window: list[float]
+    phones: list[AlignPhone]
+    morae: list[AlignSpan]
+    words: list[AlignSpan]
+    speech: AlignSpan
+    edges: dict[str, float]
+    longestPhone: dict[str, Any]
+
+
+class AlignRow(TypedDict):
+    idx: int
+    status: str
+    error: dict[str, Any] | None
+    result: NotRequired[AlignResult]
+
+
+class F0Track(TypedDict):
+    """FCPE（与应用的音高检索同一个模型）：float32 小端序列，第 i 帧中心 = t0 + i × step（输入的时钟）；``summary`` = 置信度 ≥ 0.5 的帧的统计。"""
+
+    clock: Literal["asset", "file"]
+    t0: float
+    step: float
+    count: int
+    f0: bytes
+    confidence: bytes
+    energy: bytes
+    summary: dict[str, Any]
+
+
+class F0TrackRow(TypedDict):
+    idx: int
+    status: str
+    error: dict[str, Any] | None
+    result: NotRequired[F0Track]

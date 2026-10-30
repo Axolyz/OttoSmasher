@@ -13,6 +13,7 @@ The app does the **deterministic work**: storing data, separation, alignment and
 **Judgement is yours**: how to clean messy subtitles, which lines "talk about games", where the OP is when there are no subtitles,
 who is speaking in a clip… The app gives you primitives (read the data, get audio and pictures, write your conclusions back as tags,
 text segments, OP/ED, default tracks…) and you chain them with your own reasoning and tools.
+Commands come in two layers: **library commands** change objects in the library; **primitives** only compute (alignment, readings, pitch, reading subtitle files…) and accept any file as sound (topic `primitives`).
 When a rule or automatic detection in the app falls short, do not wait for the app to change: read the data, decide, write the result back (topic `combine`).
 The procedures and orderings in this guide are examples that show how the app works; the only things you must follow are the basic rules below.
 
@@ -54,6 +55,6 @@ Undeclared parameters are rejected (`bad-request` with the offending key). All i
 ## Topics
 
 `otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints every regular topic):
-`concepts`, `prepare`, `samples`, `search`, `export`, `combine`, `scripts`, `undo`, `example`.
+`concepts`, `prepare`, `samples`, `search`, `primitives`, `export`, `combine`, `scripts`, `undo`, `example`.
 There is also `notes`: experience and pitfalls from real tasks, **not rules**; read it when stuck or looking for an approach.
 `otto guide --skill-dir <dir>` writes all of this as a skill folder (Claude Code and Codex both read it) to load on demand.

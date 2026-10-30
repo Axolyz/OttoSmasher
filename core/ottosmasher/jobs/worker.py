@@ -422,7 +422,19 @@ def _samples_independ(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     return run_job(params, ctx)
 
 
+def _primitive(name: str) -> Callable[[dict[str, Any], Ctx], dict[str, Any]]:
+    def run(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
+        from . import primitives
+
+        return getattr(primitives, name)(params, ctx)
+
+    return run
+
+
 HANDLERS: dict[str, Callable[[dict[str, Any], Ctx], dict[str, Any]]] = {
+    "speech.align": _primitive("speech_align"),
+    "text.analyze": _primitive("text_analyze"),
+    "f0.track": _primitive("f0_track"),
     "export.video": _export_video,
     "samples.independ": _samples_independ,
     "acoustic.measure": _acoustic_measure,

@@ -58,6 +58,58 @@ export interface AgentSession {
   session: string | null;
 }
 
+/** 一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。 */
+export interface AlignItemParams {
+  assetId?: string;
+  end?: number;
+  path?: string;
+  start?: number;
+  stream?: number;
+  text: string;
+}
+
+/** 时间 = 输入的时钟（资产秒或文件秒）；音轨输入另给 ``sourceStart`` / ``sourceEnd``（原片秒）。``mora`` / ``word`` = 序号。 */
+export interface AlignPhone {
+  end: number;
+  label: string;
+  mora: number | null;
+  sourceEnd?: number;
+  sourceStart?: number;
+  start: number;
+  word: number | null;
+}
+
+/**
+ * 对齐结果。对齐总会把整句放进窗口，不会报“找不到”：``edges`` = 窗口两端到首尾音素的空白秒数（接近 0 = 说话可能被窗口截断），
+ *     ``longestPhone`` = 最长的音素；这些只是事实，判断交给你。
+ */
+export interface AlignResult {
+  clock: "asset" | "file";
+  edges: Record<string, number>;
+  longestPhone: Record<string, unknown>;
+  morae: AlignSpan[];
+  phones: AlignPhone[];
+  speech: AlignSpan;
+  text: string;
+  window: number[];
+  words: AlignSpan[];
+}
+
+export interface AlignRow {
+  error: Record<string, unknown> | null;
+  idx: number;
+  result?: AlignResult;
+  status: string;
+}
+
+export interface AlignSpan {
+  end: number;
+  sourceEnd?: number;
+  sourceStart?: number;
+  start: number;
+  text: string;
+}
+
 export interface AlignedPhone {
   end: number;
   label: string;
@@ -137,6 +189,18 @@ export interface AssetRecord {
   stream_ordinal: number | null;
   updated_at: string | null;
   version: number;
+}
+
+/**
+ * 一段声音：库里的音轨（``assetId``，时间 = 资产秒）或任意音频 / 视频文件（``path``，时间 = 文件秒；``stream`` = 第几条音频流，缺省 0）。
+ *     ``start`` / ``end`` 缺省 = 整条。两者给且只给一个。
+ */
+export interface AudioRef {
+  assetId?: string;
+  end?: number;
+  path?: string;
+  start?: number;
+  stream?: number;
 }
 
 export interface BatchEditFields {
@@ -413,6 +477,25 @@ export interface F0Frames {
   measured: number;
   step: number;
   t0: number;
+}
+
+/** FCPE（与应用的音高检索同一个模型）：float32 小端序列，第 i 帧中心 = t0 + i × step（输入的时钟）；``summary`` = 置信度 ≥ 0.5 的帧的统计。 */
+export interface F0Track {
+  clock: "asset" | "file";
+  confidence: Uint8Array;
+  count: number;
+  energy: Uint8Array;
+  f0: Uint8Array;
+  step: number;
+  summary: Record<string, unknown>;
+  t0: number;
+}
+
+export interface F0TrackRow {
+  error: Record<string, unknown> | null;
+  idx: number;
+  result?: F0Track;
+  status: string;
 }
 
 export interface FacetCondition {
@@ -1075,6 +1158,12 @@ export interface PrepTrack {
 
 export interface PrepareQuit {
   active: number;
+}
+
+export interface PrimitiveResultsParams {
+  jobId: string;
+  limit?: number;
+  offset?: number;
 }
 
 /** 加工链（所有者 2026-10-12）：第一步是采样所在的轨，沿输入往上；complete = 追到了原混音（删除原素材断开时为 false）。 */
@@ -1995,6 +2084,10 @@ export interface SpectrumParams {
   start: number;
 }
 
+export interface SpeechAlignParams {
+  items: AlignItemParams[];
+}
+
 /** 语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。 */
 export interface SpeechBlockCond {
   beats?: (number | null)[] | null;
@@ -2414,6 +2507,46 @@ export interface SubtitlePairRow {
   text: string;
 }
 
+/** ``duration``：媒体时长（秒），用于 OP/ED 区间的范围检查与 OP / ED 判定；缺省用最后一条字幕的结束时间。 */
+export interface SubtitleParseParams {
+  duration?: number | null;
+  path: string;
+}
+
+/** 应用按当前字幕规则会把这个文件读成什么（不登记、不导入）：台词（``kind: line``，``text`` = 对齐用文字）与音效（``sfx``）、说话人、OP/ED 配对、读不出时间的块。 */
+export interface SubtitleParsed {
+  cues: SubtitleParsedCue[];
+  fingerprint: string;
+  format: string;
+  oped: SubtitleParsedOped;
+  path: string;
+  problems: SubtitleProblem[];
+  speakers: SubtitleSpeaker[];
+}
+
+export interface SubtitleParsedCue {
+  end: number;
+  kind: "line" | "sfx";
+  no: number;
+  raw: string;
+  ref: string;
+  speakers: string[];
+  start: number;
+  text: string;
+}
+
+export interface SubtitleParsedOped {
+  errors: Record<string, unknown>[];
+  pairs: SubtitleParsedPair[];
+}
+
+export interface SubtitleParsedPair {
+  end: number;
+  kind: "ED" | "OP";
+  refs: string[];
+  start: number;
+}
+
 export interface SubtitlePreview {
   counts: SubtitleCounts;
   fileName: string;
@@ -2497,6 +2630,38 @@ export interface TagUsage {
   segments: number;
   sources: number;
   tag: string;
+}
+
+/** 日语前端（tsqyomi + pyopenjtalk-plus + 用户辞典，与语音分析同一套）：音素（含停顿 pau）、音拍（片假名）、词与读音。 */
+export interface TextAnalysis {
+  dictionary: string;
+  morae: string[];
+  normalized: string;
+  phonemes: string[];
+  text: string;
+  words: TextAnalysisWord[];
+}
+
+export interface TextAnalysisRow {
+  error: Record<string, unknown> | null;
+  idx: number;
+  result?: TextAnalysis;
+  status: string;
+}
+
+/** ``start`` / ``end`` = 原文里的字符范围（数字展开等对不上时为 null）；``moraStart`` = 第一个音拍在整句里的序号。 */
+export interface TextAnalysisWord {
+  end: number | null;
+  mapped: boolean;
+  moraStart: number;
+  morae: string[];
+  reading: string;
+  start: number | null;
+  text: string;
+}
+
+export interface TextAnalyzeParams {
+  texts: string[];
 }
 
 export interface TextLayerList {
@@ -2755,6 +2920,10 @@ export interface Commands {
   "exports.videoRange": { params: VideoRangeParams; result: VideoExportStarted; effect: "write" };
   /** Export an asset range as a WAV file (reuses an identical export). */
   "exports.wav": { params: ExportWavParams; result: ExportedWav; effect: "write" };
+  /** FCPE pitch / confidence / energy frames of an asset range or any file, without storing anything. */
+  "f0.track": { params: AudioRef; result: JobSummary; effect: "job" };
+  /** Frames of an f0.track job. */
+  "f0.trackResults": { params: PrimitiveResultsParams; result: F0TrackRow[]; effect: "read" };
   /** Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply. */
   "filters.list": { params: NoParams; result: SavedFilter[]; effect: "read" };
   /** Estimate the target from cached measurements only (no model run). */
@@ -2945,6 +3114,10 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */
   "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
+  /** Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech. */
+  "speech.align": { params: SpeechAlignParams; result: JobSummary; effect: "job" };
+  /** Per-item results of a speech.align job. */
+  "speech.alignResults": { params: PrimitiveResultsParams; result: AlignRow[]; effect: "read" };
   /** Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
   /** What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons. */
@@ -2971,6 +3144,8 @@ export interface Commands {
   "subtitles.importDefault": { params: SourceIdParams; result: SubtitleImportResult; effect: "write" };
   /** Batch subtitle import with default options, each source atomic. */
   "subtitles.importMany": { params: SubtitleImportManyParams; result: SubtitleImportManyRow[]; effect: "write" };
+  /** How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing. */
+  "subtitles.parse": { params: SubtitleParseParams; result: SubtitleParsed; effect: "read" };
   /** Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line). */
   "subtitles.preview": { params: SubtitlePreviewParams; result: SubtitlePreview; effect: "read" };
   /** Batch preview of subtitle import (sources without subtitles are skipped). */
@@ -2989,6 +3164,10 @@ export interface Commands {
   "tags.ofSamples": { params: IdsParams; result: SampleTagCount[]; effect: "read" };
   /** Edit batch that promotes local tags to a segment tag (apply with edits.apply). */
   "tags.promoteBatch": { params: PromoteParams; result: PromoteInfo; effect: "read" };
+  /** Japanese frontend on texts (same as speech analysis, with the user dictionary): phonemes, morae, words and readings. */
+  "text.analyze": { params: TextAnalyzeParams; result: JobSummary; effect: "job" };
+  /** Per-text results of a text.analyze job. */
+  "text.analyzeResults": { params: PrimitiveResultsParams; result: TextAnalysisRow[]; effect: "read" };
   /** Text segments, sfx hints, range tags, OP/ED and derived samples of a source. */
   "textLayer.list": { params: TextLayerParams; result: TextLayerList; effect: "read" };
   /** List thumbnails (pending while generated). */
@@ -3080,6 +3259,7 @@ export type ErrorCode =
   | "asset-file-missing"
   | "asset-not-found"
   | "asset-not-hangable"
+  | "audio-stream-not-found"
   | "bad-request"
   | "bpm-invalid"
   | "decode-failed"
@@ -3126,6 +3306,7 @@ export type ErrorCode =
   | "job-not-found"
   | "job-not-retryable"
   | "job-not-succeeded"
+  | "job-results-unavailable"
   | "job-spawn-failed"
   | "job-worker-exited"
   | "language-unsupported"
@@ -3147,6 +3328,7 @@ export type ErrorCode =
   | "pitch-param-invalid"
   | "pitch-param-unknown"
   | "pitch-query-invalid"
+  | "primitive-input-invalid"
   | "promote-invalid"
   | "range-invalid"
   | "reaper-clipboard-failed"

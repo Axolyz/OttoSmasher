@@ -21,6 +21,10 @@ from ..core.errors import CoreError
 #   read  只读；write 改用户资料（编辑通道或原子写入）；job 提交任务；ui 界面状态；app 应用生命周期；dev 只在开发模式
 Effect = Literal["read", "write", "job", "ui", "app", "dev"]
 EFFECTS: tuple[str, ...] = typing.get_args(Effect)
+# 层（所有者 2026-10-30）：library 业务命令（资料库里的对象、编辑、任务登记）；primitive 原始能力（只做计算、不改资料库，
+# 输入可以是库里的音轨也可以是任意文件——像 git 的 plumbing，业务命令建在同样的引擎上）
+Layer = Literal["library", "primitive"]
+LAYERS: tuple[str, ...] = typing.get_args(Layer)
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,7 @@ class Command:
     handler: Callable[[Any], Any]
     # 危险（撤销不了）：True = 总是；函数 = 按参数判断。外部连接（agent / 脚本）调用时要所有者在应用里确认（阶段 A）
     danger: bool | Callable[[Any], bool] = False
+    layer: str = "library"
 
     def dangerous(self, params: Any) -> bool:
         return bool(self.danger(params)) if callable(self.danger) else bool(self.danger)
@@ -59,14 +64,16 @@ class CommandSet:
         self._by: dict[str, Command] = {}
 
     def add(self, name: str, effect: str, params: Any, result: Any, summary: str, handler: Callable[[Any], Any], *,
-            danger: bool | Callable[[Any], bool] = False) -> None:
+            danger: bool | Callable[[Any], bool] = False, layer: str = "library") -> None:
         if name in self._by:
             raise ValueError(f"duplicate command {name}")
         if effect not in EFFECTS:
             raise ValueError(f"bad effect {effect!r} for {name}")
         if not typing.is_typeddict(params):
             raise TypeError(f"params of {name} must be a TypedDict")
-        self._by[name] = Command(name, effect, params, result, summary, handler, danger)
+        if layer not in LAYERS:
+            raise ValueError(f"bad layer {layer!r} for {name}")
+        self._by[name] = Command(name, effect, params, result, summary, handler, danger, layer)
 
     def get(self, name: Any) -> Command | None:
         return self._by.get(name) if isinstance(name, str) else None

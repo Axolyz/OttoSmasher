@@ -11,6 +11,7 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 应用做**确定的事**：存资料、分离、对齐分析、检索、卡拍、导出，结果可靠、可撤销。
 **需要判断的事归你**：字幕写法乱了怎么清理、哪些台词“在说游戏”、没有字幕时 OP 在哪、一段声音是谁在说……
 应用给你原子能力——读资料、拿到音频和画面、把结论写回去（标签、台词段、OP/ED、默认轨……）——你用自己的推理和工具把它们串起来。
+命令分两层：**业务命令**改资料库里的对象，**原始能力**只做计算（对齐、读音、测音高、读字幕文件……），声音可以是任意文件（主题 `primitives`）。
 应用里的规则或自动识别不灵时，不要等应用改：读资料、自己判断、把结果写回去（主题 `combine`）。
 说明书里的做法和顺序都是例子，用来说明应用怎么工作；必须遵守的只有下面的基本规则。
 
@@ -50,6 +51,6 @@ otto run my_script.py                     # 一次要调很多命令时写成 Py
 ## 主题
 
 `otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部正式主题）：
-`concepts`、`prepare`、`samples`、`search`、`export`、`combine`、`scripts`、`undo`、`example`。
+`concepts`、`prepare`、`samples`、`search`、`primitives`、`export`、`combine`、`scripts`、`undo`、`example`。
 另有 `notes`：实测攒下的经验和坑，**不是规定**，卡住或想找做法时再看。
 `otto guide --skill-dir <目录>` 把这些写成一个 skill 文件夹（Claude Code、Codex 都认），按需读取。

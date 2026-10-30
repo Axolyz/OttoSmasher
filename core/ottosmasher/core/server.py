@@ -107,7 +107,7 @@ class Core:
         r("settings.list", "read", T.NoParams, dict[str, T.SettingEntry], "All settings with value, default and version (edit via edits.apply, entity 'setting').",
           lambda p: settings_mod.read_all(self.conn))
         r("sources.inferTest", "read", T.InferTestParams, T.InferTest, "Try the work/episode inference rules (draft or current) on a file name.", self._infer_test)
-        r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test)
+        r("subtitles.ruleTest", "read", T.RuleTestParams, T.Classified, "Try the subtitle rules (draft or current) on one subtitle text.", self._subtitle_rule_test, layer="primitive")
         r("models.status", "read", T.NoParams, T.ModelsStatus, "Model files, ONNX Runtime and inference probe status.", self._models_status)
         r("models.verify", "job", T.NoParams, T.JobSummary, "Submit a job that hashes the model files.", self._models_verify)
         r("models.downloadPlan", "read", T.ModelsDownloadParams, list[T.ModelDownloadItem],
@@ -116,7 +116,7 @@ class Core:
           "Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing).", self._models_download)
         r("models.import", "job", T.ModelsImportParams, T.JobSummary,
           "Copy model weights the user obtained elsewhere into place, recognised by SHA-256 (files or folders).", self._models_import)
-        r("dictionary.check", "read", T.DictionaryTextParams, T.DictionaryCheck, "Validate user dictionary text line by line (no compiling).", self._dictionary_check)
+        r("dictionary.check", "read", T.DictionaryTextParams, T.DictionaryCheck, "Validate user dictionary text line by line (no compiling).", self._dictionary_check, layer="primitive")
         r("dictionary.save", "job", T.DictionarySaveParams, T.JobSummary,
           "Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile).", self._dictionary_save)
         r("dictionary.preview", "job", T.DictionaryPreviewParams, T.JobSummary, "Phonemes and readings of one sentence with a draft (or the current) dictionary.",
@@ -212,7 +212,7 @@ class Core:
           lambda p: self.waveforms.get(p["assetId"], float(p["start"]), float(p["end"]), int(p.get("points", 2000))))
         r("spectrum.get", "read", T.SpectrumParams, T.Spectrum,
           "Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows).",
-          lambda p: self.waveforms.spectrum(p["assetId"], float(p["start"]), float(p["end"]), int(p["cols"]), int(p["rows"]), p["scale"]))
+          lambda p: self.waveforms.spectrum(p["assetId"], float(p["start"]), float(p["end"]), int(p["cols"]), int(p["rows"]), p["scale"]), layer="primitive")
         r("thumbs.get", "read", T.ThumbsParams, list[T.ThumbResult], "List thumbnails (pending while generated).", lambda p: self.thumbs.get(list(p["items"])))
         r("dev.registerStem", "dev", T.RegisterStemParams, T.StemRegistered, "Dev hook: register an existing stem file as a full-track asset (S1.2).",
           self._dev_register_stem)
@@ -354,6 +354,24 @@ class Core:
         r("measure.f0", "read", T.AssetRangeParams, T.F0Frames, "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
           lambda p: self.speech.f0(p["assetId"], float(p["start"]), float(p["end"])))
         r("speech.results", "read", T.JobIdParams, list[T.SpeechResultRow], "Per-item results of a speech analysis job.", lambda p: self.speech.results(p["jobId"]))
+        # 原始能力（layer = primitive）：只算、不改资料库；声音可以是库里的音轨或任意文件
+        r("speech.align", "job", T.SpeechAlignParams, T.JobSummary,
+          "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech.",
+          lambda p: self.primitives.align(list(p["items"])), layer="primitive")
+        r("speech.alignResults", "read", T.PrimitiveResultsParams, list[T.AlignRow], "Per-item results of a speech.align job.",
+          lambda p: self.primitives.results(p["jobId"], "speech.align", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")
+        r("text.analyze", "job", T.TextAnalyzeParams, T.JobSummary,
+          "Japanese frontend on texts (same as speech analysis, with the user dictionary): phonemes, morae, words and readings.",
+          lambda p: self.primitives.analyze_text(list(p["texts"])), layer="primitive")
+        r("text.analyzeResults", "read", T.PrimitiveResultsParams, list[T.TextAnalysisRow], "Per-text results of a text.analyze job.",
+          lambda p: self.primitives.results(p["jobId"], "text.analyze", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")
+        r("f0.track", "job", T.AudioRef, T.JobSummary, "FCPE pitch / confidence / energy frames of an asset range or any file, without storing anything.",
+          lambda p: self.primitives.f0(dict(p)), layer="primitive")
+        r("f0.trackResults", "read", T.PrimitiveResultsParams, list[T.F0TrackRow], "Frames of an f0.track job.",
+          lambda p: self.primitives.results(p["jobId"], "f0.track", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")
+        r("subtitles.parse", "read", T.SubtitleParseParams, T.SubtitleParsed,
+          "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing.",
+          lambda p: self.primitives.parse_subtitles(p["path"], p.get("duration")), layer="primitive")
         r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status())
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
@@ -493,6 +511,9 @@ class Core:
         self.imports = ImportService(self.conn, self.ws, self.jobs, self.sources, on_change=self._on_change)
         self.speech = SpeechService(self.conn, self.ws, self.jobs, self.support_dir, on_change=self._on_change)
         self.glyphs = Glyphs(self.conn, self.speech)
+        from .primitives import PrimitiveService
+
+        self.primitives = PrimitiveService(self.conn, self.ws, self.jobs, self.support_dir, self.speech._versions)
         self.flatten = FlattenService(self.conn, self.ws, self.jobs, self.support_dir, self.speech, self.samples, on_change=self._on_change)
         self.rhythm = RhythmService(self.conn, self.ws, self.speech, self.edits, emit=self.emit)
         self.handoff = HandoffService(self.conn, self.ws, self.exports, self.rhythm)

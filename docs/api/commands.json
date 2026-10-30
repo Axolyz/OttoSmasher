@@ -1,9 +1,10 @@
 {
- "catalogVersion": 2,
+ "catalogVersion": 3,
  "commands": [
   {
    "name": "agent.confirmReply",
    "effect": "ui",
+   "layer": "library",
    "summary": "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).",
    "params": {
     "$ref": "#/$defs/AgentConfirmReplyParams"
@@ -15,6 +16,7 @@
   {
    "name": "agent.dismissMissed",
    "effect": "ui",
+   "layer": "library",
    "summary": "Remove missed confirmation requests from the list (all when ids is omitted).",
    "params": {
     "$ref": "#/$defs/DismissMissedParams"
@@ -26,6 +28,7 @@
   {
    "name": "agent.missed",
    "effect": "read",
+   "layer": "library",
    "summary": "Confirmation requests nobody answered in time or whose connection closed (this run of the app, newest first).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -40,6 +43,7 @@
   {
    "name": "agent.sessions",
    "effect": "read",
+   "layer": "library",
    "summary": "Command-line (agent / script) connections currently attached to this app.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -54,6 +58,7 @@
   {
    "name": "app.prepareQuit",
    "effect": "app",
+   "layer": "library",
    "summary": "Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -65,6 +70,7 @@
   {
    "name": "app.quit",
    "effect": "app",
+   "layer": "library",
    "summary": "Cancel jobs and stop Core.",
    "params": {
     "$ref": "#/$defs/QuitParams"
@@ -76,6 +82,7 @@
   {
    "name": "app.userInput",
    "effect": "read",
+   "layer": "library",
    "summary": "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -87,6 +94,7 @@
   {
    "name": "assets.get",
    "effect": "read",
+   "layer": "library",
    "summary": "One sound asset.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -98,6 +106,7 @@
   {
    "name": "assets.listForSource",
    "effect": "read",
+   "layer": "library",
    "summary": "All sound assets of a source, full tracks first.",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -112,6 +121,7 @@
   {
    "name": "assets.tracks",
    "effect": "read",
+   "layer": "library",
    "summary": "Tracks that can be default tracks, with roles and current defaults.",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -123,6 +133,7 @@
   {
    "name": "core.hello",
    "effect": "read",
+   "layer": "library",
    "summary": "Core version, workspace and schema version.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -134,6 +145,7 @@
   {
    "name": "dev.registerStem",
    "effect": "dev",
+   "layer": "library",
    "summary": "Dev hook: register an existing stem file as a full-track asset (S1.2).",
    "params": {
     "$ref": "#/$defs/RegisterStemParams"
@@ -145,6 +157,7 @@
   {
    "name": "dictionary.check",
    "effect": "read",
+   "layer": "primitive",
    "summary": "Validate user dictionary text line by line (no compiling).",
    "params": {
     "$ref": "#/$defs/DictionaryTextParams"
@@ -156,6 +169,7 @@
   {
    "name": "dictionary.preview",
    "effect": "job",
+   "layer": "library",
    "summary": "Phonemes and readings of one sentence with a draft (or the current) dictionary.",
    "params": {
     "$ref": "#/$defs/DictionaryPreviewParams"
@@ -167,6 +181,7 @@
   {
    "name": "dictionary.save",
    "effect": "job",
+   "layer": "library",
    "summary": "Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile).",
    "params": {
     "$ref": "#/$defs/DictionarySaveParams"
@@ -178,6 +193,7 @@
   {
    "name": "edits.apply",
    "effect": "write",
+   "layer": "library",
    "summary": "Apply an edit batch atomically (undoable).",
    "params": {
     "$ref": "#/$defs/EditBatchParams"
@@ -189,6 +205,7 @@
   {
    "name": "edits.history",
    "effect": "read",
+   "layer": "library",
    "summary": "Edit records, newest first; filter by actor kind or by command-line session.",
    "params": {
     "$ref": "#/$defs/EditHistoryParams"
@@ -203,6 +220,7 @@
   {
    "name": "edits.peekUndo",
    "effect": "read",
+   "layer": "library",
    "summary": "What undo would revert next.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -221,6 +239,7 @@
   {
    "name": "edits.preview",
    "effect": "read",
+   "layer": "library",
    "summary": "Validate an edit batch and show its changes without writing.",
    "params": {
     "$ref": "#/$defs/EditBatchParams"
@@ -232,6 +251,7 @@
   {
    "name": "edits.undo",
    "effect": "write",
+   "layer": "library",
    "summary": "Undo the latest edit that can be undone safely.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -243,6 +263,7 @@
   {
    "name": "edits.undoOne",
    "effect": "write",
+   "layer": "library",
    "summary": "Undo one specific edit from the history, if nothing it changed was edited again afterwards (edits.history marks it undoable).",
    "params": {
     "$ref": "#/$defs/EditIdParams"
@@ -254,6 +275,7 @@
   {
    "name": "edits.undoSession",
    "effect": "write",
+   "layer": "library",
    "summary": "Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it.",
    "params": {
     "$ref": "#/$defs/SessionParams"
@@ -265,6 +287,7 @@
   {
    "name": "exports.range",
    "effect": "write",
+   "layer": "library",
    "summary": "Export an asset range as WAV named by the naming rule (+ fragment word).",
    "params": {
     "$ref": "#/$defs/ExportRangeParams"
@@ -276,6 +299,7 @@
   {
    "name": "exports.samples",
    "effect": "write",
+   "layer": "library",
    "summary": "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
    "params": {
     "$ref": "#/$defs/ExportSamplesParams"
@@ -290,6 +314,7 @@
   {
    "name": "exports.stretched",
    "effect": "write",
+   "layer": "library",
    "summary": "Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping).",
    "params": {
     "$ref": "#/$defs/StretchedExportParams"
@@ -301,6 +326,7 @@
   {
    "name": "exports.video",
    "effect": "write",
+   "layer": "library",
    "summary": "Export a whole sample as a video clip (original, or stretched with synced or original-speed picture); queued as a job, reuses identical exports.",
    "params": {
     "$ref": "#/$defs/VideoExportParams"
@@ -312,6 +338,7 @@
   {
    "name": "exports.videoRange",
    "effect": "write",
+   "layer": "library",
    "summary": "Export an asset range as a video clip (original speed; source picture).",
    "params": {
     "$ref": "#/$defs/VideoRangeParams"
@@ -323,6 +350,7 @@
   {
    "name": "exports.wav",
    "effect": "write",
+   "layer": "library",
    "summary": "Export an asset range as a WAV file (reuses an identical export).",
    "params": {
     "$ref": "#/$defs/ExportWavParams"
@@ -332,8 +360,36 @@
    }
   },
   {
+   "name": "f0.track",
+   "effect": "job",
+   "layer": "primitive",
+   "summary": "FCPE pitch / confidence / energy frames of an asset range or any file, without storing anything.",
+   "params": {
+    "$ref": "#/$defs/AudioRef"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "f0.trackResults",
+   "effect": "read",
+   "layer": "primitive",
+   "summary": "Frames of an f0.track job.",
+   "params": {
+    "$ref": "#/$defs/PrimitiveResultsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/F0TrackRow"
+    }
+   }
+  },
+  {
    "name": "filters.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -348,6 +404,7 @@
   {
    "name": "flatten.estimate",
    "effect": "read",
+   "layer": "library",
    "summary": "Estimate the target from cached measurements only (no model run).",
    "params": {
     "$ref": "#/$defs/FlattenEstimateParams"
@@ -359,6 +416,7 @@
   {
    "name": "flatten.open",
    "effect": "read",
+   "layer": "library",
    "summary": "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
    "params": {
     "$ref": "#/$defs/FlattenOpenParams"
@@ -370,6 +428,7 @@
   {
    "name": "flatten.rerunFailed",
    "effect": "job",
+   "layer": "library",
    "summary": "Re-queue only the failed items of a flatten job with the same options.",
    "params": {
     "$ref": "#/$defs/JobIdParams"
@@ -381,6 +440,7 @@
   {
    "name": "flatten.results",
    "effect": "read",
+   "layer": "library",
    "summary": "Per-item results of a flatten job (product sample and target).",
    "params": {
     "$ref": "#/$defs/JobIdParams"
@@ -395,6 +455,7 @@
   {
    "name": "flatten.submit",
    "effect": "job",
+   "layer": "library",
    "summary": "Queue one flatten (checks the frozen asset is unchanged).",
    "params": {
     "$ref": "#/$defs/FlattenSubmitParams"
@@ -406,6 +467,7 @@
   {
    "name": "flatten.submitBatch",
    "effect": "job",
+   "layer": "library",
    "summary": "Queue a batch flatten: one job, each sample targets independently (auto only).",
    "params": {
     "$ref": "#/$defs/FlattenBatchParams"
@@ -417,6 +479,7 @@
   {
    "name": "hints.add",
    "effect": "write",
+   "layer": "library",
    "summary": "Add an sfx hint by hand (protected).",
    "params": {
     "$ref": "#/$defs/HintAddParams"
@@ -428,6 +491,7 @@
   {
    "name": "hits.export",
    "effect": "write",
+   "layer": "library",
    "summary": "Export a hit as WAV (original, or stretched with its evidence scheme).",
    "params": {
     "$ref": "#/$defs/HitExportParams"
@@ -439,6 +503,7 @@
   {
    "name": "hits.render",
    "effect": "write",
+   "layer": "library",
    "summary": "Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks.",
    "params": {
     "$ref": "#/$defs/HitRenderParams"
@@ -450,6 +515,7 @@
   {
    "name": "hits.resolve",
    "effect": "read",
+   "layer": "library",
    "summary": "Check that a hit is still valid and return its range and evidence scheme (09 §9.7).",
    "params": {
     "$ref": "#/$defs/HitRefParams"
@@ -461,6 +527,7 @@
   {
    "name": "hits.video",
    "effect": "write",
+   "layer": "library",
    "summary": "Export a hit as a video clip: original, or stretched by the scheme the hit's evidence chose (picture synced to the same mapping, or at original speed).",
    "params": {
     "$ref": "#/$defs/HitVideoParams"
@@ -472,6 +539,7 @@
   {
    "name": "imports.commit",
    "effect": "write",
+   "layer": "library",
    "summary": "Register the scanned files (optionally with full-length samples).",
    "params": {
     "$ref": "#/$defs/ImportCommitParams"
@@ -483,6 +551,7 @@
   {
    "name": "imports.preview",
    "effect": "read",
+   "layer": "library",
    "summary": "Preview of a finished import scan.",
    "params": {
     "$ref": "#/$defs/JobIdParams"
@@ -494,6 +563,7 @@
   {
    "name": "imports.scan",
    "effect": "job",
+   "layer": "library",
    "summary": "Scan files/folders to import (background job).",
    "params": {
     "$ref": "#/$defs/PathsParams"
@@ -505,6 +575,7 @@
   {
    "name": "jobs.cancel",
    "effect": "job",
+   "layer": "library",
    "summary": "Cancel a queued or running job (kills its whole process tree).",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -516,6 +587,7 @@
   {
    "name": "jobs.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Recent jobs, newest first.",
    "params": {
     "$ref": "#/$defs/JobsListParams"
@@ -530,6 +602,7 @@
   {
    "name": "jobs.retry",
    "effect": "job",
+   "layer": "library",
    "summary": "Retry a failed, cancelled or interrupted job as a new job.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -541,6 +614,7 @@
   {
    "name": "jobs.submit",
    "effect": "job",
+   "layer": "library",
    "summary": "Submit a job of a registered kind (low-level; prefer the specific commands).",
    "params": {
     "$ref": "#/$defs/JobSubmitParams"
@@ -552,6 +626,7 @@
   {
    "name": "measure.f0",
    "effect": "read",
+   "layer": "library",
    "summary": "FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
@@ -563,6 +638,7 @@
   {
    "name": "metrics.prepare",
    "effect": "job",
+   "layer": "library",
    "summary": "Queue a job that measures missing F0 and computes the single-sound metrics for the current scope.",
    "params": {
     "$ref": "#/$defs/MetricsPrepareParams"
@@ -574,6 +650,7 @@
   {
    "name": "metrics.status",
    "effect": "read",
+   "layer": "library",
    "summary": "Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
    "params": {
     "$ref": "#/$defs/MetricsStatusParams"
@@ -585,6 +662,7 @@
   {
    "name": "models.download",
    "effect": "job",
+   "layer": "library",
    "summary": "Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing).",
    "params": {
     "$ref": "#/$defs/ModelsDownloadParams"
@@ -599,6 +677,7 @@
   {
    "name": "models.downloadPlan",
    "effect": "read",
+   "layer": "library",
    "summary": "Model weights that a download would fetch (missing or mismatching; unverified files are not replaced).",
    "params": {
     "$ref": "#/$defs/ModelsDownloadParams"
@@ -613,6 +692,7 @@
   {
    "name": "models.import",
    "effect": "job",
+   "layer": "library",
    "summary": "Copy model weights the user obtained elsewhere into place, recognised by SHA-256 (files or folders).",
    "params": {
     "$ref": "#/$defs/ModelsImportParams"
@@ -624,6 +704,7 @@
   {
    "name": "models.probe",
    "effect": "job",
+   "layer": "library",
    "summary": "Submit a job that runs one minimal inference per model under the current device setting.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -635,6 +716,7 @@
   {
    "name": "models.status",
    "effect": "read",
+   "layer": "library",
    "summary": "Model files, ONNX Runtime and inference probe status.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -646,6 +728,7 @@
   {
    "name": "models.verify",
    "effect": "job",
+   "layer": "library",
    "summary": "Submit a job that hashes the model files.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -657,6 +740,7 @@
   {
    "name": "oped.add",
    "effect": "write",
+   "layer": "library",
    "summary": "Mark or confirm an OP/ED range (undoable).",
    "params": {
     "$ref": "#/$defs/OpedAddParams"
@@ -668,6 +752,7 @@
   {
    "name": "oped.delete",
    "effect": "write",
+   "layer": "library",
    "summary": "Delete an OP/ED range (undoable).",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -679,6 +764,7 @@
   {
    "name": "oped.identify",
    "effect": "write",
+   "layer": "library",
    "summary": "Identify OP/ED from subtitle rules; applies non-overlapping pairs when there are no errors.",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -690,6 +776,7 @@
   {
    "name": "oped.identifyMany",
    "effect": "write",
+   "layer": "library",
    "summary": "Batch OP/ED identification.",
    "params": {
     "$ref": "#/$defs/SourceIdsParams"
@@ -704,6 +791,7 @@
   {
    "name": "oped.list",
    "effect": "read",
+   "layer": "library",
    "summary": "OP/ED ranges of a source.",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -718,6 +806,7 @@
   {
    "name": "peaks.get",
    "effect": "read",
+   "layer": "library",
    "summary": "Waveform peaks for an asset range (pending while the cache is built).",
    "params": {
     "$ref": "#/$defs/PeaksParams"
@@ -729,6 +818,7 @@
   {
    "name": "playback.resolveAsset",
    "effect": "read",
+   "layer": "library",
    "summary": "Playback handle for auditioning an asset range (file seconds).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
@@ -740,6 +830,7 @@
   {
    "name": "playback.resolveRender",
    "effect": "read",
+   "layer": "library",
    "summary": "Playback handle of a rendered audition (by key, never by path).",
    "params": {
     "$ref": "#/$defs/RenderKeyParams"
@@ -751,6 +842,7 @@
   {
    "name": "playback.resolveSource",
    "effect": "read",
+   "layer": "library",
    "summary": "Playback handle for the source player (file, audio track, external stem).",
    "params": {
     "$ref": "#/$defs/ResolveSourceParams"
@@ -762,6 +854,7 @@
   {
    "name": "reaper.handoff",
    "effect": "write",
+   "layer": "library",
    "summary": "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
    "params": {
     "$ref": "#/$defs/ReaperParams"
@@ -773,6 +866,7 @@
   {
    "name": "reaper.template",
    "effect": "write",
+   "layer": "library",
    "summary": "Write the same items as an .RTrackTemplate file (experimental).",
    "params": {
     "$ref": "#/$defs/ReaperParams"
@@ -784,6 +878,7 @@
   {
    "name": "reimport.commit",
    "effect": "write",
+   "layer": "library",
    "summary": "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
    "params": {
     "$ref": "#/$defs/ReimportCommitParams"
@@ -795,6 +890,7 @@
   {
    "name": "reimport.preview",
    "effect": "read",
+   "layer": "library",
    "summary": "Reimport preview: file duration and the end it would land on (start fixed, end by file length).",
    "params": {
     "$ref": "#/$defs/ReimportParams"
@@ -806,6 +902,7 @@
   {
    "name": "results.close",
    "effect": "write",
+   "layer": "library",
    "summary": "Close a fixed result (deletes the result set only, never samples).",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -817,6 +914,7 @@
   {
    "name": "results.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Open fixed results (restored without searching again).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -831,6 +929,7 @@
   {
    "name": "results.page",
    "effect": "read",
+   "layer": "library",
    "summary": "One page (at most 100) of a fixed result; only checks members for invalidation, never recomputes or reorders.",
    "params": {
     "$ref": "#/$defs/ResultPageParams"
@@ -842,6 +941,7 @@
   {
    "name": "results.setUi",
    "effect": "ui",
+   "layer": "library",
    "summary": "Remember a fixed result's UI state (active, page, selection, scroll).",
    "params": {
     "$ref": "#/$defs/ResultUiParams"
@@ -853,6 +953,7 @@
   {
    "name": "rhythm.bpm",
    "effect": "read",
+   "layer": "library",
    "summary": "Global target BPM (null = original-speed stretch).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -864,6 +965,7 @@
   {
    "name": "rhythm.render",
    "effect": "write",
+   "layer": "library",
    "summary": "Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache.",
    "params": {
     "$ref": "#/$defs/RhythmRenderParams"
@@ -875,6 +977,7 @@
   {
    "name": "rhythm.setBpm",
    "effect": "ui",
+   "layer": "library",
    "summary": "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
    "params": {
     "$ref": "#/$defs/BpmParams"
@@ -886,6 +989,7 @@
   {
    "name": "rhythm.setParams",
    "effect": "write",
+   "layer": "library",
    "summary": "Edit per-sample rhythm parameters (pause sensitivity, segment threshold, splits, manual cells/cuts/merges); undoable.",
    "params": {
     "$ref": "#/$defs/RhythmSetParams"
@@ -897,6 +1001,7 @@
   {
    "name": "rhythm.view",
    "effect": "read",
+   "layer": "library",
    "summary": "Rhythm analysis of one sample: blocks, pauses, segments, cells and the three schemes at the global BPM (computed on demand, no model run).",
    "params": {
     "$ref": "#/$defs/RhythmViewParams"
@@ -908,6 +1013,7 @@
   {
    "name": "roots.add",
    "effect": "write",
+   "layer": "library",
    "summary": "Add a source folder (adopts sources already inside, then scans).",
    "params": {
     "$ref": "#/$defs/PathParams"
@@ -919,6 +1025,7 @@
   {
    "name": "roots.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Source folders.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -933,6 +1040,7 @@
   {
    "name": "roots.relocate",
    "effect": "write",
+   "layer": "library",
    "summary": "A whole source folder moved: re-point its sources by relative path, then scan.",
    "params": {
     "$ref": "#/$defs/RelocateParams"
@@ -944,6 +1052,7 @@
   {
    "name": "roots.remove",
    "effect": "write",
+   "layer": "library",
    "summary": "Stop treating a folder as a source folder (sources stay).",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -955,6 +1064,7 @@
   {
    "name": "samples.batchEdit",
    "effect": "read",
+   "layer": "library",
    "summary": "Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply.",
    "params": {
     "$ref": "#/$defs/BatchEditParams"
@@ -966,6 +1076,7 @@
   {
    "name": "samples.create",
    "effect": "write",
+   "layer": "library",
    "summary": "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
    "params": {
     "$ref": "#/$defs/SampleCreateParams"
@@ -977,6 +1088,7 @@
   {
    "name": "samples.createPlanned",
    "effect": "write",
+   "layer": "library",
    "summary": "Create the chosen planned samples atomically (always new samples).",
    "params": {
     "$ref": "#/$defs/SampleCreatePlannedParams"
@@ -988,6 +1100,7 @@
   {
    "name": "samples.delete",
    "effect": "write",
+   "layer": "library",
    "summary": "Delete samples (assets, measurements and exports stay; not undoable).",
    "params": {
     "$ref": "#/$defs/IdsParams"
@@ -1000,6 +1113,7 @@
   {
    "name": "samples.get",
    "effect": "read",
+   "layer": "library",
    "summary": "One sample with its effective tags.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1011,6 +1125,7 @@
   {
    "name": "samples.glyphs",
    "effect": "read",
+   "layer": "library",
    "summary": "List-row extras by nature (rhythm glyph, note + pitch curve, attack + envelope) from existing index and measurements only.",
    "params": {
     "$ref": "#/$defs/IdsParams"
@@ -1025,6 +1140,7 @@
   {
    "name": "samples.ids",
    "effect": "read",
+   "layer": "library",
    "summary": "IDs of all samples matching the filter (select all across pages).",
    "params": {
     "$ref": "#/$defs/SampleFilter"
@@ -1039,6 +1155,7 @@
   {
    "name": "samples.independ",
    "effect": "job",
+   "layer": "library",
    "summary": "Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released).",
    "params": {
     "$ref": "#/$defs/IndependParams"
@@ -1051,6 +1168,7 @@
   {
    "name": "samples.independPlan",
    "effect": "read",
+   "layer": "library",
    "summary": "What independence would store for each sample (slice size, picture clip).",
    "params": {
     "$ref": "#/$defs/IdsParams"
@@ -1065,6 +1183,7 @@
   {
    "name": "samples.list",
    "effect": "read",
+   "layer": "library",
    "summary": "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
    "params": {
     "$ref": "#/$defs/SamplesListParams"
@@ -1076,6 +1195,7 @@
   {
    "name": "samples.plan",
    "effect": "read",
+   "layer": "library",
    "summary": "Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch.",
    "params": {
     "$ref": "#/$defs/SamplePlanParams"
@@ -1087,6 +1207,7 @@
   {
    "name": "samples.related",
    "effect": "read",
+   "layer": "library",
    "summary": "Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first.",
    "params": {
     "$ref": "#/$defs/RelatedParams"
@@ -1098,6 +1219,7 @@
   {
    "name": "samples.suggest",
    "effect": "read",
+   "layer": "library",
    "summary": "Suggested name and nature for a new sample on an asset range.",
    "params": {
     "$ref": "#/$defs/SuggestParams"
@@ -1109,6 +1231,7 @@
   {
    "name": "search.cancel",
    "effect": "ui",
+   "layer": "library",
    "summary": "Cancel a running search (a cancelled search writes no fixed result).",
    "params": {
     "$ref": "#/$defs/SearchIdParams"
@@ -1120,6 +1243,7 @@
   {
    "name": "search.coverage",
    "effect": "read",
+   "layer": "library",
    "summary": "How much of the current browse scope is ready to search (speech index built / F0 measured).",
    "params": {
     "$ref": "#/$defs/SearchCoverageParams"
@@ -1131,6 +1255,7 @@
   {
    "name": "search.pitch",
    "effect": "write",
+   "layer": "library",
    "summary": "Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result.",
    "params": {
     "$ref": "#/$defs/SearchPitchParams"
@@ -1142,6 +1267,7 @@
   {
    "name": "search.pitchCheck",
    "effect": "read",
+   "layer": "library",
    "summary": "Validate a pitch query (blocks or the text helper format) and return on-the-spot problems; no search.",
    "params": {
     "$ref": "#/$defs/PitchCheckParams"
@@ -1153,6 +1279,7 @@
   {
    "name": "search.prepare",
    "effect": "job",
+   "layer": "library",
    "summary": "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
    "params": {
     "$ref": "#/$defs/SearchCoverageParams"
@@ -1164,6 +1291,7 @@
   {
    "name": "search.speech",
    "effect": "write",
+   "layer": "library",
    "summary": "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
    "params": {
     "$ref": "#/$defs/SearchSpeechParams"
@@ -1175,6 +1303,7 @@
   {
    "name": "search.status",
    "effect": "read",
+   "layer": "library",
    "summary": "State of a search started in this session.",
    "params": {
     "$ref": "#/$defs/SearchIdParams"
@@ -1186,6 +1315,7 @@
   {
    "name": "segments.add",
    "effect": "write",
+   "layer": "library",
    "summary": "Add a typed segment to the text layer (replace or cut overlapping ones when asked).",
    "params": {
     "$ref": "#/$defs/SegmentAddParams"
@@ -1197,6 +1327,7 @@
   {
    "name": "segments.checkAdd",
    "effect": "read",
+   "layer": "library",
    "summary": "Which segments a new typed segment would overlap, and whether cut is possible.",
    "params": {
     "$ref": "#/$defs/SegmentRangeParams"
@@ -1208,6 +1339,7 @@
   {
    "name": "segments.get",
    "effect": "read",
+   "layer": "library",
    "summary": "One text segment (with usage count and protection flags).",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1219,6 +1351,7 @@
   {
    "name": "segments.merge",
    "effect": "write",
+   "layer": "library",
    "summary": "Merge segments into one new protected segment.",
    "params": {
     "$ref": "#/$defs/SegmentMergeParams"
@@ -1230,6 +1363,7 @@
   {
    "name": "segments.regenerateSpeakers",
    "effect": "write",
+   "layer": "library",
    "summary": "Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only).",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -1241,6 +1375,7 @@
   {
    "name": "segments.split",
    "effect": "write",
+   "layer": "library",
    "summary": "Split a segment (old one deleted, two new protected segments).",
    "params": {
     "$ref": "#/$defs/SegmentSplitParams"
@@ -1252,6 +1387,7 @@
   {
    "name": "separation.results",
    "effect": "read",
+   "layer": "library",
    "summary": "Assets registered by a separation job.",
    "params": {
     "$ref": "#/$defs/JobIdParams"
@@ -1266,6 +1402,7 @@
   {
    "name": "separation.submit",
    "effect": "job",
+   "layer": "library",
    "summary": "Separate an asset (range) with a Studio model; reuses identical results.",
    "params": {
     "$ref": "#/$defs/SeparationSubmitParams"
@@ -1277,6 +1414,7 @@
   {
    "name": "settings.list",
    "effect": "read",
+   "layer": "library",
    "summary": "All settings with value, default and version (edit via edits.apply, entity 'setting').",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1291,6 +1429,7 @@
   {
    "name": "sources.add",
    "effect": "write",
+   "layer": "library",
    "summary": "Register source files (each succeeds or fails on its own).",
    "params": {
     "$ref": "#/$defs/SourcesAddParams"
@@ -1305,6 +1444,7 @@
   {
    "name": "sources.delete",
    "effect": "write",
+   "layer": "library",
    "summary": "Delete a source with its assets, samples, text layer and tags (not undoable); with independent samples the source becomes 'media released'.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1317,6 +1457,7 @@
   {
    "name": "sources.deletePreview",
    "effect": "read",
+   "layer": "library",
    "summary": "What deleting a source would remove.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1328,6 +1469,7 @@
   {
    "name": "sources.get",
    "effect": "read",
+   "layer": "library",
    "summary": "One source with its streams.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1339,6 +1481,7 @@
   {
    "name": "sources.inferTest",
    "effect": "read",
+   "layer": "library",
    "summary": "Try the work/episode inference rules (draft or current) on a file name.",
    "params": {
     "$ref": "#/$defs/InferTestParams"
@@ -1350,6 +1493,7 @@
   {
    "name": "sources.list",
    "effect": "read",
+   "layer": "library",
    "summary": "All sources with per-source counts.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1364,6 +1508,7 @@
   {
    "name": "sources.prep",
    "effect": "read",
+   "layer": "library",
    "summary": "Preparation checklist state of one source.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1375,6 +1520,7 @@
   {
    "name": "sources.relocate",
    "effect": "write",
+   "layer": "library",
    "summary": "Point a source at a moved file (reports changed streams, does not refuse).",
    "params": {
     "$ref": "#/$defs/RelocateParams"
@@ -1386,6 +1532,7 @@
   {
    "name": "sources.relocateMany",
    "effect": "write",
+   "layer": "library",
    "summary": "Apply a batch relocate plan (location only; stream changes reported).",
    "params": {
     "$ref": "#/$defs/RelocateManyParams"
@@ -1400,6 +1547,7 @@
   {
    "name": "sources.relocatePlan",
    "effect": "read",
+   "layer": "library",
    "summary": "Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name.",
    "params": {
     "$ref": "#/$defs/RelocatePlanParams"
@@ -1414,6 +1562,7 @@
   {
    "name": "sources.rescan",
    "effect": "job",
+   "layer": "library",
    "summary": "Scan all source folders for new, moved or missing files.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1432,6 +1581,7 @@
   {
    "name": "spectrum.get",
    "effect": "read",
+   "layer": "primitive",
    "summary": "Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows).",
    "params": {
     "$ref": "#/$defs/SpectrumParams"
@@ -1441,8 +1591,36 @@
    }
   },
   {
+   "name": "speech.align",
+   "effect": "job",
+   "layer": "primitive",
+   "summary": "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech.",
+   "params": {
+    "$ref": "#/$defs/SpeechAlignParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "speech.alignResults",
+   "effect": "read",
+   "layer": "primitive",
+   "summary": "Per-item results of a speech.align job.",
+   "params": {
+    "$ref": "#/$defs/PrimitiveResultsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/AlignRow"
+    }
+   }
+  },
+  {
    "name": "speech.forAsset",
    "effect": "read",
+   "layer": "library",
    "summary": "Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice).",
    "params": {
     "$ref": "#/$defs/AssetRangeParams"
@@ -1457,6 +1635,7 @@
   {
    "name": "speech.preview",
    "effect": "read",
+   "layer": "library",
    "summary": "What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons.",
    "params": {
     "$ref": "#/$defs/SpeechPlanParams"
@@ -1468,6 +1647,7 @@
   {
    "name": "speech.results",
    "effect": "read",
+   "layer": "library",
    "summary": "Per-item results of a speech analysis job.",
    "params": {
     "$ref": "#/$defs/JobIdParams"
@@ -1482,6 +1662,7 @@
   {
    "name": "speech.sample",
    "effect": "read",
+   "layer": "library",
    "summary": "Speech analysis a sample reads: the segments overlapping its judge interval (the source timeline's phonemes, seen on its track), each with versions, plus the merged result.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1493,6 +1674,7 @@
   {
    "name": "speech.saveManual",
    "effect": "write",
+   "layer": "library",
    "summary": "Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed).",
    "params": {
     "$ref": "#/$defs/SpeechManualParams"
@@ -1504,6 +1686,7 @@
   {
    "name": "speech.submit",
    "effect": "job",
+   "layer": "library",
    "summary": "Queue a speech analysis job (inputs frozen now; one process for all items).",
    "params": {
     "$ref": "#/$defs/SpeechPlanParams"
@@ -1515,6 +1698,7 @@
   {
    "name": "speech.switchHead",
    "effect": "write",
+   "layer": "library",
    "summary": "Make another successful version of a segment's analysis the current one.",
    "params": {
     "$ref": "#/$defs/SpeechSwitchParams"
@@ -1526,6 +1710,7 @@
   {
    "name": "storage.clean",
    "effect": "write",
+   "layer": "library",
    "summary": "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
    "params": {
     "$ref": "#/$defs/StorageCleanParams"
@@ -1538,6 +1723,7 @@
   {
    "name": "storage.report",
    "effect": "read",
+   "layer": "library",
    "summary": "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1549,6 +1735,7 @@
   {
    "name": "studio.status",
    "effect": "read",
+   "layer": "library",
    "summary": "PyMSS Studio installation and model list (submits a listing job when unknown).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1560,6 +1747,7 @@
   {
    "name": "subtitles.import",
    "effect": "write",
+   "layer": "library",
    "summary": "Import a subtitle file as previewed (one atomic, undoable edit).",
    "params": {
     "$ref": "#/$defs/SubtitleImportParams"
@@ -1571,6 +1759,7 @@
   {
    "name": "subtitles.importDefault",
    "effect": "write",
+   "layer": "library",
    "summary": "One-click import of the associated subtitle with default options.",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -1582,6 +1771,7 @@
   {
    "name": "subtitles.importMany",
    "effect": "write",
+   "layer": "library",
    "summary": "Batch subtitle import with default options, each source atomic.",
    "params": {
     "$ref": "#/$defs/SubtitleImportManyParams"
@@ -1594,8 +1784,21 @@
    }
   },
   {
+   "name": "subtitles.parse",
+   "effect": "read",
+   "layer": "primitive",
+   "summary": "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing.",
+   "params": {
+    "$ref": "#/$defs/SubtitleParseParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleParsed"
+   }
+  },
+  {
    "name": "subtitles.preview",
    "effect": "read",
+   "layer": "library",
    "summary": "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line).",
    "params": {
     "$ref": "#/$defs/SubtitlePreviewParams"
@@ -1607,6 +1810,7 @@
   {
    "name": "subtitles.previewMany",
    "effect": "read",
+   "layer": "library",
    "summary": "Batch preview of subtitle import (sources without subtitles are skipped).",
    "params": {
     "$ref": "#/$defs/SourceIdsParams"
@@ -1621,6 +1825,7 @@
   {
    "name": "subtitles.ruleTest",
    "effect": "read",
+   "layer": "primitive",
    "summary": "Try the subtitle rules (draft or current) on one subtitle text.",
    "params": {
     "$ref": "#/$defs/RuleTestParams"
@@ -1632,6 +1837,7 @@
   {
    "name": "tags.checkExpr",
    "effect": "read",
+   "layer": "library",
    "summary": "Parse a tag expression; on error give the reason and the 1-based character position.",
    "params": {
     "$ref": "#/$defs/ExprParams"
@@ -1643,6 +1849,7 @@
   {
    "name": "tags.facets",
    "effect": "read",
+   "layer": "library",
    "summary": "Existing values of each tag facet with sample counts (scope row).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1654,6 +1861,7 @@
   {
    "name": "tags.globalPlan",
    "effect": "read",
+   "layer": "library",
    "summary": "Plan a global rename/remove of a tag (local tags, range tags, source work/type, segment speakers): preview only; apply with edits.apply.",
    "params": {
     "$ref": "#/$defs/GlobalTagParams"
@@ -1665,6 +1873,7 @@
   {
    "name": "tags.list",
    "effect": "read",
+   "layer": "library",
    "summary": "All tags in use with counts (samples, local, range tags, sources, segment speakers).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1679,6 +1888,7 @@
   {
    "name": "tags.ofSamples",
    "effect": "read",
+   "layer": "library",
    "summary": "Tags of the given samples: local n / inherited m (per sample) and inherited sources.",
    "params": {
     "$ref": "#/$defs/IdsParams"
@@ -1693,6 +1903,7 @@
   {
    "name": "tags.promoteBatch",
    "effect": "read",
+   "layer": "library",
    "summary": "Edit batch that promotes local tags to a segment tag (apply with edits.apply).",
    "params": {
     "$ref": "#/$defs/PromoteParams"
@@ -1702,8 +1913,36 @@
    }
   },
   {
+   "name": "text.analyze",
+   "effect": "job",
+   "layer": "primitive",
+   "summary": "Japanese frontend on texts (same as speech analysis, with the user dictionary): phonemes, morae, words and readings.",
+   "params": {
+    "$ref": "#/$defs/TextAnalyzeParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "text.analyzeResults",
+   "effect": "read",
+   "layer": "primitive",
+   "summary": "Per-text results of a text.analyze job.",
+   "params": {
+    "$ref": "#/$defs/PrimitiveResultsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/TextAnalysisRow"
+    }
+   }
+  },
+  {
    "name": "textLayer.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",
    "params": {
     "$ref": "#/$defs/TextLayerParams"
@@ -1715,6 +1954,7 @@
   {
    "name": "thumbs.get",
    "effect": "read",
+   "layer": "library",
    "summary": "List thumbnails (pending while generated).",
    "params": {
     "$ref": "#/$defs/ThumbsParams"
@@ -1729,6 +1969,7 @@
   {
    "name": "tracks.originalAsVocal",
    "effect": "write",
+   "layer": "library",
    "summary": "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
    "params": {
     "$ref": "#/$defs/SourceIdsParams"
@@ -1740,6 +1981,7 @@
   {
    "name": "tracks.setDefault",
    "effect": "write",
+   "layer": "library",
    "summary": "Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit.",
    "params": {
     "$ref": "#/$defs/TrackDefaultParams"
@@ -1751,6 +1993,7 @@
   {
    "name": "tracks.setRole",
    "effect": "write",
+   "layer": "library",
    "summary": "Turn a role on or off for a track; turning off the role of the current default track also clears that default (one undoable edit).",
    "params": {
     "$ref": "#/$defs/TrackRoleParams"
@@ -1762,6 +2005,7 @@
   {
    "name": "ui.get",
    "effect": "ui",
+   "layer": "library",
    "summary": "Restore UI state of one page.",
    "params": {
     "$ref": "#/$defs/UiGetParams"
@@ -1773,6 +2017,7 @@
   {
    "name": "ui.set",
    "effect": "ui",
+   "layer": "library",
    "summary": "Save one UI state value (not user data, no undo).",
    "params": {
     "$ref": "#/$defs/UiSetParams"
@@ -1784,6 +2029,7 @@
   {
    "name": "visuals.bind",
    "effect": "write",
+   "layer": "library",
    "summary": "Bind a picture file (video / animation / image; mode by file kind unless given) to a sample or source, or unbind with null; one undoable edit.",
    "params": {
     "$ref": "#/$defs/VisualBindParams"
@@ -1795,6 +2041,7 @@
   {
    "name": "visuals.forSample",
    "effect": "read",
+   "layer": "library",
    "summary": "Effective picture of a sample (sample > source binding > source video stream) with its range and mapping.",
    "params": {
     "$ref": "#/$defs/IdParams"
@@ -1806,6 +2053,7 @@
   {
    "name": "visuals.forSource",
    "effect": "read",
+   "layer": "library",
    "summary": "Effective picture of a source (binding > its first video stream).",
    "params": {
     "$ref": "#/$defs/SourceIdParams"
@@ -1824,6 +2072,7 @@
   {
    "name": "visuals.matchApply",
    "effect": "write",
+   "layer": "library",
    "summary": "Bind the matched same-name pictures to the sources in one undoable edit.",
    "params": {
     "$ref": "#/$defs/MatchApplyParams"
@@ -1835,6 +2084,7 @@
   {
    "name": "visuals.matchPlan",
    "effect": "read",
+   "layer": "library",
    "summary": "Same-name picture (video > animation > image) in each source's folder.",
    "params": {
     "$ref": "#/$defs/IdsParams"
@@ -1849,6 +2099,7 @@
   {
    "name": "visuals.prepare",
    "effect": "write",
+   "layer": "library",
    "summary": "Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable).",
    "params": {
     "$ref": "#/$defs/VisualPrepareParams"
@@ -1860,6 +2111,7 @@
   {
    "name": "works.list",
    "effect": "read",
+   "layer": "library",
    "summary": "Work folders (first-level subfolders of source folders).",
    "params": {
     "$ref": "#/$defs/NoParams"
@@ -1874,6 +2126,7 @@
   {
    "name": "works.rename",
    "effect": "write",
+   "layer": "library",
    "summary": "Rename a work: renames the folder on disk (not undoable).",
    "params": {
     "$ref": "#/$defs/WorkRenameParams"
@@ -1886,6 +2139,7 @@
   {
    "name": "works.settingsBatch",
    "effect": "read",
+   "layer": "library",
    "summary": "Edit batch for a work's settings (apply with edits.apply).",
    "params": {
     "$ref": "#/$defs/WorkSettingsParams"
@@ -2128,6 +2382,14 @@
     "id"
    ],
    "summary": "Asset is time-stretched and cannot be played against the source."
+  },
+  {
+   "code": "audio-stream-not-found",
+   "args": [
+    "path",
+    "stream"
+   ],
+   "summary": "The file has no audio stream with this number (count from 0)."
   },
   {
    "code": "bad-request",
@@ -2483,6 +2745,14 @@
    "summary": "The job ended without succeeding (cancelled or interrupted); see the job summary."
   },
   {
+   "code": "job-results-unavailable",
+   "args": [
+    "id",
+    "kind"
+   ],
+   "summary": "This job's kind has no results of that type; use the results command that matches the job."
+  },
+  {
    "code": "job-spawn-failed",
    "args": [
     "reason"
@@ -2652,6 +2922,14 @@
     "reason"
    ],
    "summary": "The pitch query cannot be searched (empty, block too short, longer than 10 s, inverted range or bad note)."
+  },
+  {
+   "code": "primitive-input-invalid",
+   "args": [
+    "reason",
+    "index"
+   ],
+   "summary": "Give exactly one of assetId or path, and non-empty text / items."
   },
   {
    "code": "promote-invalid",
@@ -3650,6 +3928,202 @@
     "session"
    ]
   },
+  "AlignItemParams": {
+   "title": "AlignItemParams",
+   "description": "一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "path": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "stream": {
+     "type": "integer"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
+   ]
+  },
+  "AlignPhone": {
+   "title": "AlignPhone",
+   "description": "时间 = 输入的时钟（资产秒或文件秒）；音轨输入另给 ``sourceStart`` / ``sourceEnd``（原片秒）。``mora`` / ``word`` = 序号。",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "label": {
+     "type": "string"
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sourceEnd": {
+     "type": "number"
+    },
+    "sourceStart": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "word": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "end",
+    "label",
+    "mora",
+    "start",
+    "word"
+   ]
+  },
+  "AlignResult": {
+   "title": "AlignResult",
+   "description": "对齐结果。对齐总会把整句放进窗口，不会报“找不到”：``edges`` = 窗口两端到首尾音素的空白秒数（接近 0 = 说话可能被窗口截断），\n    ``longestPhone`` = 最长的音素；这些只是事实，判断交给你。",
+   "type": "object",
+   "properties": {
+    "clock": {
+     "enum": [
+      "asset",
+      "file"
+     ]
+    },
+    "edges": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "number"
+     }
+    },
+    "longestPhone": {
+     "type": "object"
+    },
+    "morae": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignSpan"
+     }
+    },
+    "phones": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignPhone"
+     }
+    },
+    "speech": {
+     "$ref": "#/$defs/AlignSpan"
+    },
+    "text": {
+     "type": "string"
+    },
+    "window": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
+    "words": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignSpan"
+     }
+    }
+   },
+   "required": [
+    "clock",
+    "edges",
+    "longestPhone",
+    "morae",
+    "phones",
+    "speech",
+    "text",
+    "window",
+    "words"
+   ]
+  },
+  "AlignRow": {
+   "title": "AlignRow",
+   "type": "object",
+   "properties": {
+    "error": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "idx": {
+     "type": "integer"
+    },
+    "result": {
+     "$ref": "#/$defs/AlignResult"
+    },
+    "status": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "error",
+    "idx",
+    "status"
+   ]
+  },
+  "AlignSpan": {
+   "title": "AlignSpan",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "sourceEnd": {
+     "type": "number"
+    },
+    "sourceStart": {
+     "type": "number"
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "start",
+    "text"
+   ]
+  },
   "AlignedPhone": {
    "title": "AlignedPhone",
    "type": "object",
@@ -4140,6 +4614,29 @@
     "updated_at",
     "version"
    ]
+  },
+  "AudioRef": {
+   "title": "AudioRef",
+   "description": "一段声音：库里的音轨（``assetId``，时间 = 资产秒）或任意音频 / 视频文件（``path``，时间 = 文件秒；``stream`` = 第几条音频流，缺省 0）。\n    ``start`` / ``end`` 缺省 = 整条。两者给且只给一个。",
+   "type": "object",
+   "properties": {
+    "assetId": {
+     "type": "string"
+    },
+    "end": {
+     "type": "number"
+    },
+    "path": {
+     "type": "string"
+    },
+    "start": {
+     "type": "number"
+    },
+    "stream": {
+     "type": "integer"
+    }
+   },
+   "required": []
   },
   "BatchEditFields": {
    "title": "BatchEditFields",
@@ -5248,6 +5745,83 @@
     "measured",
     "step",
     "t0"
+   ]
+  },
+  "F0Track": {
+   "title": "F0Track",
+   "description": "FCPE（与应用的音高检索同一个模型）：float32 小端序列，第 i 帧中心 = t0 + i × step（输入的时钟）；``summary`` = 置信度 ≥ 0.5 的帧的统计。",
+   "type": "object",
+   "properties": {
+    "clock": {
+     "enum": [
+      "asset",
+      "file"
+     ]
+    },
+    "confidence": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "count": {
+     "type": "integer"
+    },
+    "energy": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "f0": {
+     "type": "string",
+     "contentEncoding": "base64"
+    },
+    "step": {
+     "type": "number"
+    },
+    "summary": {
+     "type": "object"
+    },
+    "t0": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "clock",
+    "confidence",
+    "count",
+    "energy",
+    "f0",
+    "step",
+    "summary",
+    "t0"
+   ]
+  },
+  "F0TrackRow": {
+   "title": "F0TrackRow",
+   "type": "object",
+   "properties": {
+    "error": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "idx": {
+     "type": "integer"
+    },
+    "result": {
+     "$ref": "#/$defs/F0Track"
+    },
+    "status": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "error",
+    "idx",
+    "status"
    ]
   },
   "FacetCondition": {
@@ -8362,6 +8936,24 @@
    },
    "required": [
     "active"
+   ]
+  },
+  "PrimitiveResultsParams": {
+   "title": "PrimitiveResultsParams",
+   "type": "object",
+   "properties": {
+    "jobId": {
+     "type": "string"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "jobId"
    ]
   },
   "ProcessingChain": {
@@ -12872,6 +13464,21 @@
     "start"
    ]
   },
+  "SpeechAlignParams": {
+   "title": "SpeechAlignParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignItemParams"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
   "SpeechBlockCond": {
    "title": "SpeechBlockCond",
    "description": "语音检索的一个音块条件（09 §9.6.3）；留空 = 不限。节奏策略下 note 必填。",
@@ -15039,6 +15646,173 @@
     "text"
    ]
   },
+  "SubtitleParseParams": {
+   "title": "SubtitleParseParams",
+   "description": "``duration``：媒体时长（秒），用于 OP/ED 区间的范围检查与 OP / ED 判定；缺省用最后一条字幕的结束时间。",
+   "type": "object",
+   "properties": {
+    "duration": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "path": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "path"
+   ]
+  },
+  "SubtitleParsed": {
+   "title": "SubtitleParsed",
+   "description": "应用按当前字幕规则会把这个文件读成什么（不登记、不导入）：台词（``kind: line``，``text`` = 对齐用文字）与音效（``sfx``）、说话人、OP/ED 配对、读不出时间的块。",
+   "type": "object",
+   "properties": {
+    "cues": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleParsedCue"
+     }
+    },
+    "fingerprint": {
+     "type": "string"
+    },
+    "format": {
+     "type": "string"
+    },
+    "oped": {
+     "$ref": "#/$defs/SubtitleParsedOped"
+    },
+    "path": {
+     "type": "string"
+    },
+    "problems": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleProblem"
+     }
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleSpeaker"
+     }
+    }
+   },
+   "required": [
+    "cues",
+    "fingerprint",
+    "format",
+    "oped",
+    "path",
+    "problems",
+    "speakers"
+   ]
+  },
+  "SubtitleParsedCue": {
+   "title": "SubtitleParsedCue",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "kind": {
+     "enum": [
+      "line",
+      "sfx"
+     ]
+    },
+    "no": {
+     "type": "integer"
+    },
+    "raw": {
+     "type": "string"
+    },
+    "ref": {
+     "type": "string"
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "kind",
+    "no",
+    "raw",
+    "ref",
+    "speakers",
+    "start",
+    "text"
+   ]
+  },
+  "SubtitleParsedOped": {
+   "title": "SubtitleParsedOped",
+   "type": "object",
+   "properties": {
+    "errors": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    },
+    "pairs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/SubtitleParsedPair"
+     }
+    }
+   },
+   "required": [
+    "errors",
+    "pairs"
+   ]
+  },
+  "SubtitleParsedPair": {
+   "title": "SubtitleParsedPair",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "kind": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    },
+    "refs": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "end",
+    "kind",
+    "refs",
+    "start"
+   ]
+  },
   "SubtitlePreview": {
    "title": "SubtitlePreview",
    "type": "object",
@@ -15398,6 +16172,147 @@
     "segments",
     "sources",
     "tag"
+   ]
+  },
+  "TextAnalysis": {
+   "title": "TextAnalysis",
+   "description": "日语前端（tsqyomi + pyopenjtalk-plus + 用户辞典，与语音分析同一套）：音素（含停顿 pau）、音拍（片假名）、词与读音。",
+   "type": "object",
+   "properties": {
+    "dictionary": {
+     "type": "string"
+    },
+    "morae": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "normalized": {
+     "type": "string"
+    },
+    "phonemes": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "text": {
+     "type": "string"
+    },
+    "words": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TextAnalysisWord"
+     }
+    }
+   },
+   "required": [
+    "dictionary",
+    "morae",
+    "normalized",
+    "phonemes",
+    "text",
+    "words"
+   ]
+  },
+  "TextAnalysisRow": {
+   "title": "TextAnalysisRow",
+   "type": "object",
+   "properties": {
+    "error": {
+     "anyOf": [
+      {
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "idx": {
+     "type": "integer"
+    },
+    "result": {
+     "$ref": "#/$defs/TextAnalysis"
+    },
+    "status": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "error",
+    "idx",
+    "status"
+   ]
+  },
+  "TextAnalysisWord": {
+   "title": "TextAnalysisWord",
+   "description": "``start`` / ``end`` = 原文里的字符范围（数字展开等对不上时为 null）；``moraStart`` = 第一个音拍在整句里的序号。",
+   "type": "object",
+   "properties": {
+    "end": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mapped": {
+     "type": "boolean"
+    },
+    "moraStart": {
+     "type": "integer"
+    },
+    "morae": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "reading": {
+     "type": "string"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "mapped",
+    "moraStart",
+    "morae",
+    "reading",
+    "start",
+    "text"
+   ]
+  },
+  "TextAnalyzeParams": {
+   "title": "TextAnalyzeParams",
+   "type": "object",
+   "properties": {
+    "texts": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "texts"
    ]
   },
   "TextLayerList": {

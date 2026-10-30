@@ -24,6 +24,8 @@ LANGS = ("zh-CN", "en")
 TERMINAL_JOB = ("succeeded", "failed", "cancelled", "interrupted")
 USAGE_ERRORS = ("bad-request", "unknown-method", "app-not-running", "agent-link-failed", "agent-command-forbidden")
 DECLINED = ("agent-confirm-declined", "agent-confirm-timeout")
+# 原始能力的任务命令 → 读结果的命令（--wait 时自动读出）
+PRIMITIVE_RESULTS = {"speech.align": "speech.alignResults", "text.analyze": "text.analyzeResults", "f0.track": "f0.trackResults"}
 # 导出文件名里的固定词（与界面 app/renderer/exportWords.ts 同一组文案键）
 WORD_KEYS = {
     "original": "track.original", "vocal": "role.vocal", "sfx": "role.sfx", "flatten": "track.flatten", "reimport": "track.reimport",
@@ -236,6 +238,15 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
             if ev is not None and ev["e"] == "exports.videoDone" and ev["d"].get("jobId") == job["id"]:
                 done = ev["d"]
         return {"job": final, "video": done}, done is not None
+    if ok and method in PRIMITIVE_RESULTS:
+        # 原始能力的任务：结果在任务目录里，跟着读出来（逐条；单条失败写在条目里）
+        rows: list[Any] = []
+        while True:
+            page = client.call(PRIMITIVE_RESULTS[method], {"jobId": job["id"], "offset": len(rows), "limit": 200})
+            rows += page
+            if len(page) < 200:
+                break
+        return {"job": final, "results": rows}, ok
     if isinstance(result, dict) and result is not job:
         return {**result, "job": final}, ok
     return final, ok
@@ -267,11 +278,13 @@ def cmd_commands(args: argparse.Namespace) -> None:
     for c in cat["commands"]:
         if args.effect and c["effect"] != args.effect:
             continue
+        if args.layer and c.get("layer", "library") != args.layer:
+            continue
         if args.grep and args.grep.lower() not in (c["name"] + " " + c["summary"]).lower():
             continue
         if c["effect"] in ("ui", "app", "dev") and not args.all:
             continue  # 命令行调用不了
-        row = {"name": c["name"], "effect": c["effect"], "summary": c["summary"]}
+        row = {"name": c["name"], "effect": c["effect"], "layer": c.get("layer", "library"), "summary": c["summary"]}
         if "danger" in c:
             row["danger"] = c["danger"]
         rows.append(row)
@@ -454,6 +467,7 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("status", parents=[common], help="is the app running; Core version; attached sessions").set_defaults(fn=cmd_status)
     p = sub.add_parser("commands", parents=[common], help="list commands (or events) from the catalog")
     p.add_argument("--effect", choices=("read", "write", "job"))
+    p.add_argument("--layer", choices=("library", "primitive"), help="library = business commands on the library; primitive = compute only, no library changes")
     p.add_argument("--grep")
     p.add_argument("--events", action="store_true", help="list events instead")
     p.add_argument("--all", action="store_true", help="include interface-only commands (not callable here)")

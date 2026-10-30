@@ -23,7 +23,7 @@ from .registry import CommandSet
 ROOT = Path(__file__).resolve().parents[3]
 JSON_PATH = ROOT / "docs" / "api" / "commands.json"
 TS_PATH = ROOT / "app" / "renderer" / "api" / "generated.ts"
-CATALOG_VERSION = 2
+CATALOG_VERSION = 3
 
 
 def default_commands() -> CommandSet:
@@ -47,7 +47,7 @@ def build(commands: CommandSet) -> dict[str, Any]:
     events = [{"name": n, "summary": s, "payload": schemas[base + i]} for i, (n, (_, s)) in enumerate(evs)]
     out = []
     for i, c in enumerate(cmds):
-        entry = {"name": c.name, "effect": c.effect, "summary": c.summary, "params": schemas[2 * i], "result": schemas[2 * i + 1]}
+        entry = {"name": c.name, "effect": c.effect, "layer": c.layer, "summary": c.summary, "params": schemas[2 * i], "result": schemas[2 * i + 1]}
         if c.danger:
             # 撤销不了：外部连接调用时要所有者在应用里确认（conditional = 只在某些参数下，见说明）
             entry["danger"] = "conditional" if callable(c.danger) else "always"

@@ -21,6 +21,10 @@ KINDS: dict[str, str] = {
     "acoustic.measure": "model",
     "export.video": "light",
     "samples.independ": "light",
+    # 原始能力（只算、不登记）
+    "speech.align": "model",
+    "text.analyze": "light",
+    "f0.track": "model",
 }
 
 # 开发与测试用的自检任务（只在开发模式下可提交）

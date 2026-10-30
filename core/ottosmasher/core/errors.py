@@ -66,6 +66,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     # ---- 任务
     "job-kind-unknown": (("kind",), "No such job kind."),
     "job-not-found": (("id",), "No such job."),
+    "job-results-unavailable": (("id", "kind"), "This job's kind has no results of that type; use the results command that matches the job."),
     "job-not-cancellable": (("id", "status"), "Job already finished."),
     "job-not-retryable": (("id", "status"), "Only failed, cancelled or interrupted jobs can be retried."),
     "job-interrupted": ((), "Job was running when the app exited."),
@@ -74,6 +75,8 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "job-exception": (("message", "type"), "Job process raised an unexpected exception."),
     # ---- 媒体与文件
     "file-missing": (("path",), "File not found."),
+    "audio-stream-not-found": (("path", "stream"), "The file has no audio stream with this number (count from 0)."),
+    "primitive-input-invalid": (("reason", "index"), "Give exactly one of assetId or path, and non-empty text / items."),
     "tool-missing": (("path", "tool"), "External tool (ffmpeg, ffprobe, …) not found."),
     "media-probe-failed": (("detail", "path"), "Could not read media information."),
     "decode-failed": (("detail", "path"), "Could not decode audio."),

@@ -36,8 +36,8 @@ Segments whose text or boundaries changed lose their old analysis; with the sett
 
 Tried on 2026-10-29 with 20 analysed lines: shifting their times by ±0.5 / ±1.5 s and widening the analysis window to ±2 s, alignment **always "succeeded"**,
 but the recovered start/end were mostly 1–2 s off (only a few within 50 ms) — the aligner fits the whole line into the window; it does not find where the line is.
-So: first get line boundaries roughly right (within a few tenths of a second) from a transcript with word timestamps (e.g. audio-mcp's `audio_transcribe`, Whisper), write them back,
-then run speech analysis and refine with the first and last phoneme times. Separated vocals are steadier than the original mix.
+So: first get line boundaries roughly right (within a few tenths of a second) from a transcript with word timestamps (e.g. audio-mcp's `audio_transcribe`, Whisper), then refine with the first and last phoneme times from `speech.align`
+(not stored; 0.1–0.2 s of margin on each side), and write the segments back (topic `primitives`). Separated vocals are steadier than the original mix.
 
 ## When you cannot hear
 

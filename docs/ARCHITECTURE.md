@@ -657,7 +657,17 @@ class LanguageProfile(Protocol):
 `otto guide [主题] [--lang] [--all] [--skill-dir 目录]`。两层：正式主题（看不出来的事实 + 硬规定）与经验层 `notes`（`guide/notes/{en,zh-CN}.md`，实测经验，不是规定）。
 `--skill-dir` 写出标准 skill 文件夹 `<目录>/ottosmasher/`：`SKILL.md`（总览 + 参考文件目录）、`references/<主题>.md`、`references/field-notes.md`，按需读取；由用户指定目录，我们不默认写用户目录。测试检查两份逐节对应、提到的命令存在、示例参数符合命令定义。
 
-### 15.6 还没做的
+### 15.6 两层命令与引擎边界（所有者 2026-10-30）
+
+- 命令目录每条带 `layer`：`library` 业务命令（资料库里的对象、编辑、撤销、任务登记）；`primitive` 原始能力（只算、不改资料库，像 git 的 plumbing）。
+  `otto commands --layer primitive` 列出。原始能力：`speech.align`（日语对齐）、`text.analyze`（读音）、`f0.track`（FCPE 音高）——任务，逐条结果写在任务目录，
+  用 `speech.alignResults` / `text.analyzeResults` / `f0.trackResults` 读（命令行 `--wait` 自动读出）；`subtitles.parse`（按当前规则读字幕文件）、`subtitles.ruleTest`、`dictionary.check`、`spectrum.get`。
+- 声音输入 `AudioRef`：库里的音轨（资产秒，结果另给原片秒）或任意文件（文件秒，`stream` 选音频流），不用先登记（`core/primitives.py`、`jobs/primitives.py`）。
+- 判断“要不要开放成原始能力”：没有 agent 时应用自己需要它、已经在维护它；应用不需要的（ASR、OCR、抠图）交给外部工具（如 audio-mcp）。
+- 引擎边界：`media`、`lang`、`models`、`domain`、`algo`、`jobs/speech.py`、`jobs/primitives.py` 不引用 `store` / `core`（`core.errors` 除外）/ `api` / `cli`（测试 `test_engine_boundary`），以后要拆成独立包基本只是挪目录。
+- 对齐不能定位：窗口要紧贴说话（试验见 QUESTIONS 阶段 A 决定 15）；结果给 `edges`、`longestPhone` 这类事实，不给“可疑”判定（试过的判定把三到四成好结果也标成可疑）。
+
+### 15.7 还没做的
 
 - **编排层**（自动做音MAD 的时间线编排）：仍按原来的边界——agent 用检索、卡拍、导出，成片在 REAPER 里完成；不在应用里做多轨编辑器。
 - **数据外发**：agent 若用云端大模型，它读到的台词会离开本机；应用没法控制 agent，由用户自己决定（所有者 2026-10-24：说明书里不写禁止外发的规定）。
