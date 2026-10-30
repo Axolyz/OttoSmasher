@@ -26,11 +26,14 @@ test("task drawer uses frozen PyMSS settings independently of ONNX", async () =>
     await expect(page.getByText("分离设备设置：CUDA（设备 2）", { exact: true })).toBeVisible();
     await expect(page.getByText("分离设备设置：MPS（Apple）", { exact: true })).toBeVisible();
     await expect(page.getByText("分离设备设置：未知", { exact: true })).toBeVisible();
-    await page.locator('[role="dialog"]').evaluate(async (el) => {
-      await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})));
-    });
-    await page.screenshot({ path: "dev-workspace/agent-separation-fixes/current-task-drawer.png" });
   } finally {
+    // 取消占着模型通道的睡眠任务和排队的分离，否则关应用要等它睡完
+    await page.evaluate(async () => {
+      const r = await window.otto.core.request("jobs.list", { limit: 50 });
+      for (const j of r.ok ? r.r : []) {
+        if (j.status === "queued" || j.status === "running") await window.otto.core.request("jobs.cancel", { id: j.id });
+      }
+    });
     await app.close();
   }
 });
