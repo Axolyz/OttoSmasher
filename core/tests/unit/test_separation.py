@@ -117,6 +117,29 @@ def test_selection_three_track_crops_mapping(db, env):
     assert e.value.code == "studio-model-missing"
 
 
+def test_several_ranges_in_one_job(db, env):
+    """一次分离多段（所有者 2026-10-30）：没复用的段放进同一个任务（模型只加载一次），每段一组声部；已经分离过的段直接复用。"""
+    h, svc, sid, aid, _ = env
+    list_models(h, svc)
+    r = svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8], [1.0, 1.6], [0.2, 0.8]])  # 重复的段只算一次
+    assert "reused" not in r
+    h.wait_status(r["job"]["id"], "succeeded", "failed", timeout=60)
+    assert h.status(r["job"]["id"]) == "succeeded", h.s.summary(r["job"]["id"])["error"]
+    got = sorted(svc.results(r["job"]["id"]), key=lambda a: a["mapping"][0][1])
+    assert [a["mapping"] for a in got] == [[[0.0, pytest.approx(0.2)], [pytest.approx(0.6), pytest.approx(0.8)]],
+                                           [[0.0, pytest.approx(1.0)], [pytest.approx(0.6), pytest.approx(1.6)]]]
+    assert all(a["roles"] == ["vocal"] for a in got)
+    assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 2  # 局部分离照旧每个声部建一个采样
+    again = svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8], [1.8, 2.2]])
+    assert again["reused"] == [got[0]["id"]] and "job" in again  # 第一段复用，第二段新任务
+    h.wait_status(again["job"]["id"], "succeeded", "failed", timeout=60)
+    assert len(svc.results(again["job"]["id"])) == 1
+    assert svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8]]) == {"reused": [got[0]["id"]]}
+    with pytest.raises(CoreError) as e:
+        svc.submit(aid, 0.0, 1.0, "fake_vocals", None, [[0.2, 0.8]])
+    assert e.value.code == "range-invalid"
+
+
 @pytest.mark.parametrize(
     "mode,code",
     [("short", "sep-output-invalid"), ("missing", "sep-output-invalid"), ("error", "studio-failed"), ("exit1", "studio-failed"),
@@ -132,7 +155,7 @@ def test_failures_register_nothing(db, ws, env, mode, code):
     assert s["status"] == "failed" and s["error"]["code"] == code, s
     assert db.execute("SELECT COUNT(*) FROM sound_asset WHERE origin='separation'").fetchone()[0] == 0
     assert not list((ws.root / "Library" / "Tracks").rglob("*.mp3"))
-    assert (ws.jobs / job["id"] / "input" / "input.wav").exists()  # Failure evidence is retained.
+    assert (ws.jobs / job["id"] / "input" / "input-0.wav").exists()  # Failure evidence is retained.
 
 
 def test_cancel_kills_studio_and_registers_nothing(db, ws, env):
@@ -163,6 +186,6 @@ def test_failed_adoption_keeps_private_files(db, ws, env):
     h.s.adopters['separate'] = reject
     job = svc.submit(aid, None, None, 'fake_vocals', ['Vocals'])['job']
     h.wait_status(job['id'], 'failed', timeout=60)
-    assert (ws.jobs / job['id'] / 'input' / 'input.wav').exists()
+    assert (ws.jobs / job['id'] / 'input' / 'input-0.wav').exists()
     assert list((ws.jobs / job['id'] / 'tracks').glob('*.mp3'))
     assert not svc.results(job['id'])

@@ -1,7 +1,8 @@
 """分离（规格 05 §5.5、14 §14.6、13 §13.3.2；16 R18）——Core 侧：发现 Studio、模型列表、提交、复用、登记结果。
 
 - 模型列表：轻量任务 ``studio.models`` 跑 Studio 的 list_models，结果缓存在 ``Data/Cache/studio-models.json``（Studio 安装、环境或模型目录变了就失效）。
-- 提交（模型通道任务 ``separate``）：输入 = 当前音源资产的选区（整片 = 整个资产），**提交时冻结**；模型必须在 Studio 的可用列表里；
+- 提交（模型通道任务 ``separate``）：输入 = 当前音源资产的选区（整片 = 整个资产），**提交时冻结**；可以一次给多段（``ranges``，所有者 2026-10-30）：
+  没复用的段放进同一个任务，Studio 一次推理多个输入、模型只加载一次（实测每个任务启动约 8 秒）；每段各登记一组声部；模型必须在 Studio 的可用列表里；
   选区分离可选任意模型，整片的“人声方式 / 三轨方式”按能力筛（界面负责，Core 只查模型存在且声部有效）；设备取设置（不计入复用身份）。
 - 复用（05 §5.5.2）：同一输入资产 + 同一区间 + 同一模型（名称 + 文件大小/修改时间）已经分离过且所需声部都在 → 直接返回已有资产，不重跑。
 - 登记（任务成功后在 Core 主线程）：每个声部一个新资产——MP3 移入 ``Library/Tracks/<原片>/``；映射 = 输入映射裁到所选区间；
@@ -103,22 +104,43 @@ class SeparationService:
 
     # ---------- 提交
 
-    def submit(self, asset_id: str, start: float | None, end: float | None, model_name: str, stems: list[str] | None) -> dict[str, Any]:
+    def submit(self, asset_id: str, start: float | None, end: float | None, model_name: str, stems: list[str] | None,
+               ranges: list[list[float]] | None = None) -> dict[str, Any]:
         asset = assets_mod.get(self.conn, asset_id)
         frame = 1.0 / assets_mod.rate_of(self.conn, asset)
-        start, end = check_range(0.0 if start is None else start, asset["duration"] if end is None else end, asset["duration"], frame=frame)
+        if ranges is not None and (start is not None or end is not None):
+            raise CoreError("range-invalid", reason="ranges-and-start-end", start=start, end=end, duration=asset["duration"])
+        if ranges is not None and not ranges:
+            raise CoreError("range-invalid", reason="empty", start=None, end=None, duration=asset["duration"])
+        wanted = [(r[0], r[1]) for r in ranges] if ranges is not None else [(0.0 if start is None else start, asset["duration"] if end is None else end)]
+        spans = [check_range(float(a), float(b), asset["duration"], frame=frame) for a, b in wanted]
         env = self.env()
         model = protocol.find_model(self._models(env), model_name)
         chosen = list(stems) if stems else list(model["stems"])
         bad = [st for st in chosen if st not in model["stems"]]
         if bad or not chosen:
             raise CoreError("sep-stems-invalid", stems=", ".join(bad), model=model["name"])
-        reused = self._reuse(asset_id, start, end, model, chosen)
-        if reused is not None:
+        reused: list[str] = []
+        inputs: list[dict[str, Any]] = []
+        for s0, s1 in dict.fromkeys(spans):  # 同一段给了两次只算一次
+            hit = self._reuse(asset_id, s0, s1, model, chosen)
+            if hit is not None:
+                reused += hit
+                continue
+            ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, s0, s1)
+            assets_mod.check_media(media)
+            sr = ref.sample_rate
+            inputs.append({
+                "assetId": asset_id,
+                "start": s0,
+                "end": s1,
+                "ref": {k: getattr(ref, k) for k in ("path", "ordinal", "sample_rate", "channels", "codec", "format_name")},
+                "a": round(win.to_file(s0) * sr),
+                "b": round(win.to_file(s1) * sr),
+                "snapshot": media["snapshot"],
+            })
+        if not inputs:
             return {"reused": reused}
-        ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
-        assets_mod.check_media(media)
-        sr = ref.sample_rate
         values = settings_mod.values(self.conn)
         params = {
             "env": env.wire(),
@@ -128,18 +150,10 @@ class SeparationService:
             "device": values["studio.device"],
             "deviceId": values["studio.device_id"],
             "cache": str(self.ws.data / "Cache"),
-            "input": {
-                "assetId": asset_id,
-                "start": start,
-                "end": end,
-                "ref": {k: getattr(ref, k) for k in ("path", "ordinal", "sample_rate", "channels", "codec", "format_name")},
-                "a": round(win.to_file(start) * sr),
-                "b": round(win.to_file(end) * sr),
-                "snapshot": media["snapshot"],
-            },
+            "inputs": inputs,
         }
         job = self.jobs.submit("separate", params, {"source": [asset["source_id"]], "asset": [asset_id]})
-        return {"job": job}
+        return {"job": job, **({"reused": reused} if reused else {})}
 
     def _reuse(self, asset_id: str, start: float, end: float, model: dict[str, Any], stems: list[str]) -> list[str] | None:
         stat = protocol.stat_signature(model)
@@ -164,63 +178,21 @@ class SeparationService:
 
     def _adopt_separation(self, job: dict[str, Any], result: dict[str, Any]) -> None:
         params = loads(job["params"])
-        inp = params["input"]
-        asset = assets_mod.get(self.conn, inp["assetId"])
-        mapping = Mapping.of(asset["mapping"]).crop(inp["start"], inp["end"])
+        inputs = params.get("inputs") or [params["input"]]  # 多段（2026-10-30）；之前的任务只有一段
+        items = result.get("items") or [{"stems": result["stems"]}]
+        if len(items) != len(inputs):
+            raise CoreError("sep-output-invalid", reason="item-count", expected=len(inputs), got=len(items))
+        asset = assets_mod.get(self.conn, inputs[0]["assetId"])
         tracks_dir = libdirs.track_dir(self.ws, self.conn, asset["source_id"], "Separation")  # L23：Library/Tracks/<作品 集数> [id8]/Separation/
         aliases = settings_mod.values(self.conn)["separation.role_aliases"]
         moved: list[Path] = []
         created: list[str] = []
         new_samples: list[str] = []
         src_dur = self.conn.execute("SELECT duration FROM source WHERE id=?", (asset["source_id"],)).fetchone()[0]
-        partial = src_dur is None or not mapping.is_full_track(float(src_dur))
         try:
             with transaction(self.conn):
-                for st in result["stems"]:
-                    mid, aid, ts = new_id(), new_id(), now_iso()
-                    target = tracks_dir / f"{aid}.mp3"
-                    shutil.move(st["mp3"], target)
-                    moved.append(target)
-                    pr = probe_mod.probe(target)
-                    rel = target.relative_to(self.ws.root).as_posix()
-                    self.conn.execute(
-                        "INSERT INTO media_file(id, path, location, file_snapshot, format, sample_rate, frames, encode_manifest, created_at)"
-                        " VALUES (?, ?, 'library', ?, 'mp3', ?, ?, ?, ?)",
-                        (mid, rel, dumps(probe_mod.snapshot(target, pr)), st["rate"], st["frames"], dumps(st["manifest"]), ts),
-                    )
-                    duration = st["frames"] / st["rate"]
-                    production = {
-                        "op": "separate",
-                        "model": params["model"]["name"],
-                        "modelStat": params["modelStat"],
-                        "fingerprint": result["fingerprint"],
-                        "studioVersion": result["studioVersion"],
-                        "stems": params["stems"],
-                        "device": params["device"],
-                        "job": job["id"],
-                    }
-                    self.conn.execute(
-                        "INSERT INTO sound_asset(id, source_id, origin, media_file_id, duration, mapping, input_asset_id, input_start, input_end,"
-                        " stem_name, production, language, created_at) VALUES (?, ?, 'separation', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            aid, asset["source_id"], mid, duration, dumps(_fit(mapping, duration).to_list()), inp["assetId"],
-                            inp["start"], inp["end"], st["stem"], dumps(production), asset["language"], ts,
-                        ),
-                    )  # fmt: skip
-                    self.conn.execute(
-                        "INSERT INTO asset_storage(asset_id, range_start, range_end, media_file_id, kind) VALUES (?, 0, ?, ?, 'primary')",
-                        (aid, duration, mid),
-                    )
-                    assets_mod.prefill_roles(self.conn, aid, assets_mod.roles_for_stem(st["stem"], aliases))
-                    created.append(aid)
-                    # 局部分离（对选区）= 某一段的另一个版本，属于采样那一侧：和拉平、回导一样自动建一个采样（所有者 2026-10-13）；
-                    # 整轨分离是原素材的音轨，不建采样。名称 = 这段的建议名 · 声部，性质按声部角色
-                    if partial and self.samples is not None:
-                        name = self.samples.suggest(aid, 0.0, duration)["name"]
-                        sid = self.samples.insert_checked(aid, 0.0, duration, name=f"{name} \u00b7 {st['stem']}"[:500], created_via="processed",
-                                                          origin={"kind": "separation", "job": job["id"], "stem": st["stem"]})
-                        effective_tags.refresh(self.conn, [sid])
-                        new_samples.append(sid)
+                for inp, item in zip(inputs, items, strict=True):
+                    self._adopt_one(job, params, result, asset, inp, item["stems"], src_dur, tracks_dir, aliases, moved, created, new_samples)
         except Exception:
             for p in moved:
                 p.unlink(missing_ok=True)
@@ -233,6 +205,58 @@ class SeparationService:
                 cs.add("sample", sid)
             cs.add("source", asset["source_id"])
             self.on_change(cs)
+
+    def _adopt_one(self, job: dict[str, Any], params: dict[str, Any], result: dict[str, Any], asset: dict[str, Any], inp: dict[str, Any],
+                   stems: list[dict[str, Any]], src_dur: float | None, tracks_dir: Path, aliases: Any,
+                   moved: list[Path], created: list[str], new_samples: list[str]) -> None:
+        """一段输入的各声部：在调用方的事务里登记（任何一段失败整个任务都不登记）。"""
+        mapping = Mapping.of(asset["mapping"]).crop(inp["start"], inp["end"])
+        partial = src_dur is None or not mapping.is_full_track(float(src_dur))
+        for st in stems:
+            mid, aid, ts = new_id(), new_id(), now_iso()
+            target = tracks_dir / f"{aid}.mp3"
+            shutil.move(st["mp3"], target)
+            moved.append(target)
+            pr = probe_mod.probe(target)
+            rel = target.relative_to(self.ws.root).as_posix()
+            self.conn.execute(
+                "INSERT INTO media_file(id, path, location, file_snapshot, format, sample_rate, frames, encode_manifest, created_at)"
+                " VALUES (?, ?, 'library', ?, 'mp3', ?, ?, ?, ?)",
+                (mid, rel, dumps(probe_mod.snapshot(target, pr)), st["rate"], st["frames"], dumps(st["manifest"]), ts),
+            )
+            duration = st["frames"] / st["rate"]
+            production = {
+                "op": "separate",
+                "model": params["model"]["name"],
+                "modelStat": params["modelStat"],
+                "fingerprint": result["fingerprint"],
+                "studioVersion": result["studioVersion"],
+                "stems": params["stems"],
+                "device": params["device"],
+                "job": job["id"],
+            }
+            self.conn.execute(
+                "INSERT INTO sound_asset(id, source_id, origin, media_file_id, duration, mapping, input_asset_id, input_start, input_end,"
+                " stem_name, production, language, created_at) VALUES (?, ?, 'separation', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    aid, asset["source_id"], mid, duration, dumps(_fit(mapping, duration).to_list()), inp["assetId"],
+                    inp["start"], inp["end"], st["stem"], dumps(production), asset["language"], ts,
+                ),
+            )  # fmt: skip
+            self.conn.execute(
+                "INSERT INTO asset_storage(asset_id, range_start, range_end, media_file_id, kind) VALUES (?, 0, ?, ?, 'primary')",
+                (aid, duration, mid),
+            )
+            assets_mod.prefill_roles(self.conn, aid, assets_mod.roles_for_stem(st["stem"], aliases))
+            created.append(aid)
+            # 局部分离（对选区）= 某一段的另一个版本，属于采样那一侧：和拉平、回导一样自动建一个采样（所有者 2026-10-13）；
+            # 整轨分离是原素材的音轨，不建采样。名称 = 这段的建议名 · 声部，性质按声部角色
+            if partial and self.samples is not None:
+                name = self.samples.suggest(aid, 0.0, duration)["name"]
+                sid = self.samples.insert_checked(aid, 0.0, duration, name=f"{name} \u00b7 {st['stem']}"[:500], created_via="processed",
+                                                  origin={"kind": "separation", "job": job["id"], "stem": st["stem"]})
+                effective_tags.refresh(self.conn, [sid])
+                new_samples.append(sid)
 
     def results(self, job_id: str) -> list[dict[str, Any]]:
         """任务抽屉「打开结果」：这个分离任务登记的声音资产（复用的也算）。"""

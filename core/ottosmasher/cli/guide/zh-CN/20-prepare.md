@@ -53,8 +53,8 @@ otto call sources.rescan --wait                            # 改过、新加过�
 ## 分离与人声轨
 
 - `studio.status`：PyMSS Studio 装没装、有哪些模型（`ok` 为 false 就告诉所有者装 PyMSS Studio）。
-- `separation.submit {"assetId", "model"}` 分离整条；加 `start` / `end`（资产秒）只分离一段。结果 `separation.results {"jobId"}`：每个声部一条新音轨，带时间映射。
-  局部分离出来的声部只盖住那一段，人声声部自动带人声角色。完全相同的请求（同一条轨、同一段、同一模型）直接返回已有结果（`reused`）；范围不同（哪怕重叠）就是新的一份。整集分离要十几到几十分钟（长任务的等法见总览第 5 条）。
+- `separation.submit {"assetId", "model"}` 分离整条；加 `start` / `end`（资产秒）只分离一段；`ranges: [[start, end], ...]` 一次分离多段——同一个任务，模型只加载一次（每个任务启动约 8 秒）。结果 `separation.results {"jobId"}`：每个声部一条新音轨，带时间映射。
+  局部分离出来的声部只盖住那一段，人声声部自动带人声角色。完全相同的请求（同一条轨、同一段、同一模型）直接返回已有结果（`reused`；多段时已分离过的段进 `reused`，其余的进任务）；局部分离的每个声部还会自动建一个采样；范围不同（哪怕重叠）就是新的一份。整集分离要十几到几十分钟（长任务的等法见总览第 5 条）。
 - 默认人声 / 音效轨必须盖住整个原素材，局部声部不能当默认轨。但需要指定音轨的地方都能直接给它：
   `speech.preview` / `speech.submit` 加 `"assetId"` 就用那条轨分析（只分析落在它范围里的段），`samples.create`、`exports.wav`、原始能力也都收 `assetId`。
 - 一句台词的音素只有一份，属于原素材的时间线：不论用哪条轨分析，原混音、整轨人声、局部声部上都读同一份。

@@ -375,7 +375,7 @@ class Core:
         r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status())
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
-          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems")))
+          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges")))
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
           lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))

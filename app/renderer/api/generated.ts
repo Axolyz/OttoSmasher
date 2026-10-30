@@ -1897,15 +1897,17 @@ export interface SeparationDevice {
   requested: "auto" | "cpu" | "cuda" | "mps" | null;
 }
 
+/** ``ranges``：一次分离多段（``[[start, end], ...]``，资产秒；和 ``start`` / ``end`` 二选一）——同一个任务、模型只加载一次，每段各出一组声部。 */
 export interface SeparationSubmitParams {
   assetId: string;
   end?: number | null;
   model: string;
+  ranges?: number[][] | null;
   start?: number | null;
   stems?: string[] | null;
 }
 
-/** 同输入同模型已有结果时只返回 ``reused``（各声部资产 ID），否则返回任务。 */
+/** 同输入同模型已有结果的段放进 ``reused``（各声部资产 ID），其余的段一起进一个任务 ``job``；全部复用时没有 ``job``。 */
 export interface SeparationSubmitted {
   job?: JobSummary;
   reused?: string[];
