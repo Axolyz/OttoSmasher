@@ -270,8 +270,8 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 
 def environment(ws: Path, c: Any) -> dict[str, Any]:
-    """开工前的环境：模型、PyMSS Studio、各 agent 工具的 skill 是否最新、所有者有没有 playbook。缺什么就在 hints 里说怎么补。"""
-    env: dict[str, Any] = {"guideVersion": guide_version(), "otto": otto_command()}
+    """开工前的环境：otto 的位置、模型、PyMSS Studio、所有者有没有 playbook。缺什么就在 hints 里说怎么补。"""
+    env: dict[str, Any] = {"otto": otto_command()}
     hints: list[str] = []
     if c is not None:
         try:
@@ -287,10 +287,6 @@ def environment(ws: Path, c: Any) -> dict[str, Any]:
                 hints.append("PyMSS Studio is not available: separation will not run; ask the owner to install it")
         except CoreError:
             pass
-    places = {**{k: v for k, v in SKILL_DIRS.items()}, "project .claude": Path.cwd() / ".claude" / "skills", "project .agents": Path.cwd() / ".agents" / "skills"}
-    env["skills"] = {k: skill_state(v) for k, v in places.items()}
-    if "outdated" in env["skills"].values():
-        hints.append("an installed ottosmasher skill is outdated: `otto setup skill --for <tool> --apply`")
     env["playbook"] = str(playbook_path(ws)) if playbook_path(ws).is_file() else None
     env["hints"] = hints
     return env
@@ -433,65 +429,15 @@ def playbook_path(ws: Path) -> Path:
     return ws / "Agent" / "playbook.md"
 
 
-def guide_version() -> str:
-    """说明书的版本：全部说明文件的内容摘要（skill 里记下它，``otto status`` 据此提醒重新安装）。"""
-    import hashlib
-
-    h = hashlib.sha256()
-    for f in sorted(GUIDE.rglob("*.md")):
-        h.update(f.relative_to(GUIDE).as_posix().encode() + b"\0" + f.read_bytes())
-    return h.hexdigest()[:12]
-
-
 def otto_command() -> str:
     """agent 该怎么叫 otto：开发版 = 仓库里的 tools/otto；发布版的启动器见 ROADMAP L46。"""
     dev = Path(__file__).resolve().parents[3] / "tools" / ("otto.cmd" if sys.platform == "win32" else "otto")
     return str(dev) if dev.is_file() else "otto"
 
 
-SKILL_DESC = ("Operate the OttoSmasher desktop app (otomad sample library with anime sources, subtitles, vocal separation, Japanese speech "
-              "alignment, samples, tags, rhythm/pitch search, WAV/video/REAPER exports) through its `otto` command line while the app is open. "
-              "Use when a task involves OttoSmasher, its library, or preparing otomad material with it.")
-# 各 agent 工具读 skill 的用户级目录（项目级：在项目里用 --dir .claude/skills 或 .agents/skills）
-SKILL_DIRS = {"claude-code": Path.home() / ".claude" / "skills", "codex": Path.home() / ".agents" / "skills"}
-
-
-def write_skill(root: Path, lang: str) -> Path:
-    """“薄” skill：SKILL.md = 总览 + 怎么读其余各层；正文不复制（从 ``otto guide`` 读，永远和正在运行的应用一致）。
-    frontmatter 的 ``metadata.otto-guide`` 记下说明书版本。"""
-    import shutil
-
-    d = root / "ottosmasher"
-    d.mkdir(parents=True, exist_ok=True)
-    old = d / "references"  # 旧版（整本复制）留下的
-    if old.is_dir():
-        shutil.rmtree(old)
-    topics = [p.stem.split("-", 1)[-1] for p in guide_topics(lang)[1:]]
-    head = (f"Run otto as `{otto_command()}`. This skill holds only the overview below. Read everything else from otto itself, which always "
-            f"matches the running app: `otto guide <topic>` ({', '.join(topics)}), `otto guide notes` (practices and experience, not rules), "
-            f"`otto guide playbook` (the owner's own conventions; read it first). Add `--lang {lang}` for this language.")
-    body = guide_topics(lang)[0].read_text(encoding="utf-8").rstrip()
-    (d / "SKILL.md").write_text(
-        f"---\nname: ottosmasher\ndescription: {json.dumps(SKILL_DESC)}\nmetadata:\n  otto-guide: \"{guide_version()}\"\n  otto-lang: \"{lang}\"\n---\n\n{head}\n\n{body}\n",
-        encoding="utf-8")
-    return d
-
-
-def skill_state(d: Path) -> str:
-    f = d / "ottosmasher" / "SKILL.md"
-    if not f.is_file():
-        return "absent"
-    text = f.read_text(encoding="utf-8", errors="replace")
-    return "current" if f'otto-guide: "{guide_version()}"' in text else "outdated"
-
-
 def cmd_guide(args: argparse.Namespace) -> None:
     lang = lang_of(args)
     topics = guide_topics(lang)
-    if args.skill_dir:
-        d = write_skill(Path(args.skill_dir).expanduser().resolve(), lang)
-        out({"skill": str(d), "files": sorted(str(p.relative_to(d)) for p in d.rglob("*.md")), "version": guide_version()}, args.pretty)
-        return
     if args.topic == "notes":
         sys.stdout.write(guide_notes(lang).read_text(encoding="utf-8"))
         return
@@ -522,23 +468,9 @@ AUDIO_PKG = "audio-mcp[speech]==0.4.0"
 
 
 def cmd_setup(args: argparse.Namespace) -> None:
-    """安装帮手：默认只给出要做什么（命令 / 配置），``--apply`` 才写文件。写用户目录的事由所有者决定。"""
+    """安装帮手：``playbook`` 在工作区生成所有者的约定模板；``audio`` 只打印接音频工具的命令 / 配置（写用户配置的事由所有者决定）。
+    skill 不在这里装：仓库里托管 ``skills/ottosmasher/SKILL.md``，由 agent 下载、按自己工具的方式装到项目里（所有者 2026-10-30）。"""
     lang = lang_of(args)
-    if args.what == "skill":
-        if not args.for_ and not args.dir:
-            out({**error_wire("bad-request", {"method": "setup", "reason": "give --for claude-code|codex or --dir"})}, args.pretty)
-            raise Exit(2)
-        root = Path(args.dir).expanduser().resolve() if args.dir else SKILL_DIRS.get(args.for_)
-        if root is None:
-            out(error_wire("bad-request", {"method": "setup", "reason": "for other tools give --dir <skills directory>"}), args.pretty)
-            raise Exit(2)
-        if not args.apply:
-            out({"plan": "write the skill folder", "dir": str(root / "ottosmasher"), "state": skill_state(root), "version": guide_version(),
-                 "apply": f"otto setup skill {'--for ' + args.for_ if args.for_ else '--dir ' + str(root)} --lang {lang} --apply"}, args.pretty)
-            return
-        d = write_skill(root, lang)
-        out({"written": str(d / "SKILL.md"), "version": guide_version()}, args.pretty)
-        return
     if args.what == "playbook":
         f = playbook_path(workspace_of(args))
         if f.is_file():
@@ -628,14 +560,11 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("topic", nargs="?")
     p.add_argument("--lang", choices=LANGS)
     p.add_argument("--all", action="store_true", help="print every topic")
-    p.add_argument("--skill-dir", help="write the skill folder <dir>/ottosmasher/SKILL.md (Claude Code / Codex); see also `otto setup skill`")
     p.set_defaults(fn=cmd_guide)
-    p = sub.add_parser("setup", parents=[common], help="install helpers: skill folder, audio tool, owner's playbook (prints the plan; --apply writes)")
-    p.add_argument("what", choices=("skill", "audio", "playbook"))
+    p = sub.add_parser("setup", parents=[common], help="helpers: the owner's playbook template, how to connect an audio tool")
+    p.add_argument("what", choices=("audio", "playbook"))
     p.add_argument("--for", dest="for_", choices=("claude-code", "codex", "other"))
-    p.add_argument("--dir", help="skill: a different skills directory (e.g. a project's .claude/skills)")
     p.add_argument("--lang", choices=LANGS)
-    p.add_argument("--apply", action="store_true", help="skill: actually write the files")
     p.set_defaults(fn=cmd_setup)
     p = sub.add_parser("session", parents=[common], help="this session's jobs and changes (to pick up after a long job)")
     p.set_defaults(fn=cmd_session)

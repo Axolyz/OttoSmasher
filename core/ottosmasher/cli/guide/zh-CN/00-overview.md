@@ -27,7 +27,7 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 
 ## 基本规则
 
-1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、skill 是不是最新）。显示 `"running": false`（退出码 2）就请所有者打开应用。
+1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、有没有约定文件）。显示 `"running": false`（退出码 2）就请所有者打开应用。
    不要自己打开数据库或 `Library/` 文件夹，只用命令。原素材的媒体文件和字幕可以直接读。
 2. **每个任务设一次会话 ID**：`export OTTO_AGENT_SESSION=<简短任务名>`。你的每个修改都记在它名下，
    之后所有者（或你）可以整批撤回这个会话（主题 `undo`）。
@@ -65,4 +65,4 @@ otto run my_script.py                     # 一次要调很多命令时写成 Py
 
 `otto guide <主题>`（加 `--lang en` 或 `--lang zh-CN`；`--all` 打印全部）：
 `concepts`、`prepare`、`samples`、`search`、`primitives`、`export`、`combine`、`scripts`、`undo`；另有 `notes`（做法与经验）、`playbook`（所有者的约定）。
-安装：`otto setup skill --for claude-code|codex`（把本说明装成 skill）、`otto setup audio --for claude-code|codex|other`（接音频工具）。
+辅助：`otto setup playbook`（在工作区生成所有者约定的模板）、`otto setup audio --for claude-code|codex|other`（接音频工具的命令或配置）。

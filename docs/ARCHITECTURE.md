@@ -655,8 +655,10 @@ class LanguageProfile(Protocol):
 - **第 1 层 说明书** `core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定（含“长任务别空等：能后台等就后台 `otto wait`，不能就告诉所有者并结束这一轮”）。测试核对两份逐节对应、提到的命令存在、示例参数合法。
 - **第 2 层 做法与经验** `guide/notes/{en,zh-CN}.md`（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、踩过的坑；写明不是规定、可能过时。
 - **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
-- 交付：`otto setup skill --for claude-code|codex [--dir] --apply` 写“薄” skill（SKILL.md = 总览 + 怎么读其余各层 + otto 的实际路径；frontmatter `metadata.otto-guide` = 说明书版本）；
-  `otto status` 的 `environment` 报模型、PyMSS Studio、各位置的 skill 是否最新、有没有 playbook，并给出 `hints`。`otto setup audio` 只打印接 audio-mcp 的命令 / 配置。
+- 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
+  agent 自己下载、按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、「安装 otto 命令」
+  （`~/.local/bin/otto` 链接；Windows 未实现）和「复制给 agent 的开场白」（`app/shared/repo.ts` 里的仓库地址，发布前是占位）。
+  `otto status` 的 `environment` 报 otto 的位置、模型、PyMSS Studio、有没有 playbook，并给出 `hints`；`otto setup playbook` / `otto setup audio`（只打印接 audio-mcp 的命令 / 配置）。
 - `otto session`：这个会话的任务与修改，长任务之后接着干用。
 
 ### 15.6 两层命令与引擎边界（所有者 2026-10-30）

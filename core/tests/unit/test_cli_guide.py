@@ -68,26 +68,19 @@ def test_guide_command_prints_topics(lang, capsys):
     assert main(["guide", "nope", "--lang", lang]) == 2
 
 
-@pytest.mark.parametrize("lang", ["en", "zh-CN"])
-def test_thin_skill_folder_and_version(lang, tmp_path, capsys):
+def test_hosted_skill_is_an_entry_point():
+    """仓库托管的 skill（所有者 2026-10-30）：只是入口——怎么找到 otto、先看 otto guide；提到的命令都存在、不抄说明书正文。"""
     import yaml
 
-    from ottosmasher.cli.main import guide_version, skill_state
-
-    (tmp_path / "ottosmasher" / "references").mkdir(parents=True)  # 旧版整本复制留下的：重新安装时清掉
-    assert main(["setup", "skill", "--dir", str(tmp_path), "--lang", lang]) == 0  # 不加 --apply 只给计划
-    plan = json.loads(capsys.readouterr().out)
-    assert plan["state"] == "absent" and "--apply" in plan["apply"]
-    assert main(["setup", "skill", "--dir", str(tmp_path), "--lang", lang, "--apply"]) == 0
-    capsys.readouterr()
-    d = tmp_path / "ottosmasher"
-    text = (d / "SKILL.md").read_text(encoding="utf-8")
+    f = GUIDE.parents[3] / "skills" / "ottosmasher" / "SKILL.md"
+    text = f.read_text(encoding="utf-8")
     head = yaml.safe_load(text.split("---\n")[1])
-    assert head["name"] == "ottosmasher" and head["metadata"]["otto-guide"] == guide_version()
-    assert "otto guide playbook" in text and "otto guide notes" in text and not (d / "references").exists()
-    assert skill_state(tmp_path) == "current"
-    (d / "SKILL.md").write_text(text.replace(guide_version(), "old"), encoding="utf-8")
-    assert skill_state(tmp_path) == "outdated"
+    assert head["name"] == "ottosmasher" and "otto" in head["description"]
+    for cmd in ("otto status", "otto guide", "otto guide playbook", "otto guide notes"):
+        assert cmd in text
+    assert len(text) < 3000  # 入口，不是说明书
+    api = catalog.default_commands()
+    assert all(n in api for n in CMD_RE.findall(text) if n.split(".")[0] not in ("c",))
 
 
 def test_playbook_template_and_setup(tmp_path, capsys, monkeypatch):

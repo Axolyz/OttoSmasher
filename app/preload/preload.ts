@@ -59,6 +59,10 @@ const api: OttoApi = {
   links: {
     open: (id) => ipcRenderer.invoke("links:open", id),
   },
+  agent: {
+    ottoInfo: () => ipcRenderer.invoke("agent:ottoInfo"),
+    installOtto: () => ipcRenderer.invoke("agent:installOtto"),
+  },
   reaper: {
     copy: (params) => ipcRenderer.invoke("reaper:copy", params),
   },

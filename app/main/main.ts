@@ -1,10 +1,11 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
-import { appendFileSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, statSync, symlinkSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { BrowserWindow, ClipboardItem, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
-import type { CoreEvent, CoreStatus } from "../shared/protocol";
+import type { CoreEvent, CoreStatus, OttoInfo } from "../shared/protocol";
 import { CoreClient } from "./core-client";
 import { resolvePaths } from "./paths";
 
@@ -142,6 +143,34 @@ const LINKS: Record<string, string> = {
 ipcMain.handle("links:open", (_e, id: string) => {
   const url = typeof id === "string" ? LINKS[id] : undefined;
   if (url) void shell.openExternal(url);
+});
+
+// 命令行 otto（设置 › 命令行与 agent）：源码版 = 仓库的 tools/otto；发布版的启动器还没做（ROADMAP L46，阶段 10）。
+// “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）；Windows 未实现（未验收）。
+function ottoInfo(): OttoInfo {
+  const path = paths.repo ? join(paths.repo, "tools", process.platform === "win32" ? "otto.cmd" : "otto") : null;
+  const link = process.platform === "win32" ? null : join(homedir(), ".local", "bin", "otto");
+  let linked = false;
+  let conflict = false;
+  if (link && existsSync(link)) {
+    const st = lstatSync(link);
+    if (st.isSymbolicLink()) linked = readlinkSync(link) === path;
+    else conflict = true;
+  }
+  return { path: path && existsSync(path) ? path : null, link, linked, conflict };
+}
+ipcMain.handle("agent:ottoInfo", () => ottoInfo());
+ipcMain.handle("agent:installOtto", () => {
+  const info = ottoInfo();
+  if (!info.path || !info.link || info.conflict || info.linked) return info;
+  mkdirSync(join(homedir(), ".local", "bin"), { recursive: true });
+  try {
+    if (lstatSync(info.link).isSymbolicLink()) unlinkSync(info.link); // 旧的链接（例如仓库换了位置）
+  } catch {
+    // 不存在
+  }
+  symlinkSync(info.path, info.link);
+  return ottoInfo();
 });
 
 // 拖出（规格 12 §12.2）：页面生成好文件、鼠标仍按着时请求系统拖拽。只接受已存在的普通文件。

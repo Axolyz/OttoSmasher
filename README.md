@@ -81,6 +81,29 @@
    和 **BandIt v2 multi**（对白 / 音乐 / 音效三轨）两个模型，回到 设置 → **PyMSS Studio** 刷新。不分离也能用其余全部功能。
 3. 然后看 [用户使用说明的「快速开始」](docs/USER_GUIDE.md#快速开始)：第一步是在设置里登记**原素材文件夹**。
 
+## 配合 LLM agent 使用
+
+能在你电脑上跑终端命令的 agent（Claude Code、Codex 等）可以通过命令行 `otto` 操作**开着的** OttoSmasher：登记、导入字幕、分离、建采样、分析、打标签、检索、导出，
+需要判断的事（清理字幕、挑台词、对轴、找 OP）它自己做完再写回来。agent 的修改按会话记录、可整批撤回；撤销不了的操作要你在应用里点允许。
+
+1. 打开 OttoSmasher → 设置 › **命令行与 agent**：这里写着 `otto` 在哪，可以「安装 otto 命令」，也可以「复制给 agent 的开场白」。
+   目前 `otto` 只在从源码运行时可用（仓库里的 `tools/otto`）；发布版的启动器还在做。
+2. 把开场白发给 agent，后面接上你的任务。开场白大致是：
+
+   ```
+   我电脑上开着 OttoSmasher，请用它的命令行 otto 操作（<otto 的位置>）。
+   第一次用的话，从 <REPO_URL>/blob/main/skills/ottosmasher/SKILL.md 下载这个 skill，按你的工具的方式装到当前项目（不要装成全局）；
+   你的工具不支持 skill，就把它的内容存进项目的长期说明。
+   任务：……
+   ```
+
+   skill 只是入口：告诉 agent 怎么找到 `otto`、先看 `otto guide`。说明书本身由 `otto guide` 给出，总是和你装的版本一致，按需要分主题读。
+3. 可选：
+   - `otto setup playbook`：在工作区生成一份“我的约定”（`Agent/playbook.md`），用平常的话写你的习惯，agent 开工先看它。
+   - `otto setup audio --for claude-code|codex|other`：给听不到声音的 agent 接一个音频分析工具（audio-mcp：频谱图、响度、带时间的转写）。
+
+详见 [使用说明 §17](docs/USER_GUIDE.md#17-让-agent-操作-ottosmasher)。
+
 ## 发布包里有什么、没有什么
 
 | 随应用分发 | 不随应用分发（为什么） |

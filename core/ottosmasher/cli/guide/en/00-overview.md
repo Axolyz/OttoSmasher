@@ -29,7 +29,7 @@ The owner's playbook wins over practices and experience; the ground rules below 
 
 ## Ground rules
 
-1. **The app must be running.** Start with `otto status` (it also reports the environment: models, PyMSS Studio, whether the skill is current). If it says `"running": false` (exit code 2), ask the owner to open the app.
+1. **The app must be running.** Start with `otto status` (it also reports the environment: models, PyMSS Studio, whether there is a playbook). If it says `"running": false` (exit code 2), ask the owner to open the app.
    Never open the database or the `Library/` folder yourself; use commands. The sources' own media and subtitle files may be read directly.
 2. **Set a session id once per task**: `export OTTO_AGENT_SESSION=<short-task-name>`. Every change you make is recorded under it,
    and the owner (or you) can undo the whole session later (topic `undo`).
@@ -70,4 +70,4 @@ Undeclared parameters are rejected (`bad-request` with the offending key). All i
 
 `otto guide <topic>` (add `--lang en` or `--lang zh-CN`; `--all` prints everything):
 `concepts`, `prepare`, `samples`, `search`, `primitives`, `export`, `combine`, `scripts`, `undo`; plus `notes` (practices and experience) and `playbook` (the owner's playbook).
-Setup: `otto setup skill --for claude-code|codex` (install this guide as a skill), `otto setup audio --for claude-code|codex|other` (connect an audio tool).
+Helpers: `otto setup playbook` (create the owner's playbook template in the workspace), `otto setup audio --for claude-code|codex|other` (commands or config to connect an audio tool).

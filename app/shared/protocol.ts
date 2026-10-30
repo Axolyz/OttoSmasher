@@ -64,6 +64,15 @@ export interface PlayerApi {
   onState(cb: (s: PlayerState) => void): () => void;
 }
 
+/** 命令行 otto：``path`` = 本机可执行的完整路径（发布版的启动器还没做，见 ROADMAP L46，那时为 null）；
+ *  ``link`` = 装成命令时的位置；``linked`` = 那里已经是指向 ``path`` 的链接；``conflict`` = 那里有别的普通文件。 */
+export interface OttoInfo {
+  path: string | null;
+  link: string | null;
+  linked: boolean;
+  conflict: boolean;
+}
+
 export interface OttoApi {
   core: {
     request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<CoreResult<T>>;
@@ -90,6 +99,12 @@ export interface OttoApi {
   links: {
     /** 在系统浏览器里打开一个固定的外部网页（只认主进程里列出的 id，例如 "pymss-studio"） */
     open(id: "pymss-studio"): Promise<void>;
+  };
+  agent: {
+    /** 命令行 otto 在哪、有没有装成命令（设置 › 命令行与 agent） */
+    ottoInfo(): Promise<OttoInfo>;
+    /** 把 otto 链接到 ~/.local/bin/otto（只在 macOS / Linux；那里已有别的普通文件时不动它） */
+    installOtto(): Promise<OttoInfo>;
   };
   reaper: {
     /** 复制 REAPER 交接（规格 12 §12.3）：主进程向 Core 要条目文本（Core 命令 reaper.handoff），写入剪贴板类型 REAPERMedia 并回读校验 */

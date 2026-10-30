@@ -13,6 +13,7 @@ import { ModelsPanel } from "./ModelsPanel";
 import { RoleAliasEditor } from "./RoleAliasEditor";
 import { RootsPanel } from "./RootsPanel";
 import { StoragePanel } from "./StoragePanel";
+import { AgentPanel } from "./AgentPanel";
 import { StudioPanel } from "./StudioPanel";
 import { RuleListEditor, type TrialResult } from "./RuleListEditor";
 import { SUBTITLE_RULE_KEYS, SubtitleRulesEditor } from "./SubtitleRulesEditor";
@@ -182,6 +183,7 @@ export function SettingsSheet() {
         <div className={s.list}>
           {group === "source" ? <RootsPanel /> : null}
           {group === "storage" ? <StoragePanel /> : null}
+          {group === "agent" ? <AgentPanel /> : null}
           {group === "studio" ? (
             <StudioPanel vocalModel={String(settings["studio.vocal_model"]?.value ?? "")} onVocalModel={(m) => void save("studio.vocal_model", m)} />
           ) : null}

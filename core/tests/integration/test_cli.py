@@ -153,4 +153,4 @@ def test_session_and_status_environment(app):
     assert rc == 0 and s["jobs"] == []
     rc, st, _ = otto(root, "status")
     env = st["environment"]
-    assert rc == 0 and env["guideVersion"] and "models" in env and set(env["skills"]) >= {"claude-code", "codex"} and env["playbook"] is None
+    assert rc == 0 and env["otto"] and "models" in env and "skills" not in env and env["playbook"] is None

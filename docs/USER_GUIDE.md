@@ -424,10 +424,11 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 
 **怎么开始**
 1. 打开 OttoSmasher（命令行只连接开着的应用；关着时 `otto status` 会说没在运行）。
-2. 在终端里（开发版在仓库目录下用 `tools/otto`，Windows 用 `tools\otto.cmd`）让 agent 先读说明书：`otto guide`（中文，`--lang en` 英文，`--all` 全部）。
-   也可以装成 skill，之后 agent 遇到相关任务会自己想起来：`otto setup skill --for claude-code`（或 `--for codex`）先看会写到哪，加 `--apply` 才写。
-   skill 里只放总览，其余内容 agent 从 `otto guide` 读，所以应用更新后说明总是最新的；`otto status` 发现装的 skill 过期会提醒重新装。
-3. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
+2. 设置 › **命令行与 agent**：写着 `otto` 在哪（源码运行时是仓库里的 `tools/otto`，Windows 用 `tools\otto.cmd`；发布版的启动器还没做）。
+   「安装 otto 命令」会在 `~/.local/bin/otto` 放一个链接，之后终端里直接输入 `otto`（找不到就把 `~/.local/bin` 加进 PATH；Windows 还不能一键装）。
+3. 「复制给 agent 的开场白」，发给你的 agent，后面接上任务。开场白让 agent 第一次用时从仓库下载 skill（`skills/ottosmasher/SKILL.md`）、
+   按它自己工具的方式**装到当前项目**（不要装成全局，免得别的项目里也带着它）。skill 只是入口；说明书正文由 `otto guide` 给出，总是和你装的版本一致，agent 按需要分主题读。
+4. 工作区不是默认位置时，设环境变量 `OTTO_WORKSPACE` 指向它。
 
 **说明分三层**
 - **说明书**（`otto guide`）：怎么正确操作应用，随应用更新。
