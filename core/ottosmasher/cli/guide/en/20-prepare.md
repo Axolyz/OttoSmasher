@@ -54,7 +54,7 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 - `studio.status`: whether PyMSS Studio is installed and which models it has (if `ok` is false, tell the owner to install PyMSS Studio).
 - `separation.submit {"assetId", "model"}` separates the whole track; add `start` / `end` (asset seconds) to separate one part. Results: `separation.results {"jobId"}`, one new track per stem with its time mapping.
-  Stems from a partial separation cover only that part. Separating the same part twice gives two copies; nothing is reused. Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
+  Stems from a partial separation cover only that part; the vocal stem gets the vocal role automatically. An identical request (same track, same range, same model) returns the existing result (`reused`); a different range, even an overlapping one, makes a new copy. Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
 - The default vocal / sfx track must cover the whole source, so a partial stem cannot be the default. But wherever a track can be named, you can pass it:
   `speech.preview` / `speech.submit` with `"assetId"` analyse on that track (only segments inside its range), and `samples.create`, `exports.wav` and the primitives take an `assetId` too.
 - A line's phonemes exist once and belong to the source's timeline: whichever track analysed them, the original mix, a full vocal stem and partial stems all read the same ones.

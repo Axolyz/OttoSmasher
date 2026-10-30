@@ -7,6 +7,8 @@ parameters from `otto describe`, and the owner's playbook (`otto guide playbook`
 
 - **Whole episodes**: done once, and the vocal then serves subtitle cleaning, retiming, samples and analysis with little rework; costs ten to several tens of minutes per episode. The owner can also select all and run it in the app.
 - **Only the parts you need** (`separation.submit` with `start` / `end`): fast, good for a few lines or a first look; partial stems cannot be the default track, so pass their `assetId` where you use them.
+- Measured 2026-10-30 (HyperACE v2, Apple silicon): each separation job takes about 8 s to start, then about 0.35 s per second of audio — 8.5 s for a 5 s part, 29 s for 60 s, about 9 minutes for a 24-minute episode.
+  So with one job per line, a few dozen lines take about as long as the whole episode.
 - Cleaning subtitles and retiming need a clear voice, so usually **separate first, then clean**. For whole episodes, submit all of them at once, then wait as in ground rule 5 of the overview — never idle-poll.
 
 ## Cleaning subtitles
