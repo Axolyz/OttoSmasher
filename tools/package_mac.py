@@ -1,4 +1,4 @@
-"""本地构建 macOS 发布包（阶段 10，所有者 2026-10-30【基线变更】：只发 macOS、本地构建、所有者手动上传 Release、除 PyMSS 外模型随包）。
+"""本地构建 macOS 发布包（阶段 10，所有者 2026-10-30【基线变更】：只发 macOS、本地构建、Release 由所有者说了才发、除 PyMSS 外模型随包）。
 
 用法（仓库根目录）：``.venv/bin/python tools/package_mac.py``（``--skip-build`` 跳过前端构建，``--no-zip`` 不打包 ZIP）。
 产物：``out/release/OttoSmasher.app``、``out/release/OttoSmasher-<版本>-macos-arm64.zip`` 与同名 ``.sha256``、``RELEASE_NOTES.md``。

@@ -50,7 +50,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 
 ## 发布（macOS）
 
-所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建、所有者手动推送并把 ZIP 传到 GitHub Release；除 PyMSS Studio 外模型随包。
+所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建，ZIP 发到 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
 
 ```bash
 .venv/bin/python tools/package_mac.py   # 先把小版本号加一并提交、打本地标签，再构建 → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip、.sha256、RELEASE_NOTES.md
@@ -61,13 +61,18 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
 提交“版本 x.y.z（构建）”并打**本地**标签 `vx.y.z`；要求没有未提交的修改（包对应一个提交）。`--no-bump` 按当前版本重新构建。
 `RELEASE_NOTES.md` 由 `tools/release_notes.md` 模板生成，“这一版的改动”列出相对上一个版本的提交（上一个标签；没有标签时找上一个“版本 …”提交），发布前可以手改。
 
-**发到 GitHub**（所有者手动；推送要所有者授权）：
+**发到 GitHub**（所有者 2026-10-31：构建和发布由开发者用 GitHub CLI 做，但**只在所有者明确说要构建 / 要发布时才做**）：
 1. 推 `main`，再**只推这一版的标签**：`git push origin vx.y.z`（不用 `--tags`，旧的本地标签不一定要公开）。标签打在构建用的那个提交上，
-   GitHub 上的 Release 因此对应包里的代码；在网页上新建标签会指向 `main` 最新的提交，可能和包对不上。
-2. 改 `out/release/RELEASE_NOTES.md`（不进 Git）：“这一版的改动”是按提交说明自动列的，改成用户看得懂的几条；核对 SHA-256 与 `.sha256` 文件一致
-   （`shasum -a 256 out/release/OttoSmasher-*.zip`）。安装步骤、许可、已知限制来自模板，模板过时就改 `tools/release_notes.md`。
-3. 网页上 Releases → Draft a new release：选已推的标签 `vx.y.z`，标题 `OttoSmasher x.y.z`，说明框粘 `RELEASE_NOTES.md` 全文，
-   上传 `OttoSmasher-x.y.z-macos-arm64.zip` 和 `.sha256`。
+   Release 因此对应包里的代码。
+2. 发布说明 `out/release/RELEASE_NOTES.md`（不进 Git）：“这一版的改动”是按提交说明自动列的，改成用户看得懂的几条，**发之前给所有者过目**（所有者可能自己改）；
+   核对 SHA-256 与 `.sha256` 文件一致（`shasum -a 256 out/release/OttoSmasher-*.zip`）。安装步骤、已知限制来自模板，模板过时就改 `tools/release_notes.md`。
+3. 发布（第一行标题去掉，GitHub 上 Release 的标题就是它）：
+   ```bash
+   tail -n +3 out/release/RELEASE_NOTES.md > <临时目录>/notes.md
+   gh release create vx.y.z --verify-tag --title "OttoSmasher x.y.z" --notes-file <临时目录>/notes.md --latest \
+     out/release/OttoSmasher-x.y.z-macos-arm64.zip out/release/OttoSmasher-x.y.z-macos-arm64.zip.sha256
+   ```
+   发之前 `gh release list` 看一眼有没有同一个标签的草稿（所有者可能在网页上起过草稿）。
 
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
 本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。
