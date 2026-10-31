@@ -3,7 +3,7 @@
 Both searches run over a **scope** (the same filter as `samples.ids`) and end in a **fixed result** that does not change when data
 changes later. Readiness: `search.coverage` (index built / pitch measured); `search.prepare` queues the missing parts.
 
-These two searches cover **samples** only (fragments already judged worth keeping). To find where a line is in the **raw material** (which episode, what time), use `textLayer.search`:
+These two searches cover **samples** only (usable pieces already cut; to search a whole season, first create samples from its segments in bulk). To find where a line is in the **raw material** (which episode, what time), use `textLayer.search`:
 it searches the text layer's segments and sound hints (normalised text substring or reading substring, the same rules as the samples' "line" filter); hits are positions on sources (source seconds), not samples, and nothing is stored.
 `sourceIds` omitted = all sources; `notImported` = sources with an associated subtitle but an empty text layer (not searchable); `readingPending` = segments whose reading is not computed yet (matched by text only).
 

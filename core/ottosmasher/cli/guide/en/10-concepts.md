@@ -8,7 +8,7 @@
 | **Sound asset / track** | Audio that belongs to a source: the original mix (`origin: stream`), separated stems (`separation`), flattened or reimported versions. Each has **roles** `vocal` / `sfx`; a source has one **default vocal track** and one **default sfx track**. | `assets.listForSource`, `assets.tracks` |
 | **Text layer** | Per source: **segments** (what was said: `text`, `speakers`, `start`/`end`), **sfx hints**, **range tags**, **OP/ED** ranges. Comes from subtitles or is typed by hand. | `textLayer.list` |
 | **Phonemes** | Speech analysis result of one segment; shared by every vocal track of the source. | `speech.forAsset`, `speech.sample` |
-| **Sample** | A saved range on one asset, with name, **nature** (`speech`, `pitched`, `unpitched`, `unclassified`), tags, star, rating. Samples read the segments their judge interval overlaps. | `samples.list`, `samples.get`, `samples.ids` |
+| **Sample** | A usable piece cut from a source: a saved range on one asset (cut one by one, or created in bulk from segments; being a sample does not mean "valuable" — the star and tags record that), with name, **nature** (`speech`, `pitched`, `unpitched`, `unclassified`), tags, star, rating. Samples read the segments their judge interval overlaps. | `samples.list`, `samples.get`, `samples.ids` |
 | **Fixed result** | The saved outcome of a rhythm or pitch search. | `results.list`, `results.page` |
 | **Job** | Any long or model-based work (scan, separation, analysis, export of video). | `jobs.list`, event `job.updated` |
 

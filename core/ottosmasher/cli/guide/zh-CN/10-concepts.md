@@ -8,7 +8,7 @@
 | **声音资产 / 音轨** | 属于原素材的音频：原混音（`origin: stream`）、分离出的声部（`separation`）、拉平或回导的版本。每条有**角色** `vocal` / `sfx`；原素材有一条**默认人声轨**和一条**默认音效轨**。 | `assets.listForSource`、`assets.tracks` |
 | **文本层** | 每个原素材的：**段**（说了什么：`text`、`speakers`、`start`/`end`）、**音效提示**、**区段标签**、**OP/ED** 区间。来自字幕或手动输入。 | `textLayer.list` |
 | **音素** | 一段的语音分析结果；这个原素材所有含人声的轨共用。 | `speech.forAsset`、`speech.sample` |
-| **采样** | 保存在某条资产上的一段区间，有名称、**性质**（`speech` 语音、`pitched` 调谐单音、`unpitched` 非调谐单音、`unclassified` 未分类）、标签、星标、评分。采样读取它的判定区间交叠到的段。 | `samples.list`、`samples.get`、`samples.ids` |
+| **采样** | 从原素材上切下来、能直接用的一段：保存在某条资产上的一段区间（可以逐句截取，也可以从台词段批量建；建成采样不表示“有价值”，取舍用星标、标签），有名称、**性质**（`speech` 语音、`pitched` 调谐单音、`unpitched` 非调谐单音、`unclassified` 未分类）、标签、星标、评分。采样读取它的判定区间交叠到的段。 | `samples.list`、`samples.get`、`samples.ids` |
 | **固定结果** | 一次节奏或音高检索保存下来的结果。 | `results.list`、`results.page` |
 | **任务** | 任何耗时或调用模型的工作（扫描、分离、分析、导出视频）。 | `jobs.list`、事件 `job.updated` |
 
