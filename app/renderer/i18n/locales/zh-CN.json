@@ -255,6 +255,7 @@
   "quit.confirm.quit": "取消任务并退出",
   "top.workspace.tip": "工作区：{path}\nOttoSmasher {version}（{build}）",
   "top.build.source": "源码运行的开发版",
+  "top.build.devMark": "Dev",
   "top.build.packaged": "发布版",
   "shortcuts.title": "快捷键",
   "shortcuts.pages": "切换页面",

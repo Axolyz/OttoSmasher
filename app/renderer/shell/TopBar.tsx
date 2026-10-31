@@ -119,7 +119,7 @@ function WorkspaceTag() {
       data-testid="workspace-tag"
       title={t("top.workspace.tip", { path: hello.workspace, version: hello.version, build: t(dev ? "top.build.source" : "top.build.packaged") })}
     >
-      {dev ? <span className={s.devMark}>Dev</span> : null}
+      {dev ? <span className={s.devMark}>{t("top.build.devMark")}</span> : null}
       <span data-user-data="">{name}</span>
     </span>
   );
