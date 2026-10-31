@@ -49,3 +49,8 @@
   .tempo input { width: 40px; }
 }
 .rowOps { display: inline-flex; gap: 2px; justify-content: flex-end; }
+/* 顶栏：当前工作区（所有者 2026-10-31） */
+.wsTag { display: inline-flex; align-items: center; gap: 4px; color: var(--faint); font-size: var(--fs-xs); max-width: 180px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; }
+.wsTag > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.devMark { color: var(--accent2); border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; font-weight: 600; }
+

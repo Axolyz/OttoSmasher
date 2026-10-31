@@ -1,7 +1,8 @@
 """本地构建 macOS 发布包（阶段 10，所有者 2026-10-30【基线变更】：只发 macOS、本地构建、所有者手动上传 Release、除 PyMSS 外模型随包）。
 
 用法（仓库根目录）：``.venv/bin/python tools/package_mac.py``（``--skip-build`` 跳过前端构建，``--no-zip`` 不打包 ZIP）。
-产物：``out/release/OttoSmasher.app``、``out/release/OttoSmasher-<版本>-macos-arm64.zip`` 与同名 ``.sha256``。
+产物：``out/release/OttoSmasher.app``、``out/release/OttoSmasher-<版本>-macos-arm64.zip`` 与同名 ``.sha256``、``RELEASE_NOTES.md``。
+默认先把小版本号加一（提交“版本 x.y.z”、本地标签 vx.y.z），``--no-bump`` 按当前版本重新构建。
 
 .app 的 Contents/Resources 布局（``app/main/paths.ts``、``core/ottosmasher/resources.py`` 按这个找）：
 - ``app/``：应用代码（``out/`` 的主进程、preload、界面；``app/renderer/i18n/locales``；mpv 渲染桥与 libmpv）
@@ -341,12 +342,80 @@ def make_zip(app: Path, version: str) -> Path:
     return z
 
 
+# ---------------------------------------------------------------- 版本与发布说明（所有者 2026-10-31：每次构建自动加一）
+
+VERSION_FILES = {
+    "package.json": r'("version": ")(\d+\.\d+\.\d+)(")',
+    "package-lock.json": r'("name": "ottosmasher",\s*"version": ")(\d+\.\d+\.\d+)(")',
+    "pyproject.toml": r'(^version = ")(\d+\.\d+\.\d+)(")',
+    "core/ottosmasher/__init__.py": r'(__version__ = ")(\d+\.\d+\.\d+)(")',
+    "uv.lock": r'(name = "ottosmasher-core"\nversion = ")(\d+\.\d+\.\d+)(")',
+}
+
+
+def git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def bump_version() -> str:
+    """小版本号加一，写进全部版本位置，提交“版本 x.y.z”并打本地标签 vx.y.z。要求工作区干净：构建出来的包对应一个提交。"""
+    import re
+
+    if git("status", "--porcelain", "--untracked-files=no"):
+        sys.exit("有未提交的修改：先提交（构建要对应一个提交），或用 --no-bump 按当前版本重新构建")
+    old = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+    major, minor, patch = (int(x) for x in old.split("."))
+    new = f"{major}.{minor}.{patch + 1}"
+    for rel, pat in VERSION_FILES.items():
+        f = ROOT / rel
+        text = f.read_text(encoding="utf-8")
+        out, n = re.subn(pat, lambda m: f"{m.group(1)}{new}{m.group(3)}", text, flags=re.M)
+        if n < 1:
+            sys.exit(f"{rel} 里找不到版本号 {old}")
+        f.write_text(out, encoding="utf-8")
+    git("add", *VERSION_FILES)
+    git("commit", "-q", "-m", f"版本 {new}（构建）")
+    git("tag", f"v{new}")
+    print(f"版本 {old} → {new}（已提交、本地标签 v{new}）", flush=True)
+    return new
+
+
+def changes_since(version: str) -> str:
+    """这一版相对上一个版本的提交（第一行）。上一个版本：标签 v<上一版>；没有标签（例如别人拿到的源码不带标签）就找上一个“版本 …”提交。"""
+    prev = None
+    tags = [t for t in git("tag", "--list", "v*", "--sort=-v:refname").splitlines() if t != f"v{version}"]
+    if tags:
+        prev = tags[0]
+    else:
+        bumps = git("log", "--format=%H", "--grep=^版本 ", "-n", "2").splitlines()
+        prev = bumps[1] if len(bumps) > 1 else None
+    rng = f"{prev}..HEAD" if prev else "HEAD"
+    lines = [x for x in git("log", "--format=%s", "--no-merges", rng).splitlines() if not x.startswith("版本 ")]
+    if not prev:
+        return "- 第一个版本"
+    if not lines:
+        return "- 没有功能改动（重新构建）"
+    return "\n".join(f"- {x if len(x) <= 160 else x[:159] + '…'}" for x in lines)
+
+
+def write_notes(version: str, z: Path | None) -> None:
+    sha = (OUT / f"{z.name}.sha256").read_text(encoding="utf-8").split()[0] if z else "（没有打 ZIP）"
+    text = (ROOT / "tools" / "release_notes.md").read_text(encoding="utf-8").split("-->\n", 1)[1]
+    for k, v in {"{version}": version, "{zip}": z.name if z else "", "{sha256}": sha, "{changes}": changes_since(version)}.items():
+        text = text.replace(k, v)
+    (OUT / "RELEASE_NOTES.md").write_text(text, encoding="utf-8")
+    print(OUT / "RELEASE_NOTES.md")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-build", action="store_true")
     ap.add_argument("--no-zip", action="store_true")
+    ap.add_argument("--no-bump", action="store_true", help="不加版本号，按当前版本重新构建")
     a = ap.parse_args()
     need = preflight()
+    if not a.no_bump:
+        bump_version()
     version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
     if not a.skip_build:
         step("构建主进程、preload 与界面")
@@ -372,9 +441,12 @@ def main() -> None:
     sign(app)
     total = sum(p.stat().st_size for p in app.rglob("*") if p.is_file() and not p.is_symlink())
     print(f"{app}  {total / 1e6:.0f} MB")
+    z = None
     if not a.no_zip:
         step("ZIP")
-        make_zip(app, version)
+        z = make_zip(app, version)
+    step("发布说明")
+    write_notes(version, z)
 
 
 if __name__ == "__main__":

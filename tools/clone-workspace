@@ -1,0 +1,5 @@
+#!/bin/sh
+# 把日常用的工作区克隆一份给开发版复现 bug（APFS 克隆，几秒、几乎不占空间）。详见 tools/clone_workspace.py。
+# 用法：tools/clone-workspace [名字] [--from <工作区>]
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/.venv/bin/python" "$ROOT/tools/clone_workspace.py" "$@"

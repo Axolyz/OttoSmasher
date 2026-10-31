@@ -54,11 +54,32 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建、所有者手动推送并把 ZIP 传到 GitHub Release；除 PyMSS Studio 外模型随包。
 
 ```bash
-tools/npm run build && .venv/bin/python tools/package_mac.py   # → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip 与 .sha256
+.venv/bin/python tools/package_mac.py   # 先把小版本号加一并提交、打本地标签，再构建 → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip、.sha256、RELEASE_NOTES.md
 OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # 发布包冒烟：清空环境变量、中文与空格路径、随包模型、播放、otto 路径
 ```
 
+**版本号**（所有者 2026-10-31）：每次构建自动把小版本号加一（`package.json`、`package-lock.json`、`pyproject.toml`、`core/ottosmasher/__init__.py`、`uv.lock` 一起改），
+提交“版本 x.y.z（构建）”并打**本地**标签 `vx.y.z`；要求没有未提交的修改（包对应一个提交）。`--no-bump` 按当前版本重新构建。
+`RELEASE_NOTES.md` 由 `tools/release_notes.md` 模板生成，“这一版的改动”列出相对上一个版本的提交（上一个标签；没有标签时找上一个“版本 …”提交），发布前可以手改。
+推送时如果要带上标签，另外推标签（只推 `main` 的规定不变）。
+
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
 本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。
-版本号取 `package.json` 的 `version`。包是 ad-hoc 签名、没有公证（没有 Apple 开发者证书），README 写了用户第一次打开的办法。
+包是 ad-hoc 签名、没有公证（没有 Apple 开发者证书），README 写了用户第一次打开的办法。
 布局与原因见 [ARCHITECTURE.md §14](ARCHITECTURE.md)，随包组件与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+
+## 开发版与发布版并存（所有者 2026-10-31）
+
+同一台电脑上既装着发布版日常使用、又在源码里修 bug 时：
+
+- **只在身份上区分，行为一样**：源码运行叫 **OttoSmasher Dev**（窗口标题、程序坞角标 “Dev”、界面缓存在 `~/Library/Application Support/OttoSmasher Dev`），
+  顶栏在页面标题旁显示当前工作区（两个版本都显示，悬停看完整路径与版本）。两者的其余差别（默认工作区、Python、模型、媒体工具的位置）
+  都在 `app/main/main.ts` 与 `app/main/paths.ts` 的“源码运行 / 发布版”分支里；不要在开发版里藏功能、改默认值或让结果只在一边出现。
+- **数据分开**：发布版用 `~/Documents/OttoSmasher Workspace`（日常资料），源码运行用 `dev-workspace`（测试数据）。**不要让开发版打开日常工作区**：
+  开发版的表结构常常更新，打开就会把它升级，旧的发布版就打不开了。同一个工作区不能被两个 Core 同时打开（工作区锁，后开的报错退出）。
+- **在真实资料上复现 bug**：`tools/clone-workspace [名字]` 把日常工作区 APFS 克隆到 `dev-workspace-clones/<名字>/`（几秒、几乎不占空间；数据库用在线备份，应用开着也一致；
+  删掉原实例的 agent 端点与锁），再按它打印的命令用 `OTTO_WORKSPACE=… tools/npm run dev` 启动开发版。用完删掉那个文件夹。
+- **`otto`**：仓库里一律用 `tools/otto`（默认连 `dev-workspace`）；`~/.local/bin/otto`（设置 › 命令行与 agent 安装的）指向发布版。先 `otto status` 看 `workspace`。
+- **流程**：日常遇到 bug → 记下日志（`Data/Logs/`、任务的 `Data/Jobs/<id>/log.txt`、agent 的 `otto session`）→ 克隆工作区、开发版复现、修好、测试 → 提交 → `tools/package_mac.py`（版本加一）
+  → 替换“应用程序”里的旧版。新版第一次打开日常工作区会升级数据库，升级前自动备份到 `Data/Backups/`；保留上一版 ZIP 以便换回（换回时连同备份一起恢复）。
+

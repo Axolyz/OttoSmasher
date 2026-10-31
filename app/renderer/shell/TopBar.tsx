@@ -59,6 +59,7 @@ export function TopBar() {
   return (
     <header className={s.top}>
       <div className={s.ptitle}>{t(`nav.${page}`)}</div>
+      <WorkspaceTag />
       {(["library", "sources", "tools"] as const).map((p) => (
         <TopSlotHost key={p} page={p} active={p === page} className={s.slot!} />
       ))}
@@ -105,3 +106,22 @@ export function TopBar() {
     </header>
   );
 }
+
+/** 当前连的工作区（两个版本都显示：开发版和发布版可能同时开着，各连各的工作区）；源码运行另标 Dev。悬停看完整路径与版本 */
+function WorkspaceTag() {
+  const hello = useApp((st) => st.hello);
+  const dev = window.otto.app.build === "source";
+  if (!hello) return null;
+  const name = hello.workspace.split(/[\\/]/).filter(Boolean).pop() ?? hello.workspace;
+  return (
+    <span
+      className={s.wsTag}
+      data-testid="workspace-tag"
+      title={t("top.workspace.tip", { path: hello.workspace, version: hello.version, build: t(dev ? "top.build.source" : "top.build.packaged") })}
+    >
+      {dev ? <span className={s.devMark}>Dev</span> : null}
+      <span data-user-data="">{name}</span>
+    </span>
+  );
+}
+

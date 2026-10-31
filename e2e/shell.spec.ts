@@ -103,3 +103,14 @@ test("外壳布局：播放条在窗口底部，页面占满中间", async () =>
   expect(lib!.height).toBeGreaterThan(vh * 0.6);
   await app.close();
 });
+
+// 开发版与发布版并存（所有者 2026-10-31）：源码运行叫 OttoSmasher Dev；顶栏显示当前工作区（悬停看完整路径与版本）
+test("顶栏显示当前工作区；源码运行标 Dev", async () => {
+  const { app, page, workspace } = await launch();
+  const tag = page.getByTestId("workspace-tag");
+  await expect(tag).toContainText("Dev");
+  await expect(tag).toContainText(workspace.split("/").pop()!);
+  await expect(page).toHaveTitle("OttoSmasher Dev");
+  await expect(tag).toHaveAttribute("title", new RegExp(workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await app.close();
+});

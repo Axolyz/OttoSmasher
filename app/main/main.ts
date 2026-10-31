@@ -15,7 +15,12 @@ const t = createT(zhCN as Record<string, string>, { pseudo: locale === PSEUDO })
 const devServer = process.env.OTTO_DEV_SERVER; // 开发期 Vite 地址
 const isDev = process.env.OTTO_DEV === "1";
 
-if (!paths.repo) {
+if (paths.repo) {
+  // 源码运行（开发）与发布版只在“身份”上区分，行为一样（所有者 2026-10-31）：名字、界面缓存文件夹、程序坞角标；
+  // 工作区等其余差别也都在这个分支里（见 DEVELOPMENT「开发版与发布版并存」）
+  app.setName("OttoSmasher Dev");
+  app.setPath("userData", join(app.getPath("appData"), "OttoSmasher Dev"));
+} else {
   // 发布版：Core 用随包的 Python 与媒体工具；用户环境里的 Python 变量不能漏进来（15 §15.8 冒烟：清空 Python/Conda 环境变量）
   for (const k of ["PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "VIRTUAL_ENV", "CONDA_PREFIX", "CONDA_DEFAULT_ENV"]) delete process.env[k];
   process.env.PYTHONNOUSERSITE = "1";
@@ -58,14 +63,14 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     backgroundColor: "#0e1014",
     show: false,
-    title: "OttoSmasher",
+    title: paths.repo ? "OttoSmasher Dev" : "OttoSmasher",
     webPreferences: {
       preload: paths.preload,
       contextIsolation: true,
       // preload 不放进沙箱：它要加载 mpv 渲染桥（原生扩展）。页面世界仍然没有 Node，只能用白名单 API（ARCHITECTURE §2.5）
       sandbox: false,
       nodeIntegration: false,
-      additionalArguments: [`--otto-locale=${locale}`],
+      additionalArguments: [`--otto-locale=${locale}`, `--otto-build=${paths.repo ? "source" : "packaged"}`],
     },
   });
   win.once("ready-to-show", () => win.show());
@@ -275,7 +280,10 @@ app.on("before-quit", (e) => {
 
 app.whenReady().then(() => {
   // 开发期 Dock 图标用所有者的 logo（发布版的 .icns/.ico 在阶段 10 生成）
-  if (process.platform === "darwin" && paths.repo) app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png")); // 发布版用 .app 自己的图标
+  if (process.platform === "darwin" && paths.repo) {
+    app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png")); // 发布版用 .app 自己的图标
+    app.dock?.setBadge("Dev");
+  }
   installCsp();
   core.start();
   createWindow();
