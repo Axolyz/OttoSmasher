@@ -1964,6 +1964,18 @@
    }
   },
   {
+   "name": "textLayer.search",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Search the text layer (segments and sfx hints) of all or some sources by text or reading; hits are positions on sources, not samples.",
+   "params": {
+    "$ref": "#/$defs/TextLayerSearchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/TextLayerSearchResult"
+   }
+  },
+  {
    "name": "thumbs.get",
    "effect": "read",
    "layer": "library",
@@ -16392,6 +16404,66 @@
     "texts"
    ]
   },
+  "TextLayerHit": {
+   "title": "TextLayerHit",
+   "description": "一处命中：原片上的位置（原片秒），不是采样。``match`` = 按原文还是按读音命中；``spans`` = 原文命中在 ``text`` 里的字符范围（读音命中没有）。",
+   "type": "object",
+   "properties": {
+    "end": {
+     "type": "number"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "hint",
+      "segment"
+     ]
+    },
+    "match": {
+     "enum": [
+      "reading",
+      "text"
+     ]
+    },
+    "sourceId": {
+     "type": "string"
+    },
+    "spans": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      }
+     }
+    },
+    "speakers": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "start": {
+     "type": "number"
+    },
+    "text": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "end",
+    "id",
+    "kind",
+    "match",
+    "sourceId",
+    "spans",
+    "speakers",
+    "start",
+    "text"
+   ]
+  },
   "TextLayerList": {
    "title": "TextLayerList",
    "type": "object",
@@ -16454,6 +16526,112 @@
     }
    },
    "required": [
+    "sourceId"
+   ]
+  },
+  "TextLayerSearchParams": {
+   "title": "TextLayerSearchParams",
+   "description": "在文本层（段与音效提示）里搜关键词：规范化原文子串，或读音子串（同采样的“原句”筛选）。``sourceIds`` 缺省 = 全部原素材；\n    ``hints`` 缺省为真（音效提示也搜，只按原文）；``speakers`` 只要这些说话人的段（给了就不搜音效提示）。",
+   "type": "object",
+   "properties": {
+    "hints": {
+     "type": "boolean"
+    },
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "query": {
+     "type": "string"
+    },
+    "sourceIds": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "speakers": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "query"
+   ]
+  },
+  "TextLayerSearchResult": {
+   "title": "TextLayerSearchResult",
+   "description": "``total`` = 全部命中数（``hits`` 只是这一页，按原素材、时间排）；``notImported`` = 关联了字幕但文本层是空的原素材（搜不到）；\n    ``readingPending`` = 读音还没算好的段数（这些段只按原文匹配，后台会补上）。",
+   "type": "object",
+   "properties": {
+    "bySource": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TextLayerSourceCount"
+     }
+    },
+    "hits": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/TextLayerHit"
+     }
+    },
+    "notImported": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "query": {
+     "type": "string"
+    },
+    "readingPending": {
+     "type": "integer"
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "bySource",
+    "hits",
+    "notImported",
+    "query",
+    "readingPending",
+    "total"
+   ]
+  },
+  "TextLayerSourceCount": {
+   "title": "TextLayerSourceCount",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "sourceId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "count",
     "sourceId"
    ]
   },

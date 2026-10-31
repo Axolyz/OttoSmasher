@@ -18,6 +18,8 @@ export function ActionList<T extends { id: string }>(props: {
   onDouble?: (id: string) => void;
   onContext?: (id: string, at: { x: number; y: number }) => void;
   pauseFollowMs?: number;
+  /** render 用到的其他状态（行被 React Aria 缓存，这些变了才重画） */
+  renderDeps?: unknown[];
   empty?: ReactNode;
   testId?: string;
   rowTestId?: string;
@@ -63,7 +65,7 @@ export function ActionList<T extends { id: string }>(props: {
         selectionMode="none"
         disallowTypeAhead
         onAction={(k) => props.onPress(String(k), { shift: shift.current })}
-        dependencies={[props.current, props.selected]}
+        dependencies={[props.current, props.selected, ...(props.renderDeps ?? [])]}
         className={s.actionList}
         renderEmptyState={() => props.empty ?? null}
       >

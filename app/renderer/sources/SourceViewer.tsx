@@ -86,7 +86,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
   // “采样”车道上突出这个采样，时间线放大到它并把播放头放到起点
   const jump = useApp((st) => st.sourceJump);
   const setJump = useApp((st) => st.setSourceJump);
-  const pendingZoom = useRef<Sel | null>(null);
+  const pendingZoom = useRef<(Sel & { zoom: boolean }) | null>(null);
   const [zoomNonce, setZoomNonce] = useState(0);
   const [highlight, setHighlight] = useState<string | null>(null);
   useEffect(() => {
@@ -96,7 +96,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     if (jump.assetId) setAssetSel(jump.assetId);
     setHighlight(jump.highlight ?? null);
     if (jump.highlight) setLaneIds((ids) => new Set([...ids, "derived"]));
-    pendingZoom.current = { a: jump.a, b: jump.b };
+    pendingZoom.current = { a: jump.a, b: jump.b, zoom: jump.zoom !== false };
     setZoomNonce((n) => n + 1); // 音轨已经加载时也要放大（资产没变，下面的效果不会因资产重跑）
     setJump(null);
   }, [jump, row.id, setJump]);
@@ -373,7 +373,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     pendingZoom.current = null;
     // 时间线换资产时会回到整段，等它先完成再放大
     setTimeout(() => {
-      tl.current?.zoomTo(z.a, z.b);
+      if (z.zoom) tl.current?.zoomTo(z.a, z.b);
       window.otto.player.seek(z.a);
     }, 0);
   }, [asset, zoomNonce]);
@@ -656,6 +656,7 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
           </div>
         </div>
         <Transcript
+          sourceId={row.id}
           segs={segs}
           opeds={opeds}
           playhead={playhead()}
@@ -673,6 +674,10 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
               window.otto.player.seek(a);
             }
             root.current?.focus({ preventScroll: true });
+          }}
+          onJump={(a, b) => {
+            setSel({ a, b });
+            window.otto.player.seek(a);
           }}
           onPlay={(a, b) => {
             setSel({ a, b });

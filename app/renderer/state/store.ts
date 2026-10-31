@@ -22,6 +22,8 @@ export interface SourceJump {
   assetId?: string;
   /** 在“采样”车道上突出显示的采样 */
   highlight?: string;
+  /** false = 不放大时间线，只设选区、跳到开头（台词搜索的命中，同台本单击） */
+  zoom?: boolean;
 }
 
 /** 语音分析确认框的请求（规格 08 §8.4：不同入口只是默认范围不同） */

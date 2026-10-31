@@ -315,6 +315,10 @@ class Core:
           lambda p: self.subtitles.import_many(list(p["items"])))
         r("textLayer.list", "read", T.TextLayerParams, T.TextLayerList, "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",
           lambda p: text_layer_mod.list_for_source(self.conn, p["sourceId"], p.get("assetId")))
+        r("textLayer.search", "read", T.TextLayerSearchParams, T.TextLayerSearchResult,
+          "Search the text layer (segments and sfx hints) of all or some sources by text or reading; hits are positions on sources, not samples.",
+          lambda p: text_search.search_layer(self.conn, self.reader, str(p["query"]), source_ids=p.get("sourceIds"), hints=bool(p.get("hints", True)),
+                                             speakers=p.get("speakers"), limit=int(p.get("limit", 500)), offset=int(p.get("offset", 0))))
         r("segments.get", "read", T.IdParams, T.TextSegment, "One text segment (with usage count and protection flags).",
           lambda p: text_layer_mod.get_segment(self.conn, p["id"]))
         r("segments.checkAdd", "read", T.SegmentRangeParams, T.SegmentAddCheck, "Which segments a new typed segment would overlap, and whether cut is possible.",

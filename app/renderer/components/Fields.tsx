@@ -76,8 +76,10 @@ export function TextField(props: {
   invalid?: boolean;
   isDisabled?: boolean;
   testId?: string;
-  /** 回车 */
-  onSubmit?: () => void;
+  /** 回车（``shift`` = 同时按着 Shift） */
+  onSubmit?: (m: { shift: boolean }) => void;
+  /** Esc */
+  onEscape?: () => void;
   autoFocus?: boolean;
 }) {
   return (
@@ -86,11 +88,14 @@ export function TextField(props: {
       onChange={props.onChange}
       autoFocus={props.autoFocus}
       onKeyDown={
-        props.onSubmit
+        props.onSubmit || props.onEscape
           ? (e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && props.onSubmit) {
                 e.preventDefault();
-                props.onSubmit!();
+                props.onSubmit({ shift: e.shiftKey });
+              } else if (e.key === "Escape" && props.onEscape) {
+                e.preventDefault();
+                props.onEscape();
               }
             }
           : undefined

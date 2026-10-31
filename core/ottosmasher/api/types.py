@@ -1663,6 +1663,49 @@ class TextLayerParams(TypedDict):
     assetId: NotRequired[str | None]
 
 
+class TextLayerSearchParams(TypedDict):
+    """在文本层（段与音效提示）里搜关键词：规范化原文子串，或读音子串（同采样的“原句”筛选）。``sourceIds`` 缺省 = 全部原素材；
+    ``hints`` 缺省为真（音效提示也搜，只按原文）；``speakers`` 只要这些说话人的段（给了就不搜音效提示）。"""
+
+    query: str
+    sourceIds: NotRequired[list[str] | None]
+    hints: NotRequired[bool]
+    speakers: NotRequired[list[str] | None]
+    limit: NotRequired[int]
+    offset: NotRequired[int]
+
+
+class TextLayerHit(TypedDict):
+    """一处命中：原片上的位置（原片秒），不是采样。``match`` = 按原文还是按读音命中；``spans`` = 原文命中在 ``text`` 里的字符范围（读音命中没有）。"""
+
+    sourceId: str
+    kind: Literal["segment", "hint"]
+    id: str
+    start: float
+    end: float
+    text: str
+    speakers: list[str]
+    match: Literal["text", "reading"]
+    spans: list[list[int]]
+
+
+class TextLayerSourceCount(TypedDict):
+    sourceId: str
+    count: int
+
+
+class TextLayerSearchResult(TypedDict):
+    """``total`` = 全部命中数（``hits`` 只是这一页，按原素材、时间排）；``notImported`` = 关联了字幕但文本层是空的原素材（搜不到）；
+    ``readingPending`` = 读音还没算好的段数（这些段只按原文匹配，后台会补上）。"""
+
+    query: str
+    total: int
+    hits: list[TextLayerHit]
+    bySource: list[TextLayerSourceCount]
+    notImported: list[str]
+    readingPending: int
+
+
 class SegmentRangeParams(TypedDict):
     sourceId: str
     start: float

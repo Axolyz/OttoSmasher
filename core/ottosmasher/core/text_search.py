@@ -108,3 +108,89 @@ def query_parts(conn: sqlite3.Connection, reader: Reader | None, text: str) -> t
         return n, norm(to_hiragana(q))
     compiled, _ver = reader.version(conn)
     return n, reader.reading(q, compiled)
+
+
+# ---------------------------------------------------------------- 文本层搜索（所有者 2026-10-31）
+
+# 搜原料（文本层的段与音效提示），结果是原片上的位置，不是采样：采样库的筛选与三大搜索只对采样（已确认有价值的片段）。
+# 匹配规则与采样的“原句”筛选相同（规范化原文子串，或读音子串），用同一份 segment_search 索引。
+SEARCH_LIMIT_MAX = 5000
+SEARCH_CATCH_UP = 300
+"""检索前顺手补齐的读音段数上限（读音一段约 1 毫秒量级）；还没补上的段只按原文匹配，结果里报 ``readingPending``。"""
+
+
+def norm_spans(text: str, needle: str) -> list[list[int]]:
+    """规范化后的命中在原文里的字符范围（逐字规范化建立对应；对不上就不给高亮）。"""
+    if not needle:
+        return []
+    chars: list[str] = []
+    origin: list[int] = []
+    for i, ch in enumerate(text):
+        for c in norm(ch):
+            chars.append(c)
+            origin.append(i)
+    flat = "".join(chars)
+    out, start = [], flat.find(needle)
+    while start >= 0:
+        end = start + len(needle) - 1
+        out.append([origin[start], origin[end] + 1])
+        start = flat.find(needle, start + len(needle))
+    return out
+
+
+def search_layer(conn: sqlite3.Connection, reader: Reader | None, query: str, *, source_ids: list[str] | None = None, hints: bool = True,
+                 speakers: list[str] | None = None, limit: int = 500, offset: int = 0) -> dict[str, Any]:
+    from json import loads
+
+    from .errors import CoreError
+
+    if not 1 <= int(limit) <= SEARCH_LIMIT_MAX or int(offset) < 0:
+        raise CoreError("bad-request", method="textLayer.search", reason="limit")
+    n, r = query_parts(conn, reader, query)
+    pending = 0
+    if reader is not None and n:
+        ensure(conn, reader, limit=SEARCH_CATCH_UP)
+        pending = len(stale_ids(conn, reader.version(conn)[1]))
+    scope, args = "", []
+    if source_ids is not None:
+        scope = f" AND t.source_id IN ({','.join('?' * len(source_ids))})"
+        args = list(source_ids)
+    hits: list[dict[str, Any]] = []
+    if n:
+        rows = conn.execute(
+            'SELECT t.id, t.source_id, t.start, t."end", t.text, t.speakers, x.text AS xtext, x.norm, x.reading FROM text_segment t'
+            f" LEFT JOIN segment_search x ON x.segment_id = t.id WHERE t.deleted = 0{scope}", args,
+        ).fetchall()
+        want = set(speakers or [])
+        for row in rows:
+            names = loads(row["speakers"])
+            if want and not want & set(names):
+                continue
+            fresh = row["xtext"] is not None and row["xtext"] == row["text"]
+            normed = row["norm"] if fresh else norm(row["text"])
+            if n in normed:
+                how = "text"
+            elif fresh and r and r in row["reading"]:
+                how = "reading"
+            else:
+                continue
+            hits.append({"sourceId": row["source_id"], "kind": "segment", "id": row["id"], "start": row["start"], "end": row["end"], "text": row["text"],
+                         "speakers": names, "match": how, "spans": norm_spans(row["text"], n) if how == "text" else []})
+        if hints and not want:
+            for row in conn.execute(f'SELECT t.id, t.source_id, t.start, t."end", t.text FROM sfx_hint t WHERE t.deleted = 0{scope}', args):
+                if n in norm(row["text"]):
+                    hits.append({"sourceId": row["source_id"], "kind": "hint", "id": row["id"], "start": row["start"], "end": row["end"], "text": row["text"],
+                                 "speakers": [], "match": "text", "spans": norm_spans(row["text"], n)})
+    hits.sort(key=lambda h: (h["sourceId"], h["start"], h["end"], h["kind"]))
+    per: dict[str, int] = {}
+    for h in hits:
+        per[h["sourceId"]] = per.get(h["sourceId"], 0) + 1
+    # 关联了字幕但文本层还是空的原素材：搜不到，告诉调用方
+    sql = ("SELECT s.id FROM source s WHERE s.subtitle_path IS NOT NULL"
+           " AND NOT EXISTS (SELECT 1 FROM text_segment t WHERE t.source_id = s.id AND t.deleted = 0)"
+           " AND NOT EXISTS (SELECT 1 FROM sfx_hint h WHERE h.source_id = s.id AND h.deleted = 0)")
+    if source_ids is not None:
+        sql += f" AND s.id IN ({','.join('?' * len(source_ids))})"
+    not_imported = [x[0] for x in conn.execute(sql, args)]
+    return {"query": query, "total": len(hits), "hits": hits[int(offset): int(offset) + int(limit)],
+            "bySource": [{"sourceId": k, "count": v} for k, v in per.items()], "notImported": not_imported, "readingPending": pending}

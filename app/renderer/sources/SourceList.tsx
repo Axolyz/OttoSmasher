@@ -1,10 +1,11 @@
-// 原片列表（UI_PLAN §4、§6.1）：按作品分组、默认折叠（当前原片所在组展开）；搜索作品 / 集数 / 文件名。
+// 原片列表（UI_PLAN §4、§6.1）：按作品分组、默认折叠（当前原片所在组展开）；搜索作品 / 集数 / 文件名，
+// 同一个搜索框也在全部原素材的台词里搜（所有者 2026-10-31，结果在列表下面，见 LineSearch）。⌘F 聚焦搜索框。
 // 选择规则全部来自 CollectionList（单击 = 打开到查看器，从不改变勾选；复选框 / ⌘ / Shift / X / ⌘A / Esc / Delete / 右键）。
 // 行末 ⋯（悬停或焦点时出现）与右键是同一份菜单（所有者 2026-10-07：保留）。
 import { AudioLines, ChevronDown, ChevronRight, Film, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useThumb } from "../api/thumbs";
-import type { SourceRow } from "../api/types";
+import type { SourceRow, TextLayerHit } from "../api/types";
 import { BatchBar } from "../components/BatchBar";
 import { Button } from "../components/Button";
 import { CollectionList } from "../components/CollectionList";
@@ -14,6 +15,7 @@ import { Menu, type MenuSpec } from "../components/Menu";
 import { Thumb } from "../components/Thumb";
 import { basename, clock, stem } from "../format";
 import { t } from "../i18n";
+import { LineSearch } from "./LineSearch";
 import { durationText, relDir } from "./rowInfo";
 import s from "./Sources.module.css";
 
@@ -52,6 +54,10 @@ export function SourceList(props: {
   /** 组头（作品）菜单 */
   groupMenu?: (work: string) => MenuSpec | null;
   onDelete: (ids: string[]) => void;
+  /** 台词搜索：单击一处 */
+  onJumpLine: (hit: TextLayerHit) => void;
+  /** 台词搜索：关联了字幕但没导入的原素材，一键导入 */
+  onImportMany: (rows: SourceRow[]) => void;
 }) {
   const [q, setQ] = useState("");
   const [rowMenu, setRowMenu] = useState<string | null>(null);
@@ -81,12 +87,18 @@ export function SourceList(props: {
     }
     return { items: out, visible: vis };
   }, [props.rows, props.expanded, q, searching]);
+  // 台词命中按列表的顺序分组（作品名排序，组内同列表）
+  const ordered = useMemo(() => {
+    const byWork = new Map<string, SourceRow[]>();
+    for (const r of props.rows) byWork.set(r.work, [...(byWork.get(r.work) ?? []), r]);
+    return [...byWork.entries()].sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b))).flatMap(([, rs]) => rs);
+  }, [props.rows]);
   const workOf = (gid: string) => gid.slice(2);
 
   return (
-    <aside className={s.list} data-testid="source-list">
+    <aside className={s.list} data-testid="source-list" data-searching={searching || undefined}>
       <div className={s.listHead}>
-        <TextField value={q} onChange={setQ} label={t("sources.search")} placeholder={t("sources.search")} testId="sources-search" />
+        <TextField value={q} onChange={setQ} onEscape={() => setQ("")} label={t("sources.search")} placeholder={t("sources.search")} testId="sources-search" />
         <Button
           variant="flat"
           icon={<RefreshCw />}
@@ -191,6 +203,7 @@ export function SourceList(props: {
           />
         }
       />
+      {searching ? <LineSearch q={q} rows={ordered} onOpen={props.onOpen} onJump={props.onJumpLine} onImport={props.onImportMany} /> : null}
     </aside>
   );
 }

@@ -200,6 +200,7 @@ export function App() {
               ["⌘,", t("shortcuts.settings")],
               ["⌘J", t("shortcuts.tasks")],
               ["⌘Z", t("shortcuts.undo")],
+              ["⌘F · ⌘⇧F", t("shortcuts.find")],
               ["?", t("shortcuts.help")],
               ["Esc", t("shortcuts.esc")],
               ["Space / B", t("shortcuts.audition")],

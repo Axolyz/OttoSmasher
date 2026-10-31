@@ -84,6 +84,24 @@ export function SourcesPage() {
 
   // 「返回原片」：打开该原片（区间由查看器接手）
   const jump = useApp((st) => st.sourceJump);
+  const setSourceJump = useApp((st) => st.setSourceJump);
+  // ⌘F：聚焦原素材列表的搜索框（作品、素材标识、文件名，以及全部原素材的台词）；列表收起时先展开
+  const focusSearch = () => {
+    setListHidden(false);
+    setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid="sources-search"]')?.focus(), 0);
+  };
+  useEffect(() => {
+    if (page !== "sources") return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        focusSearch();
+      }
+    };
+    // 捕获阶段：焦点在输入框里（输入框会截住按键）也能用
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [page]);
   useEffect(() => {
     if (!jump || !rows) return;
     const row = rows.find((r) => r.id === jump.sourceId);
@@ -317,7 +335,14 @@ export function SourcesPage() {
       out.push({ id: "sources-target", title, items: fromMenu("sources-target", title, sourceMenu(currentRow, [currentRow.id], false).items) });
     }
     const g = t("nav.sources");
-    out.push({ id: "sources", title: g, items: [{ key: "sources/add", label: t("cmd.addSources"), group: g, run: () => void pickAndAdd() }] });
+    out.push({
+      id: "sources",
+      title: g,
+      items: [
+        { key: "sources/add", label: t("cmd.addSources"), group: g, run: () => void pickAndAdd() },
+        { key: "sources/search-lines", label: t("cmd.searchLines"), group: g, shortcut: "⌘F", run: focusSearch },
+      ],
+    });
     return out;
   });
 
@@ -355,6 +380,8 @@ export function SourcesPage() {
           menu={sourceMenu}
           groupMenu={groupMenu}
           onDelete={setDeleteIds}
+          onJumpLine={(h) => setSourceJump({ sourceId: h.sourceId, a: h.start, b: h.end, zoom: false })}
+          onImportMany={setBatchImport}
         />
       ) : (
         <div />
