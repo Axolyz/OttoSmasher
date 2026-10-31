@@ -1,8 +1,9 @@
 """把日常用的工作区克隆一份给开发版复现 bug（所有者 2026-10-31，DEVELOPMENT「开发版与发布版并存」）。
 
-用法：tools/clone-workspace [名字] [--from <工作区>]
+用法：tools/clone-workspace [名字] [--from <工作区>] [--to <目标文件夹>]
   名字缺省 = repro-<月日-时分>；源缺省 = 发布版的默认工作区 ~/Documents/OttoSmasher Workspace。
   克隆放在仓库的 dev-workspace-clones/<名字>/（不进 Git；AGENTS.md：开发数据只写在项目里）。
+  --to 指定别的目标（例如把开发用的工作区整个变成发布版的日常工作区）；目标必须还不存在。
 
 做法：
 - 整个工作区用 APFS 克隆复制（cp -c：几秒、几乎不占空间，改了才另占）；不在同一个 APFS 卷上就普通复制（会占空间，先提示）。
@@ -32,6 +33,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(prog="tools/clone-workspace", description=__doc__.split("\n\n")[0])
     ap.add_argument("name", nargs="?", default=time.strftime("repro-%m%d-%H%M"))
     ap.add_argument("--from", dest="src", default=str(DEFAULT_SRC), help=f"source workspace (default: {DEFAULT_SRC})")
+    ap.add_argument("--to", dest="dest", help="target folder instead of dev-workspace-clones/<name> (must not exist)")
     a = ap.parse_args()
     src = Path(a.src).expanduser().resolve()
     db = src / "Data" / "library.sqlite3"
@@ -41,11 +43,11 @@ def main() -> int:
     if "/" in a.name or a.name in (".", ".."):
         print("名字里不能有 /", file=sys.stderr)
         return 2
-    dest = CLONES / a.name
+    dest = Path(a.dest).expanduser().resolve() if a.dest else CLONES / a.name
     if dest.exists():
         print(f"已经有了：{dest}（换个名字，或先删掉它）", file=sys.stderr)
         return 2
-    CLONES.mkdir(exist_ok=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
 
     t0 = time.monotonic()
     cloned = subprocess.run(["cp", "-cR", str(src), str(dest)], capture_output=True, text=True)
