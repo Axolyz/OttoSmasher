@@ -20,12 +20,17 @@
 effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. It also exposes its engine to
 LLM agents through a command line. The UI is in Simplified Chinese; speech analysis currently supports Japanese.*
 
+<p align="center">
+  <img src="docs/images/sources.webp" alt="原素材页：画面、带说话人的台本、整集时间线（台词段、音效提示、区段标签）" width="100%">
+</p>
+
 > **状态**：第一个公开版本（0.1，macOS）。功能已经齐全并有自动化测试，但还年轻——遇到问题欢迎[提 issue](https://github.com/Axolyz/OttoSmasher/issues)。
 
 ## 目录
 
 - [亮点](#亮点)
 - [功能一览](#功能一览)
+- [截图](#截图)
 - [系统要求](#系统要求)
 - [安装](#安装)
 - [第一次使用](#第一次使用)
@@ -63,6 +68,18 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
 | 存储 | 采样独立化：把要留的采样存成无损切片后删除原素材，省磁盘 |
 
 完整说明见 [用户使用说明](docs/USER_GUIDE.md)（含五种常见场景的快速开始）。
+
+## 截图
+
+**采样库与详情区**：左边是采样列表（每行带画面缩略图和音块），右边是选中采样的画面、波形（音素、mora、音高曲线）、语音分析结果，以及节奏与卡拍的对照。
+
+<img src="docs/images/library-detail.webp" alt="采样库：采样列表与详情区（波形、音素、音高曲线、节奏与卡拍）" width="100%">
+
+| 节奏检索：画音块（前导辅音、元音、音高） | 检索结果：命中的位置与匹配度 |
+|---|---|
+| <img src="docs/images/rhythm-search.webp" alt="节奏检索浮层：画音块并设置条件"> | <img src="docs/images/search-results.webp" alt="检索结果与详情区"> |
+| **任务抽屉**：分析、分离、拉平都在后台排队，agent 提交的任务带标记 | **拉平台**：选处理范围和目标音高，重合成成一个定音的单音 |
+| <img src="docs/images/tasks.webp" alt="任务抽屉：后台任务列表"> | <img src="docs/images/flatten.webp" alt="拉平台：外选区、处理范围与目标音高"> |
 
 ## 系统要求
 
