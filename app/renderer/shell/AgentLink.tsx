@@ -1,4 +1,4 @@
-// 命令行 / agent（阶段 A，UI_PLAN §23）：撤销不了的命令的确认框。会话与修改记录在操作历史里（History.tsx）。
+// 命令行 / agent（阶段 A，UI_PLAN §11）：撤销不了的命令的确认框。会话与修改记录在操作历史里（History.tsx）。
 import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { AgentConfirm, DeletePreview, IndependItem } from "../api/types";
