@@ -1606,7 +1606,7 @@
    "name": "speech.align",
    "effect": "job",
    "layer": "primitive",
-   "summary": "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech.",
+   "summary": "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times; `lines` instead of `text` also gives each line's span. The window must tightly bracket the speech.",
    "params": {
     "$ref": "#/$defs/SpeechAlignParams"
    },
@@ -2956,7 +2956,7 @@
     "reason",
     "index"
    ],
-   "summary": "Give exactly one of assetId or path, and non-empty text / items."
+   "summary": "Give exactly one of assetId or path, and non-empty text / items (or non-empty lines instead of text)."
   },
   {
    "code": "promote-invalid",
@@ -3957,7 +3957,7 @@
   },
   "AlignItemParams": {
    "title": "AlignItemParams",
-   "description": "一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。",
+   "description": "一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。\n    ``lines``（代替 ``text``）：同一段声音里先后说的几行（例如一条字幕的两行），每行当一句对齐，结果另给每行的起止。",
    "type": "object",
    "properties": {
     "assetId": {
@@ -3965,6 +3965,12 @@
     },
     "end": {
      "type": "number"
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "path": {
      "type": "string"
@@ -3979,9 +3985,7 @@
      "type": "string"
     }
    },
-   "required": [
-    "text"
-   ]
+   "required": []
   },
   "AlignPhone": {
    "title": "AlignPhone",
@@ -4047,6 +4051,12 @@
      "type": "object",
      "additionalProperties": {
       "type": "number"
+     }
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AlignSpan"
      }
     },
     "longestPhone": {

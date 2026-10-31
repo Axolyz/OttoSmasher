@@ -91,6 +91,12 @@ class PrimitiveService:
             raise CoreError("primitive-input-invalid", reason="no-items")
         out = []
         for i, it in enumerate(items):
+            lines = it.get("lines")
+            if lines is not None:
+                if "text" in it or not isinstance(lines, list) or not lines or not all(isinstance(x, str) and x.strip() for x in lines):
+                    raise CoreError("primitive-input-invalid", reason="lines", index=i)
+                out.append({"idx": i, "text": "\n".join(lines), "lines": list(lines), **self.audio(it)})
+                continue
             if not str(it.get("text", "")).strip():
                 raise CoreError("primitive-input-invalid", reason="no-text", index=i)
             out.append({"idx": i, "text": it["text"], **self.audio(it)})

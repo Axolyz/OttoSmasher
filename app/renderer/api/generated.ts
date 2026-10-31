@@ -58,14 +58,18 @@ export interface AgentSession {
   session: string | null;
 }
 
-/** 一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。 */
+/**
+ * 一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。
+ *     ``lines``（代替 ``text``）：同一段声音里先后说的几行（例如一条字幕的两行），每行当一句对齐，结果另给每行的起止。
+ */
 export interface AlignItemParams {
   assetId?: string;
   end?: number;
+  lines?: string[];
   path?: string;
   start?: number;
   stream?: number;
-  text: string;
+  text?: string;
 }
 
 /** 时间 = 输入的时钟（资产秒或文件秒）；音轨输入另给 ``sourceStart`` / ``sourceEnd``（原片秒）。``mora`` / ``word`` = 序号。 */
@@ -86,6 +90,7 @@ export interface AlignPhone {
 export interface AlignResult {
   clock: "asset" | "file";
   edges: Record<string, number>;
+  lines?: AlignSpan[];
   longestPhone: Record<string, unknown>;
   morae: AlignSpan[];
   phones: AlignPhone[];
@@ -3119,7 +3124,7 @@ export interface Commands {
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */
   "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
-  /** Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech. */
+  /** Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times; `lines` instead of `text` also gives each line's span. The window must tightly bracket the speech. */
   "speech.align": { params: SpeechAlignParams; result: JobSummary; effect: "job" };
   /** Per-item results of a speech.align job. */
   "speech.alignResults": { params: PrimitiveResultsParams; result: AlignRow[]; effect: "read" };

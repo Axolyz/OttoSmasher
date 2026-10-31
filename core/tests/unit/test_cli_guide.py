@@ -101,3 +101,30 @@ def test_setup_audio_prints_only(capsys):
     assert "claude mcp add audio" in json.loads(capsys.readouterr().out)["run"]
     assert main(["setup", "audio", "--for", "codex"]) == 0
     assert "[mcp_servers.audio]" in json.loads(capsys.readouterr().out)["append"]
+
+
+def test_scripts_the_notes_refer_to(capsys, tmp_path):
+    """经验层附带的脚本：notes 里提到的都存在、`otto guide <文件名>` 原样打印；不需要模型的部分（时间换算、补零）在这里测。"""
+    import importlib.util
+
+    import numpy as np
+
+    names = {p.name for p in (GUIDE / "scripts").glob("*.py")}
+    for lang in ("en", "zh-CN"):
+        refs = set(re.findall(r"otto guide ([\w-]+\.py)", (GUIDE / "notes" / f"{lang}.md").read_text(encoding="utf-8")))
+        assert refs and refs <= names, (lang, refs - names)
+    assert main(["guide", "speaker_embed.py"]) == 0
+    assert capsys.readouterr().out.startswith("# /// script")  # uv 认得的内联依赖
+    spec = importlib.util.spec_from_file_location("speaker_embed", GUIDE / "scripts" / "speaker_embed.py")
+    se = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(se)  # 模型与 torch 只在 main 里导入
+    # exports.wav 的 mapping（文件秒 → 原片秒）反过来用：原片秒 → 文件秒
+    f = se.source_to_file([[0.0, 100.0], [10.0, 110.0], [20.0, 130.0]])
+    assert f(105.0) == 5.0 and f(120.0) == 15.0 and f(130.0) == 20.0
+    with pytest.raises(SystemExit):
+        f(99.0)
+    (tmp_path / "r.json").write_text(json.dumps([{"id": "a", "start": 101.0, "end": 102.5}]), encoding="utf-8")
+    (tmp_path / "m.json").write_text(json.dumps({"path": "x.wav", "mapping": [[0.0, 100.0], [10.0, 110.0]]}), encoding="utf-8")
+    assert se.load_ranges(str(tmp_path / "r.json"), str(tmp_path / "m.json")) == [{"id": "a", "start": 1.0, "end": 2.5}]
+    w = np.ones(16000, np.float32)
+    assert len(se.cut(w, 0.5, 0.51)) == 1600 and len(se.cut(w, 0.0, 0.5)) == 8000

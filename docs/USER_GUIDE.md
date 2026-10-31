@@ -432,7 +432,8 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 
 **说明分三层**
 - **说明书**（`otto guide`）：怎么正确操作应用，随应用更新。
-- **做法与经验**（`otto guide notes`）：洗字幕、对轴、找 OP、整集还是局部分离……是经验不是规定。
+- **做法与经验**（`otto guide notes`）：洗字幕、对轴、找 OP、整集还是局部分离、按说话人给台词分组（实验性）……是经验不是规定。
+  按说话人分组时 agent 要在自己的环境里跑一个算声纹的脚本（需要 uv 和 ffmpeg，第一次会下载 PyTorch 和模型，几百 MB）。
 - **你自己的约定**（`otto guide playbook`）：工作区里的 `Agent/playbook.md`，用平常的话写你的习惯和要求（例如“总是整集分离”“导出放到桌面某文件夹”）。
   `otto setup playbook` 生成一份带示例的模板。agent 开工先看它；你让 agent“记下这个做法”时它会写进去。它优先于经验，但改不了说明书里的基本规则（例如撤销不了的操作要你放行）。
 

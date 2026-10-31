@@ -75,18 +75,70 @@ def speech_align(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     cache = ctx.job_dir / "cache"
     fronts: dict[str, Any] = {}
 
+    def front(text: str) -> Any:
+        if text not in fronts:
+            fronts[text] = rt.analyze(text)
+        return fronts[text]
+
     def one(it: dict[str, Any], _d: Path) -> dict[str, Any]:
-        if it["text"] not in fronts:
-            fronts[it["text"]] = rt.analyze(it["text"])
-        fe = fronts[it["text"]]
+        if it.get("lines"):
+            fe, spans = join_lines(it["lines"], [front(t) for t in it["lines"]])
+        else:
+            fe, spans = front(it["text"]), None
         res = align_item(it, lambda _t: fe, aligner, cache=cache)
-        return shape_alignment(it, fe, res)
+        return shape_alignment(it, fe, res, spans)
 
     return _each(params["items"], ctx, "align", "speech-aligning", one)
 
 
-def shape_alignment(it: dict[str, Any], fe: Any, res: dict[str, Any]) -> dict[str, Any]:
-    """align_item 的结果 → 对外的形状：音素、音拍与词的起止、整句起止、窗口两端的空白、最长音素；音轨输入再给原片秒。"""
+def join_lines(texts: list[str], fes: list[Any]) -> tuple[Any, list[tuple[str, int, int]]]:
+    """几行的前端结果拼成一句：每行去掉首尾停顿，行与行之间一个 ``pau``（和 pydomino 的多句输入一样）；
+    音拍、词的序号接着往下数。返回拼好的结果和每行在音素序列里的范围 ``(文字, 起, 止)``——拼好的序列首尾没有停顿，
+    所以它和对齐结果的音素一一对应（不按音拍找：有的音素没有音拍序号，例如「イエ～イ」）。"""
+    from dataclasses import replace
+
+    from ..lang.ja.frontend import FrontendResult
+
+    phonemes: list[str] = []
+    pm: list[int | None] = []
+    pw: list[int | None] = []
+    words: list[Any] = []
+    morae: list[str] = []
+    mora_word: list[int] = []
+    spans = []
+    chars = 0
+    for text, fe in zip(texts, fes):
+        keep = list(range(len(fe.phonemes)))
+        while keep and fe.phonemes[keep[0]] == "pau":
+            keep.pop(0)
+        while keep and fe.phonemes[keep[-1]] == "pau":
+            keep.pop()
+        if not keep:
+            raise CoreError("frontend-failed", reason="no-phonemes", detail=text)
+        if phonemes:
+            phonemes.append("pau")
+            pm.append(None)
+            pw.append(None)
+        m0, w0, p0 = len(morae), len(words), len(phonemes)
+        for k in keep:
+            phonemes.append(fe.phonemes[k])
+            pm.append(None if fe.phoneme_mora[k] is None else fe.phoneme_mora[k] + m0)
+            pw.append(None if fe.phoneme_word[k] is None else fe.phoneme_word[k] + w0)
+        words += [replace(w, start=None if w.start is None else w.start + chars, end=None if w.end is None else w.end + chars, mora_start=w.mora_start + m0)
+                  for w in fe.words]
+        morae += fe.morae
+        mora_word += [x + w0 for x in fe.mora_word]
+        spans.append((text, p0, len(phonemes)))
+        chars += len(text) + 1
+    first = fes[0]
+    joined = FrontendResult(text="\n".join(texts), normalized="\n".join(fe.normalized for fe in fes), phonemes=phonemes, phoneme_mora=pm,
+                            phoneme_word=pw, words=words, morae=morae, mora_word=mora_word, versions=first.versions)
+    return joined, spans
+
+
+def shape_alignment(it: dict[str, Any], fe: Any, res: dict[str, Any], lines: list[tuple[str, int, int]] | None = None) -> dict[str, Any]:
+    """align_item 的结果 → 对外的形状：音素、音拍与词的起止、整句起止、窗口两端的空白、最长音素；音轨输入再给原片秒。
+    ``lines``（多行输入）：每行在音素序列里的范围 → 每行的起止。"""
     m = Mapping.of(it["mapping"]) if it.get("mapping") else None
 
     def span(text: str, s: float, e: float) -> dict[str, Any]:
@@ -113,13 +165,18 @@ def shape_alignment(it: dict[str, Any], fe: Any, res: dict[str, Any]) -> dict[st
     w0, w1 = it["window"]
     first, last = res["phones"][0], res["phones"][-1]
     longest = max(res["phones"], key=lambda p: p["end"] - p["start"])
-    return {
+    out = {
         "text": it["text"], "clock": it["clock"], "window": [round(w0, 6), round(w1, 6)], "phones": phones,
         "morae": group("mora", list(fe.morae)), "words": group("word", [w.text for w in fe.words]),
         "speech": span(it["text"], first["start"], last["end"]),
         "edges": {"lead": round(first["start"] - w0, 6), "tail": round(w1 - last["end"], 6)},
         "longestPhone": {"label": longest["label"], "seconds": round(longest["end"] - longest["start"], 6)},
     }
+    if lines is not None:
+        out["lines"] = []
+        for text, a, b in lines:
+            out["lines"].append(span(text, res["phones"][a]["start"], res["phones"][b - 1]["end"]))
+    return out
 
 
 # ---------------------------------------------------------------- 测音高

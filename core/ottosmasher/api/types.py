@@ -2898,9 +2898,11 @@ class AudioRef(TypedDict):
 
 
 class AlignItemParams(TypedDict):
-    """一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。"""
+    """一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。
+    ``lines``（代替 ``text``）：同一段声音里先后说的几行（例如一条字幕的两行），每行当一句对齐，结果另给每行的起止。"""
 
-    text: str
+    text: NotRequired[str]
+    lines: NotRequired[list[str]]
     assetId: NotRequired[str]
     path: NotRequired[str]
     stream: NotRequired[int]
@@ -3027,6 +3029,8 @@ class AlignResult(TypedDict):
     speech: AlignSpan
     edges: dict[str, float]
     longestPhone: dict[str, Any]
+    # 输入是 ``lines`` 时：每行的起止（首个到最后一个音素）
+    lines: NotRequired[list[AlignSpan]]
 
 
 class AlignRow(TypedDict):

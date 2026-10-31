@@ -50,6 +50,18 @@ def test_align_analyze_and_f0_without_storing(tmp_path):
         assert a["phones"][0]["sourceStart"] == pytest.approx(a["phones"][0]["start"])  # 原混音：资产秒 = 原片秒
         assert [p["label"] for p in a["phones"]] == [p["label"] for p in f["phones"]]
 
+        # 多行：每行当一句对齐，另给每行的起止（第二行在第一行之后）
+        job = ok(c.call("speech.align", items=[{"lines": ["あーあ", "いい"], "path": str(wav), "start": 0.5, "end": 3.0},
+                                               {"lines": ["うっ", "イエ～イ！"], "path": str(wav), "start": 0.5, "end": 3.0}]))  # 有的音素没有音拍序号
+        assert wait(c, job["id"])["status"] == "succeeded"
+        r, r2 = ok(c.call("speech.alignResults", jobId=job["id"]))
+        assert r2["status"] == "ok" and [x["text"] for x in r2["result"]["lines"]] == ["うっ", "イエ～イ！"]
+        res = r["result"]
+        assert r["status"] == "ok" and res["text"] == "あーあ\nいい" and [m["text"] for m in res["morae"]] == ["ア", "ー", "ア", "イ", "イ"]
+        one, two = res["lines"]
+        assert (one["text"], two["text"]) == ("あーあ", "いい")
+        assert res["speech"]["start"] == one["start"] < one["end"] <= two["start"] < two["end"] == res["speech"]["end"]
+
         # 读音分析
         job = ok(c.call("text.analyze", texts=["今日はいい天気"]))
         assert wait(c, job["id"])["status"] == "succeeded"

@@ -78,7 +78,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     # ---- 媒体与文件
     "file-missing": (("path",), "File not found."),
     "audio-stream-not-found": (("path", "stream"), "The file has no audio stream with this number (count from 0)."),
-    "primitive-input-invalid": (("reason", "index"), "Give exactly one of assetId or path, and non-empty text / items."),
+    "primitive-input-invalid": (("reason", "index"), "Give exactly one of assetId or path, and non-empty text / items (or non-empty lines instead of text)."),
     "tool-missing": (("path", "tool"), "External tool (ffmpeg, ffprobe, …) not found."),
     "media-probe-failed": (("detail", "path"), "Could not read media information."),
     "decode-failed": (("detail", "path"), "Could not decode audio."),

@@ -424,6 +424,11 @@ def guide_notes(lang: str) -> Path:
     return GUIDE / "notes" / f"{lang}.md"
 
 
+def guide_scripts() -> list[Path]:
+    """经验层附带的脚本（``otto guide <文件名>`` 原样打印）：agent 存到自己的临时目录，在自己的环境里跑，不在应用里跑。"""
+    return sorted((GUIDE / "scripts").glob("*.py"))
+
+
 def playbook_path(ws: Path) -> Path:
     """第三层（主题 ``playbook``）：所有者自己的约定，放在工作区里（应用更新不覆盖、换 agent 工具也照样用）。"""
     return ws / "Agent" / "playbook.md"
@@ -451,9 +456,10 @@ def cmd_guide(args: argparse.Namespace) -> None:
         return
     if args.topic:
         match = [p for p in topics if p.stem == args.topic or p.stem.split("-", 1)[-1] == args.topic]
+        match = match or [p for p in guide_scripts() if p.name == args.topic]
         if not match:
             out({**error_wire("bad-request", {"method": "guide", "reason": f"no topic {args.topic}"}),
-                 "topics": [p.stem.split("-", 1)[-1] for p in topics] + ["notes", "playbook"]}, args.pretty)
+                 "topics": [p.stem.split("-", 1)[-1] for p in topics] + ["notes", "playbook"], "scripts": [p.name for p in guide_scripts()]}, args.pretty)
             raise Exit(2)
         sys.stdout.write(match[0].read_text(encoding="utf-8"))
         return
@@ -462,6 +468,7 @@ def cmd_guide(args: argparse.Namespace) -> None:
         return
     sys.stdout.write(topics[0].read_text(encoding="utf-8").rstrip() + "\n\n")
     sys.stdout.write("Topics: " + ", ".join(p.stem.split("-", 1)[-1] for p in topics[1:]) + ", notes, playbook\n")
+    sys.stdout.write("Scripts (from notes): " + ", ".join(p.name for p in guide_scripts()) + "\n")
 
 
 AUDIO_PKG = "audio-mcp[speech]==0.4.0"
@@ -556,7 +563,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("script")
     p.add_argument("args", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_run)
-    p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, commands, rules); also `notes` and `playbook`")
+    p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, commands, rules); also `notes`, `playbook` and the scripts the notes refer to")
     p.add_argument("topic", nargs="?")
     p.add_argument("--lang", choices=LANGS)
     p.add_argument("--all", action="store_true", help="print every topic")

@@ -27,7 +27,7 @@
 
 | 命令 | 做什么 | 结果 |
 |---|---|---|
-| `speech.align {"items": [{"text", <声音输入>}, ...]}` | 日语对齐：音素、音拍、词的时间 | `speech.alignResults {"jobId"}` |
+| `speech.align {"items": [{"text", <声音输入>}, ...]}` | 日语对齐：音素、音拍、词的时间。同一段声音里先后说的几行（例如一条字幕的两行）：`lines` 代替 `text`，每行当一句对齐，结果另给每行的起止 | `speech.alignResults {"jobId"}` |
 | `text.analyze {"texts": [...]}` | 日语读音：音素、音拍（片假名）、词与读音（用户辞典生效） | `text.analyzeResults {"jobId"}` |
 | `f0.track <声音输入>` | 音高（FCPE，和应用的音高检索同一个模型）：每 10 ms 一帧的音高、置信度、能量 + 中位音高 | `f0.trackResults {"jobId"}` |
 | `subtitles.parse {"path", "duration"}` | 应用按当前规则会把这个字幕文件读成什么（台词、音效、说话人、OP/ED 配对） | 直接返回 |

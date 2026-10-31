@@ -653,7 +653,9 @@ class LanguageProfile(Protocol):
 ### 15.5 说明书（三层，所有者 2026-10-30）
 
 - **第 1 层 说明书** `core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定（含“长任务别空等：能后台等就后台 `otto wait`，不能就告诉所有者并结束这一轮”）。测试核对两份逐节对应、提到的命令存在、示例参数合法。
-- **第 2 层 做法与经验** `guide/notes/{en,zh-CN}.md`（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、踩过的坑；写明不是规定、可能过时。
+- **第 2 层 做法与经验** `guide/notes/{en,zh-CN}.md`（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、按说话人分组（实验性）、踩过的坑；写明不是规定、可能过时。
+  经验层附带的脚本放 `guide/scripts/`（`otto guide <文件名>` 原样打印）：agent 存到自己的临时目录、在自己的环境里跑（PEP 723 内联依赖，`uv run`），不在应用里跑、不随应用的 Python 环境安装依赖。
+  现有 `speaker_embed.py`（说话人声纹，anime_speaker_embedding；模型第一次用时由脚本从 Hugging Face 下载，应用不分发）。测试只核对 notes 提到的脚本存在、不需要模型的部分。
 - **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
 - 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
   agent 自己下载、按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、「安装 otto 命令」

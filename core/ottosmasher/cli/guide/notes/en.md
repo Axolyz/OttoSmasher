@@ -71,6 +71,53 @@ audio-mcp (connected by the owner with `otto setup audio`): `audio_view` (spectr
 `audio_transcribe` (Whisper turbo with word times and uncertain words; only via MCP). CPU only, so split long audio with `start` / `end`.
 It is fine for a rough look at pitch; use `f0.track` when results must match the app's pitch search.
 
+## Grouping lines by speaker (experimental)
+
+Labelling who says each line. The app does not do this: you compute voiceprints with the bundled script in your own environment, do the grouping and
+decisions yourself, and write the result back to the segments' `speakers`.
+The practice and numbers below come from one show only (2026-10-30, Bocchi the Rock! full season of 12 episodes, Netflix Japanese CC subtitles,
+vocals separated with HyperACE v2); recalibrate for another show.
+The owner usually cares only about the named main characters: minor characters may all stay pending, and two voice styles of one character may stay two groups.
+
+**Check up the subtitles first** (text only, seconds). Only one thing is certain: a speaker change always starts a new line (one text line = one person). Other labelling habits depend on the source:
+- Both lines of a cue labelled = a change; only the first labelled = most likely the same person; only the second labelled, or two consecutive cues with the same name,
+  vary a lot between sources (in the subtitles tried, consecutive labelled cues named the same person 3% to 47% of the time; cues labelled only on the second line ranged from none to over a thousand).
+  Count these first, then decide how far to trust the labels.
+- Fansub subtitles usually have no labels; CC subtitles label only when the speaker is not obvious, so labelled lines tend to be the harder ones.
+- The app merges the lines of one cue into one segment; `subtitles.parse` gives the original text in `raw` — take the labels from it yourself
+  (a parenthesis alone on a line labels the next line; reading parentheses are not names; 人, たち, 一同 and the like are several people).
+
+**Material**
+- Use separated vocals, not the original mix. The vocal track: `assets.tracks`; export: `exports.wav` (its `mapping` maps file seconds to source seconds).
+- Split two-line cues first: `speech.align` with `lines` instead of `text` aligns both lines at once and returns each line's span; window = cue time ± 0.2 s.
+  In the trial, for real two-speaker cues both halves were split correctly 63% of the time with alignment versus 11–12% with diarization segmenters
+  such as pyannote and Nemotron — they cannot tell anime female voices apart.
+- Voiceprints: save the script with `otto guide speaker_embed.py > <your temp dir>/speaker_embed.py`, then `uv run speaker_embed.py vocals ranges.json out-prefix`
+  (needs uv and ffmpeg; the first run downloads PyTorch and the model, a few hundred MB; usage and easy-to-miss details are at the top of the script). About 9000 ranges for 12 episodes take two to three minutes on CPU.
+  Model anime_speaker_embedding (char): 87% cross-episode identification in the trial, versus 80% for ReDimNet2+ and 72% for WeSpeaker ResNet293.
+- Low similarities are normal (same person around 0.3–0.4 on average, different people around 0.2): compare relatively, do not apply a fixed threshold like 0.7.
+
+**With labels**: use the labels directly as voice samples.
+- Main characters = the few people with the most labelled lines over the season (≥ 40 lines in the trial, 8 people); other named single speakers together form "other"; multi-person labels and singing are not samples.
+- For each line (the two halves of a split cue count as two lines): per class, average the similarity of the 5 most similar samples; assign the top main character only if it beats the runner-up by a margin, otherwise leave it pending.
+- Do not borrow the margin from another show: split the samples into a few folds, predict each fold from the rest, and pick the lowest margin that reaches the target precision — that is the show's own calibration.
+- Trial (hide one fifth of the labels and predict them, 5 rounds): precision 95%, recall 73%; lines under 1 s 49%, 1–2 s 77%, 2 s and longer 85%. At 97% precision, recall 66%.
+  Logistic regression and one average voiceprint per character did worse; a bonus for "this character is labelled nearby" did not help.
+- With few labels: with only about 240 labelled lines recall was 53%; adding very confident results (calibrated to 98%) as samples and running again raised it to 61%. With enough samples this round adds almost nothing.
+
+**Without labels**
+1. Split a two-line cue when its halves' voiceprints differ (the middle of the bimodal similarity distribution, 0.36 in the trial) and forbid the halves from going to the same person; also forbid lines that overlap in time.
+2. Lines of 1.5 s and longer take part in grouping: first chain neighbours (gap ≤ 1 s) that are very similar (≥ 0.45), then cluster the whole season with constrained average-linkage hierarchical clustering.
+3. Take the top 20 groups by total duration, export a few representative lines of each for the owner to listen to and name; a character may have several voice groups, keep them separate; unnamed ones count as "other". In the trial 20 groups were enough; more did not raise recall.
+4. Per line: assign to the most similar main-character voice group only if the similarity is high enough and beats other characters and "other" groups by a margin; relax the margin by 0.05 for characters already confirmed within 60 s;
+   recompute the groups from the long lines assigned to them and decide once more. Use as "other" only groups the owner confirmed and groups clearly unlike every main character — unnamed small groups often hold fragments of main characters, and using them as negatives halved recall.
+5. Trial (thresholds picked on episodes 1–6, scored on 7–12): precision 94%, recall 65%, lines under 1 s 36%. Even the ideal ceiling, using all labels as voice samples, is only about 63%: the limit is the voiceprint itself (short lines, similar voices), not the grouping.
+
+**Writing back**: set the segments' `speakers` with `edits.apply` (entity `segment`, field `speakers`; it is recorded as a speaker edit automatically and `segments.regenerateSpeakers` skips it).
+- Do not overwrite segments the subtitles already label; list predictions that contradict a label for the owner.
+- Two people in one cue: either write both names on the segment, or `segments.split` between the two lines and write one name on each (the new segments are protected and the old analysis is retired). Follow the owner's playbook; if it says nothing, ask.
+- Leave pending lines unwritten (if one line of a cue is pending, write nothing for that cue, so half a cue is not taken for the whole) and report how many there are and in which episodes. Mistakes concentrate between similar-sounding main characters (in the trial Nijika ↔ Ryo, Hitori ↔ Nijika / Kita); spot-check those first.
+
 ## A complete example (outline)
 
 "Make every line about games in these episodes a speech sample tagged `topic:game`, search them for a rhythm, export the hits":

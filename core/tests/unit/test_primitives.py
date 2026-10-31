@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from ottosmasher.api import catalog
+from ottosmasher.core.errors import CoreError
 from ottosmasher.core.server import Core
+from ottosmasher.jobs.primitives import join_lines, shape_alignment
+from ottosmasher.lang.ja.frontend import FrontendResult, Word
 
 
 @pytest.fixture
@@ -46,6 +49,10 @@ def test_audio_input_checks(core, tmp_path):
     assert call(core, "speech.align", items=[{"text": "あ"}])["e"]["code"] == "primitive-input-invalid"
     assert call(core, "speech.align", items=[{"text": "あ", "assetId": "x", "path": "y"}])["e"]["code"] == "primitive-input-invalid"
     assert call(core, "speech.align", items=[])["e"]["code"] == "primitive-input-invalid"
+    wav = str(tmp_path / "none.wav")
+    for bad in ({"lines": []}, {"lines": ["あ", " "]}, {"lines": ["あ"], "text": "あ"}):
+        r = call(core, "speech.align", items=[{**bad, "path": wav}])
+        assert r["e"]["code"] == "primitive-input-invalid" and r["e"]["args"]["reason"] == "lines", bad
     assert call(core, "f0.track", path=str(tmp_path / "none.wav"))["e"]["code"] == "file-missing"
     assert call(core, "f0.track", assetId="nope")["e"]["code"] == "asset-not-found"
 
@@ -67,3 +74,29 @@ def test_cli_lists_primitives(capsys):
     assert main(["commands", "--layer", "primitive"]) == 0
     names = {c["name"] for c in json.loads(capsys.readouterr().out)}
     assert {"speech.align", "text.analyze", "f0.track", "subtitles.parse"} <= names and "samples.batchEdit" not in names
+
+
+def _fe(text, phonemes, pm, pw, words, morae, mora_word):
+    return FrontendResult(text=text, normalized=text, phonemes=phonemes, phoneme_mora=pm, phoneme_word=pw, words=words, morae=morae,
+                          mora_word=mora_word, versions={"v": "1"})
+
+
+def test_join_lines_numbers_morae_and_words_across_lines():
+    """多行对齐：每行去掉首尾停顿、行间一个 pau（和 pydomino 的多句输入一样），音拍与词的序号接着数，每行的起止从音拍范围来。"""
+    a = _fe("はい、", ["h", "a", "i", "pau"], [0, 0, 1, None], [0, 0, 0, None], [Word("はい", 0, 2, "ハイ", ["ハ", "イ"], 0, True)], ["ハ", "イ"], [0, 0])
+    b = _fe("うん", ["pau", "u", "N"], [None, 0, 1], [None, 0, 0], [Word("うん", 0, 2, "ウン", ["ウ", "ン"], 0, True)], ["ウ", "ン"], [0, 0])
+    fe, spans = join_lines(["はい、", "うん"], [a, b])
+    assert fe.text == "はい、\nうん" and fe.phonemes == ["h", "a", "i", "pau", "u", "N"]
+    assert fe.phoneme_mora == [0, 0, 1, None, 2, 3] and fe.phoneme_word == [0, 0, 0, None, 1, 1]
+    assert fe.morae == ["ハ", "イ", "ウ", "ン"] and fe.mora_word == [0, 0, 1, 1]
+    assert [(w.start, w.end, w.mora_start) for w in fe.words] == [(0, 2, 0), (4, 6, 2)]
+    assert spans == [("はい、", 0, 3), ("うん", 4, 6)]  # 音素序列里的范围（行间的 pau 在 3）
+    with pytest.raises(CoreError):
+        join_lines(["はい", "、"], [a, _fe("、", ["pau"], [None], [None], [], [], [])])
+    # 每行的起止 = 这一行第一个到最后一个音素（行间的 pau 不算；没有音拍序号的音素也照样算）
+    t = [(0.0, 0.1), (0.1, 0.2), (0.2, 0.3), (0.3, 0.6), (0.6, 0.7), (0.7, 0.9)]
+    phones = [{"label": p, "start": s, "end": e, "mora": m, "word": w} for p, (s, e), m, w in zip(fe.phonemes, t, fe.phoneme_mora, fe.phoneme_word)]
+    phones[5]["mora"] = None
+    out = shape_alignment({"text": fe.text, "clock": "file", "window": [0.0, 1.0]}, fe, {"phones": phones}, spans)
+    assert [(x["text"], x["start"], x["end"]) for x in out["lines"]] == [("はい、", 0.0, 0.3), ("うん", 0.6, 0.9)]
+    assert out["speech"]["start"] == 0.0 and out["speech"]["end"] == 0.9

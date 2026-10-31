@@ -358,7 +358,7 @@ class Core:
         r("speech.results", "read", T.JobIdParams, list[T.SpeechResultRow], "Per-item results of a speech analysis job.", lambda p: self.speech.results(p["jobId"]))
         # 原始能力（layer = primitive）：只算、不改资料库；声音可以是库里的音轨或任意文件
         r("speech.align", "job", T.SpeechAlignParams, T.JobSummary,
-          "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times. The window must tightly bracket the speech.",
+          "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times; `lines` instead of `text` also gives each line's span. The window must tightly bracket the speech.",
           lambda p: self.primitives.align(list(p["items"])), layer="primitive")
         r("speech.alignResults", "read", T.PrimitiveResultsParams, list[T.AlignRow], "Per-item results of a speech.align job.",
           lambda p: self.primitives.results(p["jobId"], "speech.align", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")

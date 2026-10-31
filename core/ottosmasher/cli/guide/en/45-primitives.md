@@ -27,7 +27,7 @@ Without `start` / `end` the whole track is used.
 
 | Command | What it does | Results |
 |---|---|---|
-| `speech.align {"items": [{"text", <sound input>}, ...]}` | Japanese alignment: phoneme, mora and word times | `speech.alignResults {"jobId"}` |
+| `speech.align {"items": [{"text", <sound input>}, ...]}` | Japanese alignment: phoneme, mora and word times. Several lines spoken one after another in the same audio (e.g. the two lines of a cue): `lines` instead of `text` aligns each line as a sentence and also gives each line's span | `speech.alignResults {"jobId"}` |
 | `text.analyze {"texts": [...]}` | Japanese reading: phonemes, morae (katakana), words and readings (with the user dictionary) | `text.analyzeResults {"jobId"}` |
 | `f0.track <sound input>` | Pitch (FCPE, the same model as the app's pitch search): pitch, confidence and energy every 10 ms + median pitch | `f0.trackResults {"jobId"}` |
 | `subtitles.parse {"path", "duration"}` | How the app would read this subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs) | returned directly |
