@@ -15,8 +15,8 @@
 ## 安装
 
 1. 解压，把 `OttoSmasher.app` 拖进“应用程序”。
-2. 应用只做了本机签名（ad-hoc），没有经过 Apple 公证，第一次打开会被拦下：双击一次后到“系统设置 → 隐私与安全性”点“仍要打开”，
-   或在终端运行 `xattr -dr com.apple.quarantine /Applications/OttoSmasher.app`。
+2. 第一次打开前在终端运行一次 `xattr -dr com.apple.quarantine /Applications/OttoSmasher.app`，再双击打开
+   （应用只做了本机签名、没有经过 Apple 公证，不运行这一句 macOS 会拦下它；每次替换新版本后都要再运行一次）。
 3. 四个模型（对齐、读音预测、音高、拉平）已随包，不用下载。人声分离需要另外安装 [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases)。
 
 详细说明见 [README](https://github.com/Axolyz/OttoSmasher#readme) 与 [用户使用说明](https://github.com/Axolyz/OttoSmasher/blob/main/docs/USER_GUIDE.md)。

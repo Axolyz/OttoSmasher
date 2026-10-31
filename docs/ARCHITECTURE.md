@@ -564,7 +564,7 @@ Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型”（test_openjtalk） | 已做：导入前给 `yomi_model.nani_predict` 放空模块占位（`lang/ja/openjtalk.py`），tsqyomi 会话由工厂创建后交给库 |
 | 检索 3 万条 30 秒 | 已验证（合成库基准，§9.5） | numba 热点编译 |
 | wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 history/QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
-| 发布版在别的 Mac 上第一次打开（ad-hoc 签名、没有公证，Gatekeeper 会拦） | **未验证**：只在构建机上打开过 | 在 USER_GUIDE 写清右键打开 / 系统设置放行；要更顺就得 Developer ID 签名与公证（要所有者定） |
+| 发布版在别的 Mac 上第一次打开（ad-hoc 签名、没有公证，Gatekeeper 会拦） | 不做公证：README 安装步骤让用户第一次打开前运行 `xattr -dr com.apple.quarantine`（所有者 2026-10-31） | 要更顺就得 Developer ID 签名与公证（要所有者定） |
 
 ---
 

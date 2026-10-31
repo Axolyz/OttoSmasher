@@ -61,6 +61,8 @@ Thumbs.db
 
 # --- 本机私有（AGENTS.local.md：本机路径约定）与实测素材 ---
 /AGENTS.local.md
+# 交接包原件（含第三方版权的测试素材与本机路径；规格正文已在 docs/spec/）
+/docs/history/OttoSmasher-Rewrite-Handoff/
 /bangumi/
 *.mid
 /dev-workspace-clones/

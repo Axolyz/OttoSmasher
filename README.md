@@ -79,10 +79,15 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
    ```
    shasum -a 256 OttoSmasher-*.zip
    ```
-2. 解压，把 `OttoSmasher.app` 拖进“应用程序”。应用只做了本机签名（ad-hoc），没有经过 Apple 公证，第一次打开会被拦下，二选一：
-   - 双击一次（被拦下）→ “系统设置 → 隐私与安全性”最下面点“仍要打开”；
-   - 或在终端里运行 `xattr -dr com.apple.quarantine /Applications/OttoSmasher.app`，再双击打开。
-3. 程序目录只读；你的数据都在**工作区**里（默认 `~/文稿/OttoSmasher Workspace`），更新应用不会动它。
+2. 解压，把 `OttoSmasher.app` 拖进“应用程序”。
+3. **第一次打开前，在终端里运行一次：**
+   ```
+   xattr -dr com.apple.quarantine /Applications/OttoSmasher.app
+   ```
+   然后双击打开。应用只做了本机签名（ad-hoc），没有经过 Apple 公证，不运行这一句 macOS 会拦下它（提示“无法验证开发者”或“已损坏”）。
+   这句只是去掉下载时加上的“来自网络”标记；每次下载新版本替换后都要再运行一次。
+   （不想用终端也可以：双击一次被拦下后，到“系统设置 → 隐私与安全性”最下面点“仍要打开”。）
+4. 程序目录只读；你的数据都在**工作区**里（默认 `~/文稿/OttoSmasher Workspace`），更新应用不会动它。
 
 ## 第一次使用
 
