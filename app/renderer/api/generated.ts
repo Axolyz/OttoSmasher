@@ -2420,6 +2420,32 @@ export interface SubtitleCategoryCounts {
   unchanged: number;
 }
 
+/** 删除这些原素材上从字幕导入的标记（段、音效提示、字幕规则标的 OP/ED）；``protected`` 为真时连改过的 / 有人工音素的也删（缺省留下）。 */
+export interface SubtitleClearParams {
+  protected?: boolean;
+  sourceIds: string[];
+}
+
+/** 会删多少：段（其中受保护、做过语音分析的数目，被多少采样读着）、手输的段（不删）、音效提示、OP/ED。 */
+export interface SubtitleClearPlan {
+  hints: number;
+  hintsProtected: number;
+  oped: number;
+  opedProtected: number;
+  segments: number;
+  segmentsAnalyzed: number;
+  segmentsProtected: number;
+  typedKept: number;
+  usedBy: number;
+}
+
+export interface SubtitleCleared {
+  editId: string | null;
+  hints: number;
+  oped: number;
+  segments: number;
+}
+
 export interface SubtitleConflict {
   analyzed: boolean;
   edited: boolean;
@@ -3202,6 +3228,10 @@ export interface Commands {
   "storage.report": { params: NoParams; result: StorageReport; effect: "read" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
   "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
+  /** Delete the markers imported from subtitles (segments, sfx hints, rule OP/ED) of these sources in one undoable edit; protected ones stay unless protected=true. */
+  "subtitles.clear": { params: SubtitleClearParams; result: SubtitleCleared; effect: "write" };
+  /** What deleting the subtitle-imported markers of these sources would remove. */
+  "subtitles.clearPlan": { params: SourceIdsParams; result: SubtitleClearPlan; effect: "read" };
   /** Import a subtitle file as previewed (one atomic, undoable edit). */
   "subtitles.import": { params: SubtitleImportParams; result: SubtitleImportResult; effect: "write" };
   /** One-click import of the associated subtitle with default options. */

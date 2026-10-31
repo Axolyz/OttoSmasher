@@ -198,3 +198,22 @@ def test_withheld_speakers_sfx_lines_and_merged_raw(db, tmp_path):
     m = layer.merge([c["id"], b["id"]])
     got = tl.get_segment(db, m["id"])
     assert got["raw"] == "（園児たちの笑い声）\n（園児）私も\n（ドアチャイム）\nウワーッ"
+
+
+def test_clear_subtitle_markers_keeps_typed_and_protected(db, tmp_path):
+    """删除导入的字幕标记（所有者 2026-10-31）：字幕来的段 / 提示 / 规则 OP/ED 一次删掉、能撤销；手输的段不动；改过的默认留下。"""
+    sid, edits, layer = setup(db, tmp_path, [(1, 2, "（京子）あ"), (3, 4, "（足音）"), (5, 6, "い")])
+    a, b = tl.list_for_source(db, sid)["segments"]
+    edits.apply({"ops": [{"entity": "segment", "id": b["id"], "version": b["version"], "fields": {"text": "いい"}}]})  # 改过 → 受保护
+    layer.add_segment(sid, 8.0, 9.0, "手输")
+    imp = SubtitleImporter(db, edits)
+    plan = imp.clear_plan([sid])
+    assert (plan["segments"], plan["segmentsProtected"], plan["hints"], plan["typedKept"]) == (2, 1, 1, 1)
+    r = imp.clear([sid])
+    assert (r["segments"], r["hints"]) == (1, 1) and r["editId"]
+    left = tl.list_for_source(db, sid)
+    assert [s["text"] for s in left["segments"] if s["origin"] == "subtitle"] == ["いい"] and left["hints"] == []
+    edits.undo()
+    assert len(tl.list_for_source(db, sid)["segments"]) >= 2  # 撤销恢复
+    r = imp.clear([sid], include_protected=True)
+    assert [s["text"] for s in tl.list_for_source(db, sid)["segments"]] == ["手输"]  # 手输的段不动

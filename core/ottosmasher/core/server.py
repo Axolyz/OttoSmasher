@@ -311,6 +311,11 @@ class Core:
           lambda p: self.subtitles.import_default(p["sourceId"]))
         r("subtitles.previewMany", "read", T.SourceIdsParams, list[T.SubtitleBatchRow], "Batch preview of subtitle import (sources without subtitles are skipped).",
           lambda p: self.subtitles.preview_many(list(p["sourceIds"])))
+        r("subtitles.clearPlan", "read", T.SourceIdsParams, T.SubtitleClearPlan, "What deleting the subtitle-imported markers of these sources would remove.",
+          lambda p: self.subtitles.clear_plan(list(p["sourceIds"])))
+        r("subtitles.clear", "write", T.SubtitleClearParams, T.SubtitleCleared,
+          "Delete the markers imported from subtitles (segments, sfx hints, rule OP/ED) of these sources in one undoable edit; protected ones stay unless protected=true.",
+          lambda p: self.subtitles.clear(list(p["sourceIds"]), bool(p.get("protected", False))))
         r("subtitles.importMany", "write", T.SubtitleImportManyParams, list[T.SubtitleImportManyRow], "Batch subtitle import with default options, each source atomic.",
           lambda p: self.subtitles.import_many(list(p["items"])))
         r("textLayer.list", "read", T.TextLayerParams, T.TextLayerList, "Text segments, sfx hints, range tags, OP/ED and derived samples of a source.",

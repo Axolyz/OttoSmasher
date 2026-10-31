@@ -39,6 +39,8 @@ otto call sources.rescan --wait                            # 改过、新加过�
 
 导入：把预览给的 `token` 交给 `subtitles.import` / `subtitles.importMany {"items": [{"sourceId", "token"}]}`；字幕里的 OP/ED 标记一起导入。
 **重新导入**只替换和新字幕时间有交叠的旧对象；时间不交叠的旧段会留下（按规格），要删就用编辑。新字幕碰到**受保护**的旧对象（段被改过、或有手动音素；音效提示被改过或手动加的；OP/ED 人工标过）时，这一条新字幕跳过（预览里 `status: skip`、`reason: protected`）；`options` 里 `replace: false` 则保留所有旧对象，`force` 可以逐条强制替换（`otto describe subtitles.preview`）。
+时间和文字都没变的段算“无变化”（`unchanged`），**不更新它的说话人和原文**；要按新字幕从头来，先 `subtitles.clear {"sourceIds"}` 删掉导入的标记
+（`subtitles.clearPlan` 先看会删多少；手输的段不删，受保护的默认留下，`protected: true` 才删；一个编辑批次，能撤销），再导入。
 
 ## 准备清单
 

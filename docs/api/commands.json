@@ -1757,6 +1757,30 @@
    }
   },
   {
+   "name": "subtitles.clear",
+   "effect": "write",
+   "layer": "library",
+   "summary": "Delete the markers imported from subtitles (segments, sfx hints, rule OP/ED) of these sources in one undoable edit; protected ones stay unless protected=true.",
+   "params": {
+    "$ref": "#/$defs/SubtitleClearParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleCleared"
+   }
+  },
+  {
+   "name": "subtitles.clearPlan",
+   "effect": "read",
+   "layer": "library",
+   "summary": "What deleting the subtitle-imported markers of these sources would remove.",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SubtitleClearPlan"
+   }
+  },
+  {
    "name": "subtitles.import",
    "effect": "write",
    "layer": "library",
@@ -15305,6 +15329,101 @@
     "replace",
     "skip",
     "unchanged"
+   ]
+  },
+  "SubtitleClearParams": {
+   "title": "SubtitleClearParams",
+   "description": "删除这些原素材上从字幕导入的标记（段、音效提示、字幕规则标的 OP/ED）；``protected`` 为真时连改过的 / 有人工音素的也删（缺省留下）。",
+   "type": "object",
+   "properties": {
+    "protected": {
+     "type": "boolean"
+    },
+    "sourceIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "sourceIds"
+   ]
+  },
+  "SubtitleClearPlan": {
+   "title": "SubtitleClearPlan",
+   "description": "会删多少：段（其中受保护、做过语音分析的数目，被多少采样读着）、手输的段（不删）、音效提示、OP/ED。",
+   "type": "object",
+   "properties": {
+    "hints": {
+     "type": "integer"
+    },
+    "hintsProtected": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "opedProtected": {
+     "type": "integer"
+    },
+    "segments": {
+     "type": "integer"
+    },
+    "segmentsAnalyzed": {
+     "type": "integer"
+    },
+    "segmentsProtected": {
+     "type": "integer"
+    },
+    "typedKept": {
+     "type": "integer"
+    },
+    "usedBy": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "hints",
+    "hintsProtected",
+    "oped",
+    "opedProtected",
+    "segments",
+    "segmentsAnalyzed",
+    "segmentsProtected",
+    "typedKept",
+    "usedBy"
+   ]
+  },
+  "SubtitleCleared": {
+   "title": "SubtitleCleared",
+   "type": "object",
+   "properties": {
+    "editId": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "hints": {
+     "type": "integer"
+    },
+    "oped": {
+     "type": "integer"
+    },
+    "segments": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "editId",
+    "hints",
+    "oped",
+    "segments"
    ]
   },
   "SubtitleConflict": {

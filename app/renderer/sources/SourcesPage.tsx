@@ -26,6 +26,7 @@ import { WorkSettingsDialog } from "./WorkSettingsDialog";
 import { WorkTypeDialog } from "./WorkTypeDialog";
 import { useUndo } from "../shell/useUndo";
 import s from "./Sources.module.css";
+import { SubtitleClearDialog } from "./SubtitleClearDialog";
 
 export function SourcesPage() {
   const ready = useApp((st) => st.core.state === "ready");
@@ -43,6 +44,7 @@ export function SourcesPage() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
+  const [clearIds, setClearIds] = useState<string[] | null>(null);
   const [importFor, setImportFor] = useState<SourceRow | null>(null);
   const [batchImport, setBatchImport] = useState<SourceRow[]>([]);
   const [tracksFor, setTracksFor] = useState<SourceRow | null>(null);
@@ -279,6 +281,7 @@ export function SourcesPage() {
           head: t("menu.checkedN", { n: ids.length }),
           items: [
             { id: "subimport", label: t("subimport.menu"), run: () => setBatchImport((rows ?? []).filter((x) => ids.includes(x.id))) },
+            { id: "subclear", label: t("subclear.menu"), run: () => setClearIds(ids) },
             { id: "oped-identify", label: t("oped.menuIdentify"), run: () => void identifyMany(ids) },
             { id: "whole", label: t("whole.menuN", { n: ids.length }), run: () => requestNewSamples({ kind: "whole", sourceIds: ids }) },
             { id: "speech", label: t("speech.menu"), run: () => requestSpeech({ entry: "source", ids }) },
@@ -303,6 +306,7 @@ export function SourcesPage() {
             { id: "separate", label: t("sep.menuFull"), run: () => void separateFull(r) },
             { id: "tracks", label: t("tracks.menu"), run: () => setTracksFor(r) },
             { id: "subimport", label: t("subimport.menu"), run: () => setImportFor(r) },
+            { id: "subclear", label: t("subclear.menu"), disabled: !r.counts?.hasMarkers, run: () => setClearIds([r.id]) },
             { id: "newsamples-segments", label: t("newsamples.menu.segments"), run: () => requestNewSamples({ kind: "segments", sourceId: r.id, currentAsset: curFor(r.id) }) },
             { id: "newsamples-hints", label: t("newsamples.menu.hints"), run: () => requestNewSamples({ kind: "hints", sourceId: r.id, currentAsset: curFor(r.id) }) },
             { id: "whole", label: t("whole.menu"), run: () => requestNewSamples({ kind: "whole", sourceIds: [r.id] }) },
@@ -442,6 +446,7 @@ export function SourcesPage() {
       <OpedDialog source={opedFor?.row ?? null} initial={opedFor?.initial ?? null} canPreview={opedFor?.row.id === current} onClose={() => setOpedFor(null)} />
       <SubtitleImportSheet source={importFor} onClose={() => setImportFor(null)} onDone={() => void reload()} />
       <SubtitleBatchSheet sources={batchImport} onClose={() => setBatchImport([])} onDone={() => void reload()} />
+      <SubtitleClearDialog sourceIds={clearIds} onClose={() => setClearIds(null)} />
       <ImportDialog paths={importPaths} defaultWhole={false} defaultNature="unclassified" onClose={() => setImportPaths(null)} onImported={(r) => void onImported(r)} />
       <WorkTypeDialog rows={workTypeFor} onClose={() => setWorkTypeFor(null)} onDone={() => void reload()} />
       <InputSettingsDialog

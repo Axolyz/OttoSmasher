@@ -39,6 +39,8 @@ To see how the app reads things:
 
 Importing: pass the preview's `token` to `subtitles.import` / `subtitles.importMany {"items": [{"sourceId", "token"}]}`; OP/ED markers in the subtitles are imported too.
 **Re-importing** replaces only old objects that overlap a new cue in time; old segments that no new cue overlaps stay (by design); delete them with edits. A new cue that touches a **protected** old object (a segment that was edited or has manual phonemes, an edited or hand-added sound hint, a hand-marked OP/ED) is skipped (`status: skip`, `reason: protected` in the preview); with `replace: false` in `options` all old objects are kept, and `force` overrides per cue (`otto describe subtitles.preview`).
+A segment whose time and text did not change is `unchanged` and **its speakers and original text are not updated**; to start over from a new subtitle file, first delete the imported markers with `subtitles.clear {"sourceIds"}`
+(`subtitles.clearPlan` shows what would go; typed segments stay, protected ones stay unless `protected: true`; one undoable edit), then import.
 
 ## The prep checklist
 

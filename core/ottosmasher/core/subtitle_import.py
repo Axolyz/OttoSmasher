@@ -300,6 +300,64 @@ class SubtitleImporter:
             "problems": pv["problems"],
         }
 
+    # ---------- 删除导入的字幕标记（所有者 2026-10-31：“得再加一个字幕删除功能，现在似乎就只能从现有字幕基础上导入”）
+
+    def _clearable(self, source_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """字幕来的对象：段（origin subtitle）、音效提示（origin subtitle）、OP/ED（字幕规则标的）；带受保护标记。手输的段、手动加的提示与 OP/ED 不在内。"""
+        q = ",".join("?" * len(source_ids))
+        segs = [
+            dict(r) | {"protected": bool(r["edited"] or r["manual"])}
+            for r in self.conn.execute(
+                f'SELECT t.id, t.version, t.edited, {MANUAL_SQL.format(t="t")} AS manual, {USED_BY_SQL.format(t="t")} AS used_by,'
+                " EXISTS (SELECT 1 FROM measure_run r WHERE r.owner_type = 'asset_text' AND r.kind = 'alignment' AND r.status = 'ok'"
+                "   AND r.owner_id >= 'seg:' || t.id || '@' AND r.owner_id < 'seg:' || t.id || 'A') AS analyzed"
+                f" FROM text_segment t WHERE t.source_id IN ({q}) AND t.deleted=0 AND t.origin='subtitle'",
+                source_ids,
+            )
+        ]
+        hints = [dict(r) | {"protected": bool(r["edited"])} for r in self.conn.execute(
+            f"SELECT id, version, edited FROM sfx_hint WHERE source_id IN ({q}) AND deleted=0 AND origin='subtitle'", source_ids)]
+        opeds = [dict(r) | {"protected": bool(r["edited"])} for r in self.conn.execute(
+            f"SELECT id, version, edited FROM oped WHERE source_id IN ({q}) AND deleted=0 AND origin='subtitle_rule'", source_ids)]
+        return {"segments": segs, "hints": hints, "oped": opeds}
+
+    def clear_plan(self, source_ids: list[str]) -> dict[str, Any]:
+        for sid in source_ids:
+            self._source(sid)
+        c = self._clearable(source_ids)
+        q = ",".join("?" * len(source_ids))
+        typed = self.conn.execute(f"SELECT COUNT(*) FROM text_segment WHERE source_id IN ({q}) AND deleted=0 AND origin='typed'", source_ids).fetchone()[0]
+        segs = c["segments"]
+        return {
+            "segments": len(segs), "segmentsProtected": sum(x["protected"] for x in segs), "segmentsAnalyzed": sum(bool(x["analyzed"]) for x in segs),
+            "usedBy": sum(int(x["used_by"] or 0) for x in segs), "typedKept": int(typed),
+            "hints": len(c["hints"]), "hintsProtected": sum(x["protected"] for x in c["hints"]),
+            "oped": len(c["oped"]), "opedProtected": sum(x["protected"] for x in c["oped"]),
+        }
+
+    def clear(self, source_ids: list[str], include_protected: bool = False) -> dict[str, Any]:
+        """一个编辑批次软删除（可撤销）：受保护的（改过的段 / 有人工音素的段、改过的提示与 OP/ED）默认留下。段的分析随段停用，采样不删（只是不再读到这些段）。"""
+        for sid in source_ids:
+            self._source(sid)
+        c = self._clearable(source_ids)
+        ops: list[dict[str, Any]] = []
+        n = {"segments": 0, "hints": 0, "oped": 0}
+        for kind, entity in (("segments", "segment"), ("hints", "sfx_hint"), ("oped", "oped")):
+            for x in c[kind]:
+                if x["protected"] and not include_protected:
+                    continue
+                ops.append({"entity": entity, "id": x["id"], "version": x["version"], "fields": {"deleted": True}})
+                n[kind] += 1
+        edit_id = None
+        if ops:
+            with transaction(self.conn):
+                edit_id, changes = self.edits.apply_within({"label": {"code": "subtitle-clear", "args": {"n": n["segments"] + n["hints"] + n["oped"]}}, "ops": ops})
+            if self.on_change and changes.entities:
+                for sid in source_ids:
+                    changes.add("source", sid)
+                self.on_change(changes)
+        return {"editId": edit_id, **n}
+
     def import_default(self, source_id: str) -> dict[str, Any]:
         """一键「导入到文本层」：按默认选项直接导入（OP/ED 有错时不登记，结果里报告）。"""
         pv = self.preview(source_id)

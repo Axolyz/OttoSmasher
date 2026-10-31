@@ -1593,6 +1593,34 @@ class SubtitleImportManyParams(TypedDict):
     items: list[SubtitleImportItem]
 
 
+class SubtitleClearParams(TypedDict):
+    """删除这些原素材上从字幕导入的标记（段、音效提示、字幕规则标的 OP/ED）；``protected`` 为真时连改过的 / 有人工音素的也删（缺省留下）。"""
+
+    sourceIds: list[str]
+    protected: NotRequired[bool]
+
+
+class SubtitleClearPlan(TypedDict):
+    """会删多少：段（其中受保护、做过语音分析的数目，被多少采样读着）、手输的段（不删）、音效提示、OP/ED。"""
+
+    segments: int
+    segmentsProtected: int
+    segmentsAnalyzed: int
+    usedBy: int
+    typedKept: int
+    hints: int
+    hintsProtected: int
+    oped: int
+    opedProtected: int
+
+
+class SubtitleCleared(TypedDict):
+    editId: str | None
+    segments: int
+    hints: int
+    oped: int
+
+
 class SubtitleImportManyRow(TypedDict):
     """批量导入的一行：出错时只有 sourceId + error，否则同 SubtitleImportResult。"""
 
