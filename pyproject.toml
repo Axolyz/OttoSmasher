@@ -1,6 +1,6 @@
 [project]
 name = "ottosmasher-core"
-version = "0.1.1"
+version = "0.1.2"
 description = "OttoSmasher Core：领域、数据库、任务调度、检索协调"
 requires-python = ">=3.12,<3.13"
 dependencies = [
