@@ -60,7 +60,14 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
 **版本号**（所有者 2026-10-31）：每次构建自动把小版本号加一（`package.json`、`package-lock.json`、`pyproject.toml`、`core/ottosmasher/__init__.py`、`uv.lock` 一起改），
 提交“版本 x.y.z（构建）”并打**本地**标签 `vx.y.z`；要求没有未提交的修改（包对应一个提交）。`--no-bump` 按当前版本重新构建。
 `RELEASE_NOTES.md` 由 `tools/release_notes.md` 模板生成，“这一版的改动”列出相对上一个版本的提交（上一个标签；没有标签时找上一个“版本 …”提交），发布前可以手改。
-推送时如果要带上标签，另外推标签（只推 `main` 的规定不变）。
+
+**发到 GitHub**（所有者手动；推送要所有者授权）：
+1. 推 `main`，再**只推这一版的标签**：`git push origin vx.y.z`（不用 `--tags`，旧的本地标签不一定要公开）。标签打在构建用的那个提交上，
+   GitHub 上的 Release 因此对应包里的代码；在网页上新建标签会指向 `main` 最新的提交，可能和包对不上。
+2. 改 `out/release/RELEASE_NOTES.md`（不进 Git）：“这一版的改动”是按提交说明自动列的，改成用户看得懂的几条；核对 SHA-256 与 `.sha256` 文件一致
+   （`shasum -a 256 out/release/OttoSmasher-*.zip`）。安装步骤、许可、已知限制来自模板，模板过时就改 `tools/release_notes.md`。
+3. 网页上 Releases → Draft a new release：选已推的标签 `vx.y.z`，标题 `OttoSmasher x.y.z`，说明框粘 `RELEASE_NOTES.md` 全文，
+   上传 `OttoSmasher-x.y.z-macos-arm64.zip` 和 `.sha256`。
 
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
 本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。
