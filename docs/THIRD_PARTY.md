@@ -22,7 +22,7 @@ OttoSmasher 本身以 **GPL-3.0-or-later** 发布（见 [LICENSE](../LICENSE)）
 
 | 组件 | 版本 | 许可 |
 |---|---|---|
-| libmpv（mpv 0.36.0 + FFmpeg 6.0，media-kit 的 video-full 构建，不含 GPL 编码器） | v0.7.3 | LGPL-2.1-or-later（阶段 10 复核，ROADMAP L8） |
+| libmpv（mpv 0.36.0 + FFmpeg 6.0，media-kit 的 video-full 构建，不含 GPL 编码器） | v0.7.3 | LGPL-2.1-or-later（发布前复核过） |
 | mpv 客户端 API 头文件 | 0.36.0 | ISC |
 
 ### Core（Python）

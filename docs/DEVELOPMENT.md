@@ -48,7 +48,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。
 - 3 万条合成库的性能测试：`OTTO_PERF_WS=.cache/perf/ws .venv/bin/python -m pytest core/tests/perf -s`。
 
-## 发布（阶段 10，macOS）
+## 发布（macOS）
 
 所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建、所有者手动推送并把 ZIP 传到 GitHub Release；除 PyMSS Studio 外模型随包。
 

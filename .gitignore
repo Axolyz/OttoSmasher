@@ -2,7 +2,7 @@
 /dev-workspace/
 
 # --- 本地状态文件（AGENTS.md 规定不入库）---
-/STATUS.md
+/STATUS*.md
 
 # --- 环境与工具缓存（全部在项目内）---
 /.venv/
