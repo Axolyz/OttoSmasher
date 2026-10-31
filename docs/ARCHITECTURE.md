@@ -583,7 +583,7 @@ Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标
   见 [THIRD_PARTY.md](THIRD_PARTY.md) 与包内 `licenses/`。
 - **PyMSS Studio 不随包**：设置 → PyMSS Studio 没找到时说明要另外安装，并给发布页（主进程 `links:open` 只开固定列表里的网址）。
 - 构建时预编译 Python 字节码，运行时设 `PYTHONDONTWRITEBYTECODE`：.app 里不会生成 `__pycache__`（否则签名失效）。
-- 版本号：每次构建自动加一位补丁号，`tools/release_notes/` 按模板写这一版的说明（流程见 DEVELOPMENT「发布」）。
+- 版本号：每次构建自动加一位补丁号，`tools/release_notes.md` 模板生成这一版的 `RELEASE_NOTES.md`（流程见 DEVELOPMENT「发布」）。
 - 开发版与发布版并存：源码运行的应用叫 OttoSmasher Dev（独立的应用身份与 userData，顶栏标“Dev”和工作区名），默认用仓库里的 `dev-workspace/`，不碰日常工作区；
   要用真实资料复现 bug 时 `tools/clone-workspace` 克隆一份（APFS 克隆 + SQLite 在线备份，删掉端点与锁文件）。
 - 体积：Electron 约 290 MB、Python 与 Core 依赖约 590 MB、模型 187 MB、媒体工具与动态库约 40 MB；.app 约 1.2 GB。
