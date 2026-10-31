@@ -1,15 +1,11 @@
-# OttoSmasher 新版架构（阶段 0 草案）
+# OttoSmasher 架构
 
-> 状态：**草案，待所有者过目**（2026-10-05）。依据只有交接包 `OttoSmasher-Rewrite-Handoff/`（下文 “规格 xx §y” 指交接包 docs/xx）。
-> 本文件属于“自由设计”层（规格 02 §2.6）：架构、进程模型、数据库、内部格式由开发者决定，但必须满足基线行为与规格 15 的非功能要求。
-> 界面布局与交互另见 `docs/UI_PLAN.md`（半基线，须所有者确认）；疑问与矛盾见 `docs/QUESTIONS.md`。
+> 现在的系统是怎么搭的：进程、代码、数据、存储、媒体、任务、分发、命令行。2026-10-05 起草，2026-10-31 按 0.1.x 的现状审过一遍。
+> 产品规矩见 [DECISIONS.md](DECISIONS.md)，原始需求见 [spec/](spec/README.md)（文中“规格 xx §y”“R4.4”指它）；章节号保持不变，代码注释里的“ARCHITECTURE §x”指这里。文中“阶段 N”是开发期的阶段编号，只表示出处（[history/](history/README.md)）。
 
 ---
 
 ## 0. 一页总览
-
-> 2026-10-05 修订：按所有者意见重新权衡后，界面层从 PySide6 改为 **Electron + TypeScript/React + wavesurfer.js**（理由与取舍见 §1.1）。（2026-10-07 起波形不用 wavesurfer，见下表“波形”行与 §13）
-> Python 核心、数据模型、存储、任务与检索方案不变。
 
 | 层面 | 选择 | 一句话理由 |
 |---|---|---|
@@ -24,8 +20,8 @@
 | 模型推理 | ONNX Runtime（Windows 用 onnxruntime-directml），统一会话工厂 | 规格 14 §14.7；包入口 `ottosmasher/__init__.py` 在导入 onnxruntime 前设 `ORT_DISABLE_TELEMETRY=1`：1.30 在 macOS 自带遥测上传，退出时与静态析构竞争偶发 SIGABRT（134），也违背“不上传任何东西” |
 | 媒体工具 | ffmpeg/ffprobe、Rubber Band CLI（R3） | 规格 14 建议项 |
 | 界面国际化 | **只翻译文字**：自写的小型 `t(key, 参数)` + 每种语言一个 JSON 文案文件；伪语言测试；后端只返回“错误码 + 参数” | 所有者 2026-10-06：只要翻译文字，不需要按语言格式化日期数字；不引入国际化框架（§7） |
-| 打包 | electron-builder（目录产物 → ZIP）+ 随包的 Python 运行时（uv 托管的 python-build-standalone + 项目依赖） | 不用 conda-pack |
-| 测试 | Python：pytest；前端：Vitest + Testing Library；端到端：Playwright 驱动 Electron | 规格 16 第三部分的合成测试做法 |
+| 打包 | `tools/package_mac.py` 直接组装 `.app`（复制 Electron、随包 python-build-standalone + 按 uv.lock 装 Core、媒体工具、模型）→ ZIP（§14） | 不用 electron-builder、conda-pack；只发 macOS |
+| 测试 | Python：pytest；前端：Vitest + Testing Library；端到端：Playwright 驱动 Electron；发布包冒烟（§12） | 规格 16 第三部分的合成测试做法 |
 
 所有依赖装在项目内：`node_modules/`（含 Electron 二进制）、`.venv/`、`.uv-python/`、`third_party/`。所有者已同意“缺什么依赖都可以装”；
 仍优先项目内安装，确实只能全局安装的（目前没有）会先说明。
@@ -34,68 +30,37 @@
 
 ## 1. 技术栈与理由
 
-### 1.1 重新权衡：PySide6 还是 Electron + Web 前端
+### 1.1 为什么是 Electron + Web 前端
 
-| 维度 | PySide6（上一版草案） | **Electron + React（选定）** |
+2026-10-05 与所有者重新权衡后从 PySide6 改为 Electron：Web 生态大、接手门槛低；视频用 libmpv render API 画进页面 `<canvas>`（§10.1），避开旧版“原生视图盖住网页”的整类问题；
+前后端经管道通信（不开端口），类型由 Core 的命令定义自动生成。代价是两套运行时（Chromium + Python）和一个小的原生扩展。
+不选 Tauri（系统 WebView 在两个平台是不同内核，还要引入 Rust）、不用浏览器 `<video>`/MSE 播 HEVC（做不到样本级截停，旧版失败过）。权衡过程见 [history/QUESTIONS.md](history/QUESTIONS.md)。
+
+### 1.2 主要依赖（版本以 `package-lock.json`、`uv.lock` 为准）
+
+| 依赖 | 版本 | 用途 |
 |---|---|---|
-| 生态与扩展 | Qt 本身很成熟，但 Python 侧的现成高级控件少，波形、卷帘、条件块都要自写 | 组件、可视化、交互库极多；wavesurfer.js 等上游持续更新；以后加功能（例如更复杂的可视化）选择多 |
-| 开发者与后续维护 | Qt/Python 桌面开发者相对少 | Web 前端开发者多，接手门槛低 |
-| 视频 | render API 画进 `QOpenGLWidget` | render API 画进页面 `<canvas>`（§10.1）——同样避免了旧版“原生视图盖住网页”的整类 bug |
-| 运行时 | 一套 Python | Electron（Chromium + Node）+ Python 两套；包体更大（仍远低于 2 GB 上限） |
-| 前后端边界 | 进程内/管道 | 管道（不开端口），类型由 Core 的命令定义自动生成，避免前后端字段名不一致（旧版 A27 那类 bug） |
-| 拖出与剪贴板 | `QDrag`、pyobjc/ctypes | `webContents.startDrag`、`clipboard.writeBuffer('REAPERMedia')` |
-| 界面测试 | pytest-qt | Vitest（组件）+ Playwright（Electron 端到端） |
-
-结论：所有者的两点（wavesurfer.js 好用且跟上游、Web 生态带来的扩展可能）成立；PySide6 唯一明显的优势是“视频是普通控件”，
-而在 Electron 里用 libmpv render API → `<canvas>` 也能做到。所以改为 Electron。代价是两套运行时与一个小的原生扩展（§10.1），都在可控范围。
-
-**仍然不选的**：Tauri（系统 WebView 在 macOS/Windows 是两个不同内核，行为不一致；还要引入 Rust）；
-浏览器 `<video>`/MSE 播放 HEVC（Windows 依赖系统 HEVC 扩展，MKV/FLAC 支持不稳定，做不到样本级截停；旧版已失败过）。
-
-### 1.2 主要依赖（阶段 1 用 lockfile 锁定）
-
-| 依赖 | 版本（初定） | 用途 |
-|---|---|---|
-| electron | 44.x | 桌面外壳 |
-| react / react-dom | 19.x | 界面 |
-| vite（界面）+ esbuild（主进程与 preload） | 8.3 / 0.28 | 构建（electron-vite 5 不支持 Vite 8，改用两者直接组合） |
-| react-aria-components | 1.21.x | 无样式的交互基础件：列表/表格（勾选与键盘）、菜单（含子菜单）、弹层、对话框、提示、选择框、组合框、标签块、数字输入、工具栏；样式全部用自己的设计令牌（§1.3） |
-| lucide-react | 1.x | 线条图标（ISC 许可） |
-| zustand | 5.x | 前端界面状态 |
+| electron | 44.6 | 桌面外壳 |
+| react / react-dom | 19.3 | 界面 |
+| vite（界面）+ esbuild（主进程与 preload） | 8.3 / 0.28 | 构建 |
+| typescript | 7.0 | 类型检查 |
+| react-aria-components | 1.21 | 无样式的交互基础件（列表、菜单、弹层、对话框、选择框、组合框、数字输入……），样式全部用自己的设计令牌（§1.3） |
+| lucide-react · zustand · @msgpack/msgpack | 1.52 · 5.0 · 3.1 | 图标（ISC）· 界面状态 · 与 Core 的帧编码 |
 | node-addon-api + node-gyp | 8.9 / 13.1 | libmpv 渲染桥（原生扩展，§10.1）；`tools/build-native.mjs` 用 Electron 头文件编译 |
-| electron-builder | 26.x | 打包 |
 | Python 3.12（uv 托管，装在 `.uv-python/`） | — | Core 与任务进程 |
-| msgspec、numpy、onnxruntime(-directml) 1.30.0/1.24.4、pyopenjtalk-plus[tsqyomi]==0.4.1.post9、pydomino @ 4930396（只编译上游 tokenizer + Viterbi 成 `_domino` 扩展：`core/native/domino_ext.cpp` + `tools/build_domino.py`；ONNX 推理走统一会话工厂，不用上游内置的 ONNX Runtime 1.16）、regex | — | Core |
-| pytest、hypothesis；vitest、@testing-library/react、playwright | — | 测试 |
+| msgspec、numpy、scipy、regex、onnxruntime 1.30.0（Windows：onnxruntime-directml 1.24.4）、pyopenjtalk-plus[tsqyomi] 0.4.1.post9 | 见 `pyproject.toml` | Core；pydomino 只编译上游 tokenizer + Viterbi 成 `_domino` 扩展（`core/native/domino_ext.cpp` + `tools/build_domino.py`），ONNX 推理走统一会话工厂 |
+| pytest、hypothesis；vitest、@testing-library/react、@playwright/test | — | 测试 |
 
-外部可执行文件与库：ffmpeg/ffprobe（开发期用 Homebrew 9.0.2，发布随包）、rubberband 4.0.0、libmpv（所有者已同意直接下载，GitHub 等来源均可；阶段 1 记录来源、版本与 SHA-256，见 QUESTIONS Q2）。
+外部可执行文件与库：ffmpeg / ffprobe 与 Rubber Band（开发期用 Homebrew 的，发布包随包复制）、libmpv（media-kit 的 macOS 构建，`tools/third_party.json` 固定版本与 SHA-256）。
 
-### 1.3 组件库与设计语言（2026-10-06 第三次修订：采用 React Aria Components）
+### 1.3 组件库与设计语言
 
-**结论：交互基础件用 React Aria Components（无样式），外观全部用自己的设计令牌 + 组件清单。** 所有者第七轮：不想全部自己写，有更轻的同等组件库就用它，否则就用 React Aria。
-
-**实测体积**（2026-10-06，esbuild 压缩打包、不含 React 本身；每个库取我们要用的同一组组件）：
-
-| 库 | 覆盖的组件 | 压缩后 | gzip 后 |
-|---|---|---|---|
-| React Aria Components 1.21 | 对话框、菜单（含子菜单）、弹层、提示、选择框、组合框、数字输入、标签页、复选框、滑块、工具栏、标签块、**列表（GridList/ListBox，带勾选与键盘）** | 312 KB | 93 KB |
-| Base UI 1.8（Radix 与 Floating UI 原班人马） | 同上，但**没有列表/表格**、没有标签块；多了右键菜单、提示条 | 339 KB | 113 KB |
-| Ark UI 5.39（Zag 状态机） | 同上，有列表框、标签输入、分栏拖动条；**没有表格、没有工具栏** | 369 KB | 101 KB |
-| Radix（radix-ui 1.7） | 对话框、菜单、右键菜单、弹层、提示、选择框、标签页、复选框、滑块、工具栏、提示条；**没有列表、组合框、数字输入、标签块** | 170 KB | 53 KB |
-
-结论：
-- **同样的组件，React Aria 并不比其他无样式库重**；只有 Radix 更小，但缺的正是我们最需要的列表勾选、组合框（分面搜索）、标签块（条件块）、数字输入（精确时间）。
-  另外这是桌面应用，代码从本地磁盘加载，几百 KB 对启动没有可感知的影响（Electron 本身约 200 MB，模型以 GB 计）。
-- “注重无障碍”：所有无样式库（Radix、Base UI、Ark、React Aria）的核心工作都是键盘与焦点管理，这正是规格 03 §3.8 要求的；读屏属性是顺带的，不额外花我们的功夫。
-- “有点重”的真实代价是 API 啰嗦（子组件多、靠渲染函数和 data 属性写样式）。对策：每个 React Aria 组件只在 `components/` 里包一次成我们自己的组件，页面只用包好的。
-- 交互规则对得上：GridList/Table 在 `selectionMode="multiple"`、`selectionBehavior="toggle"` 时，**单击行触发 `onAction`（= 查看），复选框只管勾选**；Shift 连选、↑↓、⌘A 内置——正是 UI_PLAN §6.1。
-- 它没有的，自己补：**右键菜单**（React Aria 没有专门的组件，用它的菜单 + 一个落在指针位置的锚点实现）、提示条（它的 Toast 仍标 UNSTABLE，自己写）、波形与画布类全部业务组件。
-- 列表本来就分页（规格 07 / 03 §3.2，一页最多 100 行），采样列表不需要虚拟滚动；原片列表规格要求不分页，若一组展开后上千行，用 React Aria 自带的 Virtualizer。
-- 设计语言：**设计令牌**（颜色、性质四色、字号阶、间距、圆角、阴影、密度、动效时长，深浅两套，CSS 变量）+ **组件清单**（按钮、分段、条件块、列表行、缩略图播放钮、
-  菜单、锚定小面板、确认框、全屏工作台、抽屉、提示条、时间输入、波形卡……），每个组件只实现一次。样式用 CSS 变量 + CSS Modules，不引入 Tailwind。
-  原型的颜色和间距是令牌初稿；阶段 1 先做一页“组件样张”给所有者看。不套用 Material、Fluent、Ant 这类现成视觉语言（网页后台风，压不到工作室观感）。
-- 国际化不受影响：React Aria 只负责交互，界面文字仍走我们自己的 `t()`（§7）。
-- 字体：界面用系统字体；**采样名、台词、读音标 `lang="ja"`**（中文采样标 `zh`），让日文汉字用日文字形显示。
+- **交互基础件用 React Aria Components（无样式），外观全部用自己的设计令牌 + 组件清单**（所有者 2026-10-06；与 Base UI、Ark UI、Radix 的比较见 history/QUESTIONS Q18：同样的组件它并不更重，而且有我们最需要的列表勾选、组合框、标签块、数字输入）。
+- 每个 React Aria 组件只在 `app/renderer/components/` 里包一次，页面只用包好的；缺的（右键菜单、提示条、波形与画布类业务组件）自己写进组件库。
+- GridList / Table 在多选 + toggle 模式下单击行触发 `onAction`（= 查看），复选框只管勾选，正好对上 DECISIONS §13 的集合规则。
+  注意：行会被 React Aria 缓存，render 用到的外部状态要放进 `dependencies`（`CollectionList` 的 `renderDeps`、`ActionList` 的 `renderDeps`）。
+- **设计令牌**（颜色、性质四色、字号阶、间距、圆角、阴影、密度、动效时长，深浅两套，CSS 变量，`app/renderer/styles/tokens.css`）+ CSS Modules，不引入 Tailwind，不套用 Material / Fluent / Ant。
+- 字体用系统字体；**采样名、台词、读音标 `lang="ja"`**，让日文汉字用日文字形。
 
 ---
 
@@ -177,49 +142,58 @@
 
 ```
 app/                     Electron + 前端（TypeScript）
-  main/                  主进程：窗口、Core 进程管理、IPC 转发、拖出、剪贴板（REAPERMedia）、退出流程
-  preload/               白名单 API（core.request / core.onEvent / player.* / drag.*）
+  main/                  主进程：窗口、Core 进程管理（core-client.ts）、IPC 转发、拖出、剪贴板（REAPERMedia）、退出流程；paths.ts = 源码运行 / 发布版的位置
+  preload/               白名单 API（core.request / core.onEvent / player.* / files.* / agent.*）；player.ts、picture.ts（详情区画面）、playback.ts
+  shared/                主进程与界面共用：protocol.ts（IPC 类型）、i18n.ts、repo.ts（仓库地址）
+  native/mpv-bridge/     C++（node-addon-api）：libmpv 播放器、render API、共享帧缓冲
   renderer/              React 界面
-    shell/               左侧导航、顶栏、底部播放条与交接通知、命令面板、任务抽屉
-    library/             用途视图（统一列表）、查找栏与范围行、检索编辑器、舞台（采样详情）
-    sources/             原片列表（按作品分组折叠）、查看器（画面 + 台本 + 时间线；只按内容调整）、准备清单
-    workbenches/         拉平台、字幕导入、设置（全屏工作台面板）
-    components/          自有组件清单（§1.3，交互基础用 React Aria 包装）：Wave（自研画布：峰值按视口取、细节窗样本级、选区、区段、车道、叠加曲线）、BlockCanvas、Collection（统一选择规则）、Menu、Popover、Modal、Sheet…
-    i18n/                t()、locales/zh-CN.json、伪语言生成
+    shell/               左侧导航、顶栏、底部播放条、命令面板、任务抽屉、操作历史、agent 确认框、工作台（语音分析、拉平、分离结果）
+    library/             采样库：列表、查找栏与范围行、检索浮层与画布、详情区
+    sources/             原素材页：列表（含台词搜索）、查看器（画面 + 台本 + 时间线）、准备清单、各种对话框
+    workbenches/         设置、字幕规则等全屏工作台
+    tools/               工具页（组件样张、开发期 mpv 探针）
+    components/          组件库（React Aria 包一层）：CollectionList / ActionList（统一选择规则）、Menu、Overlay、Fields、WaveCard（自研波形画布）……
+    state/               zustand：store.ts（全局状态）、commands.ts（命令面板来源）、settings.ts
+    i18n/                t()、locales/zh-CN.json、伪语言
     api/                 core.ts（call() 按命令名推断类型）+ generated.ts（由 Core 的命令目录生成，不手改）
-  native/mpv-bridge/     C++（node-addon-api）：libmpv 播放器、render API（软件或 GL）、共享帧缓冲
-core/                    Python
+core/
+  native/domino_ext.cpp  pydomino 的 tokenizer + Viterbi 小扩展
   ottosmasher/
-    api/                 命令目录（ROADMAP L2）：types.py（参数与返回的 TypedDict）、registry.py（登记、参数校验、严格模式核对返回值）、catalog.py（导出 docs/api/commands.json 与前端 generated.ts）
-    core/                Core 进程：rpc、services/、edits（统一编辑通道）、scheduler、search_coordinator、cleaner
-    domain/              纯领域逻辑：mapping、overlap、naming、tag_expr、facets、subtitle_rules、nature_rules、oped、filename
-    algo/                基线算法（纯函数 + numpy）：有效范围、强度、音块、停顿、语段、量化、拉伸映射、语音检索、音高检索、拉平定音与掩码、声学指标
-    lang/                语言插拔（base + ja）
-    models/              onnx.py（统一会话工厂：SHA-256 校验、CPU/CoreML/DirectML、请求的 EP 没进会话就报错、首次推理的节点分布）、probe.py（实测）、domino.py（pydomino 对齐）、FCPE、PC-NSF-HiFiGAN
-    media/               ffprobe、区间解码、MP3 V0 编码与无缝校验、WAV/FLAC、峰值、缩略图、频谱、视频片段
-    studio/              PyMSS Studio 适配
-    jobs/                任务进程入口
-    store/               schema 与迁移、仓储、文件发布（原子、租约、清单）、工作区布局
+    api/                 命令目录：types.py（参数与返回的 TypedDict）、registry.py（登记、校验、严格模式核对返回值）、catalog.py（导出 docs/api/commands.json 与 generated.ts）、events.py
+    core/                Core 进程：server.py（命令登记与分发、事件）、rpc.py、edits.py（统一编辑通道）、scheduler.py（任务）、各领域服务（sources、samples、text_layer、subtitle_import、speech、units、rhythm、search*、flatten、separation、exports、video_export、independence、storage……）、agent_link.py（命令行端点）
+    domain/              纯领域逻辑：mapping、naming、subtitle_rules、rules、oped、filename、reaper、tag_expr……
+    algo/                基线算法（纯函数 + numpy）：音块、停顿、语段、量化、拉伸映射、语音检索、音高检索、拉平定音、声学指标
+    lang/                语言插拔（LanguageProfile；本轮只有 ja：文本前端、用户辞典、pyopenjtalk 适配）
+    models/              onnx.py（统一会话工厂）、registry.py（模型位置与 SHA-256、随包模型）、download.py、probe.py、domino.py、fcpe.py、hifigan.py、f0store.py
+    media/               ffprobe、区间解码、MP3 V0 编码、WAV、峰值、缩略图、拉伸渲染、视频片段
+    studio/              PyMSS Studio 适配（发现、worker 协议）
+    jobs/                任务进程入口（worker.py 按任务种类分发）
+    store/               db.py（连接、迁移、备份）、migrations/（0001–0017，只增不改）、workspace.py（工作区布局与锁）
     platform/            进程组 / 作业对象
-  tests/                 unit/ synthetic/ integration/（需 OTTO_FIXTURES）perf/
-tools/                   拉取第三方二进制、校验模型、合成数据生成器、伪语言、Core 命令 → TS 类型生成
+    cli/                 命令行 otto：main.py、client.py、guide/（说明书、经验层、playbook 模板、经验层附带的脚本）
+    resources.py         “仓库还是 Resources”的统一判断（源码运行 / 发布版）
+  tests/                 unit/、integration/（真实进程与模型；带 OTTO_FIXTURES 时跑真实素材）、perf/（3 万条合成库）
+e2e/                     Playwright 驱动 Electron 的端到端测试（含伪语言、发布包冒烟）
+tools/                   uv / npm 包装、otto、第三方拉取与编译、发布打包 package_mac.py、clone-workspace、合成数据、i18n 检查
+skills/ottosmasher/      托管的 agent 入口 SKILL.md
+docs/                    开发文档；spec/（原始规格）、history/（过程记录）、api/commands.json（生成）
 ```
 
-`domain/` 与 `algo/` 不依赖 IO，规格里的数值例子直接写成单元测试。
+`domain/`、`algo/`、`media/`、`lang/`、`models/` 不依赖资料库与 Core（引擎边界，见 §15.6），规格里的数值例子直接写成单元测试。
 
 ---
 
-## 4. 数据模型草案
+## 4. 数据模型
 
-> 业务事实以规格 04 为准；下面是表结构草案（阶段 1 定稿）。ID 一律为不透明的随机 128 位十六进制串（`uuid4().hex`），
-> 文件位置是独立字段（规格 04 §4.6）；**不做媒体内容指纹**（所有者 2026-10-06：废弃），文件是否被替换用“文件快照”判断（见 §4.1）。所有用户可编辑对象都有 `version`（乐观并发）和 `created_at`/`updated_at`。
-> 显示文字不入库：性质、角色、来源种类等存稳定的内部值（如 `speech`、`vocal`），界面按语言显示（规格 15 §15.7）。
+> 业务事实以规格 04 与 DECISIONS 为准；表结构以 `core/ottosmasher/store/migrations/` 为准（0001–0017），下面是要点。ID 一律为不透明的随机 128 位十六进制串（`uuid4().hex`），
+> 文件位置是独立字段；**不做媒体内容指纹**，文件是否被替换用“文件快照”判断（§4.1）。所有用户可编辑对象都有 `version`（乐观并发）和 `created_at`/`updated_at`；写入记来源（`actor_kind`、`actor_session`）。
+> 显示文字不入库：性质、角色、来源种类等存稳定的内部值（如 `speech`、`vocal`），界面按语言显示。
 
 ### 4.1 原片与流
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `source` | id, path, import_root, file_snapshot, duration, work, episode, source_type, subtitle_path, default_audio_stream, media_state(`available`/`released`), visual_binding_id, current_subtitle_version_id, version | 原片（可以是视频、长音频或很短的纯音频）。`media_state=released` 是删除原片后保留独立化采样的“媒体已释放的原片”（§4.9）。列表按作品分组、默认折叠（§4.10） |
+| `source` | id, path, path_key, import_root, root_id, rel_path（原素材文件夹里的相对路径）, file_snapshot, duration, work, episode, source_type, subtitle_path, default_audio_stream, media_state(`available`/`released`), visual_binding_id, version | 原片（可以是视频、长音频或很短的纯音频）。`media_state=released` 是删除原片后保留独立化采样的“媒体已释放的原片”（§4.9）。列表按作品分组、默认折叠（§4.10） |
 | `source_stream` | source_id, kind(audio/video), ordinal（第几条音频/视频流）, container_index, codec, sample_rate, channels, bit_depth, language, title, start_time, duration, is_attached_pic | 封面图不算视频（规格 05 §5.1）；音轨按“第几条音频流”选择（R22.2） |
 
 **文件快照**（取代内容指纹，所有者 2026-10-06）：大小 + 修改时间 + 流签名（各音频/视频流的编解码、采样率、声道、时长）。不读文件内容、不算哈希。
@@ -241,12 +215,12 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 ### 4.3 原片上的时间对象：文本层的段、音效提示、区段标签、OP/ED（所有者 2026-10-09【基线变更】，迁移 0012 / 0013）
 
-原片上的四类对象各做一件事（docs/QUESTIONS.md「原片上的四类对象」）：段 = 说了什么（给分析）；音效提示 = 给人工拣选；区段标签 = 时间上的属性；采样 = 哪段有价值。
+原片上的四类对象各做一件事（DECISIONS §1、§3；原始记录 history/QUESTIONS「原片上的四类对象」）：段 = 说了什么（给分析）；音效提示 = 给人工拣选；区段标签 = 时间上的属性；采样 = 切好、能用的单位。
 字幕导入是一次显式操作、四类一起进（`core/subtitle_import.py`）；**没有字幕版本**：重新导入就是一次批量编辑（新增 / 无变化 / 替换 / 跳过，碰到受保护的段跳过，可逐行强制替换），整次导入一个编辑批次、可撤销。
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `text_segment` | id, source_id, start, end（原片秒）, text（= 对齐文本，保留换行）, speakers（JSON 有序名单）, origin(`subtitle`/`typed`), provenance（字幕文件名、指纹、行号、原文、导入时间）, edited, speaker_edited, deleted, version, actor | 每个原片一层，不设作用域；字幕来源与手输同级。**受保护** = edited（改过文本或边界、拆分合并产物、切开后缩短的旧段、手输段）或任一条轨上有人工音素版本；只改说话人记 speaker_edited（只让「按当前规则重新生成说话人」跳过）。段长度上限 120 秒（查询下界）。复合操作在 `core/text_layer.py`：加段（重叠时替换 / 切开 / 取消）、拆分、合并（删旧建新） |
+| `text_segment` | id, source_id, start, end（原片秒）, text（= 对齐文本，保留换行）, speakers（JSON 有序名单，按规则确定读出的那部分）, speakers_withheld（原文有标注但没记，0017）, origin(`subtitle`/`typed`), provenance（字幕文件名、指纹、行号、原文 `raw`、导入时间；合并产物带各段原文）, edited, speaker_edited, deleted, version, actor | 每个原片一层，不设作用域；字幕来源与手输同级。**受保护** = edited（改过文本或边界、拆分合并产物、切开后缩短的旧段、手输段）或任一条轨上有人工音素版本；只改说话人记 speaker_edited（只让「按当前规则重新生成说话人」跳过）。段长度上限 120 秒（查询下界）。复合操作在 `core/text_layer.py`：加段（重叠时替换 / 切开 / 取消）、拆分、合并（删旧建新） |
 | `sfx_hint` | id, source_id, start, end, text（括号内容）, origin(`subtitle`/`manual`), provenance, edited, deleted, version | 作用于整个原片、所有轨可见；不对齐、不带标签。手动新增或改过的受保护 |
 | `range_tag` | id, source_id, scope(`source`/`role`/`asset`), scope_role, scope_asset_id, start, end（`asset` 作用域用资产局部秒）, label, tags[], deleted, version | 用户显式画的区段标签（原 `annotation.kind=tag`）；本地标签「提升为区段标签」也建在这里 |
 | `oped` | id, source_id, kind(OP/ED), start, end, origin(`subtitle_rule`/`manual`), evidence, edited, deleted | 规则无错时随字幕导入登记；有错时在导入页逐对确认。人工标记 / 确认、改过边界的受保护 |
@@ -281,11 +255,11 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 | 表 | 内容 | 失效条件 |
 |---|---|---|
-| `rhythm_cache` | （阶段 7 起合并进 `speech_index`）| 舞台的节奏视图仍在 Core 内存里按身份缓存（`core/rhythm.py`） |
+| （节奏视图） | 不落库：详情区的节奏视图在 Core 内存里按身份缓存（`core/rhythm.py`），检索用的逐块属性在 `speech_index` | — |
 | `speech_index`（迁移 0008，阶段 7 实现） | 每采样一行：失效键 + msgpack（逐块属性按列：起音、结束、前导辅音开始、首元音、前导辅音、MIDI 中位数、波动、覆盖率、走势、相对音高、相对响度、强度、持续终点、角色（产生该块的那一段的说话人）、停顿段号、语段号；整句与各语段的占格、停顿、切口、窗口）。由「准备检索索引」任务构建（`jobs/search.py`，只读、进程池并行），采纳时核对失效键 | 失效键全部来自数据库（`core/search_index.py::speech_keys`：采样范围、判定区间与节奏参数、读到的段〔区间、文本、说话人〕与各段用的分析版本〔`units.reads_sql`〕、区段标签、F0 测量头、存储签名与文件快照、惩罚度、算法版本）；改名、星标、普通标签不失效（R14.14）；采样删除级联 |
 | `scheme_cache` | 没有落库：检索进程内存里按（采样 + 失效键, 范围, BPM）缓存（3 万条冷启动 S3 2.8 s，不需要） | — |
 | `acoustic_metric`（迁移 0009） | 每采样一行单音指标（JSON）；有效 = 资产、范围、存储签名、算法版本都等于现在的（SQL 里核对，筛选直接分页） | 内容变了失效 |
-| `Data/Cache/` 文件 | 波形峰值金字塔、缩略图、频谱、临时解码 PCM（带租约） | 可清理 |
+| `Data/Cache/` 文件 | 波形峰值金字塔、缩略图、帧索引、卡拍试听渲染、Studio 模型列表（临时解码 PCM 走管道、不落盘） | 可清理 |
 
 ### 4.7 检索结果与筛选
 
@@ -301,7 +275,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 | 表 | 关键字段 | 说明 |
 |---|---|---|
 | `edit` | id, created_at, label_code + args（可本地化的“这次修改”描述）, changes[(entity, id, field, before, after, version_before, version_after)], undo_of, undone_by | 统一编辑通道（§5）；没有重做 |
-| `job` | id, kind, channel(`model`/`light`), status(`queued`/`running`/`succeeded`/`failed`/`cancelled`/`interrupted`), params（提交时冻结的业务输入）, device（冻结）, progress（阶段、done/total、消息码）, error（码 + 参数 + 日志路径）, affects（原片/采样 ID）, result, retry_of, items_total/ok/failed | 先持久化再执行（R19.1）；批量任务的逐条结果在 `job_item` |
+| `job` | id, kind, channel(`model`/`light`), status(`queued`/`running`/`succeeded`/`failed`/`cancelled`/`interrupted`), params（提交时冻结的业务输入）, device（冻结）, progress（阶段、done/total、消息码）, error（码 + 参数 + 日志路径）, affects（原片/采样 ID）, result, retry_of, items_total/ok/failed, background, promote_seq（§11） | 先持久化再执行（R19.1）；批量任务的逐条结果在 `job_item` |
 | `job_item` | job_id, idx, target, status, error, result_ref | 批量语音分析/批量拉平的结果表，可只重跑失败项 |
 | `export_file` | stable_key, path, kind(wav/video/reaper_wav/manifest), size, mtime, sha256, created_at | 按稳定键复用；被外部改过就报错不覆盖；从不自动删除 |
 | `visual_binding` | id, owner_type(source/sample), mode(`sync`/`image`/`loop`/`materialized_clip`), media_file_id, clip_offset, version | 采样 > 原片 > 原片自带视频流 |
@@ -361,14 +335,14 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 - **撤销**：从最近一次开始，找第一个“所有对象当前状态仍等于该次修改后状态”的修改，以一次新的编辑恢复 before 值；
   找不到 → “没有仍可安全撤销的资料修改；后续编辑不会被覆盖”。没有重做。
 - 快捷编辑（星标、性质一键归类、改名、本地标签）同样产生 `edit`，只是不弹预览；界面在提示条上给“撤销”按钮。
-- 脚本入口（阶段 11，P2）只能调用同一组公开命令，写入同样走预览 → 应用 → 可撤销。
+- 命令行与脚本（`otto call`、`otto run`，§15）只能调用同一组公开命令，写入同样走编辑通道，并记来源，可按会话撤回。
 
 ---
 
 ## 6. 用户可见存储布局（目录名一律英文）
 
 ```
-<Workspace>/                         工作区：用户数据（数据库、素材库、模型）。开发期 = 仓库内 dev-workspace/；发布版默认 ~/Documents/OttoSmasher Workspace/，设置里可换
+<Workspace>/                         工作区：用户数据。源码运行 = 仓库内 dev-workspace/；发布版默认 ~/Documents/OttoSmasher Workspace/；OTTO_WORKSPACE 可改
 ├── Library/                         素材库：用户可见，不是缓存，不自动清理
 │   ├── Tracks/
 │   │   └── <作品 集数> [<id8>]/      每个原片一个目录，名字可读（建立时按作品与集数取名，之后不随改名移动）
@@ -381,11 +355,12 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 │   │   └── 2026-10-05/              默认导出（WAV、视频片段），按导出日期分目录
 │   └── REAPER/
 │       └── 2026-10-05/              REAPER 原声 WAV、交接清单、.RTrackTemplate（试验）
-├── Models/                          用户放置的模型权重：pydomino/ tsqyomi/ features/ flatten/
+├── Models/                          可选：用户放置或下载的模型权重（pydomino/ tsqyomi/ features/ flatten/）；有同名文件时优先于随包的模型
+├── Agent/playbook.md                 可选：所有者给 agent 的约定（§15.5）
 └── Data/                            应用数据（不给用户直接改）
     ├── library.sqlite3              数据库（WAL）
     ├── Measurements/                F0 帧、音高索引（永不当缓存删）
-    ├── Cache/                       峰值、缩略图、频谱、临时解码 PCM（可清理；租约保护）
+    ├── Cache/                       峰值、缩略图、帧索引、试听渲染（可清理；15 分钟内生成的跳过）
     ├── Jobs/<job-id>/               任务输入、输出、日志（成功后清理私有中间文件；失败保留证据）
     ├── Manifests/                   导出清单（规格 12 §12.1：放数据目录，不放导出目录）
     ├── Dictionary/                  用户辞典源与编译产物
@@ -398,7 +373,7 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 - **长期固定的目录名一律英文**（`Library/`、`Tracks/`、`Separation/`、`Flatten/`、`Reimport/`、`Independent/`、`Exports/`、`REAPER/`、`Models/`、`Data/` 及其下各目录）；按原片、按日期生成的子目录不受限制，可以用中日文（所有者 2026-10-06）。子目录与文件名都经过可移植处理（规格 12 §12.1）。界面里每个原片/采样都有“打开所在目录”。
 - **原子发布**：先写 `Data/Staging/`，校验后 `os.replace` 到目标；导出到其他卷（自定义导出目录）时先复制为同目录下的隐藏临时名再改名，
   未完成的发布记录在数据库里，启动时清理残留——用户可见目录里不会长期留下 `.part`/`.lock`（规格 12 §12.6）。
-- **租约**：临时 PCM 等文件被任务使用时登记租约（数据库行，含进程 ID 与过期时间）；清理器跳过有租约或 15 分钟内生成的文件。
+- **清理保护**：临时解码 PCM 走管道不落盘，没有需要保护的租约文件；清理器跳过 15 分钟内生成的文件、不跟随符号链接，有任务在跑时拒绝清理。
 - **清理口径**：引用关系来自数据库外键（`media_file` 被谁引用），不是在来源记录里搜路径字符串（规格 17 §17.3 #20）。
 - 空闲判定用 UI 上报的“最后一次用户输入时间”，界面轮询不刷新空闲计时；策略与规格 13 §13.3.3 一致（空闲 5 分钟、每小时至多一次、1 天、512/384 MiB）。
 
@@ -424,19 +399,20 @@ tools/                   拉取第三方二进制、校验模型、合成数据�
 
 ## 8. 采样语言的插拔点（为中文、英文预留）
 
+`core/ottosmasher/lang/__init__.py`：
+
 ```python
-class LanguageProfile(Protocol):
+@dataclass(frozen=True)
+class LanguageProfile:
     code: str                                    # "ja"
-    def normalize(text) -> NormalizedText        # 逐码位替换，保持字符位置（日语：规格 08 §8.2.2）
-    def g2p(text, dictionary) -> FrontendResult  # 音素、音素↔文字↔读音、版本（日语：pyopenjtalk-plus + tsqyomi）
-    def split_syllables(reading) -> list         # mora/音节切分（日语：小写假名并入、ー 单独成拍）
-    aligner: Aligner                             # 日语：pydomino（模型身份/版本写入测量）
-    core_phonemes: frozenset                     # 音块核心（日语：a i u e o A I U E O N；cl 另计）
-    leading_consonant_stops: frozenset           # 前导辅音停止标签（日语：pau AP spn N cl + 元音）
-    def reading_key(text) -> str                 # 读音搜索的规范化（日语：平假名）
-    dictionary_format: DictionaryFormat          # 用户辞典格式与编译器（日语：表记\t片假名 → MeCab）
-    default_subtitle_rules: SubtitleRules        # 默认字幕规则（日语：规格 06 §6.2.1）
+    normalize: Callable[[str], str]              # 逐码位替换，保持字符位置（日语：规格 08 §8.2.2）
+    analyze: Callable[..., Any]                  # 文本 → 音素、音素↔文字↔读音、版本（日语：pyopenjtalk-plus + tsqyomi + 用户辞典）
+    split_syllables: Callable[[str], list[str]]  # mora/音节切分（日语：小写假名并入、ー 单独成拍）
+    core_phonemes: frozenset[str]                # 音块核心（日语：a i u e o A I U E O N；cl 另计）
+    aligner: str                                 # 对齐模型（日语：pydomino；模型身份/版本写入测量）
 ```
+
+读音搜索的规范化、辞典格式、默认字幕规则目前仍在日语模块和 `domain/` 里直接实现；加第二种语言时再挪进这个接口。
 
 - 语言是**数据属性**：音频流、文本层的段、采样、测量输入都记录语言；默认取来源的语言标记或“首选语言”（默认 `ja`）。
 - 与语言无关、直接复用：FCPE、停顿检测、音块合组的时间规则（以 `core_phonemes` 为参数）、占格推断、卡拍与映射、音高检索、拉平、导出、REAPER。
@@ -498,8 +474,8 @@ class LanguageProfile(Protocol):
 - **波形组件与 mpv 的关系**：波形只做显示与交互（峰值与细节窗样本由 Core 按视口给出，不在浏览器解码音频）；播放全部交给 mpv。
   选区只能拖两端、不能整体拖；刻度、总览条、播放头、音素/字幕/区段车道、F0 金线、命中框都是同一组件的图层。
   Shift 吸附、⌥ 拖出（越过 4 px 才生成）等规格要求的手势直接在组件里实现。
-- **libmpv 来源**（所有者同意直接下载，Q2）：macOS arm64 用 GitHub media-kit/libmpv-darwin-build v0.7.3 的 `video-full` 包（mpv 0.36.0 + FFmpeg 6.0，含 VideoToolbox；SHA-256 固定在 `tools/third_party.json`）；头文件取 mpv 官方 v0.36.0。Windows 的来源到阶段 10 定。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
-- **实现要点**（阶段 1 探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=videotoolbox-copy`、`sws-fast=yes`、`zimg-fast=yes`。
+- **libmpv 来源**（所有者同意直接下载，Q2）：macOS arm64 用 GitHub media-kit/libmpv-darwin-build v0.7.3 的 `video-full` 包（mpv 0.36.0 + FFmpeg 6.0，含 VideoToolbox；SHA-256 固定在 `tools/third_party.json`）；头文件取 mpv 官方 v0.36.0。Windows 的来源没定（只发 macOS，DECISIONS §14）。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
+- **实现要点**（开发初期的探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=videotoolbox-copy`、`sws-fast=yes`、`zimg-fast=yes`。
 
 ### 10.2 波形、频谱、缩略图
 
@@ -537,11 +513,13 @@ class LanguageProfile(Protocol):
 ## 11. 任务系统
 
 - 两条通道：模型（默认并发 1）、轻量（默认 2；设置 1–4）。排队任务不占进程。
+- 同一通道里的顺序：用户“提前”的任务（`promote_seq`，越晚提前越靠前）→ 用户提交的 → 后台任务（`background`，如自动准备）；同类按提交时间。
 - 提交时冻结业务输入与设备设置；重试 = 相同业务参数的新任务 + **当前**设备设置。
 - 进度结构化：`{stage, done, total, percent, message_code, args}`；Studio 的 `task_progress`/`task_stage` 映射到同一结构（规格 14 §14.6.2）。
 - 任务摘要很轻（不含大结果），声明影响的原片/采样；UI 只在状态或进度变化时更新。
 - 任务进程启动时加载需要的 ONNX 会话（统一会话工厂：CPU 默认；开启加速时 [CoreML/DirectML, CPU]，请求的 EP 没进入会话就报错；
   首次推理后用 profiling 统计各 EP 节点数，写 `model_probe`）。
+- 有逐条工作但一条都没做成的任务记为失败（`job-all-items-failed`），不显示成“完成”；部分失败记成完成 + 提醒（P6）。
 - 日志：每任务一个日志文件 + 外部工具的命令/版本/设备/输入输出路径；保留上限（按数量与天数滚动）。
 
 ### 11.1 PyMSS Studio 适配（规格 14 §14.6）
@@ -554,50 +532,43 @@ class LanguageProfile(Protocol):
 
 ---
 
-## 12. 分阶段的测试策略
+## 12. 测试
 
-| 层 | 内容 | 何时跑 |
+怎么跑见 [DEVELOPMENT.md](DEVELOPMENT.md)「测试」。
+
+| 层 | 在哪 | 内容 |
 |---|---|---|
-| 单元 | `domain/`、`algo/` 的纯函数，直接用规格 16 第二部分的数值例子（R3 映射、R5 说话人、R6 OP/ED、R10 前端、R12–R15 算法、R17 拉平……） | 每次提交前 |
-| 合成 | 斜坡信号、220+880 Hz 混音、置零段、合成 F0 帧、内联 SRT、合成节奏骨架（规格 16 第三部分）；伪 Studio、伪 ONNX Runtime；“一调用就失败”的重操作替身（证明检索不解码不推理） | 每次提交前 |
-| 集成（真实素材） | 通过 `OTTO_FIXTURES` 指向交接包，**小批**跑 clips/ 与指定整集片段；不全库跑模型；输出只写临时工作区 | 阶段验收前 |
-| 界面 | Vitest + Testing Library（组件：统一选择规则、范围栏、检索画布、快捷键焦点）；Playwright 驱动 Electron（端到端、伪语言）；人工只验原生播放、拖放到 REAPER 这类自动化证明不了的 | 阶段验收前 |
-| 性能 | 1 万条分页（R8.9）、3 万条三大搜索（R14.15） | 阶段 7、8 |
-| 平台 | Windows x64：最后用 GitHub Actions 的 Windows 机器构建（需要所有者届时授权推送）；所有者手动实机验收，验收前一律标“未验收” | 阶段 10 |
+| Core 单元 | `core/tests/unit/` | `domain/`、`algo/` 的纯函数，直接用规格 16 第二部分的数值例子（R3 映射、R5 说话人、R6 OP/ED、R10 前端、R12–R15 算法、R17 拉平……）；合成信号（斜坡、混音、置零段、内联 SRT）；伪 Studio（`fake_studio`）；“一调用就失败”的重操作替身（证明检索不解码不推理）；命令目录与说明书核对；引擎边界 |
+| Core 集成 | `core/tests/integration/` | 真实子进程、真实模型；设 `OTTO_FIXTURES` 时小批跑真实素材（不全库跑模型，输出只写临时工作区）。`OTTO_STRICT_API=1` 核对每个命令的返回值与目录一致 |
+| 性能 | `core/tests/perf/` | 1 万条分页（R8.9）、3 万条合成库三大搜索（R14.15，`tools/synth_library.py`） |
+| 界面组件 | `app/**/*.test.tsx`（Vitest + Testing Library） | 统一选择规则、范围栏、检索画布、快捷键焦点 |
+| 端到端 | `e2e/*.spec.ts`（Playwright 驱动 Electron） | 各页面流程；`pseudo` 伪语言；`real-*` 用真实素材（要 `OTTO_FIXTURES`）；`probe` mpv 性能探针；`packaged` 发布包冒烟（`OTTO_PACKAGED_E2E=1`） |
+| 文案与目录 | `tools/npm run i18n:check`、`tools/uv run python -m ottosmasher.api.catalog --check` | 文案键齐全、Core 里没有界面语言的字面量；命令目录与 `generated.ts` 是最新的 |
+| 人工 | — | 只验自动化证明不了的：原生播放的手感、拖到 REAPER、听感（拉平、分离） |
 
-各阶段的验收重点（对应规格 16）：
-
-| 阶段 | 自动化重点 | 真实素材 / 人工补充 |
-|---|---|---|
-| 1 骨架 | 编辑通道（R9）、任务（R19：持久化、进程树取消、只杀本任务、重试、中断）、迁移与备份、模型 SHA 检测、伪语言 | 应用启动、三页常驻、设置读写 |
-| 2 播放闭环 | R1、R3、R21.1–3/8、R22（解码区间、逐样本导出、文件名可移植、拖出状态机） | YY2-07 整集播放跳转、范围截停、拖出 WAV 到 Finder/REAPER |
-| 3 准备链路 | R2、R4–R7（字幕规则表、版本、OP/ED、性质预填、标签判定区间）；伪 Studio | YY1-01 字幕导入与 OP/ED 数值（S1.5）、S10、S11；Studio 实跑一个短片段 |
-| 4 语音分析 | R10、R11（前端例子、采纳规则、人工版本）、FCPE 前端数值 | S1.8 与参考输出对比 9 句 |
-| 5 拉平 | R17、11 §11.7 全部数值例子 | S4 听感对比 |
-| 6 节奏与卡拍 | R12、R13（占格、映射、核心逐样本）、R21.4–7（REAPER 文本） | REAPER 粘贴人工验收（macOS） |
-| 7 三大搜索 | R14、R15、R16；3 万条性能 | S3、S5 |
-| 8 采样库完善 | R8、R9 | — |
-| 9 画面与周边 | R20、R21.9、独立化与删除（S12） | S7、S8 |
-| 10 Windows | 打包、冒烟（规格 15 §15.8） | Windows 实机 |
+Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标“未验证”。
 
 ---
 
-## 13. 风险与需要尽早验证的技术点（阶段 1 的探针）
+## 13. 技术风险与验证情况
 
-| 风险 | 验证方式 | 不行时的备选 |
+开发初期逐项验证过的技术点，和还没验证的。
+
+| 风险 | 验证情况 | 不行时的备选 |
 |---|---|---|
-| mpv 渲染桥：软件渲染 + 画布在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | **阶段 1 已验证**（2026-10-06，M 系列 Mac，YY1-01，画布 1920×1080）：硬解 videotoolbox-copy；显示 24.1 fps、丢帧 0；渲染线程 13.2 ms/帧（默认缩放 20.2 ms）；界面线程 0.5 ms/帧（最大 2 ms）；跳转 14–61 ms；逐帧 11–103 ms；渲染进程约 36% 单核。复测：`OTTO_PROBE_FILE=<整集> npx playwright test e2e/probe.spec.ts` | GL 渲染到共享纹理（暂不需要）；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
-| 原生扩展在 Electron 44 / Windows x64 上构建与加载 | 阶段 10 用 GitHub Actions 构建；之前保证构建脚本两平台通用 | 改为独立 utility 进程 + 共享内存 |
-| `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 阶段 2 探针（拖到 Finder、REAPER） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
+| mpv 渲染桥：软件渲染 + 画布在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | **已验证**（2026-10-06，M 系列 Mac，YY1-01，画布 1920×1080）：硬解 videotoolbox-copy；显示 24.1 fps、丢帧 0；渲染线程 13.2 ms/帧（默认缩放 20.2 ms）；界面线程 0.5 ms/帧（最大 2 ms）；跳转 14–61 ms；逐帧 11–103 ms；渲染进程约 36% 单核。复测：`OTTO_PROBE_FILE=<整集> npx playwright test e2e/probe.spec.ts` | GL 渲染到共享纹理（暂不需要）；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
+| 原生扩展在 Windows x64 上构建与加载 | **未验证**（只发 macOS）；构建脚本按两平台写 | 改为独立 utility 进程 + 共享内存 |
+| `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 已验证（macOS，拖到 Finder、REAPER；`e2e/dragout.spec.ts`） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
 | mpv 对 LAME 无缝 MP3 的样本级对齐 | 合成斜坡 MP3 的偏移测试 | 正式音轨改存 FLAC（要所有者同意，涉及存储预算） |
-| pydomino C++ 扩展在 Windows 上构建 | 同上（GitHub Actions） | 已改为自写最小 CPython 绑定（不依赖 pybind11/Eigen/上游 ORT），setuptools 调 MSVC 编译；Windows 未实测 |
+| pydomino C++ 扩展在 Windows 上构建 | **未验证** | 已改为自写最小 CPython 绑定（不依赖 pybind11/Eigen/上游 ORT），setuptools 调 MSVC 编译；Windows 未实测 |
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型”（test_openjtalk） | 已做：导入前给 `yomi_model.nani_predict` 放空模块占位（`lang/ja/openjtalk.py`），tsqyomi 会话由工厂创建后交给库 |
-| 检索 3 万条 30 秒 | 合成库基准 | numba 热点编译 |
-| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **阶段 2 已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
+| 检索 3 万条 30 秒 | 已验证（合成库基准，§9.5） | numba 热点编译 |
+| wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 history/QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
+| 发布版在别的 Mac 上第一次打开（ad-hoc 签名、没有公证，Gatekeeper 会拦） | **未验证**：只在构建机上打开过 | 在 USER_GUIDE 写清右键打开 / 系统设置放行；要更顺就得 Developer ID 签名与公证（要所有者定） |
 
 ---
 
-## 14. 分发（阶段 10；2026-10-30【基线变更】：只发 macOS、本地构建、模型随包）
+## 14. 分发（2026-10-30【基线变更】：只发 macOS、本地构建、模型随包；DECISIONS §14）
 
 - `tools/package_mac.py` 直接组装 `.app`（不用 electron-builder）：复制 Electron 的 `Electron.app`，改名（主程序与四个 Helper）、改 Info.plist（`io.github.axolyz.ottosmasher`、macOS 14+）、
   由 `assets/brand/logo.png` 生成图标；逐个 ad-hoc 签名所有 Mach-O，再签整个 .app；`ditto` 打 ZIP（< 2 GB）并写 SHA-256。
@@ -611,13 +582,17 @@ class LanguageProfile(Protocol):
 - 许可：GPL-3.0-or-later（Rubber Band、带 libx264 的 ffmpeg 为 GPL）；模型各按自己的许可作为单独组件随包，PC-NSF-HiFiGAN 是 CC BY-NC-SA 4.0（非商业），
   见 [THIRD_PARTY.md](THIRD_PARTY.md) 与包内 `licenses/`。
 - **PyMSS Studio 不随包**：设置 → PyMSS Studio 没找到时说明要另外安装，并给发布页（主进程 `links:open` 只开固定列表里的网址）。
+- 构建时预编译 Python 字节码，运行时设 `PYTHONDONTWRITEBYTECODE`：.app 里不会生成 `__pycache__`（否则签名失效）。
+- 版本号：每次构建自动加一位补丁号，`tools/release_notes/` 按模板写这一版的说明（流程见 DEVELOPMENT「发布」）。
+- 开发版与发布版并存：源码运行的应用叫 OttoSmasher Dev（独立的应用身份与 userData，顶栏标“Dev”和工作区名），默认用仓库里的 `dev-workspace/`，不碰日常工作区；
+  要用真实资料复现 bug 时 `tools/clone-workspace` 克隆一份（APFS 克隆 + SQLite 在线备份，删掉端点与锁文件）。
 - 体积：Electron 约 290 MB、Python 与 Core 依赖约 590 MB、模型 187 MB、媒体工具与动态库约 40 MB；.app 约 1.2 GB。
 
 ---
 
-## 15. 命令行与 agent 接入（2026-10-07 预留；2026-10-24 所有者【基线变更】，阶段 A 实现）
+## 15. 命令行与 agent 接入（2026-10-24 所有者【基线变更】；DECISIONS §12）
 
-所有者 2026-10-24：让 LLM agent 把应用的能力与数据库、自己的推理和别的工具组合起来完成复杂任务（QUESTIONS「命令行与 agent 接入」）。
+所有者 2026-10-24：让 LLM agent 把应用的能力与数据库、自己的推理和别的工具组合起来完成复杂任务（history/QUESTIONS「命令行与 agent 接入」）。
 定：**只在应用开着时**可用；撤销不了的操作要所有者在应用里确认；只做命令行、不做 MCP；说明书中英双语。
 
 ### 15.1 通道
@@ -641,12 +616,12 @@ class LanguageProfile(Protocol):
 - 编辑、任务、新建的原素材 / 资产 / 采样 / 测量都记来源（agent / script + 会话，迁移 0004）。`edits.history` 按来源列编辑；`edits.undoSession` 从新到旧撤回一个会话的编辑，
   遇到之后又被改过的那条就停下报告（不跳过，免得撤出半套）。`edits.undoOne` 撤指定的一条（它改过的东西之后没被再改过才行；`edits.history` 的 `undoable`）。
   新建的采样、资产不走编辑通道，不在撤回范围内（删除要确认）。
-- 任务摘要带 `actor`，任务抽屉给命令行提交的任务一个“agent”小标记；顶栏「操作历史」面板列出所有人的修改、错过的确认请求（UI_PLAN §23）。
+- 任务摘要带 `actor`，任务抽屉给命令行提交的任务一个“agent”小标记；顶栏「操作历史」面板列出所有人的修改、错过的确认请求（history/UI_PLAN §11）。
 
 ### 15.4 命令目录与命令行
 
 - `docs/api/commands.json`（目录版本 3：每条带 `layer`）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
-- 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包启动器 L46）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
+- 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包里是 `Contents/Resources/bin/otto`）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
   `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 
@@ -671,10 +646,10 @@ class LanguageProfile(Protocol):
 - 声音输入 `AudioRef`：库里的音轨（资产秒，结果另给原片秒）或任意文件（文件秒，`stream` 选音频流），不用先登记（`core/primitives.py`、`jobs/primitives.py`）。
 - 判断“要不要开放成原始能力”：没有 agent 时应用自己需要它、已经在维护它；应用不需要的（ASR、OCR、抠图）交给外部工具（如 audio-mcp）。
 - 引擎边界：`media`、`lang`、`models`、`domain`、`algo`、`jobs/speech.py`、`jobs/primitives.py` 不引用 `store` / `core`（`core.errors` 除外）/ `api` / `cli`（测试 `test_engine_boundary`），以后要拆成独立包基本只是挪目录。
-- 对齐不能定位：窗口要紧贴说话（试验见 QUESTIONS 阶段 A 决定 15）；结果给 `edges`、`longestPhone` 这类事实，不给“可疑”判定（试过的判定把三到四成好结果也标成可疑）。
+- 对齐不能定位：窗口要紧贴说话（试验见 history/QUESTIONS 阶段 A 决定 15）；结果给 `edges`、`longestPhone` 这类事实，不给“可疑”判定（试过的判定把三到四成好结果也标成可疑）。
 
 ### 15.7 还没做的
 
 - **编排层**（自动做音MAD 的时间线编排）：仍按原来的边界——agent 用检索、卡拍、导出，成片在 REAPER 里完成；不在应用里做多轨编辑器。
 - **数据外发**：agent 若用云端大模型，它读到的台词会离开本机；应用没法控制 agent，由用户自己决定（所有者 2026-10-24：说明书里不写禁止外发的规定）。
-- Windows 命名管道与 `otto.cmd` 未实测（L47）；发布包的 `otto` 启动器（L46）。
+- Windows 命名管道与 `otto.cmd` 未实测（ROADMAP L47）。
