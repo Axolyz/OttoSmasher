@@ -68,7 +68,7 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
 
 | | |
 |---|---|
-| 系统 | macOS 14 或更新，Apple 芯片（M 系列）。Windows 暂不发布（代码里保留了 Windows 的路径，但没有在实机上验收） |
+| 系统 | macOS 14 或更新，Apple 芯片（M 系列）。Windows 暂不发布（代码里保留了 Windows 的路径，但没有在实机上验收；[欢迎来维护](#windows-版招维护者)） |
 | 磁盘 | 应用约 1.2 GB（含模型）；工作区按素材量增长（约 4000 个采样时附带数据约 4 GB，不含原素材本身） |
 | 网络 | 不需要；不上传任何东西 |
 | 可选 | [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases)（人声分离；分离模型由它自己下载） |
@@ -154,7 +154,7 @@ docs/       使用说明、架构、路线图、决定记录、第三方许可�
 - [ ] **支持中文、英文的语音分析**（流程与日语相同，需要另选文本前端与对齐模型）
 - [ ] **界面多语言翻译**（文案已全部抽成资源文件，加语言不用改业务代码）
 - [ ] **以语音聚类为基础的说话人日志**（没有字幕说话人时，按声音自动分出“谁在说”）
-- [ ] Windows 版
+- [ ] Windows 版（[招维护者](#windows-版招维护者)）
 
 开发进度与遗留事项见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -164,6 +164,14 @@ docs/       使用说明、架构、路线图、决定记录、第三方许可�
 - **代码**：开发约定在 [AGENTS.md](AGENTS.md)（人和 AI 代理通用）；提交前跑一遍 [DEVELOPMENT.md](docs/DEVELOPMENT.md) 里的测试。
   现行的设计决定在 [docs/DECISIONS.md](docs/DECISIONS.md)（原始需求规格在 [docs/spec/](docs/spec/README.md)），改变既定行为前请先开 issue 讨论。
 - **不要提交任何素材**（番剧、字幕、游戏语音等）；测试用合成音频，真实素材只在本地通过环境变量引用。
+
+### Windows 版：招维护者
+
+OttoSmasher 基于 Electron，界面、Python Core 和用到的模型本身都是跨平台的；代码里也一直保留着 Windows 的路径
+（进程管理、命名管道、播放器与原生扩展的构建脚本），只是没有在实机上构建、验收过。
+作者自己只用 Mac，没有精力构建和维护 Windows 版。**如果你愿意负责 Windows 版的构建、测试和发布，非常欢迎**——
+请开 issue 打个招呼。还没验证过的地方大致是：libmpv 的来源与播放器原生扩展、pydomino 扩展的编译、
+结束进程树、剪贴板交接给 REAPER、`otto` 命令行（见 [docs/ROADMAP.md](docs/ROADMAP.md) 的 L9、L26、L47）。
 
 ## 致谢
 
