@@ -131,6 +131,7 @@ def list_for_source(conn: sqlite3.Connection, source_id: str, asset_id: str | No
 
 _SEG_SQL = (
     'SELECT t.id, t.version, t.source_id, t.start, t."end", t.text, t.speakers, t.origin, t.provenance, t.edited, t.speaker_edited,'
+    " t.speakers_withheld,"
     f" {MANUAL_SQL.format(t='t')} AS manual, {USED_BY_SQL.format(t='t')} AS used_by FROM text_segment t"
 )
 
@@ -140,6 +141,7 @@ def _segment_wire(t: sqlite3.Row, ordinal: int, oped: str | None, analysis: str 
     return {
         "id": t["id"], "version": t["version"], "ordinal": ordinal, "start": t["start"], "end": t["end"], "text": t["text"],
         "speakers": loads(t["speakers"]), "origin": t["origin"], "edited": bool(t["edited"]), "speakerEdited": bool(t["speaker_edited"]),
+        "speakersWithheld": bool(t["speakers_withheld"]) and not t["speaker_edited"],
         "manual": bool(t["manual"]), "protected": bool(t["edited"] or t["manual"]), "usedBy": int(t["used_by"]),
         "raw": (prov or {}).get("raw"), "oped": oped, "analysis": analysis,
     }
@@ -272,6 +274,15 @@ def promote_batch(
 # ---------------------------------------------------------------- 复合操作（编辑批次）
 
 
+def _merged_provenance(segs: list[sqlite3.Row]) -> dict[str, Any]:
+    """合并出来的段的来源：由哪几段合成，以及各段的原文（按时间；``raw`` = 连起来，``raws`` = 逐段，手动加的段没有原文）。"""
+    raws = [(loads(s["provenance"]) or {}).get("raw") if s["provenance"] else None for s in segs]
+    out: dict[str, Any] = {"from": [s["id"] for s in segs]}
+    if any(r is not None for r in raws):
+        out |= {"raw": "\n".join(r for r in raws if r is not None), "raws": raws}
+    return out
+
+
 class TextLayer:
     def __init__(self, conn: sqlite3.Connection, edits: EditService, on_change: Callable[[ChangeSet], None] | None = None) -> None:
         self.conn = conn
@@ -376,7 +387,7 @@ class TextLayer:
             "source_id": segs[0]["source_id"], "start": min(s["start"] for s in segs), "end": max(s["end"] for s in segs),
             "text": text if text is not None else "\n".join(s["text"] for s in segs), "speakers": names,
             "origin": "subtitle" if all(s["origin"] == "subtitle" for s in segs) else "typed",
-            "provenance": {"from": [s["id"] for s in segs]}, "edited": True}})
+            "provenance": _merged_provenance(segs), "edited": True}})
         edit_id, changes = self._apply({"label": {"code": "segment-merge", "args": {"n": len(segs)}}, "ops": ops})
         new = sorted(changes.entities.get("segment", set()) - {s["id"] for s in segs})
         return {"id": new[0] if new else None, "editId": edit_id}
@@ -392,7 +403,7 @@ class TextLayer:
         """按当前规则重新生成说话人：只动字幕来源、未受保护、说话人没被手改过的段（从来源记录里的原文重新提取）。"""
         rules = subtitle_rules.SubtitleRules.build(settings_mod.values(self.conn))
         rows = self.conn.execute(
-            f'SELECT t.id, t.version, t.speakers, t.provenance FROM text_segment t WHERE t.source_id=? AND t.deleted=0 AND t.origin=\'subtitle\''
+            f'SELECT t.id, t.version, t.speakers, t.speakers_withheld, t.provenance FROM text_segment t WHERE t.source_id=? AND t.deleted=0 AND t.origin=\'subtitle\''
             f" AND t.speaker_edited=0 AND NOT {protected_sql('t')} ORDER BY t.start",
             (source_id,),
         ).fetchall()
@@ -403,8 +414,10 @@ class TextLayer:
                 continue
             c = subtitle_rules.classify(raw, rules)
             names = list(c.speakers) if c.kind == "line" else []
-            if names != loads(r["speakers"]):
-                ops.append({"entity": "segment", "id": r["id"], "version": r["version"], "fields": {"speakers": names, "speaker_edited": False}})
+            withheld = c.kind == "line" and c.withheld
+            if names != loads(r["speakers"]) or withheld != bool(r["speakers_withheld"]):
+                ops.append({"entity": "segment", "id": r["id"], "version": r["version"],
+                            "fields": {"speakers": names, "speaker_edited": False, "speakers_withheld": withheld}})
         if not ops:
             return {"changed": 0, "editId": None}
         edit_id, _ = self._apply({"label": {"code": "speakers-regenerate", "args": {"n": len(ops)}}, "ops": ops})

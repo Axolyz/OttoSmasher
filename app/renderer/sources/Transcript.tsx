@@ -101,6 +101,11 @@ export function Transcript(props: {
                 <span className={`${s.muted} num`}>{clock(r.seg.start, 1)}</span>
                 <span className={s.who} lang="ja" data-user-data="">
                   {r.seg.speakers.join(t("settings.subtitle.speakerSep"))}
+                  {r.seg.speakersWithheld ? (
+                    <span className={s.segFlags} data-testid="seg-withheld" title={t("seg.withheld")}>
+                      ?
+                    </span>
+                  ) : null}
                 </span>
                 <span className={s.segText}>
                   <span lang="ja" data-user-data="">

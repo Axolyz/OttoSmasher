@@ -142,28 +142,33 @@ class SubtitleImporter:
         hint_rows: list[dict[str, Any]] = []
         for cue in parsed.cues:
             c = subtitle_rules.classify(cue.text, rules)
-            is_line = c.kind == "line"
-            row: dict[str, Any] = {
-                "no": cue.order, "ref": cue.ref, "start": cue.start, "end": cue.end, "raw": cue.text,
-                "text": c.align_text if is_line else c.name, "speakers": list(c.speakers) if is_line else [],
-                "status": "pending", "reason": None, "conflicts": [], "forced": False,
-            }
-            reason = None
-            if cue.start < 0:
-                reason = "negative-start"
-            elif not cue.end > cue.start:
-                reason = "empty"
-            elif cue.end > duration + DURATION_EPS:
-                reason = "beyond-end"
-            elif not row["text"].strip():
-                reason = "no-text"
-            if reason is not None:
-                row["status"], row["reason"] = "invalid", reason
-            elif not o["segments" if is_line else "hints"]:
-                row["status"], row["reason"] = "excluded", "category-off"
-            elif cue.order in o["exclude"]:
-                row["status"], row["reason"] = "excluded", "unchecked"
-            (seg_rows if is_line else hint_rows).append(row)
+            # 一条字幕可以同时有台词（→ 段）和音效行（→ 音效提示）
+            parts: list[tuple[bool, dict[str, Any]]] = []
+            if c.kind == "line":
+                parts.append((True, {"text": c.align_text, "speakers": list(c.speakers), "withheld": c.withheld}))
+            if c.sfx:
+                parts.append((False, {"text": c.sfx, "speakers": []}))
+            for is_line, part in parts:
+                row: dict[str, Any] = {
+                    "no": cue.order, "ref": cue.ref, "start": cue.start, "end": cue.end, "raw": cue.text, **part,
+                    "status": "pending", "reason": None, "conflicts": [], "forced": False,
+                }
+                reason = None
+                if cue.start < 0:
+                    reason = "negative-start"
+                elif not cue.end > cue.start:
+                    reason = "empty"
+                elif cue.end > duration + DURATION_EPS:
+                    reason = "beyond-end"
+                elif not row["text"].strip():
+                    reason = "no-text"
+                if reason is not None:
+                    row["status"], row["reason"] = "invalid", reason
+                elif not o["segments" if is_line else "hints"]:
+                    row["status"], row["reason"] = "excluded", "category-off"
+                elif cue.order in o["exclude"]:
+                    row["status"], row["reason"] = "excluded", "unchecked"
+                (seg_rows if is_line else hint_rows).append(row)
         doomed_segs = self._match(seg_rows, existing["segments"], o, o["force"])
         doomed_hints = self._match(hint_rows, existing["hints"], o, o["force"])
 
@@ -257,7 +262,7 @@ class SubtitleImporter:
                 if r["status"] in ("new", "replace"):
                     ops.append({"entity": "segment", "op": "create", "fields": {
                         "source_id": source_id, "start": r["start"], "end": r["end"], "text": r["text"],
-                        "speakers": r["speakers"] if o["speakers"] else [], "origin": "subtitle",
+                        "speakers": r["speakers"] if o["speakers"] else [], "speakers_withheld": bool(o["speakers"] and r["withheld"]), "origin": "subtitle",
                         "provenance": prov_base | {"line": r["no"], "ref": r["ref"], "raw": r["raw"]}}})
                     created["segments"] += 1
             for r in pv["hints"]:

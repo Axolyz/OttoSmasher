@@ -417,6 +417,11 @@ export function SubtitleImportSheet(props: { source: SourceRow | null; onClose: 
                             render: (r: Line) => (
                               <span lang="ja" data-user-data="">
                                 {opts.speakers ? r.speakers.join(t("settings.subtitle.speakerSep")) : ""}
+                                {opts.speakers && r.withheld ? (
+                                  <span className={s.segFlags} title={t("seg.withheld")}>
+                                    ?
+                                  </span>
+                                ) : null}
                               </span>
                             ),
                           },

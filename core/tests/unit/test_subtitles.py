@@ -87,42 +87,52 @@ def rules():
     return sr.SubtitleRules.build(DEFAULTS, check=True)
 
 
-# 规格 06 §6.2.1 表格 + 16 R4.4、R4.5、R5.1 的例子（种类、名称、说话人、对齐文本）
+# 规格 06 §6.2.1 表格 + 16 R4.4、R4.5、R5.1 的例子；所有者 2026-10-31【基线变更】：逐行读、宁可丢不写错
+# （种类、名称、说话人、对齐文本、音效、有标注没记）
 @pytest.mark.parametrize(
-    "text,kind,name,speakers,align",
+    "text,kind,name,speakers,align,sfx,withheld",
     [
-        ("（ドア）（足音）", "sfx", "ドア / 足音", [], ""),
-        ("(足音)(扉)", "sfx", "足音 / 扉", [], ""),
-        ("（足音(走る)）（扉）", "sfx", "足音(走る) / 扉", [], ""),
-        ("  （悲鳴）\n（倒れる音） ", "sfx", "悲鳴 / 倒れる音", [], ""),
-        ("（京子）こんにちは", "line", "こんにちは", ["京子"], "こんにちは"),
-        ("台詞（結衣）続き", "line", "台詞続き", ["結衣"], "台詞続き"),
-        ("aaa（xxx）yyy", "line", "aaayyy", ["xxx"], "aaayyy"),
-        ("（yy（zzz））aaa（xxx）yyy", "line", "aaayyy", ["yy", "xxx"], "aaayyy"),
-        ("(京子)(結衣)こんにちは", "line", "こんにちは", ["京子", "結衣"], "こんにちは"),
-        # 说话人名里嵌套的读音默认去掉（所有者 2026-10-24【基线变更】：清理规则默认 = 原规格界面给的示例）
-        ("（京子(きょうこ)たち）アッカリ～ン", "line", "アッカリ～ン", ["京子たち"], "アッカリ～ン"),
-        ("（京子(きょうこ)たち）台詞", "line", "台詞", ["京子たち"], "台詞"),
-        ("歳納(としのう)京子！", "line", "歳納京子！", ["としのう"], "歳納京子！"),
-        ("（ドアチャイム）\nウワーッ！", "line", "ウワーッ！", ["ドアチャイム"], "ウワーッ！"),
-        ("普通の台詞", "line", "普通の台詞", [], "普通の台詞"),
-        # 名称里的换行以空格连接；对齐文本保留换行
-        ("一行目\n二行目", "line", "一行目 二行目", [], "一行目\n二行目"),
-        # 同一说话人出现两次只记一次
-        ("（京子）あ\n（京子）い", "line", "あ い", ["京子"], "あ\nい"),
-        ("♪～", "line", "♪～", [], "♪～"),
-        ("", "line", "", [], ""),
+        ("（ドア）（足音）", "sfx", "ドア / 足音", [], "", "ドア / 足音", False),
+        ("(足音)(扉)", "sfx", "足音 / 扉", [], "", "足音 / 扉", False),
+        ("（足音(走る)）（扉）", "sfx", "足音(走る) / 扉", [], "", "足音(走る) / 扉", False),
+        ("  （悲鳴）\n（倒れる音） ", "sfx", "悲鳴 / 倒れる音", [], "", "悲鳴 / 倒れる音", False),
+        ("（ドアが\n開く音）", "sfx", "ドアが\n開く音", [], "", "ドアが\n開く音", False),  # 括号里的换行不切行
+        ("（京子）こんにちは", "line", "こんにちは", ["京子"], "こんにちは", "", False),
+        # 台词中间的括号从不当人名（读音、注释），只从台词里去掉
+        ("台詞（結衣）続き", "line", "台詞続き", [], "台詞続き", "", False),
+        ("歳納(としのう)京子！", "line", "歳納京子！", [], "歳納京子！", "", False),
+        ("（yy（zzz））aaa（xxx）yyy", "line", "aaayyy", ["yy"], "aaayyy", "", False),
+        ("(京子)(結衣)こんにちは", "line", "こんにちは", ["京子", "結衣"], "こんにちは", "", False),  # 行首连着的几个标注
+        ("（虹夏、リョウ）せーの", "line", "せーの", ["虹夏", "リョウ"], "せーの", "", False),  # 几个人同时说
+        # 说话人名里嵌套的读音默认去掉（所有者 2026-10-24【基线变更】）
+        ("（京子(きょうこ)たち）アッカリ～ン", "line", "アッカリ～ン", ["京子たち"], "アッカリ～ン", "", False),
+        ("普通の台詞", "line", "普通の台詞", [], "普通の台詞", "", False),
+        ("一行目\n二行目", "line", "一行目 二行目", [], "一行目\n二行目", "", False),
+        # 每行都标了才记；同一个人只记一次；不同的人 = 多人
+        ("（京子）あ\n（京子）い", "line", "あ い", ["京子"], "あ\nい", "", False),
+        ("（京子）あ\n（結衣）い", "line", "あ い", ["京子", "結衣"], "あ\nい", "", False),
+        # 有一行没标 → 不记，记“有标注没记”（没标的行从不跟上一行）
+        ("（京子）あ\nい", "line", "あ い", [], "あ\nい", "", True),
+        ("あ\n（京子）い", "line", "あ い", [], "あ\nい", "", True),
+        # 只有括号的一行：下一行是没标注的台词时两样都不认（可能是单独一行的人名）
+        ("（ドアチャイム）\nウワーッ！", "line", "ウワーッ！", [], "ウワーッ！", "", True),
+        # 下一行自己有标注、或者在最后 → 音效，台词照常
+        ("（園児たちの笑い声）\n（園児）私も～！", "line", "私も～！", ["園児"], "私も～！", "園児たちの笑い声", False),
+        ("うん\n（足音）", "line", "うん", [], "うん", "足音", False),
+        ("♪～", "line", "♪～", [], "♪～", "", False),
+        ("", "line", "", [], "", "", False),
     ],
 )
-def test_default_classification(rules, text, kind, name, speakers, align):
+def test_default_classification(rules, text, kind, name, speakers, align, sfx, withheld):
     c = sr.classify(text, rules)
-    assert (c.kind, c.name, list(c.speakers), c.align_text) == (kind, name, speakers, align)
+    assert (c.kind, c.name, list(c.speakers), c.align_text, c.sfx, c.withheld) == (kind, name, speakers, align, sfx, withheld)
 
 
 def test_split_and_clean_rules():
     rs = sr.SubtitleRules.build({**DEFAULTS, "subtitle.speaker_split": "[･・＆&、/／]", "subtitle.speaker_clean": "[（(][^（）()]*[）)]"}, check=True)
     assert sr.classify("（京子(きょうこ)）こんにちは", rs).speakers == ("京子",)
     assert sr.classify("（結衣･ちなつ）わあ…", rs).speakers == ("結衣", "ちなつ")
+    assert sr.classify("（結衣、ちなつ）わあ", sr.SubtitleRules.build({**DEFAULTS, "subtitle.speaker_split": ""})).speakers == ("結衣、ちなつ",)  # 清空 = 不拆
     # 拆分规则带捕获组也不会带出空名字
     rs2 = sr.SubtitleRules.build({**DEFAULTS, "subtitle.speaker_split": "(･)"}, check=True)
     assert sr.classify("（結衣･ちなつ）わあ", rs2).speakers == ("結衣", "ちなつ")

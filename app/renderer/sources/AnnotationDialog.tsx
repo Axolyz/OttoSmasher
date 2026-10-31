@@ -310,6 +310,19 @@ export function AnnotationDialog(props: { target: AnnTarget | null; duration: nu
                     />
                     <Button size="sm" variant="flat" icon={<Plus />} onPress={addDraft} isDisabled={!draft.trim()} aria-label={t(isTag ? "ann.addTag" : "seg.addSpeaker")} />
                   </div>
+                  {tg?.mode === "edit-segment" && tg.seg.speakersWithheld ? (
+                    <span className={s.hint} data-testid="seg-withheld-note">
+                      {t("seg.withheld")}
+                      {tg.seg.raw ? (
+                        <>
+                          {" "}
+                          <span lang="ja" data-user-data="">
+                            {t("seg.withheldRaw", { raw: tg.seg.raw.replace(/\n/g, " / ") })}
+                          </span>
+                        </>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </div>
               </>
             ) : null}

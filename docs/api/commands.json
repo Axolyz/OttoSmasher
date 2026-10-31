@@ -4852,6 +4852,7 @@
   },
   "Classified": {
    "title": "Classified",
+   "description": "一条字幕按规则读成什么：有台词 = line（台词与音效可以同时有）；``sfx`` = 这一条的音效（没有 = 空）；\n    ``withheld`` = 原文里有标注，但没法确定每一行是谁说的，所以没记说话人。",
    "type": "object",
    "properties": {
     "alignText": {
@@ -4866,18 +4867,26 @@
     "name": {
      "type": "string"
     },
+    "sfx": {
+     "type": "string"
+    },
     "speakers": {
      "type": "array",
      "items": {
       "type": "string"
      }
+    },
+    "withheld": {
+     "type": "boolean"
     }
    },
    "required": [
     "alignText",
     "kind",
     "name",
-    "speakers"
+    "sfx",
+    "speakers",
+    "withheld"
    ]
   },
   "ConfirmClosed": {
@@ -15794,6 +15803,9 @@
     "ref": {
      "type": "string"
     },
+    "sfx": {
+     "type": "string"
+    },
     "speakers": {
      "type": "array",
      "items": {
@@ -15805,6 +15817,9 @@
     },
     "text": {
      "type": "string"
+    },
+    "withheld": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -15813,9 +15828,11 @@
     "no",
     "raw",
     "ref",
+    "sfx",
     "speakers",
     "start",
-    "text"
+    "text",
+    "withheld"
    ]
   },
   "SubtitleParsedOped": {
@@ -16085,6 +16102,9 @@
     },
     "text": {
      "type": "string"
+    },
+    "withheld": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -16513,6 +16533,9 @@
       "type": "string"
      }
     },
+    "speakersWithheld": {
+     "type": "boolean"
+    },
     "start": {
      "type": "number"
     },
@@ -16539,6 +16562,7 @@
     "raw",
     "speakerEdited",
     "speakers",
+    "speakersWithheld",
     "start",
     "text",
     "usedBy",

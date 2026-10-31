@@ -15,14 +15,25 @@ parameters from `otto describe`, and the owner's playbook (`otto guide playbook`
 
 ## Cleaning subtitles
 
-Goal: one UTF-8 `.srt` per episode with **exactly the same name** as the video, each cue holding only the words actually spoken; put the speaker in a leading bracket when you can tell, otherwise leave it out (fansub subtitles usually have no speakers; that is normal).
-The original `.ass` can stay (with the same name the app prefers `.srt`). (Keep a `backup_` copy before changing the owner's files — see the ground rules in the overview.)
+Goal: one UTF-8 `.srt` per episode with **exactly the same name** as the video, each cue holding only the words actually spoken. The original `.ass` can stay (with the same name the app prefers `.srt`). (Keep a `backup_` copy before changing the owner's files — see the ground rules in the overview.)
+
+**How to write speakers** (the app reads only this form, see topic `prepare`; where a file departs from it the app records nothing rather than guessing):
+- One cue = one person's continuous speech. Cues holding two people (common in CC subtitles): find the boundary with `speech.align` `lines` and split into two cues
+  (window = cue time ± 0.2 s; cut at the middle of the gap between the two lines, and let the two cues extend to the speech the alignment found); if one line aligns to under 0.1 s
+  it was most likely not found in the vocals (overlapping someone else, or outside the window) — leave that cue unsplit and unlabelled. Splitting needs the vocals, so separate first, then clean.
+- Label **every speech line** with a leading `（name）`, or leave it out when unknown; several people at once: `（A、B）`; one name per character for the whole season.
+- Sounds go in a cue of their own (a whole-line bracket, same timing as the original cue); no other brackets inside speech (drop readings; for words that are actually spoken, drop just the brackets).
+- Sources label differently (first line only, second line only, a name on its own line…): check up the file first (see "Grouping lines by speaker"), decide, and write explicit names; when you cannot tell, write none.
+  Unlabelled cues can be filled from voiceprints (same section).
+
+On 2026-10-31 the 12 episodes of Bocchi the Rock! were cleaned this way (a copy is in the owner's bangumi folder): of 227 two-person cues 210 were split and 17 left alone because one line was not found;
+of 2882 unlabelled cues 2129 got a speaker from voiceprints (calibrated to 97% precision), the rest none.
 
 Common problems and fixes:
 - **Fansub bilingual Chinese–Japanese ASS** (most common): keep only the Japanese, by style name (`JP` / `CN` and the like) or by the text; when one event stacks two languages with `\N`, keep the Japanese line;
   remove override tags and effect-only lines (titles, notes, translations of on-screen text); delete OP/ED and insert-song lyric lines and write `♪～` / `～♪` markers at their timings, or `oped.add` after importing.
 - Readings in the spoken text `歳納(としのう)京子` → remove the brackets.
-- A cue with a sound on the first line and speech on the second → split it into two cues with the same timing.
+- A cue with a sound on the first line and speech on the second → split it into two cues with the same timing (one sound, one speech).
 - Humming written as `♪（ハミング）` → make it a sound line `（ハミング）`, or write out the lyrics.
 - Subtitle name differs from the video (extra prefix, language suffix) → write a same-name copy. With both a machine transcript (`.ja.srt`) and proper subtitles, prefer the proper ones (they have speakers).
 - Embedded subtitles: extract with `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`; image subtitles need text recognition first.
@@ -31,7 +42,7 @@ Common problems and fixes:
 - No subtitles: you may run speech recognition locally and write a same-name `.srt`.
 
 Checking the result: `subtitles.parse {"path", "duration"}`, or (for registered sources) `sources.rescan --wait` → `subtitles.preview {"sourceId"}`;
-look at `speakers` (pieces of speech, readings or odd names = brackets left over), `problems`, the `text` to be aligned, and `oped`.
+look at `speakers` (pieces of speech, readings or odd names = brackets left over), cues with `withheld` true (labels present but not recorded: cues not fully labelled yet), `problems`, the `text` to be aligned, and `oped`.
 
 ## Retiming: rough first, then refine with alignment
 
@@ -84,8 +95,9 @@ The owner usually cares only about the named main characters: minor characters m
   vary a lot between sources (in the subtitles tried, consecutive labelled cues named the same person 3% to 47% of the time; cues labelled only on the second line ranged from none to over a thousand).
   Count these first, then decide how far to trust the labels.
 - Fansub subtitles usually have no labels; CC subtitles label only when the speaker is not obvious, so labelled lines tend to be the harder ones.
-- The app merges the lines of one cue into one segment; `subtitles.parse` gives the original text in `raw` — take the labels from it yourself
-  (a parenthesis alone on a line labels the next line; reading parentheses are not names; 人, たち, 一同 and the like are several people).
+- The app reads speakers only in the cleaned form and records nothing when unsure: a segment's `speakers` are only what could be read **for certain** (uncleaned, Bocchi kept only about 60% of its labels),
+  and segments with `speakersWithheld` true still have labels in their original text. Read label samples yourself from the segments' `raw` (original text) or the subtitle file, and interpret them by the check-up
+  (a bracket alone on a line may label the next line; reading brackets are not names; 人, たち, 一同 and the like are several people). Once the subtitles are cleaned, `speakers` is everything.
 
 **Material**
 - Use separated vocals, not the original mix. The vocal track: `assets.tracks`; export: `exports.wav` (its `mapping` maps file seconds to source seconds).

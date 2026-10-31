@@ -1404,10 +1404,15 @@ class SubtitleProblem(TypedDict):
 
 
 class Classified(TypedDict):
+    """一条字幕按规则读成什么：有台词 = line（台词与音效可以同时有）；``sfx`` = 这一条的音效（没有 = 空）；
+    ``withheld`` = 原文里有标注，但没法确定每一行是谁说的，所以没记说话人。"""
+
     kind: Literal["line", "sfx"]
     name: str
     speakers: list[str]
     alignText: str
+    sfx: str
+    withheld: bool
 
 
 class RuleTestParams(TypedDict):
@@ -1455,6 +1460,8 @@ class SubtitleRow(TypedDict):
     # 段文本（= 对齐文本）或音效提示文字
     text: str
     speakers: list[str]
+    # 段：原文里有标注，但没法确定每一行是谁说的，所以没记说话人
+    withheld: NotRequired[bool]
     status: SubtitleStatus
     reason: str | None
     conflicts: list[SubtitleConflict]
@@ -1608,14 +1615,18 @@ class TextSegment(TypedDict):
     start: float
     end: float
     text: str
+    # 按规则**确定能读出**的说话人；空 = 不知道（不是“没人说”）。完整的标注信息看 ``raw``
     speakers: list[str]
     origin: Literal["subtitle", "typed"]
     edited: bool
     speakerEdited: bool
+    # 原文（``raw``）里有标注，但没法确定每一行是谁说的，所以没记；说话人被改过之后为假
+    speakersWithheld: bool
     manual: bool
     protected: bool
     # 读这一段的采样数（P13：“这段被 N 个采样使用”）
     usedBy: int
+    # 原字幕这一条的原文（编辑、拆分后仍保留；合并后 = 各段原文按时间连起来）；手动加的段没有
     raw: str | None
     oped: Literal["OP", "ED"] | None
     # 给了 assetId 时：这段在那条资产上的分析状态
@@ -2934,6 +2945,10 @@ class SubtitleParsedCue(TypedDict):
     kind: Literal["line", "sfx"]
     text: str
     speakers: list[str]
+    # 这一条的音效（台词条里也可能有音效行；没有 = 空）
+    sfx: str
+    # 原文里有标注，但没法确定每一行是谁说的，所以没记说话人
+    withheld: bool
 
 
 class SubtitleParsedPair(TypedDict):

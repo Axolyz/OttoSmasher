@@ -250,11 +250,17 @@ export interface ChainStep {
   sourceStart: number;
 }
 
+/**
+ * 一条字幕按规则读成什么：有台词 = line（台词与音效可以同时有）；``sfx`` = 这一条的音效（没有 = 空）；
+ *     ``withheld`` = 原文里有标注，但没法确定每一行是谁说的，所以没记说话人。
+ */
 export interface Classified {
   alignText: string;
   kind: "line" | "sfx";
   name: string;
+  sfx: string;
   speakers: string[];
+  withheld: boolean;
 }
 
 export interface ConfirmClosed {
@@ -2538,9 +2544,11 @@ export interface SubtitleParsedCue {
   no: number;
   raw: string;
   ref: string;
+  sfx: string;
   speakers: string[];
   start: number;
   text: string;
+  withheld: boolean;
 }
 
 export interface SubtitleParsedOped {
@@ -2602,6 +2610,7 @@ export interface SubtitleRow {
   start: number;
   status: "excluded" | "invalid" | "new" | "replace" | "skip" | "unchanged";
   text: string;
+  withheld?: boolean;
 }
 
 export interface SubtitleSpeaker {
@@ -2699,6 +2708,7 @@ export interface TextSegment {
   raw: string | null;
   speakerEdited: boolean;
   speakers: string[];
+  speakersWithheld: boolean;
   start: number;
   text: string;
   usedBy: number;

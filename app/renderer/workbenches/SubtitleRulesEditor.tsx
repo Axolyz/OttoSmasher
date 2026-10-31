@@ -129,7 +129,20 @@ export function SubtitleRulesEditor(props: { settings: Record<string, SettingEnt
             <dd lang="ja" data-testid="trial-speakers">
               {result.speakers.length ? result.speakers.join(t("settings.subtitle.speakerSep")) : t("settings.subtitle.none")}
               {result.speakers.length > 1 ? <span className={s.note}>{t("settings.subtitle.participants")}</span> : null}
+              {result.withheld ? (
+                <span className={s.note} data-testid="trial-withheld">
+                  {t("settings.subtitle.withheld")}
+                </span>
+              ) : null}
             </dd>
+            {result.kind === "line" && result.sfx ? (
+              <>
+                <dt>{t("subtitle.kind.sfx")}</dt>
+                <dd lang="ja" data-testid="trial-sfx">
+                  {result.sfx}
+                </dd>
+              </>
+            ) : null}
             <dt>{t("settings.subtitle.alignText")}</dt>
             <dd lang="ja" className={s.pre} data-testid="trial-align">
               {result.kind === "sfx" ? t("settings.subtitle.noAlign") : result.alignText || t("settings.subtitle.none")}

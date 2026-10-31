@@ -61,6 +61,13 @@ test("字幕规则：试算、可选规则、校验、保存与撤销", async ()
   await trial.fill("（悲鳴）\n（倒れる音）");
   await expect(ed.getByTestId("trial-kind")).toHaveText("音效");
   await expect(ed.getByTestId("trial-name")).toHaveText("悲鳴 / 倒れる音");
+  // 逐行读（所有者 2026-10-31【基线变更】）：有一行没标 → 不记、提示“有标注没记”；同一条里的音效行另成音效
+  await trial.fill("（京子）あ\nい");
+  await expect(ed.getByTestId("trial-speakers")).toContainText("—");
+  await expect(ed.getByTestId("trial-withheld")).toBeVisible();
+  await trial.fill("（園児たちの笑い声）\n（園児）私も～！");
+  await expect(ed.getByTestId("trial-speakers")).toHaveText("園児");
+  await expect(ed.getByTestId("trial-sfx")).toHaveText("園児たちの笑い声");
 
   // 填入拆分与清理示例 → 草稿立即生效
   await trial.fill("（結衣･ちなつ(ちなつ)）わあ…");
@@ -90,6 +97,6 @@ test("字幕规则：试算、可选规则、校验、保存与撤销", async ()
   await page.screenshot({ path: ".cache/playwright-results/settings-subtitle.png" });
   await page.keyboard.press("Escape");
   await page.getByTestId("undo").click();
-  await expect.poll(values).toEqual(["", "[（(][^（）()]*[）)]"]);
+  await expect.poll(values).toEqual(["、", "[（(][^（）()]*[）)]"]);
   await app.close();
 });

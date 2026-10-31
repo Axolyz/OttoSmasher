@@ -16,10 +16,15 @@ Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once
 - **Association**: a `.srt` with **exactly the same name** in the media's folder wins, then `.ass`; then same name plus a suffix (`<video name>.ja.srt`, Japanese suffixes first), then the same in a subtitle subfolder of that folder (`Subs`, `Sub`, `Subtitles`, `字幕` and the like, case-insensitive). Association only; importing is a separate step. UTF-8 is required.
 - Subtitle streams **embedded** in video files are **not read**; image subtitles (PGS, VobSub) are pictures, not text.
 - **ASS**: Dialogue lines of every style are read, without telling styles apart (the Chinese line of bilingual subtitles also becomes a line); `{…}` override tags and `<…>` are removed, `\N` is a line break, Comment lines are skipped.
-- **How each line is read** (the rules are in the settings and can be changed):
-  - A full-width bracket holds the speaker: `（京子）こんにちは`. **Every** outermost bracket in a line counts, so a reading inside the spoken text `歳納(としのう)京子` becomes a speaker 「としのう」;
-    readings nested inside speaker names are dropped by default: `（京子(きょうこ)たち）` → 「京子たち」.
-  - A line that is only a bracket is a sound: `（足音）`. When a cue's first line is a sound and the second is speech, the whole cue is read as "speaker + speech", so the sound becomes a speaker.
+- **How each line is read** (the rules are in the settings and can be changed; line by line, recording less rather than recording wrong):
+  - A bracket at the **start** of a speech line is that line's speaker: `（京子）こんにちは`; `（虹夏、リョウ）せーの` = several people at once. Readings nested inside names are dropped by default: `（京子(きょうこ)たち）` → 「京子たち」.
+  - Brackets in the middle of speech are never names; they are only removed from the text: `歳納(としのう)京子` → text 「歳納京子」.
+  - A line that is only a bracket is a sound: `（足音）` (line breaks inside brackets do not count). **But when the next line is unlabelled speech, it is read as neither sound nor speaker** (it may be a name written on its own line).
+    A cue with both a sound line and speech gives one of each: a sound hint and a segment.
+  - An unlabelled speech line = speaker unknown; it **never inherits the previous line**. A cue records speakers only when **every speech line is labelled** (different names = several people);
+    if one line is unlabelled nothing is recorded and the segment's `speakersWithheld` is true.
+  - So a segment's `speakers` are the speakers that could be read **for certain**; empty = unknown, not "nobody". The full labels are in the segment's `raw` (the original text of that cue; kept through edits and splits, joined from the parts after a merge).
+    To get speakers on every cue, first clean the subtitles into "one person per cue, every speech line labelled".
   - Lines starting `♪～` / ending `～♪` mark the OP / ED (`〜` is recognised too).
   - A line like `♪（ハミング）` becomes speech that is just "♪"; speech analysis fails with `frontend-failed` (`empty-text`).
 - **Line text is the alignment text**: speech analysis aligns the audio to it, so it must be the words actually spoken (Japanese only for now); translations or notes inside make alignment wrong or fail.

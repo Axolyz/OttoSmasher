@@ -123,7 +123,7 @@ class PrimitiveService:
             c = subtitle_rules.classify(cue.text, rules)
             line = c.kind == "line"
             cues.append({"no": cue.order, "ref": cue.ref, "start": cue.start, "end": cue.end, "raw": cue.text, "kind": c.kind,
-                         "text": c.align_text if line else c.name, "speakers": list(c.speakers) if line else []})
+                         "text": c.align_text if line else c.name, "speakers": list(c.speakers) if line else [], "sfx": c.sfx, "withheld": c.withheld})
             for n in c.speakers if line else ():
                 speakers[n] = speakers.get(n, 0) + 1
         dur = duration if duration is not None else max((c.end for c in parsed.cues), default=0.0)

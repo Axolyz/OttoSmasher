@@ -179,3 +179,22 @@ def test_speakers_follow_segments_and_only_vocal_assets(db, tmp_path):
     s0 = tl.list_for_source(db, sid)["segments"][0]
     edits.apply({"ops": [{"entity": "segment", "id": s0["id"], "version": s0["version"], "fields": {"speakers": ["京子", "結衣"]}}]})
     assert {("participants:京子", "segment"), ("participants:結衣", "segment")} <= eff(db, sv)
+
+
+def test_withheld_speakers_sfx_lines_and_merged_raw(db, tmp_path):
+    """逐行读（所有者 2026-10-31【基线变更】）：有标注没记的段标出来；台词条里的音效行另成音效提示；合并保留各段原文。"""
+    sid, edits, layer = setup(db, tmp_path, [(1, 2, "（京子）あ\nい"), (3, 4, "（園児たちの笑い声）\n（園児）私も"), (5, 6, "（ドアチャイム）\nウワーッ")])
+    a, b, c = tl.list_for_source(db, sid)["segments"]
+    assert [(x["text"], x["speakers"], x["speakersWithheld"]) for x in (a, b, c)] == [("あ\nい", [], True), ("私も", ["園児"], False), ("ウワーッ", [], True)]
+    assert a["raw"] == "（京子）あ\nい"  # 完整的标注信息在原文里
+    assert [h["text"] for h in tl.list_for_source(db, sid)["hints"]] == ["園児たちの笑い声"]
+    # 说话人改过之后不再算“有标注没记”
+    edits.apply({"ops": [{"entity": "segment", "id": a["id"], "version": a["version"], "fields": {"speakers": ["京子"]}}]})
+    assert tl.get_segment(db, a["id"])["speakersWithheld"] is False
+    # 重新生成说话人顺带算出这个标记
+    db.execute("UPDATE text_segment SET speakers_withheld=0 WHERE id=?", (c["id"],))
+    assert layer.regenerate_speakers(sid)["changed"] == 1 and tl.get_segment(db, c["id"])["speakersWithheld"] is True
+    # 合并：来源记录带上各段原文（按时间）
+    m = layer.merge([c["id"], b["id"]])
+    got = tl.get_segment(db, m["id"])
+    assert got["raw"] == "（園児たちの笑い声）\n（園児）私も\n（ドアチャイム）\nウワーッ"

@@ -303,6 +303,7 @@ _register(
             "deleted": FieldSpec(v_bool),
             "edited": FieldSpec(v_bool),
             "speaker_edited": FieldSpec(v_bool),
+            "speakers_withheld": FieldSpec(v_bool),
         },
         creatable={
             "source_id": FieldSpec(v_text(min_len=1, max_len=64)),
@@ -405,7 +406,7 @@ _register(
 # 设置：键值对象，ID = 设置键，唯一字段 value；没存过的取默认值（版本 0）
 _register(EntitySpec("setting", "setting", {"value": FieldSpec(v_json, json=True)}))
 
-_BOOL_COLUMNS = {"starred", "deleted", "user_edited", "independent", "bind_pictures", "edited", "speaker_edited"}
+_BOOL_COLUMNS = {"starred", "deleted", "user_edited", "independent", "bind_pictures", "edited", "speaker_edited", "speakers_withheld"}
 # 段长度上限（秒）：采样读段的查询用它作下界（3 万条时保持 0.1 秒级）
 SEGMENT_MAX = 120.0
 # 段内容（分析对应的东西）：改了这些 → 段改过，旧分析停用

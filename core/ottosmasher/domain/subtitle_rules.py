@@ -1,19 +1,21 @@
-"""字幕规则与分类（规格 06 §6.2、16 R4.4–R4.7、R5.1）。原则 P10：程序里不写针对任何字幕写法的特判，全部是用户可编辑的规则。
+"""字幕规则与分类（规格 06 §6.2、16 R4.4–R4.7、R5.1；所有者 2026-10-31【基线变更】：逐行读、宁可丢不写错）。原则 P10：程序里不写针对任何字幕写法的特判，全部是用户可编辑的规则。
 
-五条规则（设置项，默认值见 ``default_rules.json``）：
+五条规则（设置项，默认值见 ``default_rules.json``），都按**行**用：
 
-- 音效整行（``subtitle.sfx_rule``，fullmatch）：整行完整匹配 → 音效；
-- 注释括号（``subtitle.note_rule``，命名组 ``content``，search 全部）：行内的注释段；
-- 说话人提取（``subtitle.speaker_rule``，命名组 ``name``，search 全部）：台词行里每个匹配 = 一个说话人；
-- 说话人名拆分（``subtitle.speaker_split``，可空）：把一个匹配拆成多个名字；
+- 音效行（``subtitle.sfx_rule``，fullmatch）：一行完整匹配 → 这一行是音效；
+- 注释括号（``subtitle.note_rule``，命名组 ``content``，search 全部）：行内的注释段（读音、说明），台词里去掉；
+- 说话人标注（``subtitle.speaker_rule``，命名组 ``name``）：**只在台词行的行首**匹配（可以连着几个）；台词中间的括号从不当人名；
+- 说话人名拆分（``subtitle.speaker_split``，默认 ``、`` = 几个人同时说）：把一个标注拆成多个名字；
 - 说话人名清理（``subtitle.speaker_clean``，可空）：从名字里删掉匹配部分。
 
-分类（默认规则下的例子见规格 06 §6.2.1 表格）：
+一条字幕先按行切开（括号里的换行不算，跨行的括号算一行），逐行读：
 
-- 音效：名称 = 各注释段内容（去首尾空白）用 `` / `` 连接；没有说话人、没有对齐文本；
-- 台词：对齐文本 = 原文去掉所有注释段后逐行去首尾空白、去空行，保留换行；名称 = 对齐文本的换行换成空格；
-  说话人 = 说话人规则的全部匹配，依次拆分、清理、去空白、去空、去重（保持出现顺序）。
-- 规则执行超时不静默：抛 ``subtitle-rule-timeout``（哪条规则），调用方整批失败并告诉用户（P6）。
+- 音效行：这一条的音效；**但下一行是没有标注的台词时两样都不认**（可能是单独占一行的人名），记“有标注没记”；
+- 台词行：行首有标注 = 这一行的说话人；没有 = 不知道，从不跟上一行；
+- 整条的说话人：每个台词行都有标注 → 这些名字（拆分、清理、去空、去重，保持顺序）；有一行没有 → 不记，有标注的话记“有标注没记”（``withheld``）。
+
+结果：台词（对齐文本 = 台词行去掉注释段后逐行去首尾空白、去空行，保留换行；名称 = 对齐文本的换行换成空格）与音效（名称 = 各音效行的注释段内容用 `` / `` 连接）可以同时有。
+规则执行超时不静默：抛 ``subtitle-rule-timeout``（哪条规则），调用方整批失败并告诉用户（P6）。
 """
 
 from __future__ import annotations
@@ -92,13 +94,17 @@ class SubtitleRules:
 
 @dataclass(frozen=True)
 class Classified:
+    """``kind``：有台词 = line，只有音效 = sfx；``sfx``：这一条的音效名称（没有 = 空）；``withheld``：原文里有标注，但没法确定每一行是谁说的，所以没记。"""
+
     kind: Literal["line", "sfx"]
     name: str
     speakers: tuple[str, ...]
     align_text: str
+    sfx: str = ""
+    withheld: bool = False
 
     def wire(self) -> dict[str, Any]:
-        return {"kind": self.kind, "name": self.name, "speakers": list(self.speakers), "alignText": self.align_text}
+        return {"kind": self.kind, "name": self.name, "speakers": list(self.speakers), "alignText": self.align_text, "sfx": self.sfx, "withheld": self.withheld}
 
 
 def _timeout(key: str) -> CoreError:
@@ -112,35 +118,93 @@ def _finditer(pat: regex.Pattern[str], text: str, key: str) -> list[regex.Match[
         raise _timeout(key) from None
 
 
-def _lines(text: str) -> list[str]:
-    return [ln.strip() for ln in text.split("\n") if ln.strip()]
+OPEN, CLOSE = "\uff08(", "\uff09)"  # 全角、半角括号
+
+
+def logical_lines(text: str) -> list[str]:
+    """按换行切成行，括号里的换行不切（跨行的音效描述算一行）；去首尾空白、去空行。"""
+    out, cur, depth = [], [], 0
+    for ch in text:
+        if ch == "\n" and depth == 0:
+            out.append("".join(cur))
+            cur = []
+            continue
+        depth += ch in OPEN
+        depth = max(0, depth - (ch in CLOSE))
+        cur.append(ch)
+    out.append("".join(cur))
+    return [x.strip() for x in out if x.strip()]
+
+
+def _is_sfx(line: str, rs: SubtitleRules) -> bool:
+    try:
+        return rs.sfx.fullmatch(line, timeout=rules_mod.MATCH_TIMEOUT) is not None
+    except TimeoutError:
+        raise _timeout("subtitle.sfx_rule") from None
+
+
+def _labels(line: str, rs: SubtitleRules) -> list[regex.Match[str]]:
+    """行首连着的说话人标注（一个都没有 = 空）。"""
+    out, pos = [], 0
+    while True:
+        try:
+            m = rs.speaker.match(line, pos, timeout=rules_mod.MATCH_TIMEOUT)
+        except TimeoutError:
+            raise _timeout("subtitle.speaker_rule") from None
+        if m is None or m.end() <= pos:
+            return out
+        out.append(m)
+        pos = m.end()
+        while pos < len(line) and line[pos].isspace():
+            pos += 1
+
+
+def _strip_notes(line: str, rs: SubtitleRules) -> str:
+    body = line
+    for m in reversed(_finditer(rs.note, line, "subtitle.note_rule")):  # 从后往前切，位置不受影响
+        body = body[: m.start()] + body[m.end() :]
+    return body.strip()
 
 
 def classify(text: str, rs: SubtitleRules) -> Classified:
-    try:
-        is_sfx = rs.sfx.fullmatch(text, timeout=rules_mod.MATCH_TIMEOUT) is not None
-    except TimeoutError:
-        raise _timeout("subtitle.sfx_rule") from None
-    notes = _finditer(rs.note, text, "subtitle.note_rule")
-    if is_sfx:
-        parts = [(m.group("content") or "").strip() for m in notes]
-        return Classified("sfx", SFX_JOINER.join(p for p in parts if p), (), "")
-    # 去掉所有注释段（从后往前切，位置不受影响）
-    body = text
-    for m in reversed(notes):
-        body = body[: m.start()] + body[m.end() :]
-    align = "\n".join(_lines(body))
-    return Classified("line", align.replace("\n", " "), tuple(_speakers(text, rs)), align)
+    lines = logical_lines(text)
+    sfx_lines = [_is_sfx(ln, rs) for ln in lines]
+    sfx_names: list[str] = []
+    dialog: list[tuple[list[str] | None, str]] = []  # (这一行的名字；None = 没有标注, 去掉注释后的台词)
+    withheld = False
+    for i, ln in enumerate(lines):
+        if sfx_lines[i]:
+            nxt = i + 1
+            if nxt < len(lines) and not sfx_lines[nxt] and not _labels(lines[nxt], rs):
+                withheld = True  # 可能是单独占一行的人名：音效、说话人都不认
+                continue
+            sfx_names += [p for p in ((m.group("content") or "").strip() for m in _finditer(rs.note, ln, "subtitle.note_rule")) if p]
+            continue
+        labels = _labels(ln, rs)
+        body = _strip_notes(ln, rs)
+        if body:
+            dialog.append((_names(labels, rs) if labels else None, body))
+    sfx = SFX_JOINER.join(sfx_names)
+    if not dialog and (sfx or not lines or all(sfx_lines)):
+        return Classified("sfx", sfx, (), "", sfx, False) if lines else Classified("line", "", (), "")
+    align = "\n".join(b for _, b in dialog)
+    names: list[str] = []
+    if dialog and all(n is not None for n, _ in dialog):
+        for n, _ in dialog:
+            names += [x for x in n or () if x not in names]
+    elif any(n is not None for n, _ in dialog):
+        withheld = True
+    return Classified("line", align.replace("\n", " "), tuple(names), align, sfx, withheld)
 
 
-def _speakers(text: str, rs: SubtitleRules) -> list[str]:
+def _names(labels: list[regex.Match[str]], rs: SubtitleRules) -> list[str]:
     out: list[str] = []
-    for m in _finditer(rs.speaker, text, "subtitle.speaker_rule"):
+    for m in labels:
         names = [m.group("name") or ""]
         if rs.split is not None:
             # 按分隔符的位置切开（不用 split()：规则里有捕获组时它会把分隔符本身也带出来）
             name = names[0]
-            cuts = [(m.start(), m.end()) for m in _finditer(rs.split, name, "subtitle.speaker_split") if m.end() > m.start()]
+            cuts = [(x.start(), x.end()) for x in _finditer(rs.split, name, "subtitle.speaker_split") if x.end() > x.start()]
             bounds = [0, *[x for c in cuts for x in c], len(name)]
             names = [name[bounds[i] : bounds[i + 1]] for i in range(0, len(bounds), 2)]
         for n in names:

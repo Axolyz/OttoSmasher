@@ -177,3 +177,36 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
   await expect(row).not.toContainText("結衣");
   await app.close();
 });
+
+// 逐行读（所有者 2026-10-31【基线变更】）：有标注但没标全的条不记说话人，台本、编辑框、导入预览都提示；同一条里的音效行另成音效提示
+test("有标注没记：台本与编辑框提示，音效行与台词各出一个", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-withheld-"));
+  const mkv = join(dir, "[Group] Withheld Show [01].mkv");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=6",
+    "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=6", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
+  writeFileSync(
+    join(dir, "[Group] Withheld Show [01].srt"),
+    "1\n00:00:01,000 --> 00:00:02,000\n（京子）あ\nい\n\n2\n00:00:03,000 --> 00:00:04,000\n（足音）\n（結衣）う\n",
+  );
+  const { app, page } = await launch();
+  await page.keyboard.press("Meta+2");
+  await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("source-group").first().click();
+  await page.getByTestId("source-row").first().click();
+  await page.getByTestId("transcript-import").click();
+  const sheet = page.getByTestId("subtitle-import");
+  await expect(sheet.getByTestId("stat-new")).toContainText("3"); // 两段台词 + 一条音效提示
+  await sheet.getByTestId("subimport-run").click();
+  const rows = page.getByTestId("transcript-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).getByTestId("seg-withheld")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("結衣");
+  await expect(rows.nth(1).getByTestId("seg-withheld")).toHaveCount(0);
+  await rows.nth(0).click({ button: "right" });
+  await page.getByTestId(/^menu-seg-edit:/).click();
+  const dlg = page.getByTestId("annotation-dialog");
+  await expect(dlg.getByTestId("seg-withheld-note")).toContainText("（京子）あ / い");
+  await page.screenshot({ path: ".cache/playwright-results/segment-withheld.png" });
+  await app.close();
+});
