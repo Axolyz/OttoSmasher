@@ -19,6 +19,8 @@ if (!paths.repo) {
   // 发布版：Core 用随包的 Python 与媒体工具；用户环境里的 Python 变量不能漏进来（15 §15.8 冒烟：清空 Python/Conda 环境变量）
   for (const k of ["PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "VIRTUAL_ENV", "CONDA_PREFIX", "CONDA_DEFAULT_ENV"]) delete process.env[k];
   process.env.PYTHONNOUSERSITE = "1";
+  // 字节码打包时已经编译好；运行时不往 .app 里写 __pycache__（会改动签过名的内容）
+  process.env.PYTHONDONTWRITEBYTECODE = "1";
   process.env.OTTO_RESOURCES = paths.resources;
   process.env.OTTO_FFMPEG = join(paths.resources, "bin", "ffmpeg");
   process.env.OTTO_FFPROBE = join(paths.resources, "bin", "ffprobe");

@@ -155,6 +155,9 @@ def copy_python(res: Path, need: dict[str, Path]) -> None:
         run(uv, "pip", "install", "--python", exe, "-r", req)
     run(uv, "pip", "install", "--python", exe, "--no-deps", "--reinstall-package", "ottosmasher-core", ROOT)
     run(exe, "-c", "import ottosmasher.core.server, onnxruntime, pyopenjtalk, numpy, scipy, regex, msgspec; print('python ok')")
+    # 预先编译字节码，运行时也不再写（PYTHONDONTWRITEBYTECODE）：否则用户第一次运行就往 .app 里写 __pycache__，改动签过名的内容
+    # （个别第三方包里带的旧语法测试文件编译不了，不影响运行，所以不检查返回码）
+    subprocess.run([str(exe), "-m", "compileall", "-q", "-j", "0", str(py / "lib" / "python3.12")], check=False, stdout=subprocess.DEVNULL)
 
 
 # ---------------------------------------------------------------- 支持文件与模型
@@ -254,7 +257,7 @@ while [ -L "$self" ]; do
 done
 R="$(cd "$(dirname "$self")/.." && pwd -P)"
 unset PYTHONHOME PYTHONPATH PYTHONSTARTUP VIRTUAL_ENV
-export PYTHONNOUSERSITE=1 OTTO_RESOURCES="$R" OTTO_FFMPEG="$R/bin/ffmpeg" OTTO_FFPROBE="$R/bin/ffprobe" OTTO_RUBBERBAND="$R/bin/rubberband"
+export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 OTTO_RESOURCES="$R" OTTO_FFMPEG="$R/bin/ffmpeg" OTTO_FFPROBE="$R/bin/ffprobe" OTTO_RUBBERBAND="$R/bin/rubberband"
 exec "$R/python/bin/python3" -m ottosmasher.cli "$@"
 """
 
