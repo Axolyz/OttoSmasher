@@ -3,7 +3,7 @@
 给开发者看的；普通用户看 [README](../README.md) 和 [用户使用说明](USER_GUIDE.md)。
 
 - 开发规则与**文档地图**：[AGENTS.md](../AGENTS.md)（先读它：每份文档回答什么、什么时候查）
-- 架构：[ARCHITECTURE.md](ARCHITECTURE.md)；界面方案：[UI_PLAN.md](UI_PLAN.md)；现行决定：[DECISIONS.md](DECISIONS.md)；路线图与未结事项：[ROADMAP.md](ROADMAP.md)
+- 架构：[ARCHITECTURE.md](ARCHITECTURE.md)；现行决定（含界面规则）：[DECISIONS.md](DECISIONS.md)；路线图与未结事项：[ROADMAP.md](ROADMAP.md)
 - 原始需求规格：[spec/](spec/README.md)（文档与代码里“规格 xx §y”“R4.4”“S11.3”指它）；过程记录：[history/](history/README.md)
 
 ## 准备环境（macOS arm64）

@@ -157,7 +157,7 @@ docs/       使用说明、架构、路线图、决定记录、第三方许可�
 
 - **问题与建议**：请[开 issue](https://github.com/Axolyz/OttoSmasher/issues)，附上系统版本、复现步骤，以及工作区 `Data/Logs/` 下的相关日志（注意别带上你不想公开的素材路径）。
 - **代码**：开发约定在 [AGENTS.md](AGENTS.md)（人和 AI 代理通用）；提交前跑一遍 [DEVELOPMENT.md](docs/DEVELOPMENT.md) 里的测试。
-  设计上的取舍与所有者的每条决定记在 [docs/QUESTIONS.md](docs/QUESTIONS.md)，改变既定行为前请先开 issue 讨论。
+  现行的设计决定在 [docs/DECISIONS.md](docs/DECISIONS.md)（原始需求规格在 [docs/spec/](docs/spec/README.md)），改变既定行为前请先开 issue 讨论。
 - **不要提交任何素材**（番剧、字幕、游戏语音等）；测试用合成音频，真实素材只在本地通过环境变量引用。
 
 ## 致谢
