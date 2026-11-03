@@ -56,9 +56,36 @@ export function SeparationDialog() {
   }, [models, preferred]);
   const chosen = models.find((m) => m.name === model) ?? null;
 
+  // 一个原素材出错（文件不在、没有音频）不挡其他的；分离任务在模型通道里一个个跑
+  const submitBatch = async (assetIds: string[], m: StudioModel) => {
+    let queued = 0;
+    let reused = 0;
+    const failed: string[] = [];
+    for (const assetId of assetIds) {
+      try {
+        const r = await call("separation.submit", { assetId, model: m.name, stems: stems.size ? m.stems.filter((x) => stems.has(x)) : null });
+        if (r.reused) reused += 1;
+        else queued += 1;
+      } catch (e) {
+        failed.push(e instanceof CoreFailure ? errorText(e.wire) : String(e));
+      }
+    }
+    toast({
+      text: t("sep.batchDone", { queued, reused, failed: failed.length }) + (failed[0] ? ` ${failed[0]}` : ""),
+      tone: failed.length ? "error" : "info",
+      action: queued ? { label: t("sep.openTasks"), run: () => setTasksOpen(true) } : undefined,
+    });
+    props.onClose();
+  };
+
   const submit = async () => {
     if (!inp || !chosen || busy) return;
     setBusy(true);
+    if (inp.batch) {
+      await submitBatch(inp.batch.assetIds, chosen);
+      setBusy(false);
+      return;
+    }
     try {
       const range = scope === "sel" && inp.selection ? { start: inp.selection.a, end: inp.selection.b } : {};
       const r = await call("separation.submit", {
@@ -86,7 +113,9 @@ export function SeparationDialog() {
   const device = String(settings["studio.device"]?.value ?? "auto");
   const inputText = !inp
     ? ""
-    : scope === "full"
+    : inp.batch
+      ? t("sep.inputBatch", { n: inp.batch.assetIds.length })
+      : scope === "full"
       ? t("sep.inputFull", { end: seconds(inp.duration), track: inp.trackLabel })
       : t("sep.inputSel", { a: clock(inp.selection?.a), b: clock(inp.selection?.b), track: inp.trackLabel });
 
@@ -120,15 +149,17 @@ export function SeparationDialog() {
           {errorText(status.error)}
         </Callout>
       ) : null}
-      <Segmented<Scope>
-        value={scope}
-        onChange={setScope}
-        label={t("sep.scope")}
-        options={[
-          { id: "full", label: t("sep.scopeFull") },
-          { id: "sel", label: t("sep.scopeSel"), isDisabled: !inp?.selection },
-        ]}
-      />
+      {inp?.batch ? null : (
+        <Segmented<Scope>
+          value={scope}
+          onChange={setScope}
+          label={t("sep.scope")}
+          options={[
+            { id: "full", label: t("sep.scopeFull") },
+            { id: "sel", label: t("sep.scopeSel"), isDisabled: !inp?.selection },
+          ]}
+        />
+      )}
       {status?.ok && status.models == null ? <div className={s.muted}>{t("sep.listing")}</div> : null}
       {missingPreferred ? <Callout tone="warn">{t("sep.preferredMissing", { model: preferred })}</Callout> : null}
       {status?.models ? (

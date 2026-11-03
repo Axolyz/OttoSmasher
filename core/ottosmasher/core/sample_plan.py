@@ -55,6 +55,8 @@ class SamplePlanner:
             out = self._stem(src)
         elif kind == "whole":
             out = self._whole(src)
+        elif src.get("sourceIds") is not None:
+            out = self._ranges_many(kind, src)
         else:
             out = self._ranges(kind, src)
         out["kind"] = kind
@@ -204,6 +206,27 @@ class SamplePlanner:
             items.append(it)
         track = None if asset is None else {"assetId": asset["id"], "roles": asset["roles"]}
         return {"items": items, "track": track, "missingDefault": role if (track_choice != "current" and asset is None) else None, "pads": list(pads)}
+
+    def _ranges_many(self, kind: str, src: dict[str, Any]) -> dict[str, Any]:
+        """多个原素材一起建（所有者 2026-11-03）：各用各的默认轨，规则与单个相同；缺默认轨又有内容的不列，记在 missingSources 里。"""
+        from .samples import source_display_name
+
+        items: list[dict[str, Any]] = []
+        missing: list[str] = []
+        pads: list[float] | None = None
+        for sid in dict.fromkeys(src["sourceIds"]):
+            one = self._ranges(kind, {"sourceId": sid, "track": "default"})
+            pads = one["pads"]
+            if one["missingDefault"]:
+                if one["items"]:
+                    missing.append(sid)
+                continue
+            s = self.conn.execute("SELECT work, episode, path FROM source WHERE id=?", (sid,)).fetchone()
+            name = source_display_name(s["work"], s["episode"], s["path"])
+            for it in one["items"]:
+                it["sourceId"], it["sourceName"] = sid, name
+            items.extend(one["items"])
+        return {"items": items, "track": None, "missingDefault": None, "pads": pads, "missingSources": missing}
 
     # ---------- 创建
 

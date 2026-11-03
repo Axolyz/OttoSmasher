@@ -132,3 +132,52 @@ def test_selection_hit_and_stem_follow_roles(db, env):
     st = plan.plan({"kind": "stem", "assetId": other})["items"][0]
     assert st["nature"] == "unclassified" and st["start"] == 0.0 and "other" in st["name"]  # C2：按角色预填
     assert plan.plan({"kind": "stem", "assetId": vocal})["items"][0]["nature"] == "speech"
+
+
+def _second_source(db, tmp_path, lines):
+    sid = make_source(db, work="Yuru Yuri", path=str(tmp_path / "ep2.mkv"))
+    db.execute("UPDATE source SET duration=100.0 WHERE id=?", (sid,))
+    p = tmp_path / "b.srt"
+    p.write_text(srt(*lines), encoding="utf-8")
+    db.execute("UPDATE source SET subtitle_path=? WHERE id=?", (str(p), sid))
+    edits = EditService(db)
+    imp = SubtitleImporter(db, edits)
+    imp.import_(sid, imp.preview(sid)["token"], {"oped": False})
+    return sid
+
+
+def test_many_sources_use_their_own_default_tracks(db, tmp_path, env):
+    """多个原素材一起建（所有者 2026-11-03）：各用各的默认轨；规则与单个相同，整批原子创建。"""
+    a, edits, planner = env
+    b = _second_source(db, tmp_path, [(1.0, 2.0, "（結衣）二話"), (3.0, 4.0, "（結衣）もう一つ")])
+    va, vb = asset(db, a, origin="separation", stem="vocals", snapshot="va", roles=["vocal"]), asset(db, b, origin="separation", stem="vocals", snapshot="vb", roles=["vocal"])
+    set_default(db, edits, a, "vocal", va)
+    set_default(db, edits, b, "vocal", vb)
+    src = {"kind": "segments", "sourceIds": [a, b]}
+    pv = planner.plan(src)
+    assert pv["missingDefault"] is None and pv["missingSources"] == [] and pv["track"] is None
+    assert {it["sourceId"] for it in pv["items"]} == {a, b}
+    assert {it["assetId"] for it in pv["items"]} == {va, vb}
+    assert all(it["sourceName"] for it in pv["items"])
+    # 和单个原素材的计划是同一套规则
+    one = {it["key"]: it for it in planner.plan({"kind": "segments", "sourceId": b})["items"]}
+    for it in pv["items"]:
+        if it["sourceId"] == b:
+            assert (it["start"], it["end"], it["name"], it["status"]) == (one[it["key"]]["start"], one[it["key"]]["end"], one[it["key"]]["name"], one[it["key"]]["status"])
+    keys = [it["key"] for it in pv["items"] if it["status"] == "pending"]
+    r = planner.create(src, pv["token"], keys)
+    assert r["created"] == len(keys)
+    assert {x["asset_id"] for x in sample_rows(db)} == {va, vb}
+
+
+def test_many_sources_without_default_track_are_reported_not_mixed(db, tmp_path, env):
+    """缺默认轨的不回退混音（R4.8）：不列出来，记在 missingSources；有轨的照常建。没有内容的不算缺。"""
+    a, edits, planner = env
+    b = _second_source(db, tmp_path, [(1.0, 2.0, "（結衣）二話")])
+    empty = make_source(db, work="Yuru Yuri", path=str(tmp_path / "ep3.mkv"))
+    va = asset(db, a, origin="separation", stem="vocals", snapshot="va", roles=["vocal"])
+    set_default(db, edits, a, "vocal", va)
+    pv = planner.plan({"kind": "segments", "sourceIds": [a, b, empty]})
+    assert pv["missingSources"] == [b]
+    assert {it["sourceId"] for it in pv["items"]} == {a}
+    assert pv["missingDefault"] is None

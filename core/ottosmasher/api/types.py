@@ -1262,6 +1262,7 @@ class SamplePlanSource(TypedDict):
     """建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
 
     selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；
+    segments / hints 也可以给 sourceIds（多个原素材，各用各的默认轨；此时 ids、track、范围都不用）；
     segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
     stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。"""
 
@@ -1300,6 +1301,9 @@ class SamplePlanItem(TypedDict):
     sourceStart: NotRequired[float]
     sourceEnd: NotRequired[float]
     speakers: NotRequired[list[str]]
+    # 多个原素材一起建时：这一条属于哪个原素材
+    sourceId: NotRequired[str]
+    sourceName: NotRequired[str]
 
 
 class SamplePlanTrack(TypedDict):
@@ -1315,6 +1319,8 @@ class SamplePlan(TypedDict):
     # 默认轨缺失（vocal / sfx）：就地指定，不回退混音
     missingDefault: Role | None
     pads: list[float] | None
+    # 多个原素材一起建时：缺默认轨、没有列出来的原素材
+    missingSources: NotRequired[list[str]]
 
 
 class SampleOverride(TypedDict):
@@ -2954,6 +2960,20 @@ class TrackRoleParams(TypedDict):
     assetId: str
     role: Role
     on: bool
+
+
+class SeparatedVocalOption(TypedDict):
+    """所选原素材里已有的整轨人声声部：哪个模型的哪个声部，有几个原素材有。"""
+
+    model: str
+    stem: str
+    sources: int
+
+
+class TrackDefaultFromSeparationParams(TypedDict):
+    sourceIds: list[str]
+    model: str
+    stem: str
 
 
 class OriginalAsVocal(TypedDict):

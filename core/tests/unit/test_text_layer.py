@@ -217,3 +217,18 @@ def test_clear_subtitle_markers_keeps_typed_and_protected(db, tmp_path):
     assert len(tl.list_for_source(db, sid)["segments"]) >= 2  # 撤销恢复
     r = imp.clear([sid], include_protected=True)
     assert [s["text"] for s in tl.list_for_source(db, sid)["segments"]] == ["手输"]  # 手输的段不动
+
+
+def test_regenerate_speakers_many_is_one_undoable_edit(db, tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    sa, edits, layer = setup(db, tmp_path / "a", [(1, 2, "（京子）あ")])
+    sb, _, _ = setup(db, tmp_path / "b", [(1, 2, "（結衣）い")])
+    cur = db.execute("SELECT version FROM setting WHERE key='subtitle.speaker_rule'").fetchone()
+    edits.apply({"ops": [{"entity": "setting", "id": "subtitle.speaker_rule", "version": cur[0] if cur else 0, "fields": {"value": r"(?P<name>\[[^\]]*\])"}}]})
+    before = db.execute("SELECT COUNT(*) FROM edit").fetchone()[0]
+    r = layer.regenerate_speakers_many([sa, sb])
+    assert r["changed"] == 2 and r["editId"]
+    assert db.execute("SELECT COUNT(*) FROM edit").fetchone()[0] == before + 1
+    assert [x[0] for x in db.execute("SELECT speakers FROM text_segment WHERE deleted=0")] == ["[]", "[]"]
+    assert layer.regenerate_speakers_many([sa, sb]) == {"changed": 0, "editId": None}

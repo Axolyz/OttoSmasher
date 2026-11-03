@@ -1385,6 +1385,18 @@
    }
   },
   {
+   "name": "segments.regenerateSpeakersMany",
+   "effect": "write",
+   "layer": "library",
+   "summary": "Same as segments.regenerateSpeakers for several sources, as one undoable edit.",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SpeakersRegenerated"
+   }
+  },
+  {
    "name": "segments.split",
    "effect": "write",
    "layer": "library",
@@ -2015,6 +2027,18 @@
    }
   },
   {
+   "name": "tracks.defaultFromSeparation",
+   "effect": "write",
+   "layer": "library",
+   "summary": "Make one model's vocal stem the default vocal track of every given source that has it (one undoable edit); others are left alone and counted as skipped.",
+   "params": {
+    "$ref": "#/$defs/TrackDefaultFromSeparationParams"
+   },
+   "result": {
+    "$ref": "#/$defs/OriginalAsVocal"
+   }
+  },
+  {
    "name": "tracks.originalAsVocal",
    "effect": "write",
    "layer": "library",
@@ -2024,6 +2048,21 @@
    },
    "result": {
     "$ref": "#/$defs/OriginalAsVocal"
+   }
+  },
+  {
+   "name": "tracks.separatedVocals",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Full-track vocal stems that exist among these sources, by model and stem, with how many sources have each (most first).",
+   "params": {
+    "$ref": "#/$defs/SourceIdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SeparatedVocalOption"
+    }
    }
   },
   {
@@ -11383,6 +11422,12 @@
       }
      ]
     },
+    "missingSources": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "pads": {
      "anyOf": [
       {
@@ -11496,6 +11541,12 @@
     "sourceEnd": {
      "type": "number"
     },
+    "sourceId": {
+     "type": "string"
+    },
+    "sourceName": {
+     "type": "string"
+    },
     "sourceStart": {
      "type": "number"
     },
@@ -11546,7 +11597,7 @@
   },
   "SamplePlanSource": {
    "title": "SamplePlanSource",
-   "description": "建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。\n\n    selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；\n    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；\n    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。",
+   "description": "建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。\n\n    selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；\n    segments / hints 也可以给 sourceIds（多个原素材，各用各的默认轨；此时 ids、track、范围都不用）；\n    segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；\n    stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。",
    "type": "object",
    "properties": {
     "assetId": {
@@ -12596,6 +12647,27 @@
    "required": [
     "editId",
     "ids"
+   ]
+  },
+  "SeparatedVocalOption": {
+   "title": "SeparatedVocalOption",
+   "description": "所选原素材里已有的整轨人声声部：哪个模型的哪个声部，有几个原素材有。",
+   "type": "object",
+   "properties": {
+    "model": {
+     "type": "string"
+    },
+    "sources": {
+     "type": "integer"
+    },
+    "stem": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "model",
+    "sources",
+    "stem"
    ]
   },
   "SeparationDevice": {
@@ -16958,6 +17030,29 @@
    },
    "required": [
     "items"
+   ]
+  },
+  "TrackDefaultFromSeparationParams": {
+   "title": "TrackDefaultFromSeparationParams",
+   "type": "object",
+   "properties": {
+    "model": {
+     "type": "string"
+    },
+    "sourceIds": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "stem": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "model",
+    "sourceIds",
+    "stem"
    ]
   },
   "TrackDefaultParams": {

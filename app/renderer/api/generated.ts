@@ -1648,6 +1648,7 @@ export interface SamplePlan {
   items: SamplePlanItem[];
   kind: string;
   missingDefault: "sfx" | "vocal" | null;
+  missingSources?: string[];
   pads: number[] | null;
   token: string;
   track: SamplePlanTrack | null;
@@ -1665,6 +1666,8 @@ export interface SamplePlanItem {
   origin: Record<string, unknown> | null;
   snapshot: Record<string, unknown> | null;
   sourceEnd?: number;
+  sourceId?: string;
+  sourceName?: string;
   sourceStart?: number;
   speakers?: string[];
   start: number;
@@ -1679,6 +1682,7 @@ export interface SamplePlanParams {
  * 建采样的来源（所有者 2026-10-09：一个动作，单条与批量同一套规则）。
  *
  *     selection：assetId + start/end（资产局部秒），可带 via（hit = 命中保存）、localMarker；
+ *     segments / hints 也可以给 sourceIds（多个原素材，各用各的默认轨；此时 ids、track、范围都不用）；
  *     segments / hints：sourceId + 可选 ids（不给 = 全部）+ track（default 默认人声 / 音效轨；current 当前查看的轨 assetId）+ 可选 start/end（原片秒过滤）；
  *     stem：assetId（整条分离声部）；whole：sourceIds（整段原片）。
  */
@@ -1901,6 +1905,13 @@ export interface SegmentSplitParams {
 export interface SegmentsSplit {
   editId: string | null;
   ids: string[];
+}
+
+/** 所选原素材里已有的整轨人声声部：哪个模型的哪个声部，有几个原素材有。 */
+export interface SeparatedVocalOption {
+  model: string;
+  sources: number;
+  stem: string;
 }
 
 /** Frozen PyMSS request, not a claim about the backend selected by auto. */
@@ -2807,6 +2818,12 @@ export interface ThumbsReady {
   items: Record<string, unknown>[];
 }
 
+export interface TrackDefaultFromSeparationParams {
+  model: string;
+  sourceIds: string[];
+  stem: string;
+}
+
 export interface TrackDefaultParams {
   assetId: string | null;
   role: "sfx" | "vocal";
@@ -3172,6 +3189,8 @@ export interface Commands {
   "segments.merge": { params: SegmentMergeParams; result: SegmentAdded; effect: "write" };
   /** Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only). */
   "segments.regenerateSpeakers": { params: SourceIdParams; result: SpeakersRegenerated; effect: "write" };
+  /** Same as segments.regenerateSpeakers for several sources, as one undoable edit. */
+  "segments.regenerateSpeakersMany": { params: SourceIdsParams; result: SpeakersRegenerated; effect: "write" };
   /** Split a segment (old one deleted, two new protected segments). */
   "segments.split": { params: SegmentSplitParams; result: SegmentsSplit; effect: "write" };
   /** Assets registered by a separation job. */
@@ -3268,8 +3287,12 @@ export interface Commands {
   "textLayer.search": { params: TextLayerSearchParams; result: TextLayerSearchResult; effect: "read" };
   /** List thumbnails (pending while generated). */
   "thumbs.get": { params: ThumbsParams; result: ThumbResult[]; effect: "read" };
+  /** Make one model's vocal stem the default vocal track of every given source that has it (one undoable edit); others are left alone and counted as skipped. */
+  "tracks.defaultFromSeparation": { params: TrackDefaultFromSeparationParams; result: OriginalAsVocal; effect: "write" };
   /** For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit). */
   "tracks.originalAsVocal": { params: SourceIdsParams; result: OriginalAsVocal; effect: "write" };
+  /** Full-track vocal stems that exist among these sources, by model and stem, with how many sources have each (most first). */
+  "tracks.separatedVocals": { params: SourceIdsParams; result: SeparatedVocalOption[]; effect: "read" };
   /** Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit. */
   "tracks.setDefault": { params: TrackDefaultParams; result: EditApplied; effect: "write" };
   /** Turn a role on or off for a track; turning off the role of the current default track also clears that default (one undoable edit). */

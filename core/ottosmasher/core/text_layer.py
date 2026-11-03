@@ -401,7 +401,20 @@ class TextLayer:
 
     def regenerate_speakers(self, source_id: str) -> dict[str, Any]:
         """按当前规则重新生成说话人：只动字幕来源、未受保护、说话人没被手改过的段（从来源记录里的原文重新提取）。"""
+        return self.regenerate_speakers_many([source_id])
+
+    def regenerate_speakers_many(self, source_ids: list[str]) -> dict[str, Any]:
+        """多个原素材一起重新生成：整批一个编辑、一次撤销（所有者 2026-11-03）。"""
         rules = subtitle_rules.SubtitleRules.build(settings_mod.values(self.conn))
+        ops: list[dict[str, Any]] = []
+        for sid in dict.fromkeys(source_ids):
+            ops.extend(self._speaker_ops(sid, rules))
+        if not ops:
+            return {"changed": 0, "editId": None}
+        edit_id, _ = self._apply({"label": {"code": "speakers-regenerate", "args": {"n": len(ops)}}, "ops": ops})
+        return {"changed": len(ops), "editId": edit_id}
+
+    def _speaker_ops(self, source_id: str, rules: Any) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             f'SELECT t.id, t.version, t.speakers, t.speakers_withheld, t.provenance FROM text_segment t WHERE t.source_id=? AND t.deleted=0 AND t.origin=\'subtitle\''
             f" AND t.speaker_edited=0 AND NOT {protected_sql('t')} ORDER BY t.start",
@@ -418,7 +431,4 @@ class TextLayer:
             if names != loads(r["speakers"]) or withheld != bool(r["speakers_withheld"]):
                 ops.append({"entity": "segment", "id": r["id"], "version": r["version"],
                             "fields": {"speakers": names, "speaker_edited": False, "speakers_withheld": withheld}})
-        if not ops:
-            return {"changed": 0, "editId": None}
-        edit_id, _ = self._apply({"label": {"code": "speakers-regenerate", "args": {"n": len(ops)}}, "ops": ops})
-        return {"changed": len(ops), "editId": edit_id}
+        return ops

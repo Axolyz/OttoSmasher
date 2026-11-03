@@ -37,12 +37,15 @@ export function NewSamplesSheet() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const kind = req?.kind ?? null;
+  // 多个原素材一起建：各用各的默认轨，没有轨道选择、范围，表格多一列原素材
+  const many = req != null && req.kind !== "whole" && "sourceIds" in req;
   const role = kind === "hints" ? "sfx" : "vocal";
 
   const source = useCallback(
     (r = range, tr = track): SamplePlanSource | null => {
       if (!req) return null;
       if (req.kind === "whole") return { kind: "whole", sourceIds: req.sourceIds };
+      if ("sourceIds" in req) return { kind: req.kind, sourceIds: req.sourceIds };
       return {
         kind: req.kind,
         sourceId: req.sourceId,
@@ -65,7 +68,7 @@ export function NewSamplesSheet() {
         setPv(p);
         // 段与提示默认一项都不勾（规格 06 §6.4）；整段原片默认全勾
         setChecked(new Set(req.kind === "whole" ? p.items.filter((x) => x.status === "pending").map((x) => x.key) : []));
-        if (req.kind !== "whole") {
+        if (req.kind !== "whole" && "sourceId" in req) {
           const [tk, d] = await Promise.all([call("assets.tracks", { sourceId: req.sourceId }), call("sources.get", { id: req.sourceId })]);
           setTracks(tk);
           setDetail(d);
@@ -101,7 +104,7 @@ export function NewSamplesSheet() {
 
   // 就地指定默认轨：没有该角色的整轨 = 同时赋予角色并设为默认（一次编辑，可撤销）
   const pickTrack = async (assetId: string) => {
-    if (!req || req.kind === "whole" || !tracks) return;
+    if (!req || req.kind === "whole" || !("sourceId" in req) || !tracks) return;
     const tr = tracks.tracks.find((x) => x.id === assetId);
     if (!tr) return;
     try {
@@ -137,21 +140,23 @@ export function NewSamplesSheet() {
   };
 
   const trackRow = pv?.track ? tracks?.tracks.find((x) => x.id === pv.track!.assetId) : null;
-  const current = req && req.kind !== "whole" ? req.currentAsset : undefined;
+  const current = req && req.kind !== "whole" && "sourceId" in req ? req.currentAsset : undefined;
   const title = kind ? t(`newsamples.title.${kind}`) : "";
-  const showRange = kind !== "whole";
+  const showRange = kind !== "whole" && !many;
   return (
     <Sheet
       isOpen={req != null}
       onClose={() => close(null)}
       title={title}
-      sub={kind === "whole" ? t("newsamples.subWhole", { n: rows.length }) : undefined}
+      sub={kind === "whole" ? t("newsamples.subWhole", { n: rows.length }) : many ? t("newsamples.subMany", { n: (req as { sourceIds: string[] }).sourceIds.length }) : undefined}
       testId="new-samples"
       footer={
         <>
           <span className={s.sheetNote}>
             {kind === "whole"
               ? t("newsamples.noteWhole")
+              : many
+                ? t(`newsamples.noteMany.${kind}`, { a: pv?.pads?.[0] ?? 0, b: pv?.pads?.[1] ?? 0 })
               : pv && pv.track && pv.pads
                 ? t(`newsamples.note.${kind}`, { a: pv.pads[0], b: pv.pads[1], track: trackRow ? trackName(trackRow, detail) : (current?.label ?? "") })
                 : t("newsamples.noteNoTrack")}
@@ -167,7 +172,7 @@ export function NewSamplesSheet() {
       }
     >
       <div className={s.sheetMain}>
-        {kind && kind !== "whole" ? (
+        {kind && kind !== "whole" && !many ? (
           <div className={s.sheetBar}>
             <span className={s.groupLabel}>{t("newsamples.track")}</span>
             <Segmented<"default" | "current">
@@ -203,6 +208,11 @@ export function NewSamplesSheet() {
                 ]}
               />
             </div>
+          </Callout>
+        ) : null}
+        {pv?.missingSources?.length ? (
+          <Callout tone="warn" testId="newsamples-missing-many">
+            {t(`newsamples.missingMany.${role}`, { n: pv.missingSources.length })}
           </Callout>
         ) : null}
         {error ? <Callout tone="bad">{error}</Callout> : null}
@@ -259,6 +269,7 @@ export function NewSamplesSheet() {
                 pageSize={200}
                 testId="newsamples-table"
                 columns={[
+                  ...(many ? [{ id: "source", label: t("subimport.col.source"), width: "190px", render: (x: Row) => <span data-user-data="">{x.sourceName}</span> }] : []),
                   { id: "name", label: t("subsample.col.name"), isRowHeader: true, render: (x) => (x.name ? <span lang="ja" data-user-data="">{x.name}</span> : <span>{t("subsample.noName")}</span>) },
                   ...(kind !== "whole"
                     ? [

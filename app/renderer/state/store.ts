@@ -38,6 +38,7 @@ export interface SpeechRequest {
 /** 批量建采样的请求（所有者 2026-10-09：建采样一个动作，批量 = 整页表格）：从文本段 / 音效提示 / 整段原片 */
 export type NewSamplesRequest =
   | { kind: "segments" | "hints"; sourceId: string; currentAsset?: { id: string; label: string } }
+  | { kind: "segments" | "hints"; sourceIds: string[] }
   | { kind: "whole"; sourceIds: string[] };
 
 /** 拉平台的请求（规格 11 §11.1：同一个工作台，默认值随入口）。时间：资产局部秒 */
@@ -52,6 +53,8 @@ export interface SeparationRequest {
   duration: number;
   selection: { a: number; b: number } | null;
   scope: "full" | "sel";
+  /** 多个原素材一起整片分离（所有者 2026-11-03）：每条默认音轨各排一个任务；此时上面的 assetId 等不用 */
+  batch?: { assetIds: string[]; sources: number };
 }
 
 /** 试听的版本（规格 09 §9.5.3、12 §12.1；所有者 2026-10-08：不卡拍 / 卡拍 × 原声 / 原声＋咔哒 / 纯咔哒） */

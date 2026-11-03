@@ -198,6 +198,12 @@ class Core:
         r("tracks.originalAsVocal", "write", T.SourceIdsParams, T.OriginalAsVocal,
           "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
           self._tracks_original_as_vocal)
+        r("tracks.separatedVocals", "read", T.SourceIdsParams, list[T.SeparatedVocalOption],
+          "Full-track vocal stems that exist among these sources, by model and stem, with how many sources have each (most first).",
+          self._tracks_separated_vocals)
+        r("tracks.defaultFromSeparation", "write", T.TrackDefaultFromSeparationParams, T.OriginalAsVocal,
+          "Make one model's vocal stem the default vocal track of every given source that has it (one undoable edit); others are left alone and counted as skipped.",
+          self._tracks_default_from_separation)
         r("tracks.setDefault", "write", T.TrackDefaultParams, T.EditApplied,
           "Make a track the default track of a role (gives it the role if it lacks it), or clear the default with null; one undoable edit.",
           self._tracks_set_default)
@@ -337,6 +343,9 @@ class Core:
         r("segments.regenerateSpeakers", "write", T.SourceIdParams, T.SpeakersRegenerated,
           "Re-extract speakers from the original subtitle lines with the current rules (unprotected, not hand-edited segments only).",
           lambda p: self.text.regenerate_speakers(p["sourceId"]))
+        r("segments.regenerateSpeakersMany", "write", T.SourceIdsParams, T.SpeakersRegenerated,
+          "Same as segments.regenerateSpeakers for several sources, as one undoable edit.",
+          lambda p: self.text.regenerate_speakers_many(p["sourceIds"]))
         r("hints.add", "write", T.HintAddParams, T.SegmentAdded, "Add an sfx hint by hand (protected).",
           lambda p: self.text.add_hint(p["sourceId"], float(p["start"]), float(p["end"]), str(p["text"])))
         r("oped.list", "read", T.SourceIdParams, list[T.Oped], "OP/ED ranges of a source.", lambda p: self.oped.list(p["sourceId"]))
@@ -915,6 +924,40 @@ class Core:
             return {"edit_id": None, "applied": 0, "skipped": skipped}
         res = self.edits.apply({"label": {"code": "tracks-original-vocal", "args": {"n": n}}, "ops": ops})
         return {"edit_id": res["edit_id"], "applied": n, "skipped": skipped}
+
+    def _separated_vocals_of(self, source_id: str) -> list[dict[str, Any]]:
+        """这个原素材的整轨人声声部（分离来的、带人声角色）。"""
+        if self.conn.execute("SELECT 1 FROM source WHERE id=?", (source_id,)).fetchone() is None:
+            raise CoreError("source-not-found", id=source_id)
+        return [
+            tr for tr in assets_mod.tracks(self.conn, source_id)["tracks"]
+            if tr["origin"] == "separation" and "vocal" in tr["roles"] and (tr["production"] or {}).get("model") and tr["stemName"]
+        ]
+
+    def _tracks_separated_vocals(self, p: dict[str, Any]) -> list[dict[str, Any]]:
+        counts: dict[tuple[str, str], int] = {}
+        for sid in dict.fromkeys(p["sourceIds"]):
+            for key in {(tr["production"]["model"], tr["stemName"]) for tr in self._separated_vocals_of(sid)}:
+                counts[key] = counts.get(key, 0) + 1
+        ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        return [{"model": model, "stem": stem, "sources": n} for (model, stem), n in ordered]
+
+    def _tracks_default_from_separation(self, p: dict[str, Any]) -> dict[str, Any]:
+        """批量设默认人声轨（所有者 2026-11-03）：分离不自动设默认轨，这是用户明确点的那一步；已经是它的、没有它的都不动。"""
+        ops: list[dict[str, Any]] = []
+        skipped = 0
+        for sid in dict.fromkeys(p["sourceIds"]):
+            hit = next((tr for tr in self._separated_vocals_of(sid) if tr["production"]["model"] == p["model"] and tr["stemName"] == p["stem"]), None)
+            cur = self.conn.execute("SELECT asset_id FROM default_track WHERE source_id=? AND role='vocal'", (sid,)).fetchone()
+            if hit is None or (cur is not None and cur[0] == hit["id"]):
+                skipped += 1
+                continue
+            version = self.conn.execute("SELECT version FROM source WHERE id=?", (sid,)).fetchone()[0]
+            ops.append({"entity": "source", "id": sid, "version": version, "fields": {"default_vocal": hit["id"]}})
+        if not ops:
+            return {"edit_id": None, "applied": 0, "skipped": skipped}
+        res = self.edits.apply({"label": {"code": "tracks-default-separation", "args": {"n": len(ops)}}, "ops": ops})
+        return {"edit_id": res["edit_id"], "applied": len(ops), "skipped": skipped}
 
     def _tracks_set_default(self, p: dict[str, Any]) -> dict[str, Any]:
         """就地指定默认轨（原来在界面里拼：NewSamplesSheet、TracksDialog）：没有该角色的整轨 = 同时赋予角色并设为默认。"""

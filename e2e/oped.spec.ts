@@ -49,6 +49,8 @@ test("OP/ED：识别、删除与撤销、逐对确认、导入预览", async () 
   // 删除 ED → 撤销（顶栏）
   await rows.nth(1).getByRole("button", { name: "删除" }).click();
   await expect(rows).toHaveCount(1);
+  // 被删的按钮带着焦点消失，焦点要过一帧才回到弹窗；这之前按 Esc 没人接（机器忙时这一帧更长）
+  await expect(dlg.locator(":focus")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await page.getByTestId("undo").click();
   const count = () => page.evaluate(async (id) => ((await window.otto.core.request<unknown[]>("oped.list", { sourceId: id })) as { r: unknown[] }).r.length, sid);

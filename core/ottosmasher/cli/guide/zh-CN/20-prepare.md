@@ -51,7 +51,7 @@ otto call sources.rescan --wait                            # 改过、新加过�
 | `subtitle`（文本层） | 字幕预览与导入（上面）；没有字幕时 `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}`（原素材秒） |
 | `oped` | 导入时没配成对看 `opedErrors`；`oped.identify {"sourceId"}` 给出建议的 `pairs` 和 `errors`；`oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}` |
 | `separation` | 见下一节 |
-| `defaultVocal` / `defaultSfx` | `tracks.setDefault {"sourceId", "role": "vocal" / "sfx", "assetId"}`；`tracks.originalAsVocal {"sourceIds"}` 一次把原混音设为人声 |
+| `defaultVocal` / `defaultSfx` | `tracks.setDefault {"sourceId", "role": "vocal" / "sfx", "assetId"}`；`tracks.originalAsVocal {"sourceIds"}` 一次把原混音设为人声；`tracks.separatedVocals {"sourceIds"}` 列出已有的人声声部，`tracks.defaultFromSeparation {"sourceIds", "model", "stem"}` 把它一次设为默认人声轨 |
 | `lineSamples` | 主题 `samples` |
 | `speech` | `speech.preview {"entry": "source", "ids"}` → `speech.submit` 同样参数 → `speech.results {"jobId"}` |
 

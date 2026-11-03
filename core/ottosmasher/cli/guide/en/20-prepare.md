@@ -51,7 +51,7 @@ A segment whose time and text did not change is `unchanged` and **its speakers a
 | `subtitle` (text layer) | subtitle preview and import (above); without subtitles `segments.checkAdd` → `segments.add {"sourceId", "start", "end", "text"}` (source seconds) |
 | `oped` | `opedErrors` when pairs did not match on import; `oped.identify {"sourceId"}` suggests `pairs` and lists `errors`; `oped.add {"sourceId", "kind", "start", "end", "via": "confirm", "refs"}` |
 | `separation` | see the next section |
-| `defaultVocal` / `defaultSfx` | `tracks.setDefault {"sourceId", "role": "vocal" / "sfx", "assetId"}`; `tracks.originalAsVocal {"sourceIds"}` sets the original mix as vocal for many sources at once |
+| `defaultVocal` / `defaultSfx` | `tracks.setDefault {"sourceId", "role": "vocal" / "sfx", "assetId"}`; `tracks.originalAsVocal {"sourceIds"}` sets the original mix as vocal for many sources at once; `tracks.separatedVocals {"sourceIds"}` lists existing vocal stems and `tracks.defaultFromSeparation {"sourceIds", "model", "stem"}` makes one the default vocal track in one go |
 | `lineSamples` | topic `samples` |
 | `speech` | `speech.preview {"entry": "source", "ids"}` → `speech.submit` with the same params → `speech.results {"jobId"}` |
 
