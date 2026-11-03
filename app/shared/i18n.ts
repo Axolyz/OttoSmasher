@@ -22,17 +22,33 @@ export function format(template: string, args?: TArgs): string {
 }
 
 /** 文案里的 macOS 键符换成 Windows 的键名（代码里 ⌘ 与 Ctrl 同样处理，只有显示不同）。 */
-export function windowsKeys(text: string): string {
+export function windowsKeys(text: string, fileManager = "File Explorer"): string {
   return text
     .replace(/⌥\/Alt/g, "Alt")
     .replace(/⌘⇧/g, "Ctrl+Shift+")
     .replace(/⌥⇧/g, "Alt+Shift")
     .replace(/⌘/g, "Ctrl+")
     .replace(/⌥/g, "Alt")
-    .replace(/⇧/g, "Shift+");
+    .replace(/⇧/g, "Shift+")
+    .replace(/\bFinder\b/g, fileManager);
 }
 
-export function createT(catalog: Catalog, opts: { pseudo?: boolean; strict?: boolean } = {}): TFunction {
+const ENGLISH_NOUNS: Record<string, string> = {
+  lines: "line", samples: "sample", items: "item", sources: "source", tracks: "track", tags: "tag", segments: "segment",
+  hints: "hint", files: "file", jobs: "job", models: "model", stems: "stem", episodes: "episode", phonemes: "phoneme",
+  hits: "hit", results: "result", entries: "entry", rows: "row", groups: "group", blocks: "block", pauses: "pause", ranges: "range",
+};
+const ENGLISH_ONE = new RegExp(`(?<![\\d.,:])1 ((?:SFX |range |OP/ED )?)(${Object.keys(ENGLISH_NOUNS).join("|")})\\b`, "g");
+
+/** 英文的单复数：文案写 “{n} lines” 或 “{n} sample(s)”，格式化后按数字改对（不用给每条拆 _one / _other）。 */
+export function englishPlurals(text: string): string {
+  return text
+    .replace(/(?<![\d.,:])1 ([\w/-]+(?: [\w/-]+)?)\(s\)/g, "1 $1")
+    .replace(/(\w)\(s\)/g, "$1s")
+    .replace(ENGLISH_ONE, (_m, prefix: string, noun: string) => `1 ${prefix}${ENGLISH_NOUNS[noun]}`);
+}
+
+export function createT(catalog: Catalog, opts: { pseudo?: boolean; strict?: boolean; finish?: (text: string) => string } = {}): TFunction {
   return (key, args) => {
     const plural = typeof args?.n === "number" && catalog[`${key}_one`] !== undefined && catalog[`${key}_other`] !== undefined;
     const k = plural ? `${key}_${args!.n === 1 ? "one" : "other"}` : key;
@@ -41,7 +57,7 @@ export function createT(catalog: Catalog, opts: { pseudo?: boolean; strict?: boo
       if (opts.strict) throw new Error(`missing i18n key: ${key}`);
       return opts.pseudo ? `[!${key}]` : key;
     }
-    const text = format(raw, args);
+    const text = opts.finish ? opts.finish(format(raw, args)) : format(raw, args);
     return opts.pseudo ? pseudoize(text) : text;
   };
 }

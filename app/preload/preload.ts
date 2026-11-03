@@ -4,7 +4,6 @@ import type { CoreEvent, CoreStatus, OttoApi, PlayerApi, ProbeApi } from "../sha
 import { CanvasPlayer } from "./player";
 import { Playback } from "./playback";
 
-const localeArg = process.argv.find((a) => a.startsWith("--otto-locale="));
 const buildArg = process.argv.find((a) => a.startsWith("--otto-build="));
 const playback = new Playback();
 window.addEventListener("beforeunload", () => playback.destroy());
@@ -48,7 +47,8 @@ const api: OttoApi = {
   },
   app: {
     platform: process.platform,
-    locale: localeArg ? localeArg.slice("--otto-locale=".length) : "zh-CN",
+    locale: ipcRenderer.sendSync("app:locale") as string,
+    setLanguage: (choice: string) => ipcRenderer.invoke("app:setLanguage", choice),
     build: buildArg?.slice("--otto-build=".length) === "packaged" ? "packaged" : "source",
   },
   player,

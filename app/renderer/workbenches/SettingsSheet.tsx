@@ -43,7 +43,7 @@ const NUMERIC: Record<string, NumSpec> = {
   "jobs.concurrency_light": { min: 1, max: 4, step: 1 },
 };
 const CHOICES: Record<string, string[]> = {
-  "general.ui_language": ["zh-CN"],
+  "general.ui_language": ["auto", "zh-CN", "en"],
   "source.sample_language": ["ja"],
   "studio.device": ["auto", "cpu", "cuda", "mps"],
   // 拉平各入口的默认值（03 §3.7；批量只有自动定音、没有内部拉平，Q10）

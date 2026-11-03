@@ -154,7 +154,7 @@ app/                     Electron + 前端（TypeScript）
     tools/               工具页（组件样张、开发期 mpv 探针）
     components/          组件库（React Aria 包一层）：CollectionList / ActionList（统一选择规则）、Menu、Overlay、Fields、WaveCard（自研波形画布）……
     state/               zustand：store.ts（全局状态）、commands.ts（命令面板来源）、settings.ts
-    i18n/                t()、locales/zh-CN.json、伪语言
+    i18n/                t()、locales/zh-CN.json、en.json、伪语言
     api/                 core.ts（call() 按命令名推断类型）+ generated.ts（由 Core 的命令目录生成，不手改）
 core/
   native/domino_ext.cpp  pydomino 的 tokenizer + Viterbi 小扩展
@@ -383,7 +383,7 @@ docs/                    开发文档；spec/（原始规格）、history/（过
 
 所有者 2026-10-06：国际化只要翻译文字，不需要按语言格式化日期、数字这些。【基线变更：规格 15 §15.7“数字、时间、文件大小按界面语言格式化”】
 
-- **文案资源**：`app/renderer/i18n/locales/<lang>.json`，按键查找；代码里只出现键：`t("library.count", {n})`。
+- **文案资源**：`app/renderer/i18n/locales/<lang>.json`（简体中文、英语），按键查找；代码里只出现键：`t("library.count", {n})`。语言：环境变量 `OTTO_LOCALE`（测试）> 工作区设置 `general.ui_language`（auto = 跟随系统，变了重新载入窗口）；主进程把上次用的语言存在界面数据目录，启动时不闪一下。英文的单复数在格式化后统一改（`englishPlurals`）；Windows 的键名与文件管理器名同样替换（`windowsKeys`）。
   `t()` 自己写（几十行）：取当前语言的文案，替换 `{名字}` 参数；缺键在开发期直接报错。术语以规格 01 §1.6 为准；本轮只有 `zh-CN`。
 - **单复数**：中文不需要。以后加英文时，需要单复数的文案拆成两个键（`…_one` / `…_other`），由 `t()` 按数量选——不引入 ICU 语法。
 - **数字、时长、日期、文件大小**：全应用一种固定格式，不随界面语言变（秒数 3 位小数、`2026-10-06 12:01`、`1.2 GB`），规则集中在一个格式化模块里。

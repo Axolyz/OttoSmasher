@@ -34,6 +34,12 @@ function isTyping(el: Element | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement).isContentEditable;
 }
 
+/** 工作区的界面语言设置（general.ui_language）交给主进程：变了会重新载入窗口 */
+async function applyLanguage(): Promise<void> {
+  const list = await call("settings.list");
+  await window.otto.app.setLanguage(String(list["general.ui_language"]?.value ?? "auto"));
+}
+
 export function App() {
   const st = useApp();
   const jobs = useJobs();
@@ -50,6 +56,7 @@ export function App() {
   // Core 就绪：握手、恢复界面状态（规格 03 §3.1：重启恢复各页条件与当前对象）
   useEffect(() => {
     if (st.core.state !== "ready") return;
+    void applyLanguage();
     void call("core.hello").then((h) => {
       st.setHello(h);
       if (h.interrupted_on_start > 0) st.toast({ text: t("tasks.interruptedOnStart", { n: h.interrupted_on_start }) });
@@ -125,6 +132,7 @@ export function App() {
       window.otto.core.onEvent((ev) => {
         if (ev.e === "data.changed") {
           const d = ev.d as Record<string, string[]>;
+          if (d.setting?.includes("general.ui_language")) void applyLanguage();
           // 自己的操作（本窗口的请求引起的）不提示；任务、后台、别的窗口改的才提示（L13）
           if (!ev.own && Object.keys(d).some((k) => k !== "setting")) st.setStale(true);
         }

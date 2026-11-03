@@ -112,7 +112,7 @@ SPECS: dict[str, SettingSpec] = {
     s.key: s
     for s in [
         # 通用
-        SettingSpec("general.ui_language", "zh-CN", _choice("zh-CN"), "general"),
+        SettingSpec("general.ui_language", "auto", _choice("auto", "zh-CN", "en"), "general"),
         # 时间线标签最多显示几行（所有图层同一条避让 + 折行规则，所有者 2026-10-13）
         SettingSpec("general.label_max_lines", 3, _int_range(1, 6), "general"),
         # 推理（规格 14 §14.7：默认 CPU；开启加速但没拿到 EP 时报错不回退）

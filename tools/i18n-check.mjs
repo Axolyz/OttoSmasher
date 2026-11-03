@@ -47,6 +47,19 @@ for (const r of ["app/main", "app/renderer"]) {
   }
 }
 
+// 其他语言：键与中文完全相同，每条的 {参数} 也相同
+const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
+for (const lang of ["en"]) {
+  const other = JSON.parse(readFileSync(join(ROOT, `app/renderer/i18n/locales/${lang}.json`), "utf8"));
+  for (const k of Object.keys(catalog)) {
+    if (!(k in other)) problems.push(`${lang}.json: missing key "${k}"`);
+    else if (placeholders(catalog[k]) !== placeholders(other[k])) problems.push(`${lang}.json: placeholders differ in "${k}"`);
+  }
+  for (const k of Object.keys(other)) {
+    if (!(k in catalog)) problems.push(`${lang}.json: extra key "${k}"`);
+  }
+}
+
 if (problems.length) {
   console.error(problems.join("\n"));
   console.error(`\n${problems.length} problem(s)`);

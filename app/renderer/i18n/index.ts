@@ -1,8 +1,9 @@
 // 界面文案入口：所有用户可见文字都经 t()（AGENTS.md §9）。
-import { type Catalog, PSEUDO, type TArgs, createT, windowsKeys } from "../../shared/i18n";
+import { type Catalog, PSEUDO, type TArgs, createT, englishPlurals, windowsKeys } from "../../shared/i18n";
+import en from "./locales/en.json";
 import zhCN from "./locales/zh-CN.json";
 
-const catalogs: Record<string, Catalog> = { "zh-CN": zhCN as Catalog };
+const catalogs: Record<string, Catalog> = { "zh-CN": zhCN as Catalog, en: en as Catalog };
 
 function currentLocale(): string {
   if (typeof window !== "undefined" && window.otto) return window.otto.app.locale;
@@ -11,6 +12,7 @@ function currentLocale(): string {
 
 const locale = currentLocale();
 const pseudo = locale === PSEUDO;
+if (typeof document !== "undefined" && !pseudo) document.documentElement.lang = locale;
 
 const isMac = typeof window === "undefined" || !window.otto || window.otto.app.platform === "darwin";
 
@@ -19,8 +21,8 @@ export const keys = (text: string): string => (isMac ? text : windowsKeys(text))
 
 const rawCatalog = catalogs[pseudo ? "zh-CN" : locale] ?? (zhCN as Catalog);
 export const t = createT(
-  isMac ? rawCatalog : Object.fromEntries(Object.entries(rawCatalog).map(([k, v]) => [k, windowsKeys(v)])),
-  { pseudo, strict: import.meta.env.DEV },
+  isMac ? rawCatalog : Object.fromEntries(Object.entries(rawCatalog).map(([k, v]) => [k, windowsKeys(v, rawCatalog["common.fileManagerWindows"])])),
+  { pseudo, strict: import.meta.env.DEV, finish: locale === "en" ? englishPlurals : undefined },
 );
 
 export type { TArgs };

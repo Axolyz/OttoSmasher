@@ -90,9 +90,9 @@
 - **技术定型不换**（规格 14）：对齐只用 pydomino；文本前端 pyopenjtalk-plus + tsqyomi；音高 FCPE；拉平 PC-NSF-HiFiGAN；分离调用 PyMSS Studio。其余选择见 ARCHITECTURE。
 - **Core 命令**：在 `core/ottosmasher/core/server.py` 的 `_register` 登记（作用类别 + 参数/返回类型 + 一句英文说明 + `layer`），参数与返回写成 `core/ottosmasher/api/types.py` 里的 TypedDict；
   改完运行 `tools/uv run python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`（测试检查是否最新）。
-  前端 `call()` 不写类型参数，按命令名推断；不在页面里手写 Core 返回值的接口。新错误码登记到 `core/ottosmasher/core/errors.py` 的 `ERRORS` 并在 zh-CN.json 加 `error.<码>`。
+  前端 `call()` 不写类型参数，按命令名推断；不在页面里手写 Core 返回值的接口。新错误码登记到 `core/ottosmasher/core/errors.py` 的 `ERRORS` 并在 zh-CN.json、en.json 都加 `error.<码>`。
   给 agent 用的命令同步改说明书（`core/ottosmasher/cli/guide/` 中英两份，测试核对逐节对应）。
-- 用户可见文案一律走文案资源（`app/renderer/i18n/locales/<lang>.json`，`t(key, 参数)`；只翻译文字，数字日期用统一格式），不在代码里写死中文；
+- 用户可见文案一律走文案资源（`app/renderer/i18n/locales/<lang>.json`，`t(key, 参数)`；只翻译文字，数字日期用统一格式），不在代码里写死中文；加文案要中文、英文一起加（`i18n:check` 核对键和参数）；
   `core/` 的代码（注释和文档字符串以外）不写中日文字面量（`i18n:check` 检查）；Core 错误返回“错误码 + 参数”。
 - 每个时间值都要明确所属时钟（原片秒 / 资产局部秒 / 文件秒 / 采样显示坐标）；换算只走 `domain.mapping` 一处。
 - 不静默回退、不静默降级、不静默替换（P6）；未知不是零（P7）。

@@ -84,6 +84,8 @@ export interface OttoApi {
   app: {
     platform: string;
     locale: string;
+    /** 界面语言：auto = 跟随系统；变了会重新载入窗口 */
+    setLanguage(choice: string): Promise<void>;
     /** 源码运行（开发版，名叫 OttoSmasher Dev）还是发布版：只用来区分身份，行为一样 */
     build: "source" | "packaged";
   };

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { createT, format, pseudoize, windowsKeys } from "./i18n";
+import { createT, englishPlurals, format, pseudoize, windowsKeys } from "./i18n";
+
+describe("englishPlurals()", () => {
+  it("fixes singular and (s) by the number", () => {
+    expect(englishPlurals("1 lines")).toBe("1 line");
+    expect(englishPlurals("2 lines")).toBe("2 lines");
+    expect(englishPlurals("11 lines")).toBe("11 lines");
+    expect(englishPlurals("2.1 lines")).toBe("2.1 lines");
+    expect(englishPlurals("1 sample(s)")).toBe("1 sample");
+    expect(englishPlurals("4 model(s) missing")).toBe("4 models missing");
+    expect(englishPlurals("Imported 1 lines, 1 SFX hints, 3 entries")).toBe("Imported 1 line, 1 SFX hint, 3 entries");
+    expect(englishPlurals("1 OP/ED range(s)")).toBe("1 OP/ED range");
+  });
+});
 
 describe("windowsKeys()", () => {
   it("spells out the macOS key symbols", () => {
@@ -9,6 +22,8 @@ describe("windowsKeys()", () => {
     expect(windowsKeys("按住拖动：⌥ 拖出原声，⌥⇧ 拖出卡拍")).toBe("按住拖动：Alt 拖出原声，Alt+Shift 拖出卡拍");
     expect(windowsKeys("Space · ⇧Space")).toBe("Space · Shift+Space");
     expect(windowsKeys("没有键符")).toBe("没有键符");
+    expect(windowsKeys("Show in Finder")).toBe("Show in File Explorer");
+    expect(windowsKeys("在 Finder 中显示", "文件资源管理器")).toBe("在 文件资源管理器 中显示");
   });
 });
 

@@ -1,17 +1,48 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, statSync, symlinkSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
+import en from "../renderer/i18n/locales/en.json";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
-import { PSEUDO, createT } from "../shared/i18n";
+import { PSEUDO, createT, englishPlurals } from "../shared/i18n";
 import type { CoreEvent, CoreStatus, OttoInfo } from "../shared/protocol";
 import { CoreClient } from "./core-client";
 import { resolvePaths } from "./paths";
 
 const paths = resolvePaths();
-const locale = process.env.OTTO_LOCALE ?? "zh-CN";
-const t = createT(zhCN as Record<string, string>, { pseudo: locale === PSEUDO });
+// 界面语言：环境变量（测试）优先；否则上次用的语言，第一次跟随系统。工作区的设置 general.ui_language 打开后由界面告诉这里（app:setLanguage）。
+const CATALOGS: Record<string, Record<string, string>> = { "zh-CN": zhCN as Record<string, string>, en: en as Record<string, string> };
+const envLocale = process.env.OTTO_LOCALE;
+let locale = envLocale ?? "zh-CN";
+const makeT = () => createT(CATALOGS[locale] ?? CATALOGS["zh-CN"]!, { pseudo: locale === PSEUDO, finish: locale === "en" ? englishPlurals : undefined });
+let t = makeT();
+const systemLocale = () => (app.getLocale().toLowerCase().startsWith("zh") ? "zh-CN" : "en");
+const localeFile = () => join(app.getPath("userData"), "ui-language.json");
+function loadLocale(): void {
+  if (envLocale) return;
+  let saved: unknown;
+  try {
+    saved = JSON.parse(readFileSync(localeFile(), "utf8"));
+  } catch {
+    saved = null; // 第一次运行
+  }
+  locale = typeof saved === "string" && CATALOGS[saved] ? saved : systemLocale();
+  t = makeT();
+}
+ipcMain.on("app:locale", (e) => {
+  e.returnValue = locale;
+});
+ipcMain.handle("app:setLanguage", (e, choice: string) => {
+  if (envLocale) return;
+  const next = choice === "auto" ? systemLocale() : choice;
+  if (!CATALOGS[next]) return;
+  writeFileSync(localeFile(), JSON.stringify(next));
+  if (next === locale) return;
+  locale = next;
+  t = makeT();
+  e.sender.reload();
+});
 const devServer = process.env.OTTO_DEV_SERVER; // 开发期 Vite 地址
 const isDev = process.env.OTTO_DEV === "1";
 
@@ -70,7 +101,7 @@ function createWindow(): BrowserWindow {
       // preload 不放进沙箱：它要加载 mpv 渲染桥（原生扩展）。页面世界仍然没有 Node，只能用白名单 API（ARCHITECTURE §2.5）
       sandbox: false,
       nodeIntegration: false,
-      additionalArguments: [`--otto-locale=${locale}`, `--otto-build=${paths.repo ? "source" : "packaged"}`],
+      additionalArguments: [`--otto-build=${paths.repo ? "source" : "packaged"}`],
     },
   });
   win.once("ready-to-show", () => win.show());
@@ -286,6 +317,7 @@ app.whenReady().then(() => {
     app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png")); // 发布版用 .app 自己的图标
     app.dock?.setBadge("Dev");
   }
+  loadLocale();
   installCsp();
   core.start();
   createWindow();
