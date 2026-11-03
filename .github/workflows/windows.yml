@@ -128,3 +128,63 @@ jobs:
             ${{ runner.temp }}/otto-*/**/Data/Jobs/*/log.txt
           if-no-files-found: ignore
           retention-days: 14
+
+  package:
+    # 打包慢、包又大：手动运行全部时才跑，或者推到这些分支、版本标签时
+    if: ${{ !inputs.spec }}
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Python 环境
+        run: tools/uv sync --locked
+      - name: 第三方文件
+        run: .venv/Scripts/python.exe tools/fetch_third_party.py
+      - name: pydomino 扩展
+        run: tools/uv run --with setuptools python tools/build_domino.py
+      - name: 媒体工具加入 PATH
+        run: cygpath -w "$PWD/third_party/media-tools/ffmpeg/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@v5
+        with:
+          path: dev-workspace/Models
+          key: models-${{ hashFiles('core/ottosmasher/models/registry.py') }}
+      - name: 模型权重
+        run: .venv/Scripts/python.exe tools/fetch_models.py
+      - name: Node 依赖
+        run: tools/npm ci
+      - name: mpv 渲染桥
+        run: node tools/build-native.mjs
+      - name: 构建界面
+        run: tools/npm run build
+      - name: 打包
+        run: |
+          export UV_PYTHON_INSTALL_DIR="$PWD/.uv-python" UV_CACHE_DIR="$PWD/.uv-cache"
+          .venv/Scripts/python.exe tools/package_win.py --skip-build
+      - name: 发布包冒烟
+        env:
+          OTTO_PACKAGED_E2E: "1"
+        run: tools/npm exec -- playwright test e2e/packaged.spec.ts
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-package
+          path: |
+            out/release/*.zip
+            out/release/*.sha256
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: package-results
+          path: .cache/playwright-results
+          if-no-files-found: ignore
+          retention-days: 14

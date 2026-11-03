@@ -58,9 +58,10 @@ if (paths.repo) {
   // 字节码打包时已经编译好；运行时不往 .app 里写 __pycache__（会改动签过名的内容）
   process.env.PYTHONDONTWRITEBYTECODE = "1";
   process.env.OTTO_RESOURCES = paths.resources;
-  process.env.OTTO_FFMPEG = join(paths.resources, "bin", "ffmpeg");
-  process.env.OTTO_FFPROBE = join(paths.resources, "bin", "ffprobe");
-  process.env.OTTO_RUBBERBAND = join(paths.resources, "bin", "rubberband");
+  const exe = process.platform === "win32" ? ".exe" : "";
+  process.env.OTTO_FFMPEG = join(paths.resources, "bin", `ffmpeg${exe}`);
+  process.env.OTTO_FFPROBE = join(paths.resources, "bin", `ffprobe${exe}`);
+  process.env.OTTO_RUBBERBAND = join(paths.resources, "bin", `rubberband${exe}`);
 }
 
 const core = new CoreClient({
@@ -194,13 +195,20 @@ ipcMain.handle("links:open", (_e, id: string) => {
 });
 
 // 命令行 otto（设置 › 命令行与 agent）：源码版 = 仓库的 tools/otto；发布版的启动器还没做（ROADMAP L46，阶段 10）。
-// “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）；Windows 未实现（未验收）。
+// “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）。
+// Windows：普通用户不能建符号链接，在 %LOCALAPPDATA%\\Microsoft\\WindowsApps（Win10 起默认在 PATH 上）写一个转发脚本（未实测，ROADMAP L47）。
+const OTTO_SHIM_MARK = "@rem OttoSmasher";
 function ottoInfo(): OttoInfo {
-  const path = join(paths.resources, paths.repo ? "tools" : "bin", process.platform === "win32" ? "otto.cmd" : "otto");
-  const link = process.platform === "win32" ? null : join(homedir(), ".local", "bin", "otto");
+  const win = process.platform === "win32";
+  const path = join(paths.resources, paths.repo ? "tools" : "bin", win ? "otto.cmd" : "otto");
+  const link = win ? (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "Microsoft", "WindowsApps", "otto.cmd") : null) : join(homedir(), ".local", "bin", "otto");
   let linked = false;
   let conflict = false;
-  if (link && existsSync(link)) {
+  if (win && link && existsSync(link)) {
+    const text = readFileSync(link, "utf8");
+    if (text.includes(path)) linked = true;
+    else if (!text.startsWith(OTTO_SHIM_MARK)) conflict = true;
+  } else if (link && existsSync(link)) {
     const st = lstatSync(link);
     if (st.isSymbolicLink()) linked = readlinkSync(link) === path;
     else conflict = true;
@@ -211,6 +219,10 @@ ipcMain.handle("agent:ottoInfo", () => ottoInfo());
 ipcMain.handle("agent:installOtto", () => {
   const info = ottoInfo();
   if (!info.path || !info.link || info.conflict || info.linked) return info;
+  if (process.platform === "win32") {
+    writeFileSync(info.link, `${OTTO_SHIM_MARK}\r\n@chcp 65001 >nul\r\n@"${info.path}" %*\r\n`, "utf8"); // 路径可能带中文（用户名）
+    return ottoInfo();
+  }
   mkdirSync(join(homedir(), ".local", "bin"), { recursive: true });
   try {
     if (lstatSync(info.link).isSymbolicLink()) unlinkSync(info.link); // 旧的链接（例如仓库换了位置）

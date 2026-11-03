@@ -29,7 +29,7 @@ export function resolvePaths(): Paths {
       repo: null,
       resources: res,
       workspace: process.env.OTTO_WORKSPACE ?? join(homedir(), "Documents", "OttoSmasher Workspace"),
-      python: join(res, "python", "bin", "python3"),
+      python: process.platform === "win32" ? join(res, "python", "python.exe") : join(res, "python", "bin", "python3"),
       supportDir: join(res, "third_party", "model-support"),
       rendererIndex: join(code, "out", "renderer", "index.html"),
       preload: join(code, "out", "preload", "preload.cjs"),

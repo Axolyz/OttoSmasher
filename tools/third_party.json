@@ -54,6 +54,21 @@
       "note": "breakfastquay.com 官方的 Windows 版 4.0.0（与 Homebrew 的 macOS 版同版本），原件存在 third-party-1。"
     },
     {
+      "id": "rcedit",
+      "platforms": [
+        "win32-x64"
+      ],
+      "kind": "files",
+      "files": [
+        {
+          "url": "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe",
+          "sha256": "3e7801db1a5edbec91b49a24a094aad776cb4515488ea5a4ca2289c400eade2a",
+          "dest": "tools-win/rcedit-x64.exe"
+        }
+      ],
+      "note": "electron/rcedit v2.0.0：打包时改 exe 的图标与文件信息，不进发布包（MIT）。"
+    },
+    {
       "id": "mpv-headers",
       "platforms": [
         "*"
