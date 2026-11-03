@@ -64,7 +64,7 @@ meson setup "$SRC/mpv/build" "$SRC/mpv" --prefix="$PREFIX" --libdir=lib --buildt
   -Ddefault_library=shared -Dauto_features=disabled \
   -Dlibplacebo:default_library=static -Dlibass:default_library=static -Dfreetype2:default_library=static \
   -Dfribidi:default_library=static -Dharfbuzz:default_library=static \
-  -Dharfbuzz:freetype=enabled -Dlibplacebo:demos=false \
+  -Dharfbuzz:freetype=enabled -Dlibass:coretext=enabled -Dlibplacebo:demos=false \
   -Dgpl=false -Dlibmpv=true -Dcplayer=false -Dtests=false -Dfuzzers=false -Dbuild-date=false \
   -Dcoreaudio=enabled -Dzlib=enabled -Diconv=enabled
 ninja -C "$SRC/mpv/build" libmpv.2.dylib
