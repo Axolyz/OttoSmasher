@@ -18,11 +18,17 @@ tools/uv run --with setuptools python tools/build_domino.py   # pydomino 的 Vit
 node tools/build-native.mjs                           # mpv 渲染桥（Electron 原生扩展）
 ```
 
-开发期使用本机已有的 Homebrew `ffmpeg` / `ffprobe` 与 `rubberband`（只调用，不改动）。
+macOS 开发期使用本机已有的 Homebrew `ffmpeg` / `ffprobe` 与 `rubberband`（只调用，不改动）。libmpv 是编好的压缩包（`tools/third_party.json`），要换版本时改 `tools/build_libmpv_macos.sh`，推送后由云端重新编译（`.github/workflows/build-libmpv.yml`），再把产物传到 Release `third-party-1`。
 
 **模型权重**放在工作区的 `Models/` 下；开发工作区是仓库内的 `dev-workspace/`（不进 Git）。
 两种办法：启动后在 设置 → 环境与模型「下载缺少的模型」，或手动按 `core/ottosmasher/models/registry.py` 里的直链下载后放进
 `dev-workspace/Models/<子目录>/`。四个文件共约 190 MB。
+
+### Windows（x64）
+
+日常不需要 Windows 电脑：推送后云端自动在 Windows 上构建、测试、打包（`.github/workflows/windows.yml`）。要在实机上开发时：装 [uv](https://docs.astral.sh/uv/)、Node 26、Git for Windows、Visual Studio 的 C++ 桌面开发组件，然后在 Git Bash 里运行上面同样的命令（把 `.venv/bin/python` 换成 `.venv/Scripts/python.exe`），再把媒体工具加进 PATH：`third_party/media-tools/ffmpeg/bin`、`third_party/media-tools/rubberband`。没有界面的机器用 `.venv/Scripts/python.exe tools/fetch_models.py` 下载模型。
+
+**云端查问题**：`gh run list` / `gh run view <id> --log-failed` 看结果；`gh run download <id> -n e2e-results` 取失败截图（`failure.png`）和 Core、任务日志。卡死时单跑一个测试并导出全部线程的调用栈（写进工作区的 `Data/Logs/hang-dump.log`）：`gh workflow run windows.yml --ref <分支> -f spec=e2e/xxx.spec.ts`。
 
 ## 运行
 
@@ -48,7 +54,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。
 - 3 万条合成库的性能测试：`OTTO_PERF_WS=.cache/perf/ws .venv/bin/python -m pytest core/tests/perf -s`。
 
-## 发布（macOS）
+## 发布
 
 所有者 2026-10-30【基线变更】：只发 macOS（Apple 芯片）、本地构建，ZIP 发到 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
 
@@ -73,6 +79,8 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
      out/release/OttoSmasher-x.y.z-macos-arm64.zip out/release/OttoSmasher-x.y.z-macos-arm64.zip.sha256
    ```
    发之前 `gh release list` 看一眼有没有同一个标签的草稿（所有者可能在网页上起过草稿）。
+
+**Windows 包**由云端构建（`tools/package_win.py`），发布时：macOS 构建加好版本号、打好标签并推送之后，在这个提交上跑 Windows 工作流（`gh workflow run windows.yml --ref vx.y.z`），确认 `package` 任务（含发布包冒烟）通过，再 `gh run download <id> -n windows-package`，把 ZIP 和 `.sha256` 一起传到同一个 Release。Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。
 
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
 本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。

@@ -546,7 +546,7 @@ class LanguageProfile:
 | 文案与目录 | `tools/npm run i18n:check`、`tools/uv run python -m ottosmasher.api.catalog --check` | 文案键齐全、Core 里没有界面语言的字面量；命令目录与 `generated.ts` 是最新的 |
 | 人工 | — | 只验自动化证明不了的：原生播放的手感、拖到 REAPER、听感（拉平、分离） |
 
-Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标“未验证”。
+Windows 云端（合成素材）测试通过，还没有实机验证；真实素材、显卡、声音、REAPER 相关的一律标“未验证”。
 
 ---
 
@@ -557,10 +557,10 @@ Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标
 | 风险 | 验证情况 | 不行时的备选 |
 |---|---|---|
 | mpv 渲染桥：软件渲染 + 画布在 1080p HEVC10、24 fps 下是否流畅，拖动/逐帧是否及时 | **已验证**（2026-10-06，M 系列 Mac，YY1-01，画布 1920×1080）：硬解 videotoolbox-copy；显示 24.1 fps、丢帧 0；渲染线程 13.2 ms/帧（默认缩放 20.2 ms）；界面线程 0.5 ms/帧（最大 2 ms）；跳转 14–61 ms；逐帧 11–103 ms；渲染进程约 36% 单核。复测：`OTTO_PROBE_FILE=<整集> npx playwright test e2e/probe.spec.ts` | GL 渲染到共享纹理（暂不需要）；再不行才考虑原生子视图（会带回遮挡问题，先问所有者） |
-| 原生扩展在 Windows x64 上构建与加载 | **未验证**（只发 macOS）；构建脚本按两平台写 | 改为独立 utility 进程 + 共享内存 |
+| 原生扩展在 Windows x64 上构建与加载 | 云端通过（2026-11-03）；实机未验证 | 改为独立 utility 进程 + 共享内存 |
 | `startDrag` 在“越过阈值后才异步生成文件”的时序下能否发起系统拖拽 | 已验证（macOS，拖到 Finder、REAPER；`e2e/dragout.spec.ts`） | 先生成到暂存再在下一次移动事件发起；仍不满足规格时先问所有者 |
 | mpv 对 LAME 无缝 MP3 的样本级对齐 | 合成斜坡 MP3 的偏移测试 | 正式音轨改存 FLAC（要所有者同意，涉及存储预算） |
-| pydomino C++ 扩展在 Windows 上构建 | **未验证** | 已改为自写最小 CPython 绑定（不依赖 pybind11/Eigen/上游 ORT），setuptools 调 MSVC 编译；Windows 未实测 |
+| pydomino C++ 扩展在 Windows 上构建 | 云端通过（2026-11-03）；实机未验证 | 已改为自写最小 CPython 绑定（不依赖 pybind11/Eigen/上游 ORT），setuptools 调 MSVC 编译；Windows 未实测 |
 | pyopenjtalk-plus 导入时加载旧读音模型 | 测试“导入不加载任何模型”（test_openjtalk） | 已做：导入前给 `yomi_model.nani_predict` 放空模块占位（`lang/ja/openjtalk.py`），tsqyomi 会话由工厂创建后交给库 |
 | 检索 3 万条 30 秒 | 已验证（合成库基准，§9.5） | numba 热点编译 |
 | wavesurfer 在 24 分钟整集 + 深度缩放下的流畅度 | **已定（2026-10-07）**：wavesurfer 只能一次喂整段峰值，放大到几十毫秒要几千万点、元素宽度超浏览器上限；调研 peaks.js、waveform-playlist 等也都只接受覆盖全程的固定分辨率数据，没有“按可见范围向后端取数”的接口（所有者提议后调研，见 history/QUESTIONS 第五节） | **已采用**：整集时间线、舞台、工作台都用同一个自研画布组件，按视口向 Core 取峰值（≤32000 点；≤30 秒细节窗精确解码到样本级）；不引入 wavesurfer（所有者 2026-10-07，第二轮调研无现成组件满足） |
@@ -568,7 +568,9 @@ Windows 没有实机验证（只发 macOS）；涉及 Windows 的代码一律标
 
 ---
 
-## 14. 分发（2026-10-30【基线变更】：只发 macOS、本地构建、模型随包；DECISIONS §14）
+## 14. 分发（2026-10-30【基线变更】：本地构建 macOS、模型随包；DECISIONS §14）
+
+Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建，免安装文件夹 + ZIP，不签名；布局见脚本开头。下面写的是 macOS。
 
 - `tools/package_mac.py` 直接组装 `.app`（不用 electron-builder）：复制 Electron 的 `Electron.app`，改名（主程序与四个 Helper）、改 Info.plist（`io.github.axolyz.ottosmasher`、macOS 14+）、
   由 `assets/brand/logo.png` 生成图标；逐个 ad-hoc 签名所有 Mach-O，再签整个 .app；`ditto` 打 ZIP（< 2 GB）并写 SHA-256。

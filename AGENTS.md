@@ -52,7 +52,7 @@
   npm 11 只运行 `package.json` 的 `allowScripts` 里批准过的安装脚本（目前是 electron、esbuild）。
 - 原生扩展、pydomino 扩展、第三方二进制（libmpv 等）的拉取与编译见 DEVELOPMENT「准备环境」；都固定版本、校验 SHA-256（`tools/third_party.json`），产物在 `third_party/`（不进 Git）。
   开发需要的依赖可以直接装（所有者 2026-10-05），仍然只装在项目内。
-- 开发期和发布构建都用本机 Homebrew 的 ffmpeg / rubberband（只调用、复制，不改动）。
+- macOS 的开发期和发布构建都用本机 Homebrew 的 ffmpeg / rubberband（只调用、复制，不改动）；Windows 用 `third_party/media-tools` 里固定版本的。
 
 ## 5. 不进 Git 的东西
 
@@ -67,7 +67,7 @@
 - 先单元测试和合成测试，再用真实素材小批验证；**不全库跑模型**。怎么跑见 DEVELOPMENT「测试」。
 - 提交前至少跑和改动相关的测试；动到 Core 命令、文案、界面时跑对应的目录检查、`i18n:check`、typecheck。没跑全量要在汇报里说。
 - “运行成功”不等于“质量好”；没有实测证据不宣称可用；“provider 可用”不等于“实测通过”。
-- **Windows 上没实测的功能一律标“未验证”**（现在只发 macOS）。
+- **Windows 上没实测的功能一律标“未验证”**：云端测过的（合成素材）可以说云端通过；真实素材、DirectML、PyMSS Studio、声音、REAPER 要在实机上验过才算（还没发 Windows 版）。
 - 界面自动化或人工点击只补充自动化证明不了的东西；验证够了就停。
 
 ## 7. 和所有者沟通

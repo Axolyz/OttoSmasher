@@ -7,9 +7,9 @@
         "darwin-arm64"
       ],
       "kind": "archive",
-      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-macos-arm64-8ca245f213.tar.gz",
-      "sha256": "285d1d5f619279d13eea267a80c3b0493231d65d8d9c101d8ef453a0d74fc672",
-      "size": 11175872,
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-macos-arm64-8ca245f213-2.tar.gz",
+      "sha256": "1080396b136bab367afbb8876f953370ec9c374bca87bdf08b645160fc97a12e",
+      "size": 11179903,
       "dest": "libmpv/macos-arm64",
       "strip_components": 1,
       "note": "tools/build_libmpv_macos.sh 在云端从官方源码编译：mpv 8ca245f2 + FFmpeg n9.0.2，只开 LGPL，静态并进一个 dylib。"
@@ -20,12 +20,12 @@
         "win32-x64"
       ],
       "kind": "archive",
-      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-windows-x64-8ca245f213.tar.gz",
-      "sha256": "c21a5ac459740c42dd51a6b07166f4c0e1d5175d0d26e2245edd8004c6449acc",
-      "size": 42146768,
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-windows-x64-8ca245f213-2.tar.gz",
+      "sha256": "fa1bdaedf02415297194ed3bbb075f069425d839c49317db6f48271f9443a48a",
+      "size": 42160458,
       "dest": "libmpv/win-x64",
       "strip_components": 1,
-      "note": "zhongfly/mpv-winbuild 2026-11-03-8ca245f213 的 LGPL 包（mpv 8ca245f2，与 macOS 同一提交），只把 7z 重新打成 tar.gz，文件未改。上游只留 30 天，所以存在本仓库的 third-party-1。"
+      "note": "zhongfly/mpv-winbuild 2026-11-03-8ca245f213 的 LGPL 包（mpv 8ca245f2，与 macOS 同一提交），重新打成 tar.gz，去掉头文件、加上许可文件，库本身未改。上游只留 30 天，所以存在本仓库的 third-party-1。"
     },
     {
       "id": "ffmpeg-windows-x64",
