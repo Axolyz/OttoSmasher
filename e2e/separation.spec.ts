@@ -50,12 +50,13 @@ test("分离：确认框选模型、排队、任务结果里的声部", async ()
   await expect(results).toContainText("Instrumental");
   await expect(results).toContainText("人声");
   await page.screenshot({ path: ".cache/playwright-results/separation-results.png" });
-  // 再提交同一模型 → 直接复用
+  // 再提交同一模型 → 再跑一次
   await page.keyboard.press("Escape");
   await page.getByTestId("separate").click();
   await expect(models).toContainText("fake_vocals");
   await models.getByText("fake_vocals").click();
   await dlg.getByTestId("sep-submit").click();
-  await expect(page.getByText(/直接复用 2 个声部/)).toBeVisible();
+  // 不做自动复用（DECISIONS §9）：再点一次就再排一个任务
+  await expect.poll(async () => page.evaluate(async () => ((await window.otto.core.request("jobs.list")) as { r: Array<{ kind: string; status: string }> }).r.filter((j) => j.kind === "separate" && j.status === "succeeded").length), { timeout: 60000 }).toBe(2);
   await app.close();
 });

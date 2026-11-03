@@ -237,9 +237,9 @@ export function SourcesPage() {
         return list.find((x) => x.origin === "stream" && x.stream_ordinal === r?.default_audio_stream) ?? list.find((x) => x.origin === "stream");
       }),
     );
-    const assetIds = found.flatMap((a) => (a ? [a.id] : []));
-    if (!assetIds.length) return toast({ text: t("sep.batchNoAudio"), tone: "error" });
-    setSepInput({ assetId: assetIds[0]!, trackLabel: "", duration: 0, selection: null, scope: "full", batch: { assetIds, sources: ids.length } });
+    const jobs = found.flatMap((a) => (a ? [{ assetId: a.id }] : []));
+    if (!jobs.length) return toast({ text: t("sep.batchNoAudio"), tone: "error" });
+    setSepInput({ assetId: jobs[0]!.assetId, trackLabel: "", duration: 0, selection: null, scope: "full", batch: { kind: "sources", n: jobs.length, jobs } });
   };
   const regenerateSpeakersMany = async (ids: string[]) => {
     try {

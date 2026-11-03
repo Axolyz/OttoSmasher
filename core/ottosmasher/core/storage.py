@@ -79,6 +79,7 @@ class StorageService:
         job_files = self._job_cleanable()
         lib = self.ws.library
         db = sum(p.stat().st_size for p in self.ws.data.glob("library.sqlite3*") if p.is_file())
+        backups = self._backups()
         speech_index = self.conn.execute("SELECT COALESCE(SUM(length(data)), 0), COUNT(*) FROM speech_index").fetchone()
         metrics = self.conn.execute("SELECT COALESCE(SUM(length(metrics)), 0), COUNT(*) FROM acoustic_metric").fetchone()
         cats = [
@@ -94,6 +95,7 @@ class StorageService:
             {"key": "jobs", "bytes": _size(self.ws.jobs), "cleanable": sum(s for _p, s, m in job_files if now - m >= RECENT),
              "files": len(_walk(self.ws.jobs)), "recent": sum(1 for _p, _s, m in job_files if now - m < RECENT)},
             {"key": "database", "bytes": db, "cleanable": 0, "files": 1, "recent": 0},
+            {"key": "backups", "bytes": sum(s for _p, s, _m in backups), "cleanable": sum(s for _p, s, _m in backups[:-1]), "files": len(backups), "recent": 0},
         ]
         # 按原片：库内持久音轨（分离、拉平、回导）与独立化切片的占用（引用来自数据库，不靠路径字符串）
         per: dict[str, dict[str, Any]] = {}
@@ -110,7 +112,23 @@ class StorageService:
             row["bytes"] += size
             row["files"] += 1
         return {"categories": cats, "sources": sorted(per.values(), key=lambda r: -r["bytes"]), "idleCleanup": bool(settings_mod.values(self.conn)["storage.idle_cleanup"]),
-                "lastAuto": self.last_auto or None}
+                "lastAuto": self.last_auto or None, "folders": {"exports": str(lib / "Exports"), "reaper": str(lib / "REAPER")}}
+
+    def _backups(self) -> list[tuple[Path, int, float]]:
+        """升级前的数据库备份，旧的在前。"""
+        return sorted(_walk(self.ws.data / "Backups"), key=lambda x: x[2])
+
+    def clean_backups(self) -> dict[str, Any]:
+        """删掉旧备份，留最新一份（换回上一版时要用）。"""
+        old = self._backups()[:-1]
+        freed = 0
+        for p, s, _m in old:
+            try:
+                p.unlink()
+                freed += s
+            except OSError:
+                pass
+        return {"files": len(old), "bytes": freed, "rows": 0}
 
     # ------------------------------------------------------------ 清理
 

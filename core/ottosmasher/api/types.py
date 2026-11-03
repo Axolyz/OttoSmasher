@@ -784,6 +784,7 @@ class TrackRow(TypedDict):
     roles: list[Role]
     version: int
     duplicates: int
+    createdAt: str
 
 
 class Tracks(TypedDict):
@@ -1937,10 +1938,9 @@ class SeparationSubmitParams(TypedDict):
 
 
 class SeparationSubmitted(TypedDict):
-    """同输入同模型已有结果的段放进 ``reused``（各声部资产 ID），其余的段一起进一个任务 ``job``；全部复用时没有 ``job``。"""
+    """全部的段进一个任务。不做自动复用：点一次跑一次（DECISIONS §9）。"""
 
-    reused: NotRequired[list[str]]
-    job: NotRequired[JobSummary]
+    job: JobSummary
 
 
 # ---------------------------------------------------------------- 语音分析（规格 08 §8.4）
@@ -2896,7 +2896,7 @@ class IndependParams(TypedDict):
 
 
 class StorageCategory(TypedDict):
-    key: Literal["cache", "searchIndex", "measurements", "tracks", "independent", "exports", "jobs", "database"]
+    key: Literal["cache", "searchIndex", "measurements", "tracks", "independent", "exports", "jobs", "database", "backups"]
     bytes: int
     # 现在可以清理的量（15 分钟内生成的不算）；永不当缓存删的类别为 0
     cleanable: int
@@ -2917,6 +2917,48 @@ class StorageReport(TypedDict):
     sources: list[StorageSource]
     idleCleanup: bool
     lastAuto: float | None
+    # 给“打开文件夹”用
+    folders: dict[str, str]
+
+
+class AssetDeletePreview(TypedDict):
+    assetId: str
+    sourceId: str
+    deletable: bool
+    # 不能删的原因：asset-stream 原混音 / asset-samples 有采样在用 / asset-jobs 有任务在用
+    reason: str | None
+    samples: int
+    # 它是哪些角色的默认轨（删除后这个角色没有默认轨，不会自动换一条）
+    defaults: list[str]
+    # 连带删掉的语音分析（段数）
+    analyses: int
+    bytes: int
+
+
+class UnusedAsset(TypedDict):
+    """没有采样在用、也不是默认轨的音轨与成品。"""
+
+    assetId: str
+    sourceId: str
+    sourceName: str
+    origin: AssetOrigin
+    model: str | None
+    stem: str | None
+    createdAt: str
+    bytes: int
+    analyses: int
+    fileMissing: bool
+
+
+class AssetDeleteParams(TypedDict):
+    ids: list[str]
+
+
+class AssetsDeleted(TypedDict):
+    deleted: int
+    bytes: int
+    # 记录已删、文件暂时删不掉的个数（Windows 上文件正被占用）
+    filesLeft: int
 
 
 class StorageCleanParams(TypedDict):

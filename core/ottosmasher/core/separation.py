@@ -1,11 +1,11 @@
-"""分离（规格 05 §5.5、14 §14.6、13 §13.3.2；16 R18）——Core 侧：发现 Studio、模型列表、提交、复用、登记结果。
+"""分离（规格 05 §5.5、14 §14.6、13 §13.3.2；16 R18）——Core 侧：发现 Studio、模型列表、提交、登记结果。
 
 - 模型列表：轻量任务 ``studio.models`` 跑 Studio 的 list_models，结果缓存在 ``Data/Cache/studio-models.json``（Studio 安装、环境或模型目录变了就失效）。
 - 提交（模型通道任务 ``separate``）：输入 = 当前音源资产的选区（整片 = 整个资产），**提交时冻结**；可以一次给多段（``ranges``，所有者 2026-10-30）：
-  没复用的段放进同一个任务，worker 把它们拼成一个输入（段间 1 秒静音）分离一次再切回（Studio 按约 22 秒的块推理，短输入也按整块算；
+  各段放进同一个任务，worker 把它们拼成一个输入（段间 1 秒静音）分离一次再切回（Studio 按约 22 秒的块推理，短输入也按整块算；
   10 段 × 6 秒实测 31 秒 vs 分开约 100 秒；和单独分离一样接近“放在上下文里分离”的结果）；每段各登记一组声部；模型必须在 Studio 的可用列表里；
-  选区分离可选任意模型，整片的“人声方式 / 三轨方式”按能力筛（界面负责，Core 只查模型存在且声部有效）；设备取设置（不计入复用身份）。
-- 复用（05 §5.5.2）：同一输入资产 + 同一区间 + 同一模型（名称 + 文件大小/修改时间）已经分离过且所需声部都在 → 直接返回已有资产，不重跑。
+  选区分离可选任意模型，整片的“人声方式 / 三轨方式”按能力筛（界面负责，Core 只查模型存在且声部有效）；设备取设置。
+- 不做自动复用（所有者 2026-10-30、2026-11-03，DECISIONS §9）：点一次分离就真的跑一次，多出来的音轨由用户删（assets.delete）。
 - 登记（任务成功后在 Core 主线程）：每个声部一个新资产——MP3 移入 ``Library/Tracks/<原片>/``；映射 = 输入映射裁到所选区间；
   声部名保留 Studio 原样；记录模型身份（名称、指纹、Studio 版本、文件身份）与参数；按“声部名 → 角色”别名表预填角色（不继承输入角色）；
   **不设默认轨**；整轨分离不建采样，局部分离每个声部自动建一个采样（所有者 2026-10-13）。任何一步失败整次不登记（已移入的文件删掉）。
@@ -121,13 +121,8 @@ class SeparationService:
         bad = [st for st in chosen if st not in model["stems"]]
         if bad or not chosen:
             raise CoreError("sep-stems-invalid", stems=", ".join(bad), model=model["name"])
-        reused: list[str] = []
         inputs: list[dict[str, Any]] = []
         for s0, s1 in dict.fromkeys(spans):  # 同一段给了两次只算一次
-            hit = self._reuse(asset_id, s0, s1, model, chosen)
-            if hit is not None:
-                reused += hit
-                continue
             ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, s0, s1)
             assets_mod.check_media(media)
             sr = ref.sample_rate
@@ -140,8 +135,6 @@ class SeparationService:
                 "b": round(win.to_file(s1) * sr),
                 "snapshot": media["snapshot"],
             })
-        if not inputs:
-            return {"reused": reused}
         if len({(i["ref"]["sample_rate"], i["ref"]["channels"]) for i in inputs}) > 1:
             # 多段要拼成一个输入：存放在采样率或声道不同的文件里的段（回导拼起来的音轨）分开提交
             raise CoreError("range-invalid", reason="ranges-differ-in-format", start=None, end=None, duration=asset["duration"])
@@ -157,26 +150,7 @@ class SeparationService:
             "inputs": inputs,
         }
         job = self.jobs.submit("separate", params, {"source": [asset["source_id"]], "asset": [asset_id]})
-        return {"job": job, **({"reused": reused} if reused else {})}
-
-    def _reuse(self, asset_id: str, start: float, end: float, model: dict[str, Any], stems: list[str]) -> list[str] | None:
-        stat = protocol.stat_signature(model)
-        found: dict[str, str] = {}
-        for r in self.conn.execute(
-            "SELECT id, stem_name, production, input_start, input_end FROM sound_asset WHERE origin='separation' AND input_asset_id=?",
-            (asset_id,),
-        ):
-            prod = loads(r["production"]) if r["production"] else {}
-            if (
-                abs(r["input_start"] - start) <= 1e-6
-                and abs(r["input_end"] - end) <= 1e-6
-                and prod.get("model") == model["name"]
-                and prod.get("modelStat") == stat
-            ):
-                found.setdefault(r["stem_name"], r["id"])
-        if all(st in found for st in stems):
-            return [found[st] for st in stems]
-        return None
+        return {"job": job}
 
     # ---------- 登记
 
@@ -263,7 +237,7 @@ class SeparationService:
                 new_samples.append(sid)
 
     def results(self, job_id: str) -> list[dict[str, Any]]:
-        """任务抽屉「打开结果」：这个分离任务登记的声音资产（复用的也算）。"""
+        """任务抽屉「打开结果」：这个分离任务登记的声音资产。"""
         rows = self.conn.execute("SELECT id FROM sound_asset WHERE origin='separation' AND production LIKE ?", (f'%"job":"{job_id}"%',))
         return [assets_mod.get(self.conn, r[0]) for r in rows]
 

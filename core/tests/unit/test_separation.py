@@ -62,7 +62,7 @@ def test_models_are_filtered_and_classified(env):
     assert (models["fake_3track"]["vocal"], models["fake_3track"]["threeTrack"]) == (False, True)
 
 
-def test_full_separation_registers_stems_and_reuses(db, ws, env):
+def test_full_separation_registers_stems_and_runs_again(db, ws, env):
     h, svc, sid, aid, _ = env
     list_models(h, svc)
     job = svc.submit(aid, None, None, "fake_vocals.ckpt", None)["job"]  # 按别名找模型
@@ -89,9 +89,12 @@ def test_full_separation_registers_stems_and_reuses(db, ws, env):
     assert not list((private / "input").rglob("*.wav"))
     assert not list((private / "out").rglob("*.wav"))
     assert not list((private / "tracks").rglob("*.mp3"))
-    # 复用：同一输入 + 同一模型 + 所需声部都在 → 不重跑
+    # 不做自动复用（DECISIONS §9）：再点一次就再跑一次，多一条新音轨，旧的不动
     r = svc.submit(aid, None, None, "fake_vocals", ["Vocals"])
-    assert r == {"reused": [v["id"]]}
+    assert "job" in r and "reused" not in r
+    h.wait_status(r["job"]["id"], "succeeded", "failed", timeout=60)
+    again = svc.results(r["job"]["id"])
+    assert len(again) == 1 and again[0]["id"] != v["id"] and again[0]["stem_name"] == "Vocals"
 
 
 def test_selection_three_track_crops_mapping(db, env):
@@ -118,11 +121,10 @@ def test_selection_three_track_crops_mapping(db, env):
 
 
 def test_several_ranges_in_one_job(db, env):
-    """一次分离多段（所有者 2026-10-30）：没复用的段放进同一个任务（模型只加载一次），每段一组声部；已经分离过的段直接复用。"""
+    """一次分离多段（所有者 2026-10-30）：各段放进同一个任务（模型只加载一次），每段一组声部。"""
     h, svc, sid, aid, _ = env
     list_models(h, svc)
     r = svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8], [1.0, 1.6], [0.2, 0.8]])  # 重复的段只算一次
-    assert "reused" not in r
     h.wait_status(r["job"]["id"], "succeeded", "failed", timeout=60)
     assert h.status(r["job"]["id"]) == "succeeded", h.s.summary(r["job"]["id"])["error"]
     got = sorted(svc.results(r["job"]["id"]), key=lambda a: a["mapping"][0][1])
@@ -130,11 +132,6 @@ def test_several_ranges_in_one_job(db, env):
                                            [[0.0, pytest.approx(1.0)], [pytest.approx(0.6), pytest.approx(1.6)]]]
     assert all(a["roles"] == ["vocal"] for a in got)
     assert db.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 2  # 局部分离照旧每个声部建一个采样
-    again = svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8], [1.8, 2.2]])
-    assert again["reused"] == [got[0]["id"]] and "job" in again  # 第一段复用，第二段新任务
-    h.wait_status(again["job"]["id"], "succeeded", "failed", timeout=60)
-    assert len(svc.results(again["job"]["id"])) == 1
-    assert svc.submit(aid, None, None, "fake_vocals", ["Vocals"], [[0.2, 0.8]]) == {"reused": [got[0]["id"]]}
     with pytest.raises(CoreError) as e:
         svc.submit(aid, 0.0, 1.0, "fake_vocals", None, [[0.2, 0.8]])
     assert e.value.code == "range-invalid"
@@ -190,3 +187,23 @@ def test_failed_adoption_keeps_private_files(db, ws, env):
     assert (ws.jobs / job['id'] / 'input' / 'input-0.wav').exists()
     assert list((ws.jobs / job['id'] / 'tracks').glob('*.mp3'))
     assert not svc.results(job['id'])
+
+
+def test_delete_track_removes_library_file_and_keeps_derived(db, ws, env):
+    """删除分离出的音轨：素材库里的文件一起删；拿它加工出来的成品留下，只断开来源。"""
+    h, svc, sid, aid, _ = env
+    list_models(h, svc)
+    job = svc.submit(aid, None, None, "fake_vocals", ["Vocals"])["job"]
+    h.wait_status(job["id"], "succeeded", "failed", timeout=60)
+    first = svc.results(job["id"])[0]
+    job2 = svc.submit(first["id"], None, None, "fake_vocals", ["Vocals"])["job"]
+    h.wait_status(job2["id"], "succeeded", "failed", timeout=60)
+    derived = svc.results(job2["id"])[0]
+    rel = db.execute("SELECT path FROM media_file WHERE id=?", (first["media_file_id"],)).fetchone()[0]
+    assert (ws.root / rel).is_file()
+    sources = SourceService(db, workspace_root=ws.root)
+    assert sources.asset_delete_preview(first["id"])["bytes"] > 0
+    assert sources.delete_assets([first["id"]])["deleted"] == 1
+    assert not (ws.root / rel).exists()
+    assert db.execute("SELECT input_asset_id FROM sound_asset WHERE id=?", (derived["id"],)).fetchone()[0] is None
+    assert db.execute("SELECT COUNT(*) FROM media_file WHERE id=?", (first["media_file_id"],)).fetchone()[0] == 0

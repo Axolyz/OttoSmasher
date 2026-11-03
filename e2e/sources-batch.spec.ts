@@ -9,7 +9,7 @@ import { launch } from "./helpers";
 const PY = resolve(process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python");
 
 test("批量：整片分离、设默认人声轨、从台词段建采样、重新生成说话人", async () => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const dir = mkdtempSync(join(tmpdir(), "otto-batch-"));
   const files = ["01", "02"].map((ep) => {
     const wav = join(dir, `[Group] Batch Show [${ep}].wav`);
@@ -65,12 +65,12 @@ test("批量：整片分离、设默认人声轨、从台词段建采样、重�
     });
   await expect.poll(separated, { timeout: 90000 }).toBe(2);
 
-  // 再分离一次：同输入同模型直接复用，不排新任务
+  // 再分离一次：不做自动复用，真的再跑一遍（DECISIONS §9）
   await batch("separate");
   await expect(models).toContainText("fake_vocals", { timeout: 20000 });
   await models.getByText("fake_vocals").click();
   await dlg.getByTestId("sep-submit").click();
-  await expect(page.getByText(/2 个已有结果/)).toBeVisible();
+  await expect.poll(separated, { timeout: 90000 }).toBe(4);
 
   // 批量设默认人声轨：一次可撤销
   await batch("separated-vocal");
@@ -100,5 +100,43 @@ test("批量：整片分离、设默认人声轨、从台词段建采样、重�
   await batch("speakers");
   await expect(page.getByText(/2 个原素材里，已重新生成 0 段/)).toBeVisible();
   await page.screenshot({ path: ".cache/playwright-results/sources-batch.png" });
+
+  // 音轨弹窗：默认轨上有采样 → 不让删；没人用的那条可以删
+  await page.getByRole("button", { name: "清空勾选" }).click(); // 还勾选着时右键是批量菜单
+  if (!(await page.getByTestId("source-row").first().isVisible())) await group.click(); // 展开作品分组
+  await page.getByTestId("source-row").first().click({ button: "right" });
+  await page.getByTestId("menu-tracks").click();
+  const tracks = page.getByTestId("tracks-dialog");
+  const trackRows = tracks.getByTestId("track-row");
+  await expect(trackRows).toHaveCount(5); // 原混音 + 两次分离各 Vocals、Instrumental
+  await expect(trackRows.first().getByTestId("track-delete")).toHaveCount(0); // 原混音没有删除按钮
+  const defaultRow = trackRows.filter({ hasText: "默认" });
+  await defaultRow.getByTestId("track-delete").click();
+  await expect(tracks.getByTestId("track-delete-confirm")).toContainText("个采样建在这条音轨上");
+  await expect(tracks.getByTestId("track-delete-run")).toHaveCount(0);
+  await tracks.getByRole("button", { name: "取消" }).click();
+  const spare = trackRows.filter({ hasText: "Instrumental" }).first();
+  await spare.getByTestId("track-delete").click();
+  await expect(tracks.getByTestId("track-delete-confirm")).toContainText("不能撤销");
+  await tracks.getByTestId("track-delete-run").click();
+  await expect(trackRows).toHaveCount(4);
+  await expect(page.getByText(/已删除，释放/)).toBeVisible();
+  await tracks.getByRole("button", { name: "关闭" }).click();
+
+  // 设置 › 存储：其余没人用的音轨一次清掉，默认轨不在里面
+  await page.keyboard.press("ControlOrMeta+,");
+  await page.getByTestId("settings-group-storage").click();
+  const unused = page.getByTestId("storage-unused");
+  await expect(unused).toContainText("Instrumental");
+  await unused.getByTestId("table-check-all").click();
+  await page.getByTestId("storage-unused-delete").click();
+  await page.getByTestId("storage-unused-confirm").getByTestId("confirm-ok").click();
+  await expect(page.getByTestId("storage-unused-empty")).toBeVisible();
+  await expect(page.getByText(/已删除 \d+ 条音轨/)).toBeVisible();
+  const left = await page.evaluate(async () => {
+    const res = (await window.otto.core.request("samples.list", { offset: 0, limit: 50 })) as { r: { rows: unknown[] } };
+    return res.r.rows.length;
+  });
+  expect(left).toBe(4); // 采样和它们的音轨都还在
   await app.close();
 });

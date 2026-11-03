@@ -54,7 +54,9 @@ def test_every_emitted_event_is_registered():
     cat = catalog.build(catalog.default_commands())
     assert [e["name"] for e in cat["events"]] == sorted(EVENTS)
     dangerous = {c["name"]: c["danger"] for c in cat["commands"] if "danger" in c}
-    assert dangerous == {"sources.delete": "always", "samples.delete": "always", "works.rename": "always",
+    assert dangerous == {"assets.delete": "always",
+        "storage.cleanBackups": "always",
+        "sources.delete": "always", "samples.delete": "always", "works.rename": "always",
                          "storage.clean": "always", "samples.independ": "conditional"}
 
 

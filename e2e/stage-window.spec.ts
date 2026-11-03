@@ -55,6 +55,7 @@ test("详情区窗口：余量、缩放边界、在余量里截取", async () =>
   await page.getByTestId("clip-panel").getByTestId("clip-name").fill("よはく");
   await page.getByTestId("clip-panel").getByTestId("clip-save").click();
   await refreshLists(page);
+  await expect(page.getByText("よはく").first()).toBeVisible(); // 保存是异步的，建好再读
   const made = await page.evaluate(async () => {
     const r = (await window.otto.core.request("samples.list", { offset: 0, limit: 10 })) as { r: { rows: Array<{ name: string; start: number; end: number }> } };
     return r.r.rows.find((x) => x.name === "よはく");

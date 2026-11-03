@@ -1,6 +1,6 @@
 // 分离（PyMSS Studio）确认框（规格 05 §5.5、14 §14.6；UI_PLAN §5、§8 分离行；原型 sepModal）：
 // 范围（整片连续音轨 / 当前选区）→ 模型（整片：人声模型与三轨模型；选区：任意已下载模型）→ 保留声部（空 = 全部）→「排队分离」。
-// 输入与设备在提交时冻结；结果是新的声音资产，不自动保存为采样、不自动设为默认轨；同输入同模型已有结果时直接复用。
+// 输入与设备在提交时冻结；结果是新的声音资产，不自动保存为采样、不自动设为默认轨；点一次跑一次，不复用已有结果（DECISIONS §9）。
 import { useEffect, useMemo, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { SettingEntry, StudioModel, StudioStatus } from "../api/types";
@@ -32,7 +32,7 @@ export function SeparationDialog() {
   const load = async () => setStatus(await call("studio.status"));
   useEffect(() => {
     if (!inp) return;
-    setScope(inp.scope === "sel" && inp.selection ? "sel" : "full");
+    setScope(inp.batch?.kind === "samples" || (inp.scope === "sel" && inp.selection) ? "sel" : "full");
     setStems(new Set());
     void load();
     void call("settings.list").then(setSettings);
@@ -57,21 +57,19 @@ export function SeparationDialog() {
   const chosen = models.find((m) => m.name === model) ?? null;
 
   // 一个原素材出错（文件不在、没有音频）不挡其他的；分离任务在模型通道里一个个跑
-  const submitBatch = async (assetIds: string[], m: StudioModel) => {
+  const submitBatch = async (jobs: Array<{ assetId: string; ranges?: number[][] }>, m: StudioModel) => {
     let queued = 0;
-    let reused = 0;
     const failed: string[] = [];
-    for (const assetId of assetIds) {
+    for (const job of jobs) {
       try {
-        const r = await call("separation.submit", { assetId, model: m.name, stems: stems.size ? m.stems.filter((x) => stems.has(x)) : null });
-        if (r.reused) reused += 1;
-        else queued += 1;
+        await call("separation.submit", { ...job, model: m.name, stems: stems.size ? m.stems.filter((x) => stems.has(x)) : null });
+        queued += 1;
       } catch (e) {
         failed.push(e instanceof CoreFailure ? errorText(e.wire) : String(e));
       }
     }
     toast({
-      text: t("sep.batchDone", { queued, reused, failed: failed.length }) + (failed[0] ? ` ${failed[0]}` : ""),
+      text: t("sep.batchDone", { queued, failed: failed.length }) + (failed[0] ? ` ${failed[0]}` : ""),
       tone: failed.length ? "error" : "info",
       action: queued ? { label: t("sep.openTasks"), run: () => setTasksOpen(true) } : undefined,
     });
@@ -82,22 +80,19 @@ export function SeparationDialog() {
     if (!inp || !chosen || busy) return;
     setBusy(true);
     if (inp.batch) {
-      await submitBatch(inp.batch.assetIds, chosen);
+      await submitBatch(inp.batch.jobs, chosen);
       setBusy(false);
       return;
     }
     try {
       const range = scope === "sel" && inp.selection ? { start: inp.selection.a, end: inp.selection.b } : {};
-      const r = await call("separation.submit", {
+      await call("separation.submit", {
         assetId: inp.assetId,
         model: chosen.name,
         stems: stems.size ? chosen.stems.filter((x) => stems.has(x)) : null,
         ...range,
       });
-      if (r.reused) toast({ text: t("sep.reused", { n: r.reused.length }) });
-      else {
-        toast({ text: t("sep.queued", { model: chosen.name }), action: { label: t("sep.openTasks"), run: () => setTasksOpen(true) } });
-      }
+      toast({ text: t("sep.queued", { model: chosen.name }), action: { label: t("sep.openTasks"), run: () => setTasksOpen(true) } });
       props.onClose();
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -114,7 +109,7 @@ export function SeparationDialog() {
   const inputText = !inp
     ? ""
     : inp.batch
-      ? t("sep.inputBatch", { n: inp.batch.assetIds.length })
+      ? t(inp.batch.kind === "samples" ? "sep.inputBatchSamples" : "sep.inputBatch", { n: inp.batch.n, m: inp.batch.jobs.length })
       : scope === "full"
       ? t("sep.inputFull", { end: seconds(inp.duration), track: inp.trackLabel })
       : t("sep.inputSel", { a: clock(inp.selection?.a), b: clock(inp.selection?.b), track: inp.trackLabel });

@@ -123,6 +123,7 @@ export function LibraryPage() {
   const toast = useApp((st) => st.toast);
   const requestSpeech = useApp((st) => st.requestSpeech);
   const requestFlatten = useApp((st) => st.requestFlatten);
+  const requestSeparation = useApp((st) => st.requestSeparation);
   const openSample = useApp((st) => st.openSample);
   const setOpenSample = useApp((st) => st.setOpenSample);
   const setPage = useApp((st) => st.setPage);
@@ -847,6 +848,14 @@ export function LibraryPage() {
   // 菜单（UI_PLAN §6.1、§8）：右键、舞台 ⋯、批量操作 ▾ 共用同一组动作
   const natureItems = (ids: string[]): MenuItems =>
     NATURES.map((n) => ({ id: `nature-${n}`, label: t(`nature.${n}`), shortcut: KEY_OF[n], run: () => void edit(ids, { nature: n }, "sample-nature") }));
+  // 批量局部分离（所有者 2026-11-03）：同一条音轨上的采样并成一个任务（模型只加载一次）；每个声部照旧建一个采样
+  const separateMany = async (ids: string[]) => {
+    const all = await Promise.all(ids.map(async (id) => rows.find((r) => r.id === id) ?? call("samples.get", { id })));
+    const byAsset = new Map<string, number[][]>();
+    for (const x of all) byAsset.set(x.asset_id, [...(byAsset.get(x.asset_id) ?? []), [x.start, x.end]]);
+    const jobs = [...byAsset].map(([assetId, ranges]) => ({ assetId, ranges }));
+    requestSeparation({ assetId: jobs[0]!.assetId, trackLabel: "", duration: 0, selection: null, scope: "sel", batch: { kind: "samples", n: ids.length, jobs } });
+  };
   const groupItems = (ids: string[]): MenuItems => [
     { id: "tags-add", label: t("library.addTags"), run: () => setBatch({ kind: "tags-add", ids }) },
     { id: "tags-remove", label: t("library.removeTags"), run: () => setBatch({ kind: "tags-remove", ids }) },
@@ -858,6 +867,7 @@ export function LibraryPage() {
     "-",
     { id: "speech", label: t("speech.menuN", { n: ids.length }), run: () => requestSpeech({ entry: "samples", ids }) },
     { id: "flatten", label: t("flatten.menuN", { n: ids.length }), run: () => requestFlatten({ kind: "batch", ids }) },
+    { id: "separate", label: t("sep.menuSamplesN", { n: ids.length }), run: () => void separateMany(ids) },
     "-",
     {
       id: "export",
@@ -874,6 +884,7 @@ export function LibraryPage() {
       items: [
         { id: "reaperBaked", label: t("handoff.reaperBakedN", { n: ids.length }), run: () => void copyReaper(ids, {}, true) },
         { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids, {}, false) },
+        { id: "rtt", label: t("handoff.rttN", { n: ids.length }), run: () => void reaperTemplate(ids) },
       ],
     },
     "-",

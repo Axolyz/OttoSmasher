@@ -546,6 +546,128 @@ class SourceService:
             self.on_change(cs)
         return {**preview, "released": True, "keptSamples": len(keep_samples)}
 
+    # ---------- 删除单条音轨（所有者 2026-11-03：有采样在用的不让删，原混音不能删）
+
+    def _asset_files(self, asset_id: str) -> list[tuple[Path, bool]]:
+        """这条音轨的媒体文件：(路径, 是否在素材库里)。"""
+        rows = self.conn.execute(
+            "SELECT m.path, m.location FROM media_file m WHERE m.id IN"
+            " (SELECT media_file_id FROM sound_asset WHERE id=? UNION SELECT media_file_id FROM asset_storage WHERE asset_id=?)",
+            (asset_id, asset_id),
+        ).fetchall()
+        return [((self.workspace_root / r[0]) if r[1] == "library" else Path(r[0]), r[1] == "library") for r in rows]
+
+    def _active_asset_jobs(self) -> set[str]:
+        out: set[str] = set()
+        for (affects,) in self.conn.execute("SELECT affects FROM job WHERE status IN ('queued', 'running')"):
+            out |= set((loads(affects) if affects else {}).get("asset", []))
+        return out
+
+    def asset_delete_preview(self, asset_id: str) -> dict[str, Any]:
+        """确认里要写清楚的东西：能不能删、为什么不能、是不是默认轨、连带删多少语音分析、占多大。"""
+        a = self.conn.execute("SELECT source_id, origin FROM sound_asset WHERE id=?", (asset_id,)).fetchone()
+        if a is None:
+            raise CoreError("asset-not-found", id=asset_id)
+        samples = self.conn.execute("SELECT COUNT(*) FROM sample WHERE asset_id=?", (asset_id,)).fetchone()[0]
+        reason = None
+        if a["origin"] == "stream":
+            reason = "asset-stream"
+        elif samples:
+            reason = "asset-samples"
+        elif asset_id in self._active_asset_jobs():
+            reason = "asset-jobs"
+        return {
+            "assetId": asset_id,
+            "sourceId": a["source_id"],
+            "deletable": reason is None,
+            "reason": reason,
+            "samples": samples,
+            "defaults": [r[0] for r in self.conn.execute("SELECT role FROM default_track WHERE asset_id=? ORDER BY role", (asset_id,))],
+            "analyses": self.conn.execute("SELECT COUNT(DISTINCT owner_id) FROM measure_run WHERE asset_id=? AND kind='alignment'", (asset_id,)).fetchone()[0],
+            "bytes": sum(p.stat().st_size for p, lib in self._asset_files(asset_id) if lib and p.is_file()),
+        }
+
+    def unused_assets(self) -> list[dict[str, Any]]:
+        """没有采样在用、也不是默认轨的音轨与成品（重复分离、删掉采样后留下的成品），给存储页清理。媒体已释放的原素材不列（它的音轨只留记录）。"""
+        from .samples import source_display_name
+
+        active = self._active_asset_jobs()
+        out = []
+        for r in self.conn.execute(
+            "SELECT a.id, a.source_id, s.work, s.episode, s.path, s.duration FROM sound_asset a JOIN source s ON s.id=a.source_id"
+            " WHERE a.origin<>'stream' AND s.media_state='available'"
+            " AND NOT EXISTS (SELECT 1 FROM sample WHERE asset_id=a.id) AND NOT EXISTS (SELECT 1 FROM default_track WHERE asset_id=a.id)"
+            " ORDER BY a.created_at"
+        ).fetchall():
+            if r["id"] in active:
+                continue
+            a = assets_mod.get(self.conn, r["id"])
+            files = self._asset_files(r["id"])
+            out.append({
+                "assetId": r["id"], "sourceId": r["source_id"], "sourceName": source_display_name(r["work"], r["episode"], r["path"]),
+                "origin": a["origin"], "model": (a["production"] or {}).get("model"), "stem": a["stem_name"], "createdAt": a["created_at"],
+                "bytes": sum(p.stat().st_size for p, lib in files if lib and p.is_file()),
+                "analyses": self.conn.execute("SELECT COUNT(DISTINCT owner_id) FROM measure_run WHERE asset_id=? AND kind='alignment'", (r["id"],)).fetchone()[0],
+                "fileMissing": any(not p.exists() for p, _lib in files),
+            })
+        return out
+
+    def delete_assets(self, ids: list[str]) -> dict[str, Any]:
+        """删除音轨（不可撤销，确认由调用方做）：连带它的测量、作用于它的区段标签；是默认轨就取消默认（不自动换一条）；
+        素材库里的文件一起删，外部文件只删记录。其中一条不能删 → 整批不动。"""
+        ids = list(dict.fromkeys(ids))
+        if not ids:
+            return {"deleted": 0, "bytes": 0, "filesLeft": 0}
+        sources: set[str] = set()
+        total = 0
+        for aid in ids:
+            pv = self.asset_delete_preview(aid)
+            if not pv["deletable"]:
+                raise CoreError("asset-not-deletable", id=aid, reason=pv["reason"])
+            sources.add(pv["sourceId"])
+            total += pv["bytes"]
+        am = ",".join("?" * len(ids))
+        library_files: list[str] = []
+        with transaction(self.conn):
+            x = self.conn.execute
+            media = {r[0] for r in x(f"SELECT media_file_id FROM sound_asset WHERE id IN ({am}) AND media_file_id IS NOT NULL", ids)}
+            media |= {r[0] for r in x(f"SELECT media_file_id FROM asset_storage WHERE asset_id IN ({am})", ids)}
+            runs = [r[0] for r in x(f"SELECT id FROM measure_run WHERE asset_id IN ({am})", ids)]
+            if runs:
+                rm = ",".join("?" * len(runs))
+                x(f"DELETE FROM measure_head WHERE run_id IN ({rm})", runs)
+                x(f"DELETE FROM measure_run WHERE id IN ({rm})", runs)
+            x(f"DELETE FROM range_tag WHERE scope_asset_id IN ({am})", ids)
+            x(f"DELETE FROM default_track WHERE asset_id IN ({am})", ids)
+            x(f"UPDATE sound_asset SET input_asset_id=NULL WHERE input_asset_id IN ({am})", ids)  # 拿它加工出来的成品留下，只断开来源
+            x(f"DELETE FROM sound_asset WHERE id IN ({am})", ids)
+            for mid in media:
+                still = x(
+                    "SELECT (SELECT COUNT(*) FROM sound_asset WHERE media_file_id=?) + (SELECT COUNT(*) FROM asset_storage WHERE media_file_id=?)"
+                    " + (SELECT COUNT(*) FROM visual_binding WHERE media_file_id=?)",
+                    (mid, mid, mid),
+                ).fetchone()[0]
+                if still:
+                    continue
+                row = x("SELECT path, location FROM media_file WHERE id=?", (mid,)).fetchone()
+                if row is not None and row[1] == "library":
+                    library_files.append(row[0])
+                x("DELETE FROM media_file WHERE id=?", (mid,))
+        left = 0
+        for rel in library_files:
+            try:
+                self._remove_library_file(rel)
+            except OSError:  # Windows：文件正被播放器打开时删不掉；记录已经没了，下次再清
+                left += 1
+        cs = ChangeSet()
+        for aid in ids:
+            cs.add("asset", aid)
+        for sid in sources:
+            cs.add("source", sid)
+        if self.on_change:
+            self.on_change(cs)
+        return {"deleted": len(ids), "bytes": total, "filesLeft": left}
+
     def _remove_library_file(self, rel: str) -> None:
         """只删工作区素材库里的文件；路径越出素材库一律不碰。"""
         lib = (self.workspace_root / "Library").resolve()

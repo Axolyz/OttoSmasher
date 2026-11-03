@@ -263,6 +263,7 @@ def tracks(conn: sqlite3.Connection, source_id: str) -> dict[str, Any]:
             "roles": a["roles"],
             "version": a.get("version", 1),
             "duplicates": dup,
+            "createdAt": a["created_at"],
         }
     src = conn.execute("SELECT version FROM source WHERE id=?", (source_id,)).fetchone()
     return {"sourceVersion": src[0], "defaults": defaults, "tracks": list(rows.values())}

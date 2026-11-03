@@ -53,8 +53,8 @@ export interface SeparationRequest {
   duration: number;
   selection: { a: number; b: number } | null;
   scope: "full" | "sel";
-  /** 多个原素材一起整片分离（所有者 2026-11-03）：每条默认音轨各排一个任务；此时上面的 assetId 等不用 */
-  batch?: { assetIds: string[]; sources: number };
+  /** 批量（所有者 2026-11-03）：多个原素材整片分离，或多个采样局部分离（同一条音轨的并成一个任务）；此时上面的 assetId 等不用 */
+  batch?: { kind: "sources" | "samples"; n: number; jobs: Array<{ assetId: string; ranges?: number[][] }> };
 }
 
 /** 试听的版本（规格 09 §9.5.3、12 §12.1；所有者 2026-10-08：不卡拍 / 卡拍 × 原声 / 原声＋咔哒 / 纯咔哒） */

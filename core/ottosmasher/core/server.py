@@ -195,6 +195,13 @@ class Core:
         r("assets.listForSource", "read", T.SourceIdParams, list[T.AssetInfo], "All sound assets of a source, full tracks first.",
           lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]))
         r("assets.get", "read", T.IdParams, T.AssetRecord, "One sound asset.", lambda p: assets_mod.get(self.conn, p["id"]))
+        r("assets.deletePreview", "read", T.IdParams, T.AssetDeletePreview, "What deleting a track would do: whether it can be deleted, samples on it, default roles, analyses, size.",
+          lambda p: self.sources.asset_delete_preview(p["id"]))
+        r("assets.unused", "read", T.NoParams, list[T.UnusedAsset], "Generated tracks with no samples on them that are not default tracks: candidates for cleanup.",
+          lambda p: self.sources.unused_assets())
+        r("assets.delete", "write", T.AssetDeleteParams, T.AssetsDeleted,
+          "Delete generated tracks and their library files, measurements and range tags (not undoable). Refused for original streams and tracks with samples on them.",
+          lambda p: self.sources.delete_assets(list(p["ids"])), danger=True)
         r("tracks.originalAsVocal", "write", T.SourceIdsParams, T.OriginalAsVocal,
           "For sources without a default vocal track: give the original mix the vocal role and make it the default vocal track (one undoable edit).",
           self._tracks_original_as_vocal)
@@ -461,6 +468,8 @@ class Core:
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,
           "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
           lambda p: self.storage.clean(derived=bool(p.get("derived"))), danger=True)
+        r("storage.cleanBackups", "write", T.NoParams, T.StorageCleaned, "Delete old pre-upgrade database backups, keeping the newest one.",
+          lambda p: self.storage.clean_backups(), danger=True)
         r("app.userInput", "read", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
           lambda p: self.storage.user_input())
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
@@ -947,7 +956,7 @@ class Core:
         ops: list[dict[str, Any]] = []
         skipped = 0
         for sid in dict.fromkeys(p["sourceIds"]):
-            hit = next((tr for tr in self._separated_vocals_of(sid) if tr["production"]["model"] == p["model"] and tr["stemName"] == p["stem"]), None)
+            hit = next((tr for tr in reversed(self._separated_vocals_of(sid)) if tr["production"]["model"] == p["model"] and tr["stemName"] == p["stem"]), None)  # 同名的取最新（不做自动复用，可能有好几条）
             cur = self.conn.execute("SELECT asset_id FROM default_track WHERE source_id=? AND role='vocal'", (sid,)).fetchone()
             if hit is None or (cur is not None and cur[0] == hit["id"]):
                 skipped += 1

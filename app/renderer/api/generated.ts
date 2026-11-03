@@ -132,6 +132,21 @@ export interface AssetAlignment {
   unitId: string;
 }
 
+export interface AssetDeleteParams {
+  ids: string[];
+}
+
+export interface AssetDeletePreview {
+  analyses: number;
+  assetId: string;
+  bytes: number;
+  defaults: string[];
+  deletable: boolean;
+  reason: string | null;
+  samples: number;
+  sourceId: string;
+}
+
 export interface AssetHandle {
   aid: number;
   fileEnd: number;
@@ -194,6 +209,12 @@ export interface AssetRecord {
   stream_ordinal: number | null;
   updated_at: string | null;
   version: number;
+}
+
+export interface AssetsDeleted {
+  bytes: number;
+  deleted: number;
+  filesLeft: number;
 }
 
 /**
@@ -1930,10 +1951,9 @@ export interface SeparationSubmitParams {
   stems?: string[] | null;
 }
 
-/** 同输入同模型已有结果的段放进 ``reused``（各声部资产 ID），其余的段一起进一个任务 ``job``；全部复用时没有 ``job``。 */
+/** 全部的段进一个任务。不做自动复用：点一次跑一次（DECISIONS §9）。 */
 export interface SeparationSubmitted {
-  job?: JobSummary;
-  reused?: string[];
+  job: JobSummary;
 }
 
 export interface SessionParams {
@@ -2334,7 +2354,7 @@ export interface StorageCategory {
   bytes: number;
   cleanable: number;
   files: number;
-  key: "cache" | "database" | "exports" | "independent" | "jobs" | "measurements" | "searchIndex" | "tracks";
+  key: "backups" | "cache" | "database" | "exports" | "independent" | "jobs" | "measurements" | "searchIndex" | "tracks";
   recent: number;
 }
 
@@ -2350,6 +2370,7 @@ export interface StorageCleaned {
 
 export interface StorageReport {
   categories: StorageCategory[];
+  folders: Record<string, string>;
   idleCleanup: boolean;
   lastAuto: number | null;
   sources: StorageSource[];
@@ -2837,6 +2858,7 @@ export interface TrackRoleParams {
 }
 
 export interface TrackRow {
+  createdAt: string;
   duplicates: number;
   id: string;
   isFullTrack: boolean;
@@ -2870,6 +2892,20 @@ export interface UiSetParams {
 export interface UndoPeek {
   edit_id: string;
   label: EditLabel;
+}
+
+/** 没有采样在用、也不是默认轨的音轨与成品。 */
+export interface UnusedAsset {
+  analyses: number;
+  assetId: string;
+  bytes: number;
+  createdAt: string;
+  fileMissing: boolean;
+  model: string | null;
+  origin: "flatten" | "reimport" | "separation" | "stream";
+  sourceId: string;
+  sourceName: string;
+  stem: string | null;
 }
 
 export interface VideoDone {
@@ -2983,12 +3019,18 @@ export interface Commands {
   "app.quit": { params: QuitParams; result: Quit; effect: "app" };
   /** The UI reports real user input (idle timer for automatic cache cleanup; polling does not count). */
   "app.userInput": { params: NoParams; result: null; effect: "read" };
+  /** Delete generated tracks and their library files, measurements and range tags (not undoable). Refused for original streams and tracks with samples on them. */
+  "assets.delete": { params: AssetDeleteParams; result: AssetsDeleted; effect: "write" };
+  /** What deleting a track would do: whether it can be deleted, samples on it, default roles, analyses, size. */
+  "assets.deletePreview": { params: IdParams; result: AssetDeletePreview; effect: "read" };
   /** One sound asset. */
   "assets.get": { params: IdParams; result: AssetRecord; effect: "read" };
   /** All sound assets of a source, full tracks first. */
   "assets.listForSource": { params: SourceIdParams; result: AssetInfo[]; effect: "read" };
   /** Tracks that can be default tracks, with roles and current defaults. */
   "assets.tracks": { params: SourceIdParams; result: Tracks; effect: "read" };
+  /** Generated tracks with no samples on them that are not default tracks: candidates for cleanup. */
+  "assets.unused": { params: NoParams; result: UnusedAsset[]; effect: "read" };
   /** Core version, workspace and schema version. */
   "core.hello": { params: NoParams; result: Hello; effect: "read" };
   /** Dev hook: register an existing stem file as a full-track asset (S1.2). */
@@ -3243,6 +3285,8 @@ export interface Commands {
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
   /** Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index. */
   "storage.clean": { params: StorageCleanParams; result: StorageCleaned; effect: "write" };
+  /** Delete old pre-upgrade database backups, keeping the newest one. */
+  "storage.cleanBackups": { params: NoParams; result: StorageCleaned; effect: "write" };
   /** Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source. */
   "storage.report": { params: NoParams; result: StorageReport; effect: "read" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
@@ -3376,6 +3420,7 @@ export type ErrorCode =
   | "align-unsupported"
   | "app-not-running"
   | "asset-file-missing"
+  | "asset-not-deletable"
   | "asset-not-found"
   | "asset-not-hangable"
   | "audio-stream-not-found"
