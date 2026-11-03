@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -21,9 +23,19 @@ class CoreProc:
         )
         self.next_id = 1
         self.events: list = []
-        first = read_frame(self.p.stdout)
+        # 后台一直读：真实应用（Electron）也一直读。不读的话 Core 写满管道就卡住（Windows 的管道缓冲只有约 4 KB）
+        self._frames: queue.Queue = queue.Queue()
+        threading.Thread(target=self._pump, daemon=True).start()
+        first = self._frames.get(timeout=120)
         assert first["t"] == "evt"
         self.ready = first
+
+    def _pump(self) -> None:
+        try:
+            while (msg := read_frame(self.p.stdout)) is not None:
+                self._frames.put(msg)
+        except (OSError, ValueError):
+            pass  # 进程结束时管道被关闭
 
     def call(self, method: str, **params):
         rid = self.next_id
@@ -31,7 +43,7 @@ class CoreProc:
         self.p.stdin.write(encode_frame({"t": "req", "id": rid, "m": method, "p": params}))
         self.p.stdin.flush()
         while True:
-            msg = read_frame(self.p.stdout)
+            msg = self._frames.get(timeout=300)
             if msg["t"] == "res" and msg["id"] == rid:
                 return msg
             self.events.append(msg)

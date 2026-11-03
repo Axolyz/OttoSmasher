@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import json
 import shutil
 
@@ -75,7 +76,7 @@ def test_stretched_export_and_manifest(core):  # noqa: F811
     align(core, s)
     core.rhythm.set_bpm(120)
     r = core.handoff.export_stretched(s, WORDS)
-    name = r["path"].rsplit("/", 1)[1]
+    name = Path(r["path"]).name
     assert "__卡拍-120BPM__" in name and name.startswith("s__") and name.endswith(".wav")
     v = core.rhythm.view(s)
     rate, ch, bits, frames = wavfile.info(r["path"])
@@ -109,7 +110,7 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
     lines = h["clipboard"].rstrip("\0").split("\0")
     assert lines[0] == "<ITEM" and h["clipboard"].endswith("\0\0")
     f = h["files"][0]
-    assert "/REAPER/" in f and f.rsplit("/", 1)[1].startswith("a__原混音__")
+    assert "REAPER" in Path(f).parts and Path(f).name.startswith("a__原混音__")
     # 原声没有烘焙：等于采样范围的原始样本
     _rate, _ch, _bits, frames = wavfile.info(f)
     assert frames == round(3.6 * SR)

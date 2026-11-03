@@ -106,7 +106,7 @@ def test_picture_clip_materialized_for_video_sources(core, tmp_path):  # noqa: F
     b = visuals.resolve(core.conn, sample_id=sid, root=core.ws.root)
     assert (b["origin"], b["mode"], b["state"]) == ("sample", "materialized_clip", "ok")
     assert visuals.picture_time(b, 1.5, 0.5) == pytest.approx(0.5)  # 片段时间 = 原片秒 − 片段起点
-    assert "/Independent/" in b["path"] and b["path"].endswith(".mp4")
+    assert "/Independent/" in b["path"].replace("\\", "/") and b["path"].endswith(".mp4")
     assert core.conn.execute("SELECT media_state FROM source WHERE id=?", (r["sourceId"],)).fetchone()[0] == "released"
     # 声音切片是 24 位整数 WAV（FLAC 源 = 无损）
     mf = core.conn.execute("SELECT m.path FROM asset_storage s JOIN media_file m ON m.id=s.media_file_id WHERE s.asset_id=?", (aid,)).fetchone()[0]

@@ -93,7 +93,7 @@ def test_real_stage9(tmp_path):
         r1 = ok(c.call("reimport.commit", assetId=vox, start=1303.272, path=str(g5), name="やったー！"))
         g5.unlink()  # 用户的原文件可以随意处置
         h = ok(c.call("playback.resolveAsset", assetId=r1["asset_id"], start=0.0, end=0.5))
-        assert Path(h["path"]).is_file() and h["path"].endswith(".wav") and "/Reimport/" in h["path"]
+        assert Path(h["path"]).is_file() and h["path"].endswith(".wav") and "/Reimport/" in h["path"].replace("\\", "/")
         report["S8.1"] = {"end": pv["end"], "sourceStart": r1["source_start"], "duration": r1["duration"], "file": Path(h["path"]).name}
 
         # ---- S8.2 采样率不同（48 kHz → 千鹤 MP4 的 13.187 秒）

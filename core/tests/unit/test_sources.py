@@ -347,4 +347,4 @@ def test_batch_relocate_by_relative_path_then_name(db, ws, tmp_path):
     assert plan2[ids[0]]["how"] == "name" and plan2[ids[2]]["how"] == "ambiguous" and plan2[ids[2]]["path"] is None
     done = svc.relocate_many(list(plan.values()))
     assert len(done) == 3
-    assert db.execute("SELECT path FROM source WHERE id=?", (ids[1],)).fetchone()[0].endswith("deep/y.wav")
+    assert db.execute("SELECT path FROM source WHERE id=?", (ids[1],)).fetchone()[0].replace("\\", "/").endswith("deep/y.wav")
