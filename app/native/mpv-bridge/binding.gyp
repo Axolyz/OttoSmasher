@@ -17,7 +17,7 @@
             "MACOSX_DEPLOYMENT_TARGET": "12.0",
             "OTHER_LDFLAGS": [
               "-L<(module_root_dir)/../../../third_party/libmpv/macos-arm64",
-              "-lmpv",
+              "-lmpv.2",
               "-Wl,-rpath,@loader_path/../../../../../third_party/libmpv/macos-arm64",
               "-Wl,-rpath,@loader_path/../libmpv"
             ]

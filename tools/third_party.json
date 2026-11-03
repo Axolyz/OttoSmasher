@@ -7,42 +7,55 @@
         "darwin-arm64"
       ],
       "kind": "archive",
-      "url": "https://github.com/media-kit/libmpv-darwin-build/releases/download/v0.7.3/libmpv-libs_v0.7.3_macos-arm64-video-full.tar.gz",
-      "sha256": "9bb168ec908b4801f4231f411e3278a0aea644a2b03ce375c880d2813ab7f949",
-      "size": 10289675,
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-macos-arm64-8ca245f213.tar.gz",
+      "sha256": "285d1d5f619279d13eea267a80c3b0493231d65d8d9c101d8ef453a0d74fc672",
+      "size": 11175872,
       "dest": "libmpv/macos-arm64",
       "strip_components": 1,
-      "note": "media-kit/libmpv-darwin-build v0.7.3（mpv 0.36.0 + FFmpeg 6.0，video-full 变体：全部解码器、VideoToolbox；不含 GPL 编码器）。发布前（阶段 10）复核许可证。"
+      "note": "tools/build_libmpv_macos.sh 在云端从官方源码编译：mpv 8ca245f2 + FFmpeg n9.0.2，只开 LGPL，静态并进一个 dylib。"
     },
     {
-      "id": "mpv-headers-0.36.0",
+      "id": "libmpv-windows-x64",
+      "platforms": [
+        "win32-x64"
+      ],
+      "kind": "archive",
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/libmpv-windows-x64-8ca245f213.tar.gz",
+      "sha256": "c21a5ac459740c42dd51a6b07166f4c0e1d5175d0d26e2245edd8004c6449acc",
+      "size": 42146768,
+      "dest": "libmpv/win-x64",
+      "strip_components": 1,
+      "note": "zhongfly/mpv-winbuild 2026-11-03-8ca245f213 的 LGPL 包（mpv 8ca245f2，与 macOS 同一提交），只把 7z 重新打成 tar.gz，文件未改。上游只留 30 天，所以存在本仓库的 third-party-1。"
+    },
+    {
+      "id": "mpv-headers",
       "platforms": [
         "*"
       ],
       "kind": "files",
       "files": [
         {
-          "url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/client.h",
-          "sha256": "287181025de368777fa30f6f636c1915e77cc551ffe132993528f08ff4a64ae4",
+          "url": "https://raw.githubusercontent.com/mpv-player/mpv/8ca245f2133773f9a7fe59e4c5bcc53f1af4407c/include/mpv/client.h",
+          "sha256": "3da9b8c61c3fb4e2d76bd248cebf72f3ee830331411b71a76adbd5e05660cc50",
           "dest": "libmpv/include/mpv/client.h"
         },
         {
-          "url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/render.h",
-          "sha256": "0a93aa38bd3994f96860c1d68adafeba87c97b174456d13ec0b18a855180bd19",
+          "url": "https://raw.githubusercontent.com/mpv-player/mpv/8ca245f2133773f9a7fe59e4c5bcc53f1af4407c/include/mpv/render.h",
+          "sha256": "f2550aa29b2e9b20988bd954b4383e9fa05fd9e40d1669fbc6edf2afac603f15",
           "dest": "libmpv/include/mpv/render.h"
         },
         {
-          "url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/render_gl.h",
-          "sha256": "7bb28b46420b7c85247ac316cec5e2146469418f03d4c78d7b268beeeb9882f2",
+          "url": "https://raw.githubusercontent.com/mpv-player/mpv/8ca245f2133773f9a7fe59e4c5bcc53f1af4407c/include/mpv/render_gl.h",
+          "sha256": "48662c0ed9872a14dd9e1684105c97f69f94a0414709c254c5d372adc41d2e69",
           "dest": "libmpv/include/mpv/render_gl.h"
         },
         {
-          "url": "https://raw.githubusercontent.com/mpv-player/mpv/v0.36.0/libmpv/stream_cb.h",
-          "sha256": "5d835aedd37cf76c14b7bfdcf91741bdf5fe052623d1ae1253d8de09a7f9bc34",
+          "url": "https://raw.githubusercontent.com/mpv-player/mpv/8ca245f2133773f9a7fe59e4c5bcc53f1af4407c/include/mpv/stream_cb.h",
+          "sha256": "188e58b6d14383e15a5dffdc4ecebbdfbf2e412b9c099ff21b571f747a8ce32d",
           "dest": "libmpv/include/mpv/stream_cb.h"
         }
       ],
-      "note": "mpv 客户端 API 头文件，与上面 libmpv 的 mpv 版本一致（ISC 许可）。"
+      "note": "mpv 客户端 API 头文件，与上面 libmpv 同一提交（ISC 许可）。"
     },
     {
       "id": "model-support",

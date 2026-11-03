@@ -304,6 +304,8 @@ def copy_licenses(res: Path, need: dict[str, Path]) -> None:
         prefix = need[t].parents[1]
         for lic in list(prefix.glob("LICENSE*")) + list(prefix.glob("COPYING*")):
             shutil.copy2(lic, d / f"{t}-{lic.name}")
+    for lic in (need["libmpv"] / "licenses").iterdir():  # build_libmpv_macos.sh 随压缩包带的 mpv、FFmpeg、dav1d 许可
+        shutil.copy2(lic, d / f"libmpv-{lic.name}")
 
 
 # ---------------------------------------------------------------- 签名与打包

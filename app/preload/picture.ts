@@ -59,7 +59,7 @@ export class StagePicture {
     this.player?.destroy();
     this.canvas = c;
     this.loadedPath = "";
-    this.player = new CanvasPlayer(c, { hwdec: "videotoolbox-copy", aid: "no", mute: "yes", "loop-file": "no", "keep-open": "yes" }, 1280 * 720);
+    this.player = new CanvasPlayer(c, { hwdec: "auto-copy", aid: "no", mute: "yes", "loop-file": "no", "keep-open": "yes" }, 1280 * 720);
     this.player.observe("time-pos", "double");
     this.player.on((ev: MpvEvent) => {
       if (ev.type === "property-change" && ev.name === "time-pos") this.pos = typeof ev.value === "number" ? ev.value : null;
@@ -84,7 +84,12 @@ export class StagePicture {
     this.player!.set("loop-file", b.mode === "loop" ? "inf" : "no");
     if (this.loadedPath !== b.path) {
       this.loadedPath = b.path;
-      this.player!.command(["loadfile", b.path, "replace", `vid=${b.ordinal + 1},aid=no,pause=yes`]);
+      // 第三个参数是播放列表位置（mpv 0.38 起选项挪到第四个）；舞台画面没有报错通道，记日志并允许下次重试（P6）
+      const r = this.player!.command(["loadfile", b.path, "replace", "-1", `vid=${b.ordinal + 1},aid=no,pause=yes`]);
+      if (r < 0) {
+        this.loadedPath = "";
+        console.error(`stage picture: loadfile failed (mpv error ${r})`);
+      }
     }
     // 静帧：采样起点那一刻
     this.seekTo(this.timeAt(plan.start));

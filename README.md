@@ -197,7 +197,7 @@ OttoSmasher 基于 Electron，界面、Python Core 和用到的模型本身都�
 [pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus) 与 [tsqyomi](https://huggingface.co/tsukumijima/tsqyomi-models)（日语文本前端与读音预测）、
 [FCPE](https://github.com/CNChTu/FCPE) 与 [HiFiShifter](https://github.com/ARounder-183/HiFiShifter)（音高、模型转换）、
 [OpenVPI](https://github.com/openvpi) 的 PC-NSF-HiFiGAN（拉平声码器）、
-[Rubber Band](https://breakfastquay.com/rubberband/)（保音高伸缩）、[mpv](https://mpv.io/) 与 [media-kit](https://github.com/media-kit/libmpv-darwin-build) 的 libmpv（播放）、
+[Rubber Band](https://breakfastquay.com/rubberband/)（保音高伸缩）、[mpv](https://mpv.io/)（播放）、
 [FFmpeg](https://ffmpeg.org/)、[ONNX Runtime](https://onnxruntime.ai/)、[Electron](https://www.electronjs.org/)、[React Aria](https://react-spectrum.adobe.com/react-aria/)，
 以及 [PyMSS Studio](https://github.com/pymss-project/pymss-studio)（人声分离）。完整清单与各自的许可见 [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md)。
 

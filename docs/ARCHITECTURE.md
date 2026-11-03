@@ -474,8 +474,8 @@ class LanguageProfile:
 - **波形组件与 mpv 的关系**：波形只做显示与交互（峰值与细节窗样本由 Core 按视口给出，不在浏览器解码音频）；播放全部交给 mpv。
   选区只能拖两端、不能整体拖；刻度、总览条、播放头、音素/字幕/区段车道、F0 金线、命中框都是同一组件的图层。
   Shift 吸附、⌥ 拖出（越过 4 px 才生成）等规格要求的手势直接在组件里实现。
-- **libmpv 来源**（所有者同意直接下载，Q2）：macOS arm64 用 GitHub media-kit/libmpv-darwin-build v0.7.3 的 `video-full` 包（mpv 0.36.0 + FFmpeg 6.0，含 VideoToolbox；SHA-256 固定在 `tools/third_party.json`）；头文件取 mpv 官方 v0.36.0。Windows 的来源没定（只发 macOS，DECISIONS §14）。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
-- **实现要点**（开发初期的探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=videotoolbox-copy`、`sws-fast=yes`、`zimg-fast=yes`。
+- **libmpv 来源**（DECISIONS §14）：两端是同一个 mpv 提交（8ca245f2）。macOS arm64 由 `tools/build_libmpv_macos.sh` 在云端从官方源码编译（FFmpeg n9.0.2，含 VideoToolbox，只开 LGPL，静态并进一个 `libmpv.2.dylib`，见 `.github/workflows/build-libmpv.yml`）；Windows x64 用 zhongfly/mpv-winbuild 的 LGPL 包（未实测）。压缩包都存在本仓库的预发布版本 `third-party-1`，SHA-256 固定在 `tools/third_party.json`；头文件取同一提交。原生播放不可用 → 明确报错，不换其他播放方式（P6）。
+- **实现要点**（开发初期的探针确认）：软件渲染在桥内独立线程里进行；`mpv_render_context_render` 默认按帧的显示时间阻塞，正好用来给画面定时，界面线程每个动画帧只取最新一帧（拷贝 + 纹理上传）。默认选项 `hwdec=auto-copy`（macOS 上实测选到 videotoolbox-copy）、`sws-fast=yes`。
 
 ### 10.2 波形、频谱、缩略图
 

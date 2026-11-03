@@ -94,7 +94,7 @@ if (process.env.OTTO_DEV === "1") {
       // 探针可用环境变量调 mpv 选项与渲染像素上限，用来比较方案
       const extra = process.env.OTTO_PROBE_MPV ? (JSON.parse(process.env.OTTO_PROBE_MPV) as Record<string, string>) : {};
       const maxPixels = process.env.OTTO_PROBE_MAXPIX ? Number(process.env.OTTO_PROBE_MAXPIX) : Infinity;
-      player = new CanvasPlayer(canvas, { hwdec: "videotoolbox-copy", "sws-fast": "yes", "zimg-fast": "yes", ...extra }, maxPixels);
+      player = new CanvasPlayer(canvas, { hwdec: "auto-copy", "sws-fast": "yes", ...extra }, maxPixels);
       for (const name of ["pause", "time-pos", "duration", "hwdec-current"]) player.observe(name, name === "pause" ? "flag" : name === "hwdec-current" ? "string" : "double");
       return true;
     },

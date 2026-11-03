@@ -18,7 +18,7 @@ import { AudioPlayer, CanvasPlayer, type MpvEvent, type MpvLike } from "./player
 const PUSH_MS = 50;
 // 自动化测试用 OTTO_MPV_AO=null 静音输出（仍按实时推进），不在所有者的电脑上出声
 const AO: Record<string, string> = process.env.OTTO_MPV_AO ? { ao: process.env.OTTO_MPV_AO } : {};
-const MPV_OPTIONS = { hwdec: "videotoolbox-copy", "sws-fast": "yes", "zimg-fast": "yes", ...AO };
+const MPV_OPTIONS = { hwdec: "auto-copy", "sws-fast": "yes", ...AO };
 
 async function core<T>(method: string, params: Record<string, unknown>): Promise<T> {
   const r = (await ipcRenderer.invoke("core:request", method, params)) as CoreResult<T>;
@@ -121,7 +121,9 @@ class Engine {
     if (audioFile) this.mpv.command(["change-list", "audio-files", "append", audioFile]);
     this.mpv.set("audio-delay", String(audioDelay));
     // aid 在 loadfile 的选项里给：加载期间不会先放原音轨（R22.1“加载期间原音轨静音”）
-    this.mpv.command(["loadfile", path, "replace", `aid=${aid},pause=yes`]);
+    // 第三个参数是播放列表位置（replace 时不用，mpv 0.38 起选项挪到第四个）；命令被拒绝不会有 file-loaded，要明确报错（P6）
+    const r = this.mpv.command(["loadfile", path, "replace", "-1", `aid=${aid},pause=yes`]);
+    if (r < 0) this.fail(this.gen, { code: "playback-failed", args: { detail: `loadfile: mpv error ${r}` } });
     this.push(true);
   }
 
