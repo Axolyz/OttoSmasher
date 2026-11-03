@@ -1,6 +1,7 @@
-"""检索进程池在真实 Core 的条件下启动：另一个线程正阻塞在读 stdin（Core 的请求通道）。
+"""检索进程池在真实 Core 的条件下启动：另一个线程正阻塞在读请求通道。
 
-Windows 上同步管道有未完成的读取时，别的线程碰同一个句柄可能卡住；Core 的单元测试多用内联模式，覆盖不到这里。
+Windows 上同步管道有未完成的读取时，别的进程查询同一个句柄会卡住，所以 Core 要先 detach_stdio；
+Core 的单元测试多用内联模式，覆盖不到这里（这个问题曾让 Windows 上的检索永远等不到结果）。
 """
 
 from __future__ import annotations
@@ -9,22 +10,25 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = """
+SCRIPT = r"""
 import faulthandler, os, sys, threading, time
 from pathlib import Path
 
 from ottosmasher.core import search_worker as sw
+from ottosmasher.core.rpc import detach_stdio
 
 if __name__ == "__main__":
     faulthandler.dump_traceback_later(60, exit=True)
-    threading.Thread(target=lambda: sys.stdin.buffer.read(), daemon=True).start()
+    stdin_raw, out = detach_stdio()
+    threading.Thread(target=lambda: stdin_raw.read(1), daemon=True).start()
     time.sleep(0.5)
     pool = sw.SearchPool(Path(sys.argv[1]), Path(sys.argv[2]), workers=2)
     slot = pool.acquire()
     res = pool.run(sw.selftest_wait, [(0.1,), (0.1,)], slot)
-    print("ok" if res and not any(r["cancelled"] for r in res) else f"bad {res}", flush=True)
+    out.write(b"ok\n" if res and not any(r["cancelled"] for r in res) else f"bad {res}\n".encode())
+    out.flush()
     pool.shutdown()
-    os._exit(0)  # 另一个线程还卡在读 stdin，正常退出解释器会报错
+    os._exit(0)
 """
 
 

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from .core.errors import CoreError
-from .core.rpc import FrameWriter
+from .core.rpc import FrameWriter, detach_stdio
 from .core.server import Core
 
 
@@ -23,8 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-agent-link", action="store_true", help="do not open the local endpoint for the command line (otto)")
     args = ap.parse_args(argv)
 
-    # stdout 只用来传帧；任何意外的 print 都改到 stderr
-    out = sys.stdout.buffer
+    # 帧通道走私有描述符；任何意外的 print 都改到 stderr
+    stdin_raw, out = detach_stdio()
     sys.stdout = sys.stderr
 
     core = Core(args.workspace, support_dir=args.support_dir, dev=args.dev, agent_link=not args.no_agent_link)
@@ -45,8 +45,6 @@ def main(argv: list[str] | None = None) -> int:
         logging.error("core failed to open: %r", exc)
         return 2
     try:
-        # 读端用无缓冲的原始文件：读线程阻塞在 read 时退出解释器，不会因为缓冲区锁而中止
-        stdin_raw = open(sys.stdin.fileno(), "rb", buffering=0, closefd=False)  # noqa: SIM115
         core.serve(stdin_raw, out)
     finally:
         core.close()
