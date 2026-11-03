@@ -42,7 +42,7 @@ tools/npm run i18n:check                              # 源码里没有写死的
 tools/npm run e2e                                     # Playwright 驱动真实 Electron（临时工作区、静音输出）
 ```
 
-- 真实素材（第三方版权内容，只在本地用，不复制进仓库）：设 `OTTO_FIXTURES=<素材目录>` 再跑
+- 真实素材（第三方版权内容，不复制进仓库、不进 Git，见 AGENTS §5）：设 `OTTO_FIXTURES=<素材目录>` 再跑
   pytest 或 `e2e/real-*.spec.ts`；需要模型的测试另要 `dev-workspace/Models`。
 - `OTTO_STRICT_API=1`：Core 核对每个命令的返回值与命令目录一致。
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。

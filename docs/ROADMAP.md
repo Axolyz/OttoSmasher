@@ -19,7 +19,7 @@
 | 中文、英文的语音分析      | 加一个 `LanguageProfile`（ARCHITECTURE §8），另选文本前端与对齐模型               |
 | 界面多语言翻译         | 文案已在 `app/renderer/i18n/locales/`，加语言不改业务代码                      |
 | 没有字幕时的说话人日志     | 按声音自动分出“谁在说”                                                     |
-| Windows 版       | 现在只发 macOS（DECISIONS §14）；涉及的未验证项见 L9、L26、L47                    |
+| Windows 版       | 所有者 2026-11-03 决定做（范围见 DECISIONS §14）；还没开工，未验证项见 L9、L26、L47         |
 
 ## 3. 未结事项
 
