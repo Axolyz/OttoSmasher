@@ -70,11 +70,14 @@ def _alive(pid: int) -> bool:
     if sys.platform == "win32":
         import ctypes
 
-        h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not h:
             return False
-        ctypes.windll.kernel32.CloseHandle(h)
-        return True
+        code = ctypes.c_ulong()
+        ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+        k32.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE；已退出但句柄还没关的进程也能打开
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

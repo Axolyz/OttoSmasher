@@ -173,8 +173,9 @@ def test_cancel_kills_studio_and_registers_nothing(db, ws, env):
     h.s.cancel(job["id"])
     h.wait_status(job["id"], "cancelled", timeout=30)
     time.sleep(0.3)
-    with pytest.raises(ProcessLookupError):
-        os.kill(pid, 0)  # Studio 子进程也结束了（进程树）
+    from ottosmasher.core.agent_link import _alive
+
+    assert not _alive(pid)  # Studio 子进程也结束了（进程树）
     assert db.execute("SELECT COUNT(*) FROM sound_asset WHERE origin='separation'").fetchone()[0] == 0
 
 

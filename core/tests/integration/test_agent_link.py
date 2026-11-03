@@ -19,7 +19,6 @@ from ottosmasher.store.workspace import Workspace
 
 from test_core_process import CoreProc
 
-pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Windows 未验收（L47）")
 
 
 @pytest.fixture

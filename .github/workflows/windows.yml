@@ -34,19 +34,28 @@ jobs:
         run: .venv/Scripts/python.exe tools/fetch_third_party.py
       - name: pydomino 扩展
         run: tools/uv run --with setuptools python tools/build_domino.py
-      - name: ffmpeg
+      - name: 媒体工具加入 PATH
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/ffmpeg.zip" https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-9.0.zip
-          unzip -q "$RUNNER_TEMP/ffmpeg.zip" -d "$RUNNER_TEMP/ffmpeg"
-          dirname "$(find "$RUNNER_TEMP/ffmpeg" -name ffmpeg.exe)" >> "$GITHUB_PATH"
+          echo "$PWD/third_party/media-tools/ffmpeg/bin" >> "$GITHUB_PATH"
+          echo "$PWD/third_party/media-tools/rubberband" >> "$GITHUB_PATH"
+      - uses: actions/cache@v5
+        with:
+          path: dev-workspace/Models
+          key: models-${{ hashFiles('core/ottosmasher/models/registry.py') }}
+      - name: 模型权重
+        run: .venv/Scripts/python.exe tools/fetch_models.py
       - name: Core 测试
         env:
           OTTO_STRICT_API: "1"
-        run: .venv/Scripts/python.exe -m pytest core/tests --junitxml=core-tests.xml -o junit_family=xunit1 --tb=short -rfE
+        run: .venv/Scripts/python.exe -m pytest core/tests --basetemp="$RUNNER_TEMP/pt" --junitxml=core-tests.xml -o junit_family=xunit1 --tb=short -rfE
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: core-tests
-          path: core-tests.xml
+          # 只有合成数据的日志（AGENTS §5）
+          path: |
+            core-tests.xml
+            ${{ runner.temp }}/pt/**/log.txt
+            ${{ runner.temp }}/pt/**/core.log
           if-no-files-found: ignore
           retention-days: 14

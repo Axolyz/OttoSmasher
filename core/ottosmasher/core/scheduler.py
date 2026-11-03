@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import sys
 import threading
@@ -219,7 +220,8 @@ class Scheduler:
         self.conn.execute("UPDATE job SET status='running', started_at=? WHERE id=?", (now_iso(), jid))
         logf = open(job_dir / "log.txt", "ab")  # noqa: SIM115 — 子进程持有，结束时关闭
         try:
-            tree = spawn_tree([self.python, "-m", "ottosmasher.jobs.worker", str(job_dir)], stderr=logf)
+            # stdout 是 UTF-8 的事件通道；Windows 的默认编码写不了所有文字（写不了就崩，写成 GBK 又解不开）
+            tree = spawn_tree([self.python, "-m", "ottosmasher.jobs.worker", str(job_dir)], env={**os.environ, "PYTHONUTF8": "1"}, stderr=logf)
         except OSError as exc:
             logf.close()
             self._finish(jid, "failed", error={"code": "job-spawn-failed", "args": {"reason": str(exc)}})

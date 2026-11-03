@@ -28,6 +28,32 @@
       "note": "zhongfly/mpv-winbuild 2026-11-03-8ca245f213 的 LGPL 包（mpv 8ca245f2，与 macOS 同一提交），只把 7z 重新打成 tar.gz，文件未改。上游只留 30 天，所以存在本仓库的 third-party-1。"
     },
     {
+      "id": "ffmpeg-windows-x64",
+      "platforms": [
+        "win32-x64"
+      ],
+      "kind": "archive",
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/ffmpeg-n9.0.2-45-g1e65c6cd5d-win64-gpl-9.0.zip",
+      "sha256": "ab9939af65bea84c161b4f80056511aa346d65315e8bec87ea2b8fc675839711",
+      "size": 195112301,
+      "dest": "media-tools/ffmpeg",
+      "strip_components": 1,
+      "note": "BtbN/FFmpeg-Builds autobuild-2026-11-03-12-50 的 GPL 静态版（n9.0.2，与 Homebrew 的 macOS 版同一大版本；带 libx264）。原件存在 third-party-1，上游的旧构建会被清理。"
+    },
+    {
+      "id": "rubberband-windows-x64",
+      "platforms": [
+        "win32-x64"
+      ],
+      "kind": "archive",
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/rubberband-4.0.0-gpl-executable-windows.zip",
+      "sha256": "f2d47fc64dbb42f6cc62edf7933ac4fa89d8f0ef8b9cf97b6afc263a7fe05644",
+      "size": 1765785,
+      "dest": "media-tools/rubberband",
+      "strip_components": 1,
+      "note": "breakfastquay.com 官方的 Windows 版 4.0.0（与 Homebrew 的 macOS 版同版本），原件存在 third-party-1。"
+    },
+    {
       "id": "mpv-headers",
       "platforms": [
         "*"

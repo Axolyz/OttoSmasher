@@ -85,7 +85,6 @@ def test_align_analyze_and_f0_without_storing(tmp_path):
         c.p.wait(timeout=15)
 
 
-@pytest.mark.skipif(__import__("sys").platform == "win32", reason="Windows 未验收（L47）")
 def test_cli_wait_prints_primitive_results(tmp_path):
     from test_cli import otto
 

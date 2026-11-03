@@ -49,6 +49,10 @@ class CoreProc:
 
 
 def alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        from ottosmasher.core.agent_link import _alive
+
+        return _alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -57,7 +61,6 @@ def alive(pid: int) -> bool:
     return bool(out) and not out.startswith("Z")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows 未验收")
 def test_core_process_roundtrip_and_eof_kills_jobs(tmp_path):
     root = tmp_path / "空格 工作区"
     c = CoreProc(root)
@@ -123,7 +126,7 @@ def test_models_status_reports_files_runtime_separately(tmp_path):
     by = {m["model"]: m for m in st["files"]}
     assert by["pydomino"]["state"] == "mismatch"  # 大小不对
     assert by["fcpe"]["state"] == "missing"
-    assert by["fcpe"]["files"][0]["path"].endswith("Models/features/fcpe.onnx")
+    assert by["fcpe"]["files"][0]["path"].replace("\\", "/").endswith("Models/features/fcpe.onnx")
     assert "onnxruntime" in st["runtime"]
     assert st["probes"] == []
     c.p.stdin.close()

@@ -342,7 +342,7 @@ def test_batch_relocate_by_relative_path_then_name(db, ws, tmp_path):
     _sh.rmtree(old)
     ids = [a["sourceId"] for a in added]
     plan = {p["sourceId"]: p for p in svc.relocate_plan(ids, str(new / "deep"))}
-    assert plan[ids[0]]["how"] == "relative" and plan[ids[0]]["path"].endswith("deep/a/x.wav")
+    assert plan[ids[0]]["how"] == "relative" and plan[ids[0]]["path"].replace("\\", "/").endswith("deep/a/x.wav")
     plan2 = {p["sourceId"]: p for p in svc.relocate_plan(ids, str(new))}
     assert plan2[ids[0]]["how"] == "name" and plan2[ids[2]]["how"] == "ambiguous" and plan2[ids[2]]["path"] is None
     done = svc.relocate_many(list(plan.values()))

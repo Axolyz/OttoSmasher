@@ -52,7 +52,8 @@ def test_compile_and_reading_is_used(tmp_path: Path):
         "m = pj.g2p_mapping('歳納京子', use_tsqyomi=False, normalize_mode='None', jtalk=dic.jtalk_for(out))\n"
         "print(json.dumps({'name': name, 'first': m[0]['pron']}, ensure_ascii=False))\n"
     )
-    r = subprocess.run([sys.executable, "-c", code, str(tmp_path)], capture_output=True, text=True, timeout=120, check=True)
+    r = subprocess.run([sys.executable, "-c", code, str(tmp_path)], capture_output=True, encoding="utf-8", errors="replace", timeout=120, env={**os.environ, "PYTHONUTF8": "1"})
+    assert r.returncode == 0, r.stderr
     # 编译进度不能混进 stdout（任务进程的 stdout 是事件通道）
     assert r.stdout.strip().splitlines() == [r.stdout.strip()]
     assert '"first": "トシノウ"' in r.stdout

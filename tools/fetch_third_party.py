@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +81,21 @@ def ensure_archive(item: dict) -> None:
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     strip = int(item.get("strip_components", 0))
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as zf:
+            for info in zf.infolist():
+                parts = Path(info.filename).parts[strip:]
+                if not parts or info.is_dir():
+                    continue
+                if ".." in parts:
+                    raise SystemExit(f"压缩包里有不允许的条目：{info.filename}")
+                target = dest.joinpath(*parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info) as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out)
+        marker.write_text(item["sha256"])
+        print(f"  解压到 {item['dest']}")
+        return
     with tarfile.open(archive) as tf:
         for m in tf.getmembers():
             parts = Path(m.name).parts[strip:]

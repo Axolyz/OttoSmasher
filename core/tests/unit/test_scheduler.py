@@ -67,6 +67,10 @@ def h(db, ws):
 
 
 def alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        from ottosmasher.core.agent_link import _alive
+
+        return _alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

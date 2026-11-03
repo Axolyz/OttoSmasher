@@ -37,7 +37,7 @@ export class CoreClient extends EventEmitter {
     const args = ["-m", "ottosmasher", "--workspace", this.opts.workspace];
     if (this.opts.supportDir) args.push("--support-dir", this.opts.supportDir);
     if (this.opts.dev) args.push("--dev");
-    const proc = spawn(this.opts.python, args, { cwd: this.opts.cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const proc = spawn(this.opts.python, args, { cwd: this.opts.cwd, env: { ...process.env, PYTHONUTF8: "1" }, stdio: ["pipe", "pipe", "pipe"] });
     this.proc = proc;
     this.buf = Buffer.alloc(0);
     proc.stdout!.on("data", (chunk: Buffer) => this.onData(chunk));

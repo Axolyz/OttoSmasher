@@ -64,7 +64,7 @@ def test_scan_registers_by_folder(db, ws, tmp_path):
     assert (hit["work"], hit["rel_path"]) == ("Game", "Game/se/hit.wav")  # 第一层子文件夹 = 作品，更深的只是子目录
     assert (loose["work"], loose["rel_path"]) == ("", "loose.wav")
     # 字幕放宽：同名加语言后缀、Subs 子文件夹
-    assert r1["subtitle_path"].endswith("[01].ja.srt") and "/Subs/" in r2["subtitle_path"]
+    assert r1["subtitle_path"].endswith("[01].ja.srt") and "/Subs/" in r2["subtitle_path"].replace("\\", "/")
     assert hit["visual_binding_id"] is not None  # 同名画面
     assert {r[0] for r in db.execute("SELECT name FROM work_folder")} == {"Kemono Friends", "Game"}
     # 再扫一遍：没有新的

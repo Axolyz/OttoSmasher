@@ -84,7 +84,7 @@ def test_independ_then_release_keeps_analysis(core):  # noqa: F811
     from ottosmasher.core import playback as playback_mod
 
     h = playback_mod.resolve_asset(core.conn, core.ws.root, core.aid, 2.5, 3.0)
-    assert "/Independent/" in h["path"] and h["fileStart"] == pytest.approx(2.5 - st[0][1], abs=1e-6)
+    assert "/Independent/" in h["path"].replace("\\", "/") and h["fileStart"] == pytest.approx(2.5 - st[0][1], abs=1e-6)
     with pytest.raises(CoreError) as ei:
         pcm(core, core.aid, 6.0, 6.5)  # 切片之外
     assert ei.value.code == "media-released"

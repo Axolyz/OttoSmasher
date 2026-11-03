@@ -33,7 +33,7 @@ WORKERS = 4
 
 def rubberband_version() -> str:
     exe = tools.find("rubberband")
-    p = subprocess.run([exe, "--version"], capture_output=True, text=True, check=False)
+    p = subprocess.run([exe, "--version"], capture_output=True, encoding="utf-8", errors="replace", check=False)
     return (p.stdout or p.stderr).strip().splitlines()[0] if (p.stdout or p.stderr) else "unknown"
 
 
@@ -44,7 +44,7 @@ def _stretch_rb(x: np.ndarray, n: int, sr: int, exe: str, tmp: Path, tag: str) -
     for g, part in enumerate(groups):
         src, dst = tmp / f"{tag}-{g}-in.wav", tmp / f"{tag}-{g}-out.wav"
         wavfile.save_wav_f32(src, np.ascontiguousarray(part, dtype=np.float32), sr)
-        p = subprocess.run([exe, "-3", "-q", "-D", f"{n / sr:.9f}", str(src), str(dst)], capture_output=True, text=True, check=False)
+        p = subprocess.run([exe, "-3", "-q", "-D", f"{n / sr:.9f}", str(src), str(dst)], capture_output=True, encoding="utf-8", errors="replace", check=False)
         if p.returncode != 0 or not dst.is_file():
             raise CoreError("stretch-render-failed", tool="rubberband", detail=(p.stderr or "")[-300:])
         y, _ = wavfile.load_wav_f32(dst)
