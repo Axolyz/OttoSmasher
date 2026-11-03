@@ -27,7 +27,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Python 环境
         run: tools/uv sync --locked
       - name: 第三方文件
