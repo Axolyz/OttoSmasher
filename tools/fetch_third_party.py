@@ -94,6 +94,8 @@ def ensure_archive(item: dict) -> None:
 
 
 def main() -> int:
+    # Windows 控制台的默认编码不一定能写中文（cp1252 直接报错）
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*")
     args = ap.parse_args()
