@@ -2,7 +2,7 @@
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, statSync, symlinkSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, ClipboardItem, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
+import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT } from "../shared/i18n";
 import type { CoreEvent, CoreStatus, OttoInfo } from "../shared/protocol";
@@ -279,6 +279,8 @@ app.on("before-quit", (e) => {
 });
 
 app.whenReady().then(() => {
+  // Windows 上 Electron 默认在窗口顶部放一条 File / Edit / View 菜单；应用的操作都在界面里，不要它（macOS 的菜单在系统栏，保留）
+  if (process.platform !== "darwin") Menu.setApplicationMenu(null);
   // 开发期 Dock 图标用所有者的 logo（发布版的 .icns/.ico 在阶段 10 生成）
   if (process.platform === "darwin" && paths.repo) {
     app.dock?.setIcon(join(paths.repo, "assets", "brand", "logo-1024.png")); // 发布版用 .app 自己的图标

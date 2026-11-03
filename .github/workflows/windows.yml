@@ -100,7 +100,10 @@ jobs:
       - name: 前端单元测试
         run: tools/npm test
       - name: 端到端测试
-        run: tools/npm run e2e
+        # 临时工作区放到能上传的位置，失败时带回任务日志
+        run: |
+          export TEMP="$(cygpath -w "$RUNNER_TEMP")" TMP="$(cygpath -w "$RUNNER_TEMP")"
+          tools/npm run e2e
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -109,5 +112,6 @@ jobs:
           path: |
             .cache/playwright-results
             ${{ runner.temp }}/otto-*/**/Data/Logs/*
+            ${{ runner.temp }}/otto-*/**/Data/Jobs/*/log.txt
           if-no-files-found: ignore
           retention-days: 14

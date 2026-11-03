@@ -55,7 +55,7 @@ test("mpv 渲染桥：1080p HEVC 10bit 播放、跳转、逐帧", async () => {
   }
   await page.screenshot({ path: ".cache/playwright-results/probe.png" });
   const report = {
-    file: process.env.OTTO_PROBE_FILE!.split("/").pop(),
+    file: process.env.OTTO_PROBE_FILE!.split(/[\\/]/).pop(),
     hwdec: s1.hwdec,
     canvas: await page.evaluate(() => {
       const c = document.querySelector("canvas[data-mpv-canvas]") as HTMLCanvasElement;

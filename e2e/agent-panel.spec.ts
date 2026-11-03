@@ -9,7 +9,7 @@ test("命令行与 agent：otto 的位置与开场白", async () => {
     await page.keyboard.press("ControlOrMeta+,");
     await page.getByTestId("settings-group-agent").click();
     const path = await page.getByTestId("agent-otto-path").textContent();
-    expect(path).toMatch(/tools\/otto$/);
+    expect(path).toMatch(/tools[\\/]otto(\.cmd)?$/);
     await page.getByTestId("agent-copy-prompt").click();
     const text = await page.evaluate(() => navigator.clipboard.readText());
     expect(text).toContain("otto");

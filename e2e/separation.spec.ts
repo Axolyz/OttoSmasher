@@ -10,7 +10,7 @@ test("分离：确认框选模型、排队、任务结果里的声部", async ()
   const dir = mkdtempSync(join(tmpdir(), "otto-sep-"));
   const wav = join(dir, "[Group] Sep Show [01].wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=3", "-ac", "2", "-c:a", "pcm_s16le", wav]);
-  const out = execFileSync(resolve(".venv/bin/python"), ["-c", `import sys, json; sys.path.insert(0, 'core/tests'); from fake_studio import make_fake_studio; print(json.dumps(make_fake_studio(__import__('pathlib').Path(${JSON.stringify(join(dir, "studio"))}))))`]).toString();
+  const out = execFileSync(resolve(process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python"), ["-c", `import sys, json; sys.path.insert(0, 'core/tests'); from fake_studio import make_fake_studio; print(json.dumps(make_fake_studio(__import__('pathlib').Path(${JSON.stringify(join(dir, "studio"))}))))`]).toString();
   const [appPath, dataDir] = JSON.parse(out) as [string, string];
   const { app, page } = await launch();
   await page.evaluate(

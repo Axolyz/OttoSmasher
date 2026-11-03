@@ -79,6 +79,6 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   await page.keyboard.up("Alt");
   const second = (await drags())[1]!;
   expect(second).toHaveLength(2);
-  expect(second.map((p) => p.split("/").pop()!.split("__")[0]).sort()).toEqual(["一", "二"]);
+  expect(second.map((p) => p.split(/[\\/]/).pop()!.split("__")[0]).sort()).toEqual(["一", "二"]);
   await app.close();
 });

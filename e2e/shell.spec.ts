@@ -72,7 +72,7 @@ test("模型检测：文件、运行库、实测分开显示", async () => {
   await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-models").click();
   await expect(page.getByTestId("model-fcpe")).toHaveAttribute("data-state", "missing");
-  await expect(page.getByText(/ONNX Runtime 1\.30\.0/)).toBeVisible();
+  await expect(page.getByText(process.platform === "win32" ? /ONNX Runtime 1\.24\.4/ : /ONNX Runtime 1\.30\.0/)).toBeVisible();
   await expect(page.getByTestId("probe-fcpe")).toContainText("未实测");
   // 实测：模型文件不在的不实测，任务照样完成（L6）
   await page.getByTestId("models-probe").click();
@@ -109,7 +109,7 @@ test("顶栏显示当前工作区；源码运行标 Dev", async () => {
   const { app, page, workspace } = await launch();
   const tag = page.getByTestId("workspace-tag");
   await expect(tag).toContainText("Dev");
-  await expect(tag).toContainText(workspace.split("/").pop()!);
+  await expect(tag).toContainText(workspace.split(/[\\/]/).pop()!);
   await expect(page).toHaveTitle("OttoSmasher Dev");
   await expect(tag).toHaveAttribute("title", new RegExp(workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   await app.close();
