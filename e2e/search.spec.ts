@@ -74,7 +74,8 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   const insp = composer.getByTestId("speech-inspector");
   await expect(insp).toContainText("块 1");
   await composer.getByTestId("search-find").click();
-  await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 30000 });
+  // 第一次检索要等工作进程启动：Windows 上要加载库、过杀毒扫描，比 macOS 慢得多
+  await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 120000 });
   await expect(composer).toHaveCount(0);
   await expect(page.getByTestId("result-status")).toContainText(/固定结果 · \d+ 个采样 · \d+ 处命中/);
   const row = page.getByTestId("sample-row").filter({ hasText: "かかかかかか" });

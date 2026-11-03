@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 import time
@@ -26,6 +27,8 @@ from ..domain.mapping import Mapping
 from ..models import f0store
 from ..store.db import transaction
 from ..store.workspace import Workspace
+
+log = logging.getLogger(__name__)
 from . import assets as assets_mod
 from . import effective_tags, sample_filter, units
 from .clock import new_id, now_iso
@@ -243,6 +246,8 @@ class SearchService:
         else:
             rid, stats = (self._write_speech if ctx["kind"] == "speech" else self._write_pitch)(res, ctx, ms)
             out["resultId"], out["stats"] = rid, stats
+        # 第一次检索要等工作进程启动（Windows 上慢得多），耗时记下来才查得清
+        log.log(logging.WARNING if err is not None else logging.INFO, "search %s %s: %s in %d ms", sid[:8], ctx["kind"], out["status"], ms, exc_info=err)
         self._done[sid] = out
         while len(self._done) > 64:
             self._done.pop(next(iter(self._done)))

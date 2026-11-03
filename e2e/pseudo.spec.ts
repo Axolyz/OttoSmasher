@@ -232,7 +232,8 @@ test("伪语言：三大搜索", async () => {
   await expect(prep).toHaveCount(0, { timeout: 60000 });
   await composer.getByTestId("strategy-free").click();
   await composer.getByTestId("search-find").click();
-  await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 30000 });
+  // 第一次检索要等工作进程启动：Windows 上要加载库、过杀毒扫描，比 macOS 慢得多
+  await expect(page.getByTestId("result-tab")).toHaveCount(1, { timeout: 120000 });
   await page.getByTestId("sample-row").first().click();
   await expect(page.getByTestId("hit-chips")).toBeVisible();
   await page.getByTestId("hit-chip").first().click();
