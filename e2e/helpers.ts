@@ -1,13 +1,22 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type ElectronApplication, type Page, _electron as electron, expect } from "@playwright/test";
+import { type ElectronApplication, type Page, _electron as electron, expect, test } from "@playwright/test";
 
 export interface Launched {
   app: ElectronApplication;
   page: Page;
   workspace: string;
 }
+
+// 失败时留一张截图（放在测试的输出目录，云端跑完会带回来）。只有合成数据才进云端（AGENTS §5）
+let lastPage: Page | null = null;
+test.afterEach(async ({}, info) => {
+  if (info.status !== info.expectedStatus && lastPage && !lastPage.isClosed()) {
+    await lastPage.screenshot({ path: info.outputPath("failure.png") }).catch(() => {});
+  }
+  lastPage = null;
+});
 
 /** 用一个临时工作区启动真实的 Electron 应用（路径带中文与空格，规格 16 R23.1）。 */
 export async function launch(opts: { locale?: string; workspace?: string } = {}): Promise<Launched> {
@@ -19,6 +28,7 @@ export async function launch(opts: { locale?: string; workspace?: string } = {})
     env: { ...process.env, OTTO_WORKSPACE: workspace, OTTO_DEV: "1", OTTO_STRICT_API: "1", OTTO_LOCALE: opts.locale ?? "zh-CN", OTTO_MPV_AO: process.env.OTTO_MPV_AO ?? "null" },
   });
   const page = await app.firstWindow();
+  lastPage = page;
   await page.waitForLoadState("domcontentloaded");
   await expect(page.getByTestId("nav-library")).toBeVisible();
   // 等 Core 就绪（横幅消失）

@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-${{ github.ref }}
+  group: windows-${{ github.ref }}-${{ inputs.spec }}
   cancel-in-progress: true
 
 jobs:
