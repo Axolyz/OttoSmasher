@@ -29,7 +29,7 @@ meson setup "$SRC/dav1d/build" "$SRC/dav1d" --prefix="$PREFIX" --libdir=lib --bu
   -Ddefault_library=static -Denable_tools=false -Denable_tests=false
 ninja -C "$SRC/dav1d/build" install
 
-echo "== FFmpeg $FFMPEG_TAG（LGPL）"
+echo "== FFmpeg ${FFMPEG_TAG}, LGPL"
 fetch_tag https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_TAG" ffmpeg
 (
   cd "$SRC/ffmpeg"
