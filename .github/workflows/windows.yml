@@ -1,0 +1,52 @@
+# Windows 的构建与测试（DECISIONS §14：平时用云端机器跑）。
+# 仓库是公开的：这里只用合成测试数据，不放真实素材，产物里也不能有（AGENTS §5）。
+name: Windows
+
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "tools/build_libmpv_macos.sh"
+      - ".github/workflows/build-libmpv.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Python 环境
+        run: tools/uv sync --locked
+      - name: 第三方文件
+        run: .venv/Scripts/python.exe tools/fetch_third_party.py
+      - name: pydomino 扩展
+        run: tools/uv run --with setuptools python tools/build_domino.py
+      - name: ffmpeg
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/ffmpeg.zip" https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-9.0.zip
+          unzip -q "$RUNNER_TEMP/ffmpeg.zip" -d "$RUNNER_TEMP/ffmpeg"
+          dirname "$(find "$RUNNER_TEMP/ffmpeg" -name ffmpeg.exe)" >> "$GITHUB_PATH"
+      - name: Core 测试
+        env:
+          OTTO_STRICT_API: "1"
+        run: .venv/Scripts/python.exe -m pytest core/tests --junitxml=core-tests.xml -o junit_family=xunit1 --tb=short -rfE
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: core-tests
+          path: core-tests.xml
+          if-no-files-found: ignore
+          retention-days: 14
