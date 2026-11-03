@@ -579,6 +579,9 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 输出是给 agent 读的 JSON，一律 UTF-8：Windows 被管道接走时默认用系统编码，遇到写不了的文字（工作区路径、日文）直接崩
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser().parse_args(argv)
     try:
         args.fn(args)

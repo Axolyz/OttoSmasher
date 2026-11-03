@@ -42,7 +42,7 @@ def _wait_ui_event(c: CoreProc, pred, timeout=10.0):
 def test_endpoint_file_and_hello(app):
     c, root = app
     info = json.loads((Workspace(root).data / "agent-endpoint.json").read_text())
-    assert info["pid"] == c.p.pid and info["family"] in ("AF_UNIX", "AF_PIPE")
+    assert info["pid"] == c.call("core.hello")["r"]["pid"] and info["family"] in ("AF_UNIX", "AF_PIPE")
     if info["family"] == "AF_UNIX":
         assert oct(os.stat(Workspace(root).data / "agent-endpoint.json").st_mode & 0o777) == "0o600"
     with LinkClient(root, session="s-1") as a:
@@ -83,7 +83,7 @@ def test_writes_are_recorded_as_agent_and_broadcast(app):
             ev = b.next_event(10)
         ui = _wait_ui_event(c, lambda e: e["e"] == "data.changed")
         assert "req" not in ui
-        assert b.call("core.hello")["pid"] == c.p.pid
+        assert b.call("core.hello")["pid"] == c.call("core.hello")["r"]["pid"]
     conn = sqlite3.connect(f"file:{Workspace(root).db_path}?mode=ro", uri=True)
     row = conn.execute("SELECT actor_kind, actor_session FROM edit ORDER BY rowid DESC LIMIT 1").fetchone()
     conn.close()

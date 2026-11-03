@@ -121,7 +121,8 @@ def _c_flush() -> None:
     import ctypes.util
 
     try:
-        libc = ctypes.CDLL(ctypes.util.find_library("c") or ("msvcrt" if sys.platform == "win32" else None))
+        # Windows：Python 和扩展用的是通用 C 运行库 ucrtbase，不是旧的 msvcrt（各有各的缓冲）
+        libc = ctypes.CDLL("ucrtbase" if sys.platform == "win32" else ctypes.util.find_library("c"))
         libc.fflush(None)
     except (OSError, AttributeError):
         pass

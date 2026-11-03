@@ -25,14 +25,14 @@ def app(tmp_path, monkeypatch):
 
 def otto(root, *args, stdin=None, session="t-1"):
     env = {**os.environ, "OTTO_WORKSPACE": str(root), "OTTO_AGENT_SESSION": session}
-    p = subprocess.run([sys.executable, "-m", "ottosmasher.cli", *args], capture_output=True, text=True, env=env, input=stdin, timeout=120)
+    p = subprocess.run([sys.executable, "-m", "ottosmasher.cli", *args], capture_output=True, encoding="utf-8", errors="replace", env=env, input=stdin, timeout=120)
     return p.returncode, (json.loads(p.stdout) if p.stdout.strip().startswith(("{", "[")) else p.stdout), p.stderr
 
 
 def test_status_call_and_exit_codes(app):
     c, root = app
     rc, st, _ = otto(root, "status")
-    assert rc == 0 and st["running"] and st["session"] == "t-1" and st["core"]["pid"] == c.p.pid
+    assert rc == 0 and st["running"] and st["session"] == "t-1" and st["core"]["pid"] == c.call("core.hello")["r"]["pid"]
     rc, s, _ = otto(root, "call", "settings.list")
     assert rc == 0 and "jobs.concurrency_light" in s
     v = s["jobs.concurrency_light"]["version"]
