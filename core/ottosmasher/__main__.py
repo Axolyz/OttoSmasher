@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import faulthandler
 import logging
 import logging.handlers
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
     core = Core(args.workspace, support_dir=args.support_dir, dev=args.dev, agent_link=not args.no_agent_link)
     logs = args.workspace / "Data" / "Logs"
     logs.mkdir(parents=True, exist_ok=True)
+    # 诊断卡死：设了就每隔这么多秒把所有线程的调用栈写进 Data/Logs/hang-dump.log（平时不设）
+    dump_every = os.environ.get("OTTO_HANG_DUMP_SECONDS")
+    if dump_every:
+        faulthandler.dump_traceback_later(float(dump_every), repeat=True, file=open(logs / "hang-dump.log", "w"))  # noqa: SIM115 — 进程结束才关
     handler = logging.handlers.RotatingFileHandler(logs / "core.log", maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8")
     logging.basicConfig(level=logging.INFO, handlers=[handler, logging.StreamHandler(sys.stderr)],
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")

@@ -4,6 +4,11 @@ name: Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      spec:
+        description: 只跑这个端到端测试（例如 e2e/search.spec.ts），同时开卡死诊断；留空 = 全部
+        required: false
+        default: ""
   push:
     paths-ignore:
       - "docs/**"
@@ -20,6 +25,7 @@ concurrency:
 
 jobs:
   core:
+    if: ${{ !inputs.spec }}
     runs-on: windows-2025
     timeout-minutes: 45
     defaults:
@@ -94,16 +100,22 @@ jobs:
       - name: mpv 渲染桥
         run: node tools/build-native.mjs
       - name: 类型与文案检查
+        if: ${{ !inputs.spec }}
         run: |
           tools/npm run typecheck
           tools/npm run i18n:check
       - name: 前端单元测试
+        if: ${{ !inputs.spec }}
         run: tools/npm test
       - name: 端到端测试
+        env:
+          SPEC: ${{ inputs.spec }}
         # 临时工作区放到能上传的位置，失败时带回任务日志
         run: |
           export TEMP="$(cygpath -w "$RUNNER_TEMP")" TMP="$(cygpath -w "$RUNNER_TEMP")"
-          tools/npm run e2e
+          tools/npm run build
+          if [ -n "$SPEC" ]; then export OTTO_HANG_DUMP_SECONDS=30; fi
+          tools/npm exec -- playwright test $SPEC
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -112,6 +124,7 @@ jobs:
           path: |
             .cache/playwright-results
             ${{ runner.temp }}/otto-*/**/Data/Logs/*
+            ${{ runner.temp }}/otto-*/**/*.log
             ${{ runner.temp }}/otto-*/**/Data/Jobs/*/log.txt
           if-no-files-found: ignore
           retention-days: 14

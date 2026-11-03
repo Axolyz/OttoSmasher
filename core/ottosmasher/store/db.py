@@ -48,7 +48,7 @@ def bundled_migrations() -> list[Migration]:
 
 def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
     if readonly:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, isolation_level=None, check_same_thread=False)
+        conn = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True, isolation_level=None, check_same_thread=False)
     else:
         conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
