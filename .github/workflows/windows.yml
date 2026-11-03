@@ -163,6 +163,8 @@ jobs:
         run: node tools/build-native.mjs
       - name: 构建界面
         run: tools/npm run build
+      - name: Electron 本体（第一次运行时才下载，打包要用）
+        run: tools/npm exec -- node node_modules/electron/install.js
       - name: 打包
         run: |
           export UV_PYTHON_INSTALL_DIR="$PWD/.uv-python" UV_CACHE_DIR="$PWD/.uv-cache"
