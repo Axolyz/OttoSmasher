@@ -40,7 +40,7 @@ test("发布包：随包的模型、媒体工具、播放与命令行", async ()
     }, wav);
     expect(states.some((s) => s.ended)).toBe(true);
     // 设置里的 otto 指向包里的启动器
-    await page.keyboard.press("Meta+,");
+    await page.keyboard.press("ControlOrMeta+,");
     await page.getByTestId("settings-group-agent").click();
     await expect(page.getByTestId("agent-otto-path")).toHaveText(/OttoSmasher\.app\/Contents\/Resources\/bin\/otto$/);
   } finally {

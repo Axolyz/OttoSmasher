@@ -39,7 +39,7 @@ test("原素材列表：1500 个短音频的组只渲染看得见的行", async 
   await page.evaluate(async (ps) => {
     for (let i = 0; i < ps.length; i += 300) await window.otto.core.request("sources.add", { paths: ps.slice(i, i + 300) });
   }, files);
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await refreshLists(page);
   const t0 = Date.now();
   await page.getByTestId("source-group").first().click();

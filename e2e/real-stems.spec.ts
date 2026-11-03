@@ -51,7 +51,7 @@ test("真实素材 YY1-01 + 分离声部：默认轨、字幕采样、切换音�
   expect([s2.name, s2.nature, s2.asset_id]).toEqual(["殴る音", "unpitched", effect.assetId]);
 
   // S6.3：界面上切到音效声部，选区不清空；截取性质预填“非调谐单音”
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
   await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 60000 });

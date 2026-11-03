@@ -25,6 +25,7 @@
         }],
         ["OS=='win'", {
           "libraries": ["<(module_root_dir)/../../../third_party/libmpv/win-x64/libmpv.dll.a"],
+          "copies": [{"destination": "<(PRODUCT_DIR)", "files": ["<(module_root_dir)/../../../third_party/libmpv/win-x64/libmpv-2.dll"]}],
           "msvs_settings": {"VCCLCompilerTool": {"ExceptionHandling": 1, "AdditionalOptions": ["/std:c++20"]}}
         }]
       ]

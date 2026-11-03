@@ -4,7 +4,7 @@ import { launch } from "./helpers";
 // 作品/集数推断规则（P10，所有者 2026-10-07）：试算、草稿报错不能保存、保存走编辑通道且可撤销
 test("推断规则：试算、校验、保存与撤销", async () => {
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-source").click();
   const row = page.getByTestId("setting-source.infer_rules");
   const result = row.getByTestId("rules-result");
@@ -48,7 +48,7 @@ test("推断规则：试算、校验、保存与撤销", async () => {
 // 字幕规则（规格 06 §6.2、16 R4.4–R4.6、S11.2）：试算、拆分/清理、无效规则标红不能保存、五条一起保存一次撤销
 test("字幕规则：试算、可选规则、校验、保存与撤销", async () => {
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-subtitle").click();
   const ed = page.getByTestId("subtitle-rules");
   const trial = ed.getByTestId("subtitle-trial");

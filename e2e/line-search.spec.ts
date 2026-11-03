@@ -28,7 +28,7 @@ test("台词搜索：台本里跳转、全部原素材里搜、没导入的提�
     if (!res.ok) throw new Error(`${m}: ${JSON.stringify(res.e)}`);
     return res.r;
   };
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const ids = (await req<Array<{ sourceId: string }>>("sources.add", { paths: [e1, e2, e3] })).map((x) => x.sourceId);
   await page.keyboard.press("Escape");
   for (const sid of ids.slice(0, 2)) {
@@ -40,7 +40,7 @@ test("台词搜索：台本里跳转、全部原素材里搜、没导入的提�
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").filter({ hasText: "01" }).click();
   const search = page.getByTestId("transcript-search");
-  await page.keyboard.press("Meta+Shift+f");
+  await page.keyboard.press("ControlOrMeta+Shift+f");
   await expect(search).toBeFocused();
   await search.fill("天気");
   const count = page.getByTestId("transcript-search-count");
@@ -61,7 +61,7 @@ test("台词搜索：台本里跳转、全部原素材里搜、没导入的提�
   await expect(count).toHaveCount(0);
 
   // 2) 全部原素材：⌘F → 列表的搜索框；「天気」→ 两个原素材三处（音效提示不算）；第 3 集关联了字幕没导入 → 提示
-  await page.keyboard.press("Meta+f");
+  await page.keyboard.press("ControlOrMeta+f");
   const box = page.getByTestId("sources-search");
   await expect(box).toBeFocused();
   await box.fill("天気");

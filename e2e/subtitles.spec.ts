@@ -27,7 +27,7 @@ test("导入到文本层：预览、部分导入、再导入、受保护跳过�
     if (!res.ok) throw new Error(`${m}: ${JSON.stringify(res.e)}`);
     return res.r;
   };
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const sid = (await req<Array<{ sourceId: string }>>("sources.add", { paths: [mkv] }))[0]!.sourceId;
   await page.keyboard.press("Escape"); // 关掉首次登记弹出的「作品与输入设置」
   await page.getByTestId("source-group").first().click();
@@ -143,7 +143,7 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
     "1\n00:00:01,000 --> 00:00:02,000\n（京子(きょうこ)たち）アッカリ～ン\n\n2\n00:00:02,050 --> 00:00:03,000\n（結衣）なに？\n\n3\n00:00:04,000 --> 00:00:05,000\n（足音）\n\n4\n00:00:05,500 --> 00:00:06,500\n普通の台詞\n",
   );
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => {
     const r = (await window.otto.core.request<Array<{ sourceId: string }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string }> };
     await window.otto.core.request("subtitles.importDefault", { sourceId: r.r[0]!.sourceId });
@@ -169,7 +169,7 @@ test("从台词段批量建采样：就地指定默认轨、全选创建", async
   await sheet.getByTestId("newsamples-run").click();
   await expect(page.getByText(/已建立 3 个采样/)).toBeVisible();
 
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   await refreshLists(page);
   const row = page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" });
   await expect(row).toHaveAttribute("data-nature", "speech");
@@ -189,7 +189,7 @@ test("有标注没记：台本与编辑框提示，音效行与台词各出一�
     "1\n00:00:01,000 --> 00:00:02,000\n（京子）あ\nい\n\n2\n00:00:03,000 --> 00:00:04,000\n（足音）\n（結衣）う\n",
   );
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
   await page.keyboard.press("Escape");
   await page.getByTestId("source-group").first().click();

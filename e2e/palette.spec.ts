@@ -48,7 +48,7 @@ test("命令面板：对象命令、过滤、BPM、设置分组、最近用过",
 
   // 输入框里也能打开（⌘K）；子菜单展开成“父 › 子”：设性质 › 语音
   await page.getByTestId("library-search").click();
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await expect(pal).toBeVisible();
   await page.getByTestId("palette-input").fill("性质 语音");
   await expect(pal.getByTestId("palette-item").first()).toContainText("性质 › 语音");
@@ -56,14 +56,14 @@ test("命令面板：对象命令、过滤、BPM、设置分组、最近用过",
   await expect.poll(() => page.evaluate(async () => ((await window.otto.core.request("samples.list", { natures: ["speech"] })) as { r: { total: number } }).r.total)).toBe(1);
 
   // 数字 = 设 BPM
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await page.getByTestId("palette-input").fill("180");
   await expect(pal.getByTestId("palette-item").first()).toHaveText(/BPM 设为 180/);
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("bpm")).toHaveValue("180");
 
   // 设置分组直达：存储与缓存
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await page.getByTestId("palette-input").fill("存储");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("storage-panel")).toBeVisible();
@@ -71,8 +71,8 @@ test("命令面板：对象命令、过滤、BPM、设置分组、最近用过",
 
   // 已勾选集：命令写明“已勾选 N 项”；最近用过排在空输入的最上面；没有匹配时就地说明
   await page.getByTestId("sample-row").first().focus();
-  await page.keyboard.press("Meta+a");
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+k");
   await expect(pal).toContainText("最近用过");
   await expect(pal).toContainText("作用于：已勾选 2 项");
   await page.getByTestId("palette-input").fill("没有这种命令");
@@ -82,11 +82,11 @@ test("命令面板：对象命令、过滤、BPM、设置分组、最近用过",
   await expect(pal).toHaveCount(0);
 
   // 原素材页：作用于当前原素材 / 添加原素材；切页命令
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await page.getByTestId("palette-input").fill("前往原素材");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("page-sources")).toBeVisible();
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await expect(pal).toContainText("添加原素材…");
   await page.keyboard.press("Escape");
   await app.close();

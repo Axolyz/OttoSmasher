@@ -98,7 +98,7 @@ test("范围行：分面、表达式、保存筛选器、排序", async () => {
   // ⌘⇧F 聚焦范围行「＋」；重启恢复条件（筛选器、表达式、星标）
   await page.getByTestId("library-expr").fill("好用");
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
-  await page.keyboard.press("Meta+Shift+f");
+  await page.keyboard.press("ControlOrMeta+Shift+f");
   await expect(page.getByTestId("scope-add")).toBeFocused();
   await page.waitForTimeout(500);
   await app.close();

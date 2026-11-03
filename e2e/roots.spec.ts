@@ -28,9 +28,9 @@ test("原素材文件夹：扫描、作品设置改名、Finder 改名后重新�
   }, root);
 
   // 设置「原素材」组：添加原素材文件夹 → 扫描登记
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await expect(page.getByTestId("sources-rescan")).toBeDisabled(); // 还没有原素材文件夹
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-source").click();
   await page.getByTestId("roots-add").click();
   await expect(page.getByTestId("root-row")).toContainText("2 个作品 · 2 个原素材", { timeout: 30000 });

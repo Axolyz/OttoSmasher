@@ -55,11 +55,11 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   await page.screenshot({ path: `${SHOTS}/03-visual-dialog.png` });
   await page.getByTestId("visual-unbind").click();
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
-  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "image");
 
   // 导出视频片段（S7.1）：交接 ▾ → 导出视频片段… → 任务 → 播放条出现 .mp4
-  await page.keyboard.press("Meta+z"); // 再撤销一次：回到原素材自带的视频
+  await page.keyboard.press("ControlOrMeta+z"); // 再撤销一次：回到原素材自带的视频
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
   await page.getByTestId("stage-handoff").click();
   await page.getByTestId("menu-video").click();
@@ -80,7 +80,7 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
 test("设置 → 存储与缓存：按类别列出、手动清理", async () => {
   const { app, page } = await launch();
   await page.setViewportSize({ width: 1536, height: 864 });
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-storage").click();
   await expect(page.getByTestId("storage-panel")).toContainText("可重建缓存");
   await expect(page.getByTestId("storage-panel")).toContainText("测量结果");

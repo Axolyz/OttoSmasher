@@ -83,7 +83,7 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
   expect((await approved).deleted).toBe(1);
 
   // 设置里关掉确认：撤销不了的命令直接执行，不弹框（这里执行结果是“没有这个采样”）
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-agent").click();
   await page.getByTestId("setting-agent.skip_confirm").locator("label").click();
   await expect(page.getByText("已保存")).toBeVisible();
@@ -96,7 +96,7 @@ test("命令行：资料已更新、会话标记与撤回、危险命令等确�
   await expect(dlg).toHaveCount(0);
 
   // 没等到回答就断开的请求：留在操作历史的“错过的确认请求”里，按钮上有红点
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-agent").click();
   await page.getByTestId("setting-agent.skip_confirm").locator("label").click();
   await page.keyboard.press("Escape");

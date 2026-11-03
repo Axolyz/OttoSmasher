@@ -15,7 +15,7 @@ test("伪语言下没有写死的界面文字", async () => {
   }
   await page.getByTestId("specimen-toggle").click();
   expect(await unbracketed(page)).toEqual([]);
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   for (const g of ["general", "inference", "source", "frontend", "analysis", "flatten", "export", "jobs", "agent", "models"]) {
     await page.getByTestId(`settings-group-${g}`).click();
     await page.waitForTimeout(150);
@@ -37,14 +37,14 @@ test("伪语言下没有写死的界面文字", async () => {
   await page.locator(`[data-testid="source-row"][data-id="${sid}"]`).click();
   await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
   // 命令面板：作用于当前原素材的命令、本页与全局；有输入时每条右边写分组；没有匹配
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByTestId("palette")).toBeVisible();
   expect(await unbracketed(page)).toEqual([]);
   await page.getByTestId("palette-input").fill("a");
   expect(await unbracketed(page)).toEqual([]);
   await page.getByTestId("palette-input").fill("zzzzqqq");
   expect(await unbracketed(page)).toEqual([]);
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByTestId("palette")).toHaveCount(0);
   const tl = (await page.getByTestId("source-viewer").getByTestId("timeline").boundingBox())!;
   await page.mouse.move(tl.x + tl.width * 0.2, tl.y + tl.height / 2);
@@ -140,7 +140,7 @@ test("伪语言下没有写死的界面文字", async () => {
   expect(await unbracketed(page)).toEqual([]);
   await page.keyboard.press("Escape");
 
-  await page.keyboard.press("Meta+j");
+  await page.keyboard.press("ControlOrMeta+j");
   await page.waitForTimeout(200);
   expect(await unbracketed(page)).toEqual([]);
   await page.screenshot({ path: ".cache/playwright-results/pseudo.png" });
@@ -306,7 +306,7 @@ test("伪语言：阶段 8 / 9 的界面（范围行、批量、管理标签、�
   await page.waitForTimeout(300);
   await check();
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-storage").click();
   await page.waitForTimeout(300);
   await check();

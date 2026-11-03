@@ -20,7 +20,7 @@ test("看片逐句建采样：台本行、画内字幕、音效提示；逐句�
     if (!res.ok) throw new Error(`${m}: ${JSON.stringify(res.e)}`);
     return res.r;
   };
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const sid = (await req<Array<{ sourceId: string }>>("sources.add", { paths: [mkv] }))[0]!.sourceId;
   await req("subtitles.importDefault", { sourceId: sid });
   // 原混音设为默认人声轨（同时赋予人声角色）

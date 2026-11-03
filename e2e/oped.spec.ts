@@ -17,7 +17,7 @@ test("OP/ED：识别、删除与撤销、逐对确认、导入预览", async () 
     "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=20", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
   writeFileSync(sub, srt([[1, 2, "♪〜"], [3, 4, "（京子）歌の中"], [8, 9, "〜♪"], [12, 13, "（京子）台詞"], [15, 16, "♪～"], [18, 19, "～♪"]]));
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
   await page.keyboard.press("Escape");
   await page.getByTestId("source-group").first().click();

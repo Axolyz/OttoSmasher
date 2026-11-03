@@ -25,7 +25,7 @@ test("删除原素材：先独立化要保留的采样", async () => {
     await req("samples.create", { assetId: aid, start: 1, end: 2, name: "残す", nature: "speech" });
     await req("samples.create", { assetId: aid, start: 3, end: 4, name: "消す", nature: "speech" });
   }, mkv);
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await refreshLists(page);
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click({ button: "right" });

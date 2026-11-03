@@ -60,3 +60,54 @@ jobs:
             ${{ runner.temp }}/pt/**/core.log
           if-no-files-found: ignore
           retention-days: 14
+
+  app:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Python 环境
+        run: tools/uv sync --locked
+      - name: 第三方文件
+        run: .venv/Scripts/python.exe tools/fetch_third_party.py
+      - name: pydomino 扩展
+        run: tools/uv run --with setuptools python tools/build_domino.py
+      - name: 媒体工具加入 PATH
+        run: |
+          cygpath -w "$PWD/third_party/media-tools/ffmpeg/bin" >> "$GITHUB_PATH"
+          cygpath -w "$PWD/third_party/media-tools/rubberband" >> "$GITHUB_PATH"
+      - uses: actions/cache@v5
+        with:
+          path: dev-workspace/Models
+          key: models-${{ hashFiles('core/ottosmasher/models/registry.py') }}
+      - name: 模型权重
+        run: .venv/Scripts/python.exe tools/fetch_models.py
+      - name: Node 依赖
+        run: tools/npm ci
+      - name: mpv 渲染桥
+        run: node tools/build-native.mjs
+      - name: 类型与文案检查
+        run: |
+          tools/npm run typecheck
+          tools/npm run i18n:check
+      - name: 前端单元测试
+        run: tools/npm test
+      - name: 端到端测试
+        run: tools/npm run e2e
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-results
+          # 只有合成数据（AGENTS §5）
+          path: |
+            .cache/playwright-results
+            ${{ runner.temp }}/otto-*/**/Data/Logs/*
+          if-no-files-found: ignore
+          retention-days: 14

@@ -21,6 +21,17 @@ export function format(template: string, args?: TArgs): string {
   });
 }
 
+/** 文案里的 macOS 键符换成 Windows 的键名（代码里 ⌘ 与 Ctrl 同样处理，只有显示不同）。 */
+export function windowsKeys(text: string): string {
+  return text
+    .replace(/⌥\/Alt/g, "Alt")
+    .replace(/⌘⇧/g, "Ctrl+Shift+")
+    .replace(/⌥⇧/g, "Alt+Shift")
+    .replace(/⌘/g, "Ctrl+")
+    .replace(/⌥/g, "Alt")
+    .replace(/⇧/g, "Shift+");
+}
+
 export function createT(catalog: Catalog, opts: { pseudo?: boolean; strict?: boolean } = {}): TFunction {
   return (key, args) => {
     const plural = typeof args?.n === "number" && catalog[`${key}_one`] !== undefined && catalog[`${key}_other`] !== undefined;

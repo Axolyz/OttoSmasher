@@ -12,7 +12,7 @@ test.skip(!FIX, "需要 OTTO_FIXTURES 指向交接包的 fixtures 目录");
 test("真实素材 YY2-07：登记、波形、范围截停、导出", async () => {
   const ep = join(FIX!, "episodes", "YY2-07", "[VCB-Studio] Yuru Yuri 2 [07][Ma10p_1080p][x265_2flac].mkv");
   const { app, page, workspace } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const t0 = Date.now();
   const r = await page.evaluate(async (p) => window.otto.core.request<Array<{ ok: boolean; sourceId: string; work: string; episode: string }>>("sources.add", { paths: [p] }), ep);
   const addMs = Date.now() - t0;

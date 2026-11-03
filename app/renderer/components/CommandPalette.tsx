@@ -14,6 +14,7 @@ import {
   ModalOverlay,
   SearchField,
 } from "react-aria-components";
+import { keys } from "../i18n";
 import type { MenuItems } from "./Menu";
 import s from "./Overlay.module.css";
 
@@ -149,7 +150,7 @@ export function CommandPalette(props: {
                       <span className={s.paletteLabel}>{c.label}</span>
                       <span className={s.paletteMeta}>
                         {found ? <span className={s.paletteGroup}>{c.group}</span> : null}
-                        {c.shortcut ? <kbd className={s.kbd}>{c.shortcut}</kbd> : null}
+                        {c.shortcut ? <kbd className={s.kbd}>{keys(c.shortcut)}</kbd> : null}
                       </span>
                     </MenuItem>
                   ))}

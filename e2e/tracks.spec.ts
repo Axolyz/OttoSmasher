@@ -13,7 +13,7 @@ test("角色与默认轨：加角色、设默认、去角色同时取消默认�
     "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=4", "-f", "lavfi", "-i", "sine=f=660:sample_rate=48000:duration=4",
     "-map", "0", "-map", "1", "-map", "2", "-c:v", "libx264", "-c:a", "flac", "-metadata:s:a:1", "language=jpn", mkv]);  // prettier-ignore
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
   await page.keyboard.press("Escape");
   await page.getByTestId("source-group").first().click();

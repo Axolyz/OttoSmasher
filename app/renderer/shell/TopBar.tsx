@@ -5,7 +5,7 @@ import type { EditLabel } from "../api/types";
 import { Button } from "../components/Button";
 import { Menu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
-import { errorText, t } from "../i18n";
+import { errorText, keys, t } from "../i18n";
 import { useApp } from "../state/store";
 import { HistoryButton } from "./History";
 import { describeLabel } from "./labels";
@@ -88,7 +88,7 @@ export function TopBar() {
           <span className={s.tempoUnit}>{t("top.bpm")}</span>
         </label>
       <Button variant="secondary" icon={<Command />} aria-label={t("top.command")} onPress={() => useApp.getState().setPaletteOpen(true)} data-testid="palette-open">
-        <span className={s.cmdLabel}>{t("top.command")}</span> <kbd className={s.kbd}>⌘K</kbd>
+        <span className={s.cmdLabel}>{t("top.command")}</span> <kbd className={s.kbd}>{keys("⌘K")}</kbd>
       </Button>
       <HistoryButton />
       <Tip content={peek ? t("top.undo.tip", { label: describeLabel(peek.label) }) : t("top.undo.none")}>

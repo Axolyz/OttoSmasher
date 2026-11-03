@@ -6,7 +6,7 @@ test("命令行与 agent：otto 的位置与开场白", async () => {
   const { app, page } = await launch();
   try {
     await app.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.keyboard.press("Meta+,");
+    await page.keyboard.press("ControlOrMeta+,");
     await page.getByTestId("settings-group-agent").click();
     const path = await page.getByTestId("agent-otto-path").textContent();
     expect(path).toMatch(/tools\/otto$/);

@@ -32,7 +32,7 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
 
   // ⌘A → 批量操作 ▾ → 添加标签…：预览（不写库）→ 应用 → 撤销
   await page.getByTestId("sample-row").first().focus();
-  await page.keyboard.press("Meta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await page.getByTestId("library-checked").getByRole("button", { name: /批量操作/ }).click();
   await page.getByTestId("menu-tags-add").click();
   await page.getByTestId("batch-tag").fill("好用");
@@ -55,7 +55,7 @@ test("批量：添加 / 移除标签、编辑资料、管理标签", async () =>
   await page.getByTestId("batch-apply").click();
   await expect.poll(local).toBe(0);
   // 撤销最近资料修改 → 标签回来
-  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(local).toBe(3);
 
   // 编辑资料：性质 + 评分 → 预览是逐字段前后对比

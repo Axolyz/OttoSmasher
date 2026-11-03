@@ -13,6 +13,7 @@ import {
   Separator,
   SubmenuTrigger,
 } from "react-aria-components";
+import { keys } from "../i18n";
 import s from "./Overlay.module.css";
 
 export interface MenuEntry {
@@ -84,7 +85,7 @@ function MenuBody(props: MenuSpec & { onClose?: () => void; testId?: string }) {
             ) : (
               <MenuItem key={it.id} id={it.id} className={`${s.item} ${it.danger ? s.danger : ""}`} textValue={it.label} data-testid={`menu-${it.id}`}>
                 <span>{it.label}</span>
-                {it.shortcut ? <kbd className={s.kbd}>{it.shortcut}</kbd> : null}
+                {it.shortcut ? <kbd className={s.kbd}>{keys(it.shortcut)}</kbd> : null}
               </MenuItem>
             ),
           )}

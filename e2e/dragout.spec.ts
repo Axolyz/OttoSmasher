@@ -22,7 +22,7 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   });
   const drags = () => app.evaluate(() => (globalThis as unknown as { __drags: string[][] }).__drags);
 
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const sid = await page.evaluate(async (p) => {
     const r = (await window.otto.core.request<Array<{ sourceId: string }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string }> };
     return r.r[0]!.sourceId;
@@ -65,7 +65,7 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
     await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 0.5, end: 1.0, name: "一" });
     await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 1.5, end: 2.0, name: "二" });
   }, sid);
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(2);
   for (const i of [0, 1]) await rows.nth(i).locator("label").first().click();

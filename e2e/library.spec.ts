@@ -13,7 +13,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=8",
     "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=8", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), mkv);
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
@@ -64,14 +64,14 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   expect(nat).toBe("unpitched");
 
   // R7.1 同一范围再保存一次 → 两个采样
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("source-viewer").getByTestId("clip").click();
   await page.getByTestId("clip-save").click();
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
 
   // ⌘A 勾选全部匹配
   await page.getByTestId("sample-row").first().focus();
-  await page.keyboard.press("Meta+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await expect(page.getByTestId("library-checked")).toContainText("2 项已勾选");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("library-checked")).toHaveCount(0);
@@ -106,7 +106,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await page.screenshot({ path: ".cache/playwright-results/back-to-source.png" });
 
   // 删除焦点采样（确认框）
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   await expect(page.getByTestId("stage-title")).toHaveText(before!);
   await page.getByTestId("sample-row").first().focus();
   await page.keyboard.press("Delete");
@@ -118,7 +118,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("sample-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
   const remaining = await page.getByTestId("sample-row").first().getAttribute("data-id");
   // 采样车道（R7.6；所有者 2026-10-12 改名）：原素材页时间线头「采样 n」→ 单击打开（跳到采样库）
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await expect(page.getByTestId("source-thumb").first().locator("img")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("derived-button")).toHaveText("采样 1");
   await page.getByTestId("derived-button").click();
@@ -126,7 +126,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("page-library")).toBeVisible();
   await expect(page.locator(`[data-testid="sample-row"][data-id="${remaining}"]`)).toHaveAttribute("data-focus", /.*/);
   // 「在采样库里列出全部」：查找栏出现临时“原素材：…”块，移除后回到全部（L16）
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("derived-button").click();
   await page.getByTestId("menu-in-library").click();
   await expect(page.getByTestId("find-source")).toContainText("Test Show 01");

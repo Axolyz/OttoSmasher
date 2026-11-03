@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { createT, format, pseudoize } from "./i18n";
+import { createT, format, pseudoize, windowsKeys } from "./i18n";
+
+describe("windowsKeys()", () => {
+  it("spells out the macOS key symbols", () => {
+    expect(windowsKeys("⌘K")).toBe("Ctrl+K");
+    expect(windowsKeys("⌘F · ⌘⇧F")).toBe("Ctrl+F · Ctrl+Shift+F");
+    expect(windowsKeys("⌥/Alt+拖动选区")).toBe("Alt+拖动选区");
+    expect(windowsKeys("按住拖动：⌥ 拖出原声，⌥⇧ 拖出卡拍")).toBe("按住拖动：Alt 拖出原声，Alt+Shift 拖出卡拍");
+    expect(windowsKeys("Space · ⇧Space")).toBe("Space · Shift+Space");
+    expect(windowsKeys("没有键符")).toBe("没有键符");
+  });
+});
 
 describe("t()", () => {
   const cat = { hi: "你好 {name}", "n_one": "{n} item", "n_other": "{n} items", plain: "x" };

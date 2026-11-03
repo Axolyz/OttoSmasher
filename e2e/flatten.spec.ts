@@ -99,7 +99,7 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await page.keyboard.press("Escape");
   expect(product).toBeTruthy();
   // 加工链与相关采样：成品 ← 原混音；与原采样、みー 交叠
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   await expect(page.getByTestId("stage-chain").getByTestId("stage-chain-step")).toHaveCount(2);
   await expect(page.getByTestId("stage-related")).toContainText("みー");
 

@@ -4,7 +4,7 @@ import { launch } from "./helpers";
 // 用户辞典（规格 08 §8.2.4、16 R10.2）：Tab 插入制表符、逐行报错（行号）、保存 = 编译 + 原子启用、撤销；没有模型时预览明确报错
 test("用户辞典：逐行校验、保存启用、撤销、预览", async () => {
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-frontend").click();
   const box = page.getByTestId("dict-text");
   const status = page.getByTestId("dict-status");
@@ -46,7 +46,7 @@ test("用户辞典：逐行校验、保存启用、撤销、预览", async () =>
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("dict-text")).toBeHidden();
   await page.getByTestId("undo").click();
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-frontend").click();
   await expect(page.getByTestId("dict-text")).toHaveValue("");
   await app.close();

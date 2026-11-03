@@ -5,7 +5,7 @@ import type { Hello } from "../api/types";
 import { Sheet } from "../components/Overlay";
 import { Toasts } from "../components/Toasts";
 import { LibraryPage } from "../library/LibraryPage";
-import { t } from "../i18n";
+import { keys, t } from "../i18n";
 import { SourcesPage } from "../sources/SourcesPage";
 import { fileSize } from "../format";
 import { type Page, useApp } from "../state/store";
@@ -212,7 +212,7 @@ export function App() {
               ["← → · ⇧ · ⌥", t("shortcuts.waveStep")],
             ].map(([k, v]) => (
               <tr key={k}>
-                <td className="mono">{k}</td>
+                <td className="mono">{keys(k!)}</td>
                 <td>{v}</td>
               </tr>
             ))}

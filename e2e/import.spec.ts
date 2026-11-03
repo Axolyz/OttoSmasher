@@ -44,7 +44,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await expect(page.getByTestId("sample-thumb").locator("img")).toHaveCount(2, { timeout: 15000 }); // 绑定图片的那个 + 视频
 
   // 原素材页：作品组「游戏 A」，行显示时长秒、子文件夹、同名画面；查看器只有一种，只按内容调整（所有者 2026-10-07）
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("source-group").filter({ hasText: "游戏 A" }).click();
   const coin = page.getByTestId("source-row").filter({ hasText: "coin" });
   await expect(coin).toContainText("se/ui");
@@ -81,7 +81,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await app.evaluate(({ dialog }, d) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
   }, more);
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("sources-add").click();
   await expect(dlg.getByTestId("import-preview")).toContainText("1 个文件", { timeout: 20000 });
   await expect(dlg.getByTestId("import-whole")).not.toBeChecked();
@@ -112,7 +112,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await wt.getByTestId("work-type-ok").click();
   await page.getByTestId("sources-search").fill("");
   await expect(page.getByTestId("source-group").filter({ hasText: "游戏 C" })).toContainText("2");
-  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("source-group").filter({ hasText: "游戏 C" })).toHaveCount(0);
   await app.close();
 });

@@ -22,7 +22,7 @@ test("分离：确认框选模型、排队、任务结果里的声部", async ()
     },
     [appPath, dataDir] as const,
   );
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.evaluate(async (p) => window.otto.core.request("sources.add", { paths: [p] }), wav);
   await page.keyboard.press("Escape");
   await page.getByTestId("source-group").first().click();
@@ -42,7 +42,7 @@ test("分离：确认框选模型、排队、任务结果里的声部", async ()
   await expect
     .poll(async () => page.evaluate(async () => ((await window.otto.core.request<Array<{ kind: string; status: string }>>("jobs.list")) as { r: Array<{ kind: string; status: string }> }).r.find((j) => j.kind === "separate")?.status), { timeout: 30000 })
     .toBe("succeeded");
-  await page.keyboard.press("Meta+j");
+  await page.keyboard.press("ControlOrMeta+j");
   const job = page.getByTestId("job").filter({ hasText: "分离" }).first();
   await job.getByTestId("job-results").click();
   const results = job.getByTestId("sep-results");

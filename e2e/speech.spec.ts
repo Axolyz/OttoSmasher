@@ -34,7 +34,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   const rows = page.getByTestId("sample-row");
   await expect(rows).toHaveCount(3);
   await rows.first().click();
-  await page.keyboard.press("Meta+a"); // 集合里 ⌘A = 勾选全部（UI_PLAN §6.1）
+  await page.keyboard.press("ControlOrMeta+a"); // 集合里 ⌘A = 勾选全部（UI_PLAN §6.1）
   await page.getByTestId("batch-actions").click();
   await page.getByRole("menuitem", { name: "语音分析所选 3 项…" }).click();
 

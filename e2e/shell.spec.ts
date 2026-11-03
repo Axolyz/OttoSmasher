@@ -8,11 +8,11 @@ test("三页常驻、设置走编辑通道且可撤销、任务可取消与重�
   await expect(page.getByTestId("page-sources")).toBeVisible();
   await expect(page.getByTestId("page-library")).toBeHidden();
   expect(await page.getByTestId("page-library").count()).toBe(1);
-  await page.keyboard.press("Meta+3");
+  await page.keyboard.press("ControlOrMeta+3");
   await expect(page.getByTestId("page-tools")).toBeVisible();
 
   // 设置：改轻量并发 2 → 3，再撤销
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-jobs").click();
   const row = page.getByTestId("setting-jobs.concurrency_light");
   await row.getByRole("button", { name: /increase|增加|Increase/i }).click().catch(async () => {
@@ -69,7 +69,7 @@ test("三页常驻、设置走编辑通道且可撤销、任务可取消与重�
 
 test("模型检测：文件、运行库、实测分开显示", async () => {
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+,");
+  await page.keyboard.press("ControlOrMeta+,");
   await page.getByTestId("settings-group-models").click();
   await expect(page.getByTestId("model-fcpe")).toHaveAttribute("data-state", "missing");
   await expect(page.getByText(/ONNX Runtime 1\.30\.0/)).toBeVisible();

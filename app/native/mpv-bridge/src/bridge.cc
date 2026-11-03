@@ -2,6 +2,12 @@
 // 画面用 render API 的软件渲染输出 RGBX，由独立的渲染线程写进双缓冲，页面每帧取最新一帧贴到 <canvas>。
 // 界面线程只做一次拷贝，不参与解码与缩放；界面卡顿不影响声音与截停（规格 15 §15.2）。
 
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <napi.h>
@@ -17,6 +23,20 @@
 #include <vector>
 
 namespace {
+
+// 当前线程用掉的 CPU 时间（毫秒）
+double ThreadCpuMs() {
+#ifdef _WIN32
+  FILETIME created, exited, kernel, user;
+  if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)) return 0;
+  const auto ticks = [](const FILETIME& f) { return (static_cast<unsigned long long>(f.dwHighDateTime) << 32) | f.dwLowDateTime; };
+  return static_cast<double>(ticks(kernel) + ticks(user)) / 1e4;  // 单位 100 ns
+#else
+  timespec c{};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &c);
+  return c.tv_sec * 1e3 + c.tv_nsec / 1e6;
+#endif
+}
 
 struct EventMsg {
   std::string type;
@@ -171,12 +191,11 @@ class Player : public Napi::ObjectWrap<Player> {
             {MPV_RENDER_PARAM_INVALID, nullptr},
         };
         auto t0 = std::chrono::steady_clock::now();
-        timespec c0{}, c1{};
-        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &c0);
+        double c0 = ThreadCpuMs();
         int r = mpv_render_context_render(rctx_, params);
-        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &c1);
+        double c1 = ThreadCpuMs();
         auto dt = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        double cpu = (c1.tv_sec - c0.tv_sec) * 1e3 + (c1.tv_nsec - c0.tv_nsec) / 1e6;
+        double cpu = c1 - c0;
         lk.lock();
         if (r >= 0) {
           std::swap(front_, back_);

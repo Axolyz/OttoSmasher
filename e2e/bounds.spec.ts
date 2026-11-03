@@ -20,7 +20,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
     "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=8", "-c:v", "libx264", "-c:a", "flac", mkv]);  // prettier-ignore
   writeFileSync(join(dir, "Bounds Show 01.srt"), "1\n00:00:01,000 --> 00:00:02,000\nあ\n\n2\n00:00:02,000 --> 00:00:03,000\nい\n");
   const { app, page } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   const sid = await page.evaluate(async (p) => {
     const r = (await window.otto.core.request<Array<{ sourceId: string }>>("sources.add", { paths: [p] })) as { r: Array<{ sourceId: string }> };
     const s = r.r[0]!.sourceId;
@@ -50,7 +50,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
   await page.getByTestId("edit-save").click();
   await expect.poll(async () => (await anns(page, sid)).map((a) => [a.start, a.end].map((v) => v.toFixed(1)).join("-"))).toEqual(["1.0-2.5", "2.5-3.0"]);
   await page.screenshot({ path: ".cache/playwright-results/bounds-saved.png" });
-  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(async () => (await anns(page, sid)).map((a) => a.end.toFixed(1))).toEqual(["2.0", "3.0"]);
 
   // 2) Esc 放弃
@@ -108,7 +108,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
     const a = (await window.otto.core.request<Array<{ id: string }>>("assets.listForSource", { sourceId: s })) as { r: Array<{ id: string }> };
     await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 6, end: 7, name: "ドア" });
   }, sid);
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   await refreshLists(page).catch(() => {});
   await page.getByTestId("sample-row").first().click();
   await page.getByTestId("add-tag").click();
@@ -126,7 +126,7 @@ test("边界编辑、区段标签、编辑段文本、添加台词切开、提�
   };
   await expect.poll(tagsOf).toEqual(["segment"]);
   await expect(page.getByTestId("promote")).toHaveCount(0); // 没有本地标签了
-  await page.keyboard.press("Meta+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(tagsOf).toEqual(["local"]);
   await expect(page.getByTestId("promote")).toBeVisible(); // 舞台跟着撤销刷新
   await page.screenshot({ path: ".cache/playwright-results/promote.png" });

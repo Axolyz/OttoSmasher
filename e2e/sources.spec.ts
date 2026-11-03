@@ -16,7 +16,7 @@ test("原素材页：列表、时间线、导出、设置、删除", async () =>
     "-map", "0", "-map", "1", "-map", "2", "-c:v", "libx264", "-c:a", "flac", "-metadata:s:a:1", "language=jpn", mkv]);  // prettier-ignore
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=440:duration=2", wav]);
   const { app, page, workspace } = await launch();
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await expect(page.getByTestId("page-sources")).toBeVisible();
   await expect(page.getByTestId("sources-add-empty")).toBeVisible();
 

@@ -2,10 +2,11 @@
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const electronVersion = require("electron/package.json").version;
 const python = process.platform === "win32" ? join(root, ".venv", "Scripts", "python.exe") : join(root, ".venv", "bin", "python");
 const nodeGyp = join(root, "node_modules", "node-gyp", "bin", "node-gyp.js");

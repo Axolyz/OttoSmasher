@@ -34,7 +34,7 @@ test("真实素材 YY1-01：原素材入口语音分析、再发起跳过、舞�
   expect(first.run).toBeGreaterThan(250);
 
   // 原素材页 → 准备 ▾ → 语音分析（还没有任何采样）
-  await page.keyboard.press("Meta+2");
+  await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("source-group").first().click();
   await page.getByTestId("source-row").first().click();
   await page.getByTestId("prep").click();
@@ -97,7 +97,7 @@ test("真实素材 YY1-01：原素材入口语音分析、再发起跳过、舞�
   expect(cv.head.partial).toBe(true);
   expect(cv.head.result.phones.map((p) => p.label).join(" ")).toBe("k a");
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Meta+1");
+  await page.keyboard.press("ControlOrMeta+1");
   await refreshLists(page).catch(() => {});
   await page.getByTestId("library-search").fill("アッカリ");
   await page.getByTestId("sample-row").filter({ hasText: "アッカリ～ン" }).first().click();
