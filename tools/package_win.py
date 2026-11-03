@@ -157,6 +157,8 @@ def copy_licenses(res: Path, folder: Path, need: dict[str, Path]) -> None:
     (d / "PC-NSF-HiFiGAN-NOTICE.txt").write_text(VOCODER_NOTICE.replace("Contents/Resources/models/flatten/", "resources/models/flatten/"), encoding="utf-8")
     shutil.copy2(need["ffmpeg"] / "LICENSE.txt", d / "ffmpeg-LICENSE.txt")
     shutil.copy2(need["rubberband"] / "COPYING.txt", d / "rubberband-COPYING.txt")
+    for lic in (TP / "libmpv" / "win-x64" / "licenses").iterdir():
+        shutil.copy2(lic, d / f"libmpv-{lic.name}")
 
 
 def make_zip(folder: Path, version: str) -> Path:

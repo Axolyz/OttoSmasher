@@ -130,7 +130,6 @@ jobs:
           retention-days: 14
 
   package:
-    # 打包慢、包又大：手动运行全部时才跑，或者推到这些分支、版本标签时
     if: ${{ !inputs.spec }}
     runs-on: windows-2025
     timeout-minutes: 60

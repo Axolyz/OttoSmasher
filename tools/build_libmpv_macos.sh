@@ -80,6 +80,12 @@ codesign --force --sign - --timestamp=none "$OUT/libmpv.2.dylib"
 cp "$SRC/mpv/LICENSE.LGPL" "$SRC/mpv/Copyright" "$OUT/licenses/"
 cp "$SRC/ffmpeg/COPYING.LGPLv2.1" "$OUT/licenses/FFmpeg-COPYING.LGPLv2.1"
 cp "$SRC/dav1d/COPYING" "$OUT/licenses/dav1d-COPYING"
+# 静态并入的其余组件（freetype2、harfbuzz、fribidi 是 meson wrap 拉的，目录名带版本；找不到就报错，不漏）
+cp "$SUB/libplacebo/LICENSE" "$OUT/licenses/libplacebo-LICENSE"
+cp "$SUB/libass/COPYING" "$OUT/licenses/libass-COPYING"
+cp "$SUB"/freetype-*/docs/FTL.TXT "$OUT/licenses/freetype-FTL.TXT"
+cp "$SUB"/harfbuzz-*/COPYING "$OUT/licenses/harfbuzz-COPYING"
+cp "$SUB"/fribidi-*/COPYING "$OUT/licenses/fribidi-COPYING"
 cat > "$OUT/versions.txt" <<EOF
 mpv $MPV_COMMIT
 FFmpeg $FFMPEG_TAG
@@ -97,7 +103,8 @@ fi
 otool -L "$OUT/libmpv.2.dylib"
 vtool -show-build "$OUT/libmpv.2.dylib"
 
-NAME="libmpv-macos-arm64-$(printf %.10s "$MPV_COMMIT").tar.gz"
+# 结尾的 -2：内容变了要换文件名（third-party-1 里的旧文件留给旧提交）
+NAME="libmpv-macos-arm64-$(printf %.10s "$MPV_COMMIT")-2.tar.gz"
 tar -czf "$WORK/$NAME" -C "$WORK" libmpv
 shasum -a 256 "$WORK/$NAME"
 ls -la "$WORK/$NAME" "$OUT/libmpv.2.dylib"
