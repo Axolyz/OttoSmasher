@@ -66,7 +66,7 @@ meson setup "$SRC/mpv/build" "$SRC/mpv" --prefix="$PREFIX" --libdir=lib --buildt
   -Dfribidi:default_library=static -Dharfbuzz:default_library=static \
   -Dharfbuzz:freetype=enabled -Dlibass:coretext=enabled -Dlibplacebo:demos=false \
   -Dgpl=false -Dlibmpv=true -Dcplayer=false -Dtests=false -Dfuzzers=false -Dbuild-date=false \
-  -Dcoreaudio=enabled -Dzlib=enabled -Diconv=enabled
+  -Dcoreaudio=enabled -Dzlib=enabled -Diconv=enabled -Dvector=enabled -Dgl=disabled
 ninja -C "$SRC/mpv/build" libmpv.2.dylib
 
 echo "== 打包"
