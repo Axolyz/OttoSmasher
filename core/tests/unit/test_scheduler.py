@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import sys
 import time
 from collections.abc import Callable
 
