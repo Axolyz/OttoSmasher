@@ -403,7 +403,7 @@ def changes_since(version: str) -> str:
 def write_notes(version: str, z: Path | None) -> None:
     sha = (OUT / f"{z.name}.sha256").read_text(encoding="utf-8").split()[0] if z else "（没有打 ZIP）"
     text = (ROOT / "tools" / "release_notes.md").read_text(encoding="utf-8").split("-->\n", 1)[1]
-    for k, v in {"{version}": version, "{zip}": z.name if z else "", "{sha256}": sha, "{changes}": changes_since(version)}.items():
+    for k, v in {"{version}": version, "{zip}": z.name if z else "", "{windows_zip}": f"OttoSmasher-{version}-windows-x64.zip", "{sha256}": sha, "{changes}": changes_since(version)}.items():
         text = text.replace(k, v)
     (OUT / "RELEASE_NOTES.md").write_text(text, encoding="utf-8")
     print(OUT / "RELEASE_NOTES.md")

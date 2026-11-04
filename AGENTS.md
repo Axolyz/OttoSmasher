@@ -1,7 +1,7 @@
 # AGENTS.md — OttoSmasher 开发规则
 
 > 在本仓库工作的开发者（人或 AI 代理）都遵守本文件；`CLAUDE.md` 只是指向这里。
-> OttoSmasher 是做音MAD 的素材工作台：Electron 界面 + Python Core + 命令行 `otto`。0.1.x 已发布（只发 macOS），所有者在日常使用发布版。
+> OttoSmasher 是做音MAD 的素材工作台：Electron 界面 + Python Core + 命令行 `otto`。0.1.x 已发布（macOS；Windows 从 0.1.4 起发预览版），所有者在日常使用发布版。
 > 本机私有的位置（素材、日常工作区、不要打开的旧目录）写在本地的 `AGENTS.local.md`（不进 Git）。
 
 ## 1. 文档地图
@@ -67,7 +67,7 @@
 - 先单元测试和合成测试，再用真实素材小批验证；**不全库跑模型**。怎么跑见 DEVELOPMENT「测试」。
 - 提交前至少跑和改动相关的测试；动到 Core 命令、文案、界面时跑对应的目录检查、`i18n:check`、typecheck。没跑全量要在汇报里说。
 - “运行成功”不等于“质量好”；没有实测证据不宣称可用；“provider 可用”不等于“实测通过”。
-- **Windows 上没实测的功能一律标“未验证”**：云端测过的（合成素材）可以说云端通过；真实素材、DirectML、PyMSS Studio、声音、REAPER 要在实机上验过才算（还没发 Windows 版）。
+- **Windows 上没实测的功能一律标“未验证”**：云端测过的（合成素材）可以说云端通过；真实素材、DirectML、PyMSS Studio、声音、REAPER 要在实机上验过才算；发布说明里如实写没验证的部分。
 - 界面自动化或人工点击只补充自动化证明不了的东西；验证够了就停。
 
 ## 7. 和所有者沟通
