@@ -47,7 +47,10 @@ export async function launch(
   const watch = (w: Page) => {
     if (opts.allowPageErrors) return;
     const fail = (text: string) => void expect.soft(text, "界面不能报错").toBe("");
-    w.on("pageerror", (e) => fail(`${e.message}\n${e.stack ?? ""}`));
+    // core-exited 放行：应用关闭时 Core 先退出，还没返回的请求都会这样失败（Windows 上碰到过）。Core 退出有自己的横幅，不是界面崩溃
+    w.on("pageerror", (e) => {
+      if (e.message !== "core-exited") fail(`${e.message}\n${e.stack ?? ""}`);
+    });
     w.on("console", (m) => {
       if (m.type() === "error" && m.text().startsWith("otto-render-crash")) fail(m.text());
     });
