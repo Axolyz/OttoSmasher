@@ -6,6 +6,8 @@
 
 <p align="center">本地运行的音 MAD 素材工作站</p>
 
+<p align="center">简体中文 | <a href="README.en.md">English</a></p>
+
 <p align="center">
   <a href="https://github.com/Axolyz/OttoSmasher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Axolyz/OttoSmasher?include_prereleases&label=release"></a>
   <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
@@ -16,8 +18,6 @@ OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游
 **当前项目仍处于早期版本，Windows 版为预览版，可能存在 BUG 或不稳定的问题。**
 
 下载：[发布页](https://github.com/Axolyz/OttoSmasher/releases)（macOS Apple 芯片、Windows 10 / 11 x64）。安装步骤见[安装](#安装)。
-
-*OttoSmasher is a local desktop workstation for otoMAD material. Review, cut, separate, flatten, beat-stretch and search lines and sound effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. The interface is in Simplified Chinese and English; speech analysis supports Japanese. LLM agents such as Claude Code and Codex can operate it through the `otto` command line.*
 
 <table>
   <tr>
@@ -32,7 +32,7 @@ OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游
 
 1. 按作品整理素材文件夹，把同名字幕放在视频旁边（见[文件夹和字幕的写法](docs/user/reference.md)）
 2. 在 OttoSmasher 中登记文件夹，同名字幕会自动关联，再点一下导入
-3. 分离人声，并设为默认人声轨（可选，需要另外安装 PyMSS Studio）
+3. 分离人声，并设为默认人声轨（需要另外安装 PyMSS Studio 并手动下载模型）。背景不干净的素材如果跳过这一步，后面的语音分析基本不能用
 4. 把台词批量建成采样，并进行语音分析
 5. 按节奏或音高检索采样，按 BPM 卡拍试听
 6. 把结果复制到 REAPER，或导出 WAV、视频片段
@@ -57,7 +57,7 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 ```
 
 - **可以查看和撤回**：agent 对资料的修改按会话记录，可以在应用的操作历史中查看，也可以整批撤回。新建的采样和音轨不能撤回，可以删除。
-- **危险操作需要确认**：删除原素材这类撤销不了的操作，不开启放行模式的情况下需要你在应用里点击允许才会执行。
+- **危险操作需要确认**：删除原素材这类撤销不了的操作，需要你在应用里点击允许才会执行（除非打开了「撤销不了的操作也不用确认」）。
 - **能“听”声音**：接上音频工具 audio-mcp 后，agent 可以看频谱、量响度、做带时间的转写。
 - **可用于预处理任务或其他的复杂语音分析任务**：洗字幕、对轴、按说话人分组等对后续处理至关重要的预处理任务有内置 skill，是作者自己摸索出来的方法论，都是工作区里的文件，可以依照自己的喜好直接修改，也可以添加自己的做法。
 
@@ -117,7 +117,7 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 ### 人声分离
 
-调用另外安装的 PyMSS Studio，可以分离整集，也可以只分离几段。分离结果是原素材上的新音轨，设为默认人声轨后，建采样和语音分析都会用它。
+调用另外安装的 PyMSS Studio，可以分离整集，也可以只分离几段。模型要预先在 Studio 里手动下载，推荐 HyperACE v2（`bs_roformer_voc_hyperacev2`）。分离结果是原素材上的新音轨，设为默认人声轨后，之后建的采样和语音分析都会用它。
 
 ### 拉平
 
@@ -139,8 +139,9 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 把要保留的采样存成无损切片，画面存成视频片段。之后即使删除整集原素材，这些采样也能继续播放、导出和读取语音分析结果，只是不能再返回原素材查看前后文。
 
-###人力
-另外，按照现在项目的成熟度，批量裁切拼字的音素、乃至半自动生成 UTAU 音源都可以轻松实现，但开发者不熟悉人力 VOCALOID 工作流所以不知道怎么做到软件里，如果你是一位熟悉上述工作流的音 mader，非常欢迎提这方面的开发思路。
+### 人力 VOCALOID 工作流
+
+按照现在项目的成熟度，批量裁切拼字的音素、乃至半自动生成 UTAU 音源都可以轻松实现，但开发者不熟悉人力 VOCALOID 工作流所以不知道怎么做到软件里，如果你是一位熟悉上述工作流的音 mader，非常欢迎提这方面的开发思路。
 
 ## 系统要求
 
@@ -149,7 +150,7 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 | 系统 | macOS 14 或更新（Apple 芯片）；Windows 10 / 11 x64（预览版，支持 DirectML 显卡加速，没有独显时使用 CPU） |
 | 磁盘 | 应用约 1.2 GB（含模型）；约 4000 个采样时工作区附带数据约 4 GB，不含原素材 |
 | 语言 | 界面支持简体中文和英文；语音分析目前只支持日语 |
-| 可选 | 人声分离需要 [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases) |
+| 人声分离 | 需要 [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases) |
 
 ## 安装
 
@@ -197,7 +198,7 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 | 情况 | 受影响的功能 |
 |---|---|
-| 没有分离人声 | 语音分析可以直接跑在原混音上，但有背景音乐或音效时，音素对齐的错误率会大幅上升。卡拍、节奏检索和 REAPER 的拉伸标记都建立在对齐结果上，会跟着出错。音高测量也容易被伴奏干扰，进而影响音高检索和自动定音。agent 的对轴、拆分多人字幕和声纹分组同样需要干净的人声。原本就是干声的素材（如游戏语音）不用分离。 |
+| 没有分离人声 | 语音分析可以直接跑在原混音上，但有背景音乐或音效时，音素对齐的错误率会大幅上升，结果基本不能用。卡拍、节奏检索和 REAPER 的拉伸标记都建立在对齐结果上，会跟着出错。音高测量也容易被伴奏干扰，进而影响音高检索和自动定音。agent 的对轴、拆分多人字幕和声纹分组同样需要干净的人声。原本就是干声的素材（如游戏语音）不用分离。 |
 | 没有字幕 | 没有台词段，就不能从台词批量建采样、搜索台词、按人物筛选，也做不了语音分析，因此卡拍、节奏检索、REAPER 的拉伸标记和只拉平元音都用不了。可以手动逐句输入台词，或者让 agent 用语音识别生成字幕；机器转写会有错字，重要的句子需要手动修改。 |
 | 不是日语 | 字幕可以导入，也可以按文字搜索和批量建采样。但语音分析目前只支持日语，所以卡拍、节奏检索、REAPER 的拉伸标记和只拉平元音同样用不了。agent 也用不了应用的对齐和读音分析能力。 |
 
@@ -229,5 +230,5 @@ OttoSmasher 基于 [GPL-3.0-or-later](LICENSE) 发布，可以自由使用、修
 ## 友情链接
 
 - [HiFiShifter](https://github.com/ARounder-183/HiFiShifter)（我要在这里催更一下拉伸标记功能，将在更新第一时间适配）
-- HachiShifter（之后对人力 VOCALOID 工作流的适配会以这个项目为主要适配对象）
+- [HachiShifter](https://github.com/openhachimi/HachiShifter)（之后对人力 VOCALOID 工作流的适配会以这个项目为主要适配对象）
 
