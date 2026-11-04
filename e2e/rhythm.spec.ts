@@ -200,7 +200,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   await page.keyboard.up("Alt");
   const [rtt] = (await dragged())[0]!;
   expect(rtt).toMatch(/\.RTrackTemplate$/);
-  const rttText = readFileSync(rtt!, "utf8");
+  const rttText = readFileSync(rtt!, "utf8").replace(/\r\n/g, "\n"); // Windows 上是 CRLF
   expect(rttText.startsWith("<ITEM\n")).toBe(true);
   expect(rttText).not.toContain("<TRACK");
   expect(rttText).toContain("\nSM ");
