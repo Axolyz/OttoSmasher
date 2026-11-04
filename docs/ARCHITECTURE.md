@@ -635,8 +635,8 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
   现有 `speaker_embed.py`（说话人声纹，anime_speaker_embedding；模型第一次用时由脚本从 Hugging Face 下载，应用不分发）。测试只核对 notes 提到的脚本存在、不需要模型的部分。
 - **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
 - 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
-  agent 自己下载、按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、「安装 otto 命令」
-  （`~/.local/bin/otto` 链接；Windows 未实现）和「复制给 agent 的开场白」（skill 地址在 `app/shared/repo.ts`：`raw.githubusercontent.com/Axolyz/OttoSmasher/main/skills/ottosmasher/SKILL.md`）。
+  可选，想装时 agent 按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、手动重装 otto 和「复制给 agent 的开场白」（让 agent 先跑 `otto status`、`otto guide`，不用下载）。
+  发布版启动时自动安装 otto（`app/main/otto-link.ts`；macOS 是 `~/.local/bin/otto` 链接，Windows 是 `WindowsApps/otto.cmd` 转发脚本），运行中的应用登记到 `Application Support/OttoSmasher/instances/<pid>.json`（`cli/instances.py` 读；`otto open` 打开应用）。
   `otto status` 的 `environment` 报 otto 的位置、模型、PyMSS Studio、有没有 playbook，并给出 `hints`；`otto setup playbook` / `otto setup audio`（只打印接 audio-mcp 的命令 / 配置）。
 - `otto session`：这个会话的任务与修改，长任务之后接着干用。
 

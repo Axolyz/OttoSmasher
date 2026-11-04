@@ -114,7 +114,7 @@
 - **命令分两层**：业务命令（操作资料库）与原始能力（只算、不改资料库），见 §4。（2026-10-30 阶段 A 验收反馈第 15 条）
 - **说明分三层**：说明书（`otto guide`，只写 agent 看不出来的事实与硬规定，中英两份）→ 做法与经验（`otto guide notes`，不是规定，可能过时）→ 所有者的约定（工作区 `Agent/playbook.md`，优先于经验）。（同上第 14、16 条）
 - **agent 怎么找到应用**（2026-11-04）：发布版启动时自动把 `otto` 装成命令（macOS 是 `~/.local/bin/otto` 符号链接；Windows 普通用户不能建符号链接，写转发脚本 `%LOCALAPPDATA%\Microsoft\WindowsApps\otto.cmd`，这个目录 Win10 起默认在 PATH 上；只换自己的旧位置和失效的链接，别的程序的同名文件不动，开发版不装）；运行中的应用把应用路径、`otto` 路径、工作区登记到固定目录（`Application Support/OttoSmasher/instances`，不含连接密钥）。`otto` 连同一种的应用：装好的连发布版，`tools/otto` 连开发版，不交叉，免得开发版的改动写进日常工作区。
-- **skill**：仓库托管的入口 `skills/ottosmasher/SKILL.md`，只讲怎么找到 `otto`、先读 `otto guide`，agent 装到项目级。（同上第 17 条）
+- **skill 是可选的**：仓库托管的入口 `skills/ottosmasher/SKILL.md`，只讲怎么找到 `otto`、先读 `otto guide`，想装时 agent 装到项目级。开场白不再要求下载它，直接让 agent 跑 `otto status`、`otto guide`。（2026-10-30 第 17 条；2026-11-04 改）
 - **说明书不禁止把素材交给云端服务**（交不交由用户决定）；开发时 `fixtures/` 的规则不变。（同上第 7 条）
 - **听觉工具用外部的 audio-mcp**，不内置；对齐、分离不做独立程序，外部音频登记成原素材即可用。（同上第 14 条）
 - **按说话人分组走 skill 的路**：应用不加 `speaker.*` 命令、不分发声纹模型；做法与实测数字在经验层，声纹脚本 `otto guide speaker_embed.py` 由 agent 在自己的环境里跑。（2026-10-31「按说话人分组走 skill 的路」）
@@ -135,7 +135,7 @@
 
 ## 14. 平台、发布与开发
 
-- **只发布 macOS（Apple 芯片，macOS 14+）**，本地构建、ad-hoc 签名不公证；用户第一次打开前运行 `xattr -dr com.apple.quarantine`（写在 README）。Windows 代码保留、标“未验收”，第一个 Windows 版发布前暂不发布，README 招维护者。（2026-10-30「【基线变更】阶段 10 发布方式」；2026-10-31）
+- **macOS 版（Apple 芯片，macOS 14+）**，本地构建、ad-hoc 签名不公证；用户第一次打开前运行 `xattr -dr com.apple.quarantine`（写在 README）。Windows 代码保留、标“未验收”，第一个 Windows 版发布前暂不发布，README 招维护者。（2026-10-30「【基线变更】阶段 10 发布方式」；2026-10-31）
 - **要做 Windows 版**：只支持 x64 的 Win10 和 Win11，发免安装 ZIP，不签名；项目进入双端维护，agent 只运行在 Mac 这一侧。（2026-11-03）
 - **Windows 的显卡加速用 DirectML，必须保留**；CPU 计算是稳定的兜底（默认走 CPU，加速由用户开启）。开发者不方便验证时由所有者手测。（2026-11-03：“显卡加速用 directml 是必须的”）
 - **mpv 换成新版，两端都换**：0.36.0 + FFmpeg 6.0 不是所有者要求的，只是当时选的现成包带的版本。（2026-11-03）

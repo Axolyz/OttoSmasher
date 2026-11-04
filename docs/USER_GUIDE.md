@@ -440,8 +440,8 @@ Windows 按显卡选 CUDA（NVIDIA）/ ROCm（AMD）/ CPU 版；macOS 选 Apple 
 **怎么开始**
 1. 打开一次 OttoSmasher：发布版启动时会自动把 `otto` 装成命令（`~/.local/bin/otto`；Windows 在 `WindowsApps`），挪了位置也会自动更新。同名的文件如果是别的程序的，不会动它，设置里会提示。之后 agent 可以用 `otto open` 自己打开应用。
 2. 设置 › **命令行与 agent**：写着 `otto` 在哪。终端里找不到 `otto` 时，把 `~/.local/bin` 加进 PATH，或者用这里的完整路径。
-3. 「复制给 agent 的开场白」，发给你的 agent，后面接上任务。开场白让 agent 第一次用时从仓库下载 skill（`skills/ottosmasher/SKILL.md`）、
-   按它自己工具的方式**装到当前项目**（不要装成全局，免得别的项目里也带着它）。skill 只是入口；说明书正文由 `otto guide` 给出，总是和你装的版本一致，agent 按需要分主题读。
+3. 「复制给 agent 的开场白」，发给你的 agent，后面接上任务。开场白让它先看 `otto status` 和 `otto guide`，不用下载任何东西；说明书总是和你装的版本一致。
+   想让 agent 不用你提醒也知道这个工具，可以让它把 `skills/ottosmasher/SKILL.md` 按它自己工具的方式**装到当前项目**（不要装成全局，免得别的项目里也带着它）。
 4. `otto` 会用正在运行的应用的工作区；应用没开、又想打开别的工作区时，设环境变量 `OTTO_WORKSPACE` 指向它。
 
 **说明分三层**

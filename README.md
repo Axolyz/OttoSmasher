@@ -18,13 +18,13 @@
 
 *OttoSmasher is a local desktop workstation for otoMAD material: review, cut, separate, flatten, beat-stretch and search lines and sound
 effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. It also exposes its engine to
-LLM agents through a command line. The UI is in Simplified Chinese; speech analysis currently supports Japanese.*
+LLM agents through a command line. The UI is in Simplified Chinese and English; speech analysis currently supports Japanese. Runs on macOS (Apple silicon) and Windows 10/11 x64.*
 
 <p align="center">
   <img src="docs/images/sources.webp" alt="原素材页：画面、带说话人的台本、整集时间线（台词段、音效提示、区段标签）" width="100%">
 </p>
 
-> **状态**：第一个公开版本（0.1，macOS）。功能已经齐全并有自动化测试，但还年轻——遇到问题欢迎[提 issue](https://github.com/Axolyz/OttoSmasher/issues)。
+> **状态**：早期公开版本（0.1，macOS；Windows 是预览版）。功能已经齐全并有自动化测试，但还年轻——遇到问题欢迎[提 issue](https://github.com/Axolyz/OttoSmasher/issues)。
 
 ## 目录
 
@@ -50,7 +50,7 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
   同一句话可以按“近快 / 近慢”两种密度试听，不用再在 DAW 里一个个手拉。
 - **节奏检索**：画一串音块（时值、元音、辅音、相对音高），在整个采样库里找“节奏和发音都对得上”的台词，按 BPM 比较，命中直接按检索时的方案卡拍试听、导出。
 - **音高检索**：画几个音高块，在采样里或整条原素材音轨上找唱得 / 说得正好是那几个音的片段；可以忽略八度。
-- **REAPER 交接带拉伸标记**：⌘C 复制的 REAPER 条目可以是“原声 + 拉伸标记”——粘贴进 REAPER 后卡拍还能继续手调，不是烘焙死的 WAV。
+- **REAPER 交接带拉伸标记**：复制或直接拖进 REAPER 的都是未处理的原声加拉伸标记——可以是听上去已经卡好拍的，也可以只在音头放标记、由你手动卡；删掉标记就回到原声，不是烘焙死的 WAV。
 - **能交给 LLM agent 干活**：应用开着时，本机的 agent（Claude Code、Codex 等）可以用命令行 `otto` 调用和界面同一组功能，
   需要判断的事（清理字幕、挑台词、对轴、找 OP）由它自己做完再写回来；它的修改按会话记录、可整批撤回，撤销不了的操作要你在应用里点允许。
 - **可撤销、可追溯**：资料修改都能撤销；每个采样记得来自哪条音轨的哪一段、用什么方案处理过；导出文件按内容复用、从不被应用删除。
@@ -85,12 +85,14 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
 
 | | |
 |---|---|
-| 系统 | macOS 14 或更新，Apple 芯片（M 系列）。Windows 暂不发布（代码里保留了 Windows 的路径，但没有在实机上验收；[欢迎来维护](#windows-版招维护者)） |
+| 系统 | macOS 14 或更新，Apple 芯片（M 系列）；Windows 10 / 11 x64（预览版，有 DirectML 显卡加速，没有独显时用 CPU） |
 | 磁盘 | 应用约 1.2 GB（含模型）；工作区按素材量增长（约 4000 个采样时附带数据约 4 GB，不含原素材本身） |
 | 网络 | 不需要；不上传任何东西 |
 | 可选 | [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases)（人声分离；分离模型由它自己下载） |
 
 ## 安装
+
+**macOS**
 
 1. 从 [发布页](https://github.com/Axolyz/OttoSmasher/releases) 下载 `OttoSmasher-<版本>-macos-arm64.zip`，核对发布说明里写的 SHA-256：
    ```
@@ -106,6 +108,12 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
    （不想用终端也可以：双击一次被拦下后，到“系统设置 → 隐私与安全性”最下面点“仍要打开”。）
 4. 程序目录只读；你的数据都在**工作区**里（默认 `~/文稿/OttoSmasher Workspace`），更新应用不会动它。
 
+**Windows（预览版）**
+
+1. 从发布页下载 `OttoSmasher-<版本>-windows-x64.zip`，可以在 PowerShell 里核对 SHA-256：`Get-FileHash OttoSmasher-*.zip`。
+2. 解压到任意文件夹，不用安装，运行里面的 `OttoSmasher.exe`。包没有签名，SmartScreen 拦下时点“更多信息 → 仍要运行”。
+3. 数据同样在工作区里（默认 `文档\OttoSmasher Workspace`），换版本时解压新版本即可。
+
 ## 第一次使用
 
 1. **模型**：发布版带着全部四个模型（对齐、读音预测、音高、拉平），不用下载；设置 → **环境与模型** 里能看到它们都就绪。
@@ -116,21 +124,19 @@ LLM agents through a command line. The UI is in Simplified Chinese; speech analy
 
 ## 配合 LLM agent 使用
 
-能在你电脑上跑终端命令的 agent（Claude Code、Codex 等）可以通过命令行 `otto` 操作**开着的** OttoSmasher。
+能在你电脑上跑终端命令的 agent（Claude Code、Codex 等）可以通过命令行 `otto` 操作 OttoSmasher。打开过一次应用后，`otto` 就装好了。
 
-1. 设置 › **命令行与 agent**：这里写着 `otto` 在哪，可以「安装 otto 命令」（之后终端里直接输入 `otto`；应用换了位置要重装一次），
-   也可以「复制给 agent 的开场白」。
-2. 把开场白发给 agent，后面接上你的任务。开场白大致是：
-   ```
-   我电脑上开着 OttoSmasher，请用它的命令行 otto 操作（<otto 的位置>）。
-   第一次用的话，从 https://raw.githubusercontent.com/Axolyz/OttoSmasher/main/skills/ottosmasher/SKILL.md 下载这个 skill，
-   按你的工具的方式装到当前项目（不要装成全局）；你的工具不支持 skill，就把它的内容存进项目的长期说明。
-   任务：……
-   ```
-   [skill](skills/ottosmasher/SKILL.md) 只是入口：告诉 agent 怎么找到 `otto`、先看 `otto guide`。说明书本身由 `otto guide` 给出，总是和你装的版本一致。
-3. 可选：
-   - `otto setup playbook`：在工作区生成一份“我的约定”（`Agent/playbook.md`），用平常的话写你的习惯，agent 开工先看它。
-   - `otto setup audio --for claude-code|codex|other`：给听不到声音的 agent 接一个音频分析工具（[audio-mcp](https://pypi.org/project/audio-mcp/)：频谱图、响度、带时间的转写）。
+跟 agent 说：
+```
+请用命令行 otto 操作我电脑上的 OttoSmasher：先运行 otto status 和 otto guide，应用没开就运行 otto open。
+任务：……
+```
+也可以在 设置 › **命令行与 agent** 里「复制给 agent 的开场白」；终端里找不到 `otto` 时，完整路径也在那里。
+
+可选：
+- `otto setup playbook`：在工作区生成一份“我的约定”（`Agent/playbook.md`），用平常的话写你的习惯，agent 开工先看它。
+- `otto setup audio --for claude-code|codex|other`：给听不到声音的 agent 接一个音频分析工具（[audio-mcp](https://pypi.org/project/audio-mcp/)：频谱图、响度、带时间的转写）。
+- 想让 agent 不用你提醒也知道这个工具：把 [skill](skills/ottosmasher/SKILL.md) 装到项目里。它只是入口，说明书本身由 `otto guide` 给出，总是和你装的版本一致。
 
 命令分两层：**业务命令**操作资料库（原素材、采样、编辑与撤销），**原始能力**只做计算（日语对齐、读音分析、测音高、按应用规则读字幕文件），
 声音可以是任意文件。详见 [使用说明 §17](docs/USER_GUIDE.md#17-让-agent-操作-ottosmasher)。
@@ -169,9 +175,9 @@ docs/       使用说明、架构、路线图、决定记录、第三方许可�
   > 在现在的架构下，批量搜特定的音（某个元音、某种辅音 + 元音、某个音高）、乃至半自动生成 UTAU 音源都可以比较轻松地实现，
   > 但开发者并不熟悉这一工作流——需要懂行的大佬来提建议（欢迎开 issue 讲讲你的做法和痛点）。
 - [ ] **支持中文、英文的语音分析**（流程与日语相同，需要另选文本前端与对齐模型）
-- [ ] **界面多语言翻译**（文案已全部抽成资源文件，加语言不用改业务代码）
+- [ ] **更多界面语言**（中文、英语已有；文案都在资源文件里，加语言不用改业务代码）
 - [ ] **以语音聚类为基础的说话人日志**（没有字幕说话人时，按声音自动分出“谁在说”）
-- [ ] Windows 版（[招维护者](#windows-版招维护者)）
+- [x] Windows 版（预览）
 
 开发进度与遗留事项见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -181,14 +187,6 @@ docs/       使用说明、架构、路线图、决定记录、第三方许可�
 - **代码**：开发约定在 [AGENTS.md](AGENTS.md)（人和 AI 代理通用）；提交前跑一遍 [DEVELOPMENT.md](docs/DEVELOPMENT.md) 里的测试。
   现行的设计决定在 [docs/DECISIONS.md](docs/DECISIONS.md)（原始需求规格在 [docs/spec/](docs/spec/README.md)），改变既定行为前请先开 issue 讨论。
 - **不要提交任何素材**（番剧、字幕、游戏语音等）；测试用合成音频，真实素材只在本地通过环境变量引用。
-
-### Windows 版：招维护者
-
-OttoSmasher 基于 Electron，界面、Python Core 和用到的模型本身都是跨平台的；代码里也一直保留着 Windows 的路径
-（进程管理、命名管道、播放器与原生扩展的构建脚本），只是没有在实机上构建、验收过。
-作者自己只用 Mac，没有精力构建和维护 Windows 版。**如果你愿意负责 Windows 版的构建、测试和发布，非常欢迎**——
-请开 issue 打个招呼。还没验证过的地方大致是：libmpv 的来源与播放器原生扩展、pydomino 扩展的编译、
-结束进程树、剪贴板交接给 REAPER、`otto` 命令行（见 [docs/ROADMAP.md](docs/ROADMAP.md) 的 L9、L26、L47）。
 
 ## 致谢
 

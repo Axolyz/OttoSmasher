@@ -131,7 +131,7 @@
   "agentPanel.copyPrompt": "复制给 agent 的开场白",
   "agentPanel.copied": "已复制",
   "agentPanel.promptHint": "把开场白发给你的 agent（Claude Code、Codex 等能运行终端命令的工具），后面接上你的任务。",
-  "agentPanel.prompt": "我电脑上开着 OttoSmasher，请用它的命令行 otto 操作（{otto}）。\n第一次用的话，从 {skill} 下载这个 skill，按你的工具的方式装到当前项目（不要装成全局）；你的工具不支持 skill，就把它的内容存进项目的长期说明。\n任务：",
+  "agentPanel.prompt": "请用命令行 otto 操作我电脑上的 OttoSmasher（命令：{otto}）：先运行 status 和 guide 两个子命令，应用没开就运行 open。\n任务：",
   "settings.general.ui_language.label": "界面语言",
   "settings.general.ui_language.hint": "界面语言与采样语言是两个独立的设置；换了之后窗口会重新载入",
   "settings.general.label_max_lines.label": "时间线标签最多行数",

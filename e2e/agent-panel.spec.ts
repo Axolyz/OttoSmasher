@@ -13,7 +13,9 @@ test("命令行与 agent：otto 的位置与开场白", async () => {
     await page.getByTestId("agent-copy-prompt").click();
     const text = await page.evaluate(() => navigator.clipboard.readText());
     expect(text).toContain("otto");
-    expect(text).toContain("skills/ottosmasher/SKILL.md");
+    expect(text).toContain(path!); // 开发版没装成命令，写完整路径
+    expect(text).toContain("guide");
+    expect(text).not.toContain("SKILL.md"); // 不用下载 skill（所有者 2026-11-04）
     await expect(page.getByText("已复制")).toBeVisible();
   } finally {
     await app.close();

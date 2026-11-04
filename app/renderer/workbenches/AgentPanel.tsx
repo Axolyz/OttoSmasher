@@ -1,8 +1,6 @@
-// 设置 › 命令行与 agent（所有者 2026-10-30）：otto 在哪、一键装成命令、复制给 agent 的开场白。
-// 发布版的 otto 启动器还没做（ROADMAP L46）：那时 path 为空，这里如实说找不到。
+// 设置 › 命令行与 agent（所有者 2026-10-30）：otto 在哪、手动重装命令、复制给 agent 的开场白。
 import { useEffect, useState } from "react";
 import type { OttoInfo } from "../../shared/protocol";
-import { SKILL_URL } from "../../shared/repo";
 import { Button } from "../components/Button";
 import { Callout } from "../components/Controls";
 import { t } from "../i18n";
@@ -18,7 +16,9 @@ export function AgentPanel() {
     await navigator.clipboard.writeText(text);
     toast({ text: t("agentPanel.copied") });
   };
-  const command = info.linked ? "otto" : (info.path ?? "otto");
+  // 还没装成命令时开场白里写完整路径；路径可能带空格
+  const path = info.path ?? "otto";
+  const command = info.linked ? "otto" : path.includes(" ") ? `"${path}"` : path;
   return (
     <div className={s.itemWide} data-testid="agent-panel">
       <div className={s.label}>{t("agentPanel.otto")}</div>
@@ -38,7 +38,7 @@ export function AgentPanel() {
             {t("agentPanel.copyPath")}
           </Button>
         ) : null}
-        <Button variant="flat" onPress={() => void copy(t("agentPanel.prompt", { otto: command, skill: SKILL_URL }))} data-testid="agent-copy-prompt">
+        <Button variant="flat" onPress={() => void copy(t("agentPanel.prompt", { otto: command }))} data-testid="agent-copy-prompt">
           {t("agentPanel.copyPrompt")}
         </Button>
       </div>

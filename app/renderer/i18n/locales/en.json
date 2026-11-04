@@ -131,7 +131,7 @@
   "agentPanel.copyPrompt": "Copy opening message for agent",
   "agentPanel.copied": "Copied",
   "agentPanel.promptHint": "Send the opening message to your agent (Claude Code, Codex or any tool that can run terminal commands), followed by your task.",
-  "agentPanel.prompt": "OttoSmasher is open on my computer. Please operate it with its command line, otto ({otto}).\nIf this is your first time, download the skill from {skill} and install it in the current project the way your tool does it (not globally). If your tool doesn't support skills, save its content in the project's long-term instructions.\nTask:",
+  "agentPanel.prompt": "Please operate OttoSmasher on my computer with its command line otto (command: {otto}): first run its status and guide subcommands; if the app is not open, run open.\nTask: ",
   "settings.general.ui_language.label": "UI language",
   "settings.general.ui_language.hint": "UI language and sample language are separate settings. The window reloads when you change this.",
   "settings.general.label_max_lines.label": "Timeline label max rows",
