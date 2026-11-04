@@ -28,8 +28,8 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 
 ## 基本规则
 
-1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、有没有约定文件）。显示 `"running": false`（退出码 2）就请所有者打开应用。
-   `otto status` 也写着连的是哪个**工作区**（`workspace`）；所有者的工作区不在默认位置时设 `OTTO_WORKSPACE`（或 `--workspace`），`"running": false` 也可能是应用开在别的工作区上。
+1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、有没有约定文件）。显示 `"running": false`（退出码 2）就运行 `otto open`：它打开带界面的应用，等到能连上才返回；已经开着就什么也不做。
+   `otto status` 也写着连的是哪个**工作区**（`workspace`）、应用在哪（`app`）、有哪些正在运行（`runningApps`）。`otto` 用正在运行的同一种应用的工作区（装好的 `otto` 连发布版，`tools/otto` 连开发版）；要连别的就设 `OTTO_WORKSPACE`（或 `--workspace`）。
    不要直接读写数据库；`Library/` 里只读或复制命令返回给你的路径，不在里面改名、删除或写东西。
    **所有者的文件**（原素材的媒体与字幕）可以读；改之前（例如写一份同名字幕）先在旁边留一份 `backup_` 前缀的原件，媒体文件不改不删。你自己的工作文件放在自己的临时目录，不放进工作区或素材文件夹，做完说明留下了什么。
 2. **每个任务设一次会话 ID**：`export OTTO_AGENT_SESSION=<简短任务名>`。你的每个修改都记在它名下，

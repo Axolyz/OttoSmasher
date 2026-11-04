@@ -24,7 +24,7 @@ test("发布包：随包的模型、媒体工具、播放与命令行", async ()
   const app = await electron.launch({
     executablePath: APP,
     args: ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"],
-    env: { ...ENV, OTTO_WORKSPACE: workspace, OTTO_MPV_AO: "null" },
+    env: { ...ENV, OTTO_WORKSPACE: workspace, OTTO_MPV_AO: "null", OTTO_NO_SELF_INSTALL: "1", OTTO_REGISTRY_DIR: join(dir, "registry") }, // 不改这台电脑上真正的 otto
   });
   try {
     const page = await app.firstWindow();

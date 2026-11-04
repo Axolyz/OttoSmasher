@@ -10,12 +10,14 @@ import base64
 import json
 import os
 import secrets
+import subprocess
 import sys
 import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from . import instances
 from .. import resources
 from ..core.errors import ERRORS, CoreError
 
@@ -101,7 +103,8 @@ def workspace_of(args: argparse.Namespace) -> Path:
     env = os.environ.get("OTTO_WORKSPACE")
     if env:
         return Path(env).expanduser()
-    return resources.default_workspace()  # 与 app/main/paths.ts 相同：源码运行 = dev-workspace，发布版 = ~/Documents/OttoSmasher Workspace
+    # 正在运行的同一种应用用的工作区；都没开就是默认的（与 app/main/paths.ts 相同：源码运行 = dev-workspace，发布版 = ~/Documents/OttoSmasher Workspace）
+    return instances.workspace_of_running() or resources.default_workspace()
 
 
 def session_of(args: argparse.Namespace) -> str:
@@ -261,12 +264,39 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     ws = workspace_of(args)
     info = agent_link.read_endpoint(Workspace(ws).data)
+    where = {"app": str(instances.app_location()), "build": instances.build(), "runningApps": instances.running()}
     if info is None:
-        out({"running": False, "workspace": str(ws), "environment": environment(ws, None)}, args.pretty)
+        out({"running": False, "workspace": str(ws), **where, "hint": "run `otto open` to start the app", "environment": environment(ws, None)}, args.pretty)
         raise Exit(2)
     with connect(args) as c:
-        out({"running": True, "workspace": str(ws), "core": c.hello, "session": c.session,
+        out({"running": True, "workspace": str(ws), **where, "core": c.hello, "session": c.session,
              "catalogVersion": catalog()["catalogVersion"], "sessions": c.call("agent.sessions"), "environment": environment(ws, c)}, args.pretty)
+
+
+def cmd_open(args: argparse.Namespace) -> None:
+    """打开应用并等它能连上；已经开着就什么也不做（所有者 2026-10-25 同意，2026-11-04 做）。打开的是带界面的正常应用。"""
+    from ..core import agent_link
+    from ..store.workspace import Workspace
+
+    ws = workspace_of(args)
+    data = Workspace(ws).data
+    base = {"workspace": str(ws), "app": str(instances.app_location())}
+    if agent_link.read_endpoint(data) is not None:
+        out({"opened": False, "running": True, **base}, args.pretty)
+        return
+    explicit = bool(args.workspace or os.environ.get("OTTO_WORKSPACE"))
+    try:
+        instances.launch(ws if explicit else None)
+    except (OSError, subprocess.CalledProcessError) as e:
+        out({**error_wire("agent-link-failed", {"reason": f"could not start the app: {e}"}), **base}, args.pretty)
+        raise Exit(2) from e
+    end = time.monotonic() + args.timeout
+    while agent_link.read_endpoint(data) is None:
+        if time.monotonic() >= end:
+            out({**error_wire("agent-link-failed", {"reason": f"the app did not become ready in {args.timeout:g} s"}), **base}, args.pretty)
+            raise Exit(2)
+        time.sleep(0.25)
+    out({"opened": True, "running": True, **base}, args.pretty)
 
 
 def environment(ws: Path, c: Any) -> dict[str, Any]:
@@ -522,13 +552,16 @@ def cmd_session(args: argparse.Namespace) -> None:
 
 def parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--workspace", help="workspace folder (default: OTTO_WORKSPACE, else the dev workspace)")
+    common.add_argument("--workspace", help="workspace folder (default: OTTO_WORKSPACE, else the one the running app uses, else the default)")
     common.add_argument("--session", help="session id recorded on every change (default: OTTO_AGENT_SESSION)")
     common.add_argument("--as", dest="as_", choices=("agent", "script"), default="agent", help="who is calling (recorded as the actor)")
     common.add_argument("--pretty", action="store_true", help="indent JSON output")
     ap = argparse.ArgumentParser(prog="otto", description="Call the running OttoSmasher app. Start with: otto guide", parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status", parents=[common], help="is the app running; Core version; attached sessions").set_defaults(fn=cmd_status)
+    p = sub.add_parser("open", parents=[common], help="start the app if it is not running and wait until it is ready")
+    p.add_argument("--timeout", type=float, default=120.0, help="seconds to wait (default 120)")
+    p.set_defaults(fn=cmd_open)
     p = sub.add_parser("commands", parents=[common], help="list commands (or events) from the catalog")
     p.add_argument("--effect", choices=("read", "write", "job"))
     p.add_argument("--layer", choices=("library", "primitive"), help="library = business commands on the library; primitive = compute only, no library changes")

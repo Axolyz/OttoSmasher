@@ -7,6 +7,7 @@ export interface Launched {
   app: ElectronApplication;
   page: Page;
   workspace: string;
+  registry: string;
 }
 
 // 失败时留一张截图（放在测试的输出目录，云端跑完会带回来）。只有合成数据才进云端（AGENTS §5）
@@ -35,6 +36,9 @@ export async function launch(
   if (opts.locale === null) delete env.OTTO_LOCALE;
   else env.OTTO_LOCALE = opts.locale ?? "zh-CN";
   if (opts.userData) env.OTTO_USER_DATA = opts.userData;
+  // 测试实例不登记到真正的位置，不然这台电脑上的 otto 会看到它（cli/instances.py）
+  const registry = mkdtempSync(join(tmpdir(), "otto-registry-"));
+  env.OTTO_REGISTRY_DIR = registry;
   const app = await electron.launch({
     // 窗口被遮挡或屏幕关闭时 Chromium 会暂停后台窗口的动画与计时器，弹层的退出动画走不完、一直留在页面上（L48 / 命令面板偶发失败）
     args: [".", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"],
@@ -56,6 +60,10 @@ export async function launch(
     });
   };
   app.on("window", watch);
+  // 退出时还有任务在跑，主进程会弹系统确认框：测试里没人点，会一直卡着，还会弹到开发者的屏幕上（2026-11-04 碰到）。一律按“取消任务并退出”
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox;
+  });
   const page = await app.firstWindow();
   watch(page);
   lastPage = page;
@@ -65,7 +73,7 @@ export async function launch(
   await expect(page.locator('[role="alert"]')).toHaveCount(0);
   // 注意：waitForFunction 不会等异步函数的结果（Promise 本身为真），要用 poll
   await expect.poll(() => page.evaluate(async () => (await window.otto.core.status()).state), { timeout: 20000 }).toBe("ready");
-  return { app, page, workspace };
+  return { app, page, workspace, registry };
 }
 
 /** 刷新浏览列表：有“资料已更新”就点它；自己窗口的请求引起的变化不提示（P8 / L13），测试里用页面的刷新钩子 */

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ from ottosmasher.store.workspace import Workspace
 
 # 测试里的 Core（含子进程）都核对命令返回值与命令目录一致（ROADMAP L2）
 os.environ.setdefault("OTTO_STRICT_API", "1")
+# otto 不要读到这台电脑上真正开着的应用（cli/instances.py）
+os.environ.setdefault("OTTO_REGISTRY_DIR", str(Path(tempfile.mkdtemp(prefix="otto-registry-"))))
 
 
 @pytest.fixture

@@ -99,7 +99,7 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
 - **在真实资料上复现 bug**：`tools/clone-workspace [名字]` 把日常工作区 APFS 克隆到 `dev-workspace-clones/<名字>/`（几秒、几乎不占空间；数据库用在线备份，应用开着也一致；
   删掉原实例的 agent 端点与锁），再按它打印的命令用 `OTTO_WORKSPACE=… tools/npm run dev` 启动开发版。用完删掉那个文件夹。
   `--from` 换源、`--to` 换目标（例如 `tools/clone-workspace --from dev-workspace --to ~/Documents/OttoSmasher\ Workspace` 把开发用的工作区整个变成发布版的日常工作区）。
-- **`otto`**：仓库里一律用 `tools/otto`（默认连 `dev-workspace`）；`~/.local/bin/otto`（设置 › 命令行与 agent 安装的）指向发布版。先 `otto status` 看 `workspace`。
+- **`otto`**：仓库里一律用 `tools/otto`（连正在运行的开发版的工作区，没开就是 `dev-workspace`）；`~/.local/bin/otto`（发布版启动时自动安装）指向发布版。两者不交叉。先 `otto status` 看 `workspace`。
 - **流程**：日常遇到 bug → 记下日志（`Data/Logs/`、任务的 `Data/Jobs/<id>/log.txt`、agent 的 `otto session`）→ 克隆工作区、开发版复现、修好、测试 → 提交 → `tools/package_mac.py`（版本加一）
   → 替换“应用程序”里的旧版。新版第一次打开日常工作区会升级数据库，升级前自动备份到 `Data/Backups/`；保留上一版 ZIP 以便换回（换回时连同备份一起恢复）。
 

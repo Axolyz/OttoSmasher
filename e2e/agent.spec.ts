@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -135,4 +135,33 @@ test("命令行的会话面板与确认框在伪语言下没有写死的文字",
   await page.getByTestId("agent-confirm").getByTestId("confirm-ok").click();
   await pending;
   await app.close();
+});
+
+test("otto 找到正在运行的应用：登记、不用指定工作区、otto open 不重复打开、退出后登记消失", async () => {
+  const { app, workspace, registry } = await launch();
+  const files = () => readdirSync(registry).filter((f) => f.endsWith(".json"));
+  expect(files()).toHaveLength(1);
+  const info = JSON.parse(readFileSync(join(registry, files()[0]!), "utf8")) as { workspace: string; build: string; otto: string; app: string; version: string };
+  expect(info.workspace).toBe(workspace);
+  expect(info.build).toBe("source");
+  expect(info.otto).toMatch(/tools[\\/]otto/);
+  expect(JSON.stringify(info)).not.toMatch(/key/i); // 连接密钥只在工作区里
+  const env = { ...process.env, OTTO_REGISTRY_DIR: registry, OTTO_AGENT_SESSION: "e2e-find" } as Record<string, string>;
+  delete env.OTTO_WORKSPACE;
+  await expect
+    .poll(async () => {
+      try {
+        return JSON.parse((await run(PY, ["-m", "ottosmasher.cli", "status"], { env })).stdout).running as boolean;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
+  const status = JSON.parse((await run(PY, ["-m", "ottosmasher.cli", "status"], { env })).stdout);
+  expect(status.workspace).toBe(workspace);
+  expect(status.runningApps).toHaveLength(1);
+  const opened = JSON.parse((await run(PY, ["-m", "ottosmasher.cli", "open"], { env })).stdout);
+  expect(opened).toMatchObject({ opened: false, running: true, workspace });
+  await app.close();
+  expect(files()).toEqual([]);
 });

@@ -11,12 +11,13 @@ from `otto`, so they always match the version the user has installed.
 
 ## Find `otto`
 
-1. `otto` on the PATH (the app installs it: Settings › Command line & agent › Install the otto command).
-2. Otherwise the full path shown in that same settings section — ask the user to copy it.
-3. In a source checkout of the repository: `tools/otto` (Windows: `tools\otto.cmd`).
+1. `otto` on the PATH (the installed app sets this up by itself when it starts).
+2. Otherwise read the files in the app's registry: `~/Library/Application Support/OttoSmasher/instances/*.json` (Windows: `%APPDATA%\OttoSmasher\instances\*.json`). Each running app has one, with its `otto` path, `app` path and `workspace`.
+3. On macOS, the default install: `/Applications/OttoSmasher.app/Contents/Resources/bin/otto`.
+4. In a source checkout of the repository: `tools/otto` (Windows: `tools\otto.cmd`).
 
-`otto status` tells you whether the app is running, which workspace it talks to and what is missing in the environment; if it is not running, ask the user to open the app.
-If the user's workspace is not in the default place, set `OTTO_WORKSPACE` to it (or pass `--workspace`).
+`otto status` tells you whether the app is running, where it is, which workspace it talks to and what is missing in the environment. If it is not running, run `otto open`; it starts the app with its normal window and waits until it is ready.
+`otto` follows the running app of its own kind. To use another workspace, set `OTTO_WORKSPACE` (or pass `--workspace`).
 
 ## Then
 

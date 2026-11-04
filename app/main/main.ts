@@ -1,13 +1,14 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import en from "../renderer/i18n/locales/en.json";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
 import { PSEUDO, createT, englishPlurals } from "../shared/i18n";
 import type { CoreEvent, CoreStatus, OttoInfo } from "../shared/protocol";
 import { CoreClient } from "./core-client";
+import { OTTO_SHIM_MARK, ensureOttoLink, ottoShim } from "./otto-link";
 import { resolvePaths } from "./paths";
 
 const paths = resolvePaths();
@@ -200,10 +201,9 @@ ipcMain.handle("links:open", (_e, id: string) => {
   if (url) void shell.openExternal(url);
 });
 
-// 命令行 otto（设置 › 命令行与 agent）：源码版 = 仓库的 tools/otto；发布版的启动器还没做（ROADMAP L46，阶段 10）。
-// “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）。
-// Windows：普通用户不能建符号链接，在 %LOCALAPPDATA%\\Microsoft\\WindowsApps（Win10 起默认在 PATH 上）写一个转发脚本（未实测，ROADMAP L47）。
-const OTTO_SHIM_MARK = "@rem OttoSmasher";
+// 命令行 otto（设置 › 命令行与 agent）：源码版 = 仓库的 tools/otto；发布版 = 包里的启动器。
+// “装成命令”= 在 ~/.local/bin 放一个指向它的链接（像 VS Code 的“在 PATH 中安装 code 命令”）；发布版启动时自动做（otto-link.ts）。
+// Windows：普通用户不能建符号链接，在 %LOCALAPPDATA%\\Microsoft\\WindowsApps（Win10 起默认在 PATH 上）写一个转发脚本（ROADMAP L47）。
 function ottoInfo(): OttoInfo {
   const win = process.platform === "win32";
   const path = join(paths.resources, paths.repo ? "tools" : "bin", win ? "otto.cmd" : "otto");
@@ -226,7 +226,7 @@ ipcMain.handle("agent:installOtto", () => {
   const info = ottoInfo();
   if (!info.path || !info.link || info.conflict || info.linked) return info;
   if (process.platform === "win32") {
-    writeFileSync(info.link, `${OTTO_SHIM_MARK}\r\n@chcp 65001 >nul\r\n@"${info.path}" %*\r\n`, "utf8"); // 路径可能带中文（用户名）
+    writeFileSync(info.link, ottoShim(info.path), "utf8");
     return ottoInfo();
   }
   mkdirSync(join(homedir(), ".local", "bin"), { recursive: true });
@@ -238,6 +238,48 @@ ipcMain.handle("agent:installOtto", () => {
   symlinkSync(info.path, info.link);
   return ottoInfo();
 });
+
+/** 发布版启动时把 otto 装好，不用用户点；别的程序占了这个名字就留给设置里提示 */
+function autoInstallOtto(): void {
+  if (paths.repo || process.env.OTTO_NO_SELF_INSTALL) return;
+  const info = ottoInfo();
+  if (!info.path || !info.link) return;
+  try {
+    const r = ensureOttoLink(info.path, info.link, process.platform === "win32");
+    if (r !== "current") logDesktopEvent("otto-link", { result: r, link: info.link });
+  } catch (err) {
+    logDesktopEvent("otto-link-failed", { error: String(err) });
+  }
+}
+
+// 运行中的应用登记自己在哪，otto 和 agent 靠它找（core/ottosmasher/cli/instances.py 读）。不放连接密钥：密钥在工作区的 agent-endpoint.json 里
+const instanceFile = join(
+  process.env.OTTO_REGISTRY_DIR ??
+    (process.platform === "win32"
+      ? join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "OttoSmasher", "instances")
+      : join(homedir(), "Library", "Application Support", "OttoSmasher", "instances")),
+  `${process.pid}.json`,
+);
+function registerInstance(): void {
+  const location = paths.repo ?? (process.platform === "win32" ? process.execPath : resolve(paths.resources, "..", ".."));
+  try {
+    mkdirSync(dirname(instanceFile), { recursive: true });
+    writeFileSync(
+      instanceFile,
+      JSON.stringify({ pid: process.pid, build: paths.repo ? "source" : "packaged", app: location, otto: ottoInfo().path, workspace: paths.workspace, version: app.getVersion(), startedAt: new Date().toISOString() }),
+    );
+  } catch (err) {
+    logDesktopEvent("instance-register-failed", { error: String(err) });
+  }
+}
+function unregisterInstance(): void {
+  try {
+    unlinkSync(instanceFile);
+  } catch {
+    // 已经没了；崩溃留下的由读的一方清理
+  }
+}
+app.on("will-quit", unregisterInstance);
 
 // 拖出（规格 12 §12.2）：页面生成好文件、鼠标仍按着时请求系统拖拽。只接受已存在的普通文件。
 let dragIcon: Electron.NativeImage | null = null;
@@ -337,6 +379,8 @@ app.whenReady().then(() => {
   }
   loadLocale();
   installCsp();
+  autoInstallOtto();
+  registerInstance();
   core.start();
   createWindow();
   app.on("activate", () => {

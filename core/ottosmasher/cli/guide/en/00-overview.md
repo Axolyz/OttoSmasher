@@ -30,8 +30,8 @@ The owner's playbook wins over practices and experience; the ground rules below 
 
 ## Ground rules
 
-1. **The app must be running.** Start with `otto status` (it also reports the environment: models, PyMSS Studio, whether there is a playbook). If it says `"running": false` (exit code 2), ask the owner to open the app.
-   `otto status` also shows which **workspace** it talks to (`workspace`); if the owner's workspace is not in the default place, set `OTTO_WORKSPACE` (or `--workspace`) — `"running": false` can also mean the app is open on another workspace.
+1. **The app must be running.** Start with `otto status` (it also reports the environment: models, PyMSS Studio, whether there is a playbook). If it says `"running": false` (exit code 2), run `otto open`: it starts the app with its normal window and returns once it is ready; if the app is already running it does nothing.
+   `otto status` also shows which **workspace** it talks to (`workspace`), where the app is (`app`) and which copies are running (`runningApps`). `otto` uses the workspace of the running app of its own kind (the installed `otto` talks to the installed app, `tools/otto` to the dev version); to use another one set `OTTO_WORKSPACE` (or `--workspace`).
    Never read or write the database directly; in `Library/` only read or copy paths that commands returned to you, never rename, delete or write there.
    **The owner's files** (source media and subtitles) may be read; before changing one (e.g. writing a same-name subtitle file) keep a copy with a `backup_` prefix next to it, and never change or delete media files. Keep your own working files in your own temporary folder, not in the workspace or the material folders, and say what you left behind.
 2. **Set a session id once per task**: `export OTTO_AGENT_SESSION=<short-task-name>`. Every change you make is recorded under it,
