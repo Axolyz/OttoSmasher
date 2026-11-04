@@ -11,13 +11,13 @@
   <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
 </p>
 
-OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游戏语音和音效包中查找台词和音效，完成截取、人声分离、拉平和卡拍，并支持按节奏或音高检索整个素材库，最后把结果交给 REAPER 或视频软件。
+OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游戏语音和音效包中查找台词和音效，完成截取、人声分离、拉平和卡拍，并支持按节奏或音高检索整个素材库，最后把结果交给 REAPER 或视频软件。Claude Code、Codex 等 agent 也可以通过命令行操作它，完成洗字幕、挑台词这类需要判断的工作。
 
 **当前项目仍处于早期版本，Windows 版为预览版，可能存在 BUG 或不稳定的问题。**
 
 下载：[发布页](https://github.com/Axolyz/OttoSmasher/releases)（macOS Apple 芯片、Windows 10 / 11 x64）。安装步骤见[安装](#安装)。
 
-*OttoSmasher is a local desktop workstation for otoMAD material. Review, cut, separate, flatten, beat-stretch and search lines and sound effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. The interface is in Simplified Chinese and English; speech analysis supports Japanese.*
+*OttoSmasher is a local desktop workstation for otoMAD material. Review, cut, separate, flatten, beat-stretch and search lines and sound effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. The interface is in Simplified Chinese and English; speech analysis supports Japanese. LLM agents such as Claude Code and Codex can operate it through the `otto` command line.*
 
 <p align="center">
   <img src="docs/images/sources.webp" alt="原素材页：画面、带说话人的台本、整集时间线（台词段、音效提示、区段标签）" width="100%">
@@ -39,9 +39,26 @@ OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游
 1. 一边看一边手动挑选台词，不批量建采样
 2. 没有字幕的视频也可以截取、分离、拉平和按音高检索
 3. 导入音效包和乐器单音，按音高、瞬态或音色筛选
-4. 让 Claude Code、Codex 等本机 agent 通过命令行 `otto` 完成洗字幕、挑台词这类工作
 
-第一次使用可以跟着[入门教程](docs/user/tutorial.md)走一遍。完整说明见[用户说明](docs/user/README.md)，agent 的用法见[让 agent 操作 OttoSmasher](docs/user/agents.md)。
+第一次使用可以跟着[入门教程](docs/user/tutorial.md)走一遍。完整说明见[用户说明](docs/user/README.md)。
+
+## 配合 agent 使用
+
+Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `otto` 操作 OttoSmasher，调用的是和界面相同的功能。应用负责存资料、分离、分析、检索和导出这些确定的工作；洗字幕、对轴、挑台词、挑音色、编排 rap 这些需要判断的工作可以交给 agent。
+
+把这段话发给 agent，后面接上任务即可：
+
+```
+请用命令行 otto 操作我电脑上的 OttoSmasher：先运行 otto status 和 otto guide，应用没开就运行 otto open。
+任务：……
+```
+
+- **可以查看和撤回**：agent 对资料的修改按会话记录，可以在应用的操作历史中查看，也可以整批撤回。新建的采样和音轨不能撤回，可以删除。
+- **危险操作需要确认**：删除原素材这类撤销不了的操作，需要你在应用里点击允许才会执行。
+- **能“听”声音**：接上音频工具 audio-mcp 后，agent 可以看频谱、量响度、做带时间的转写。
+- **做法可以修改**：洗字幕、对轴、按说话人分组等内置做法都是工作区里的文件，可以直接修改，也可以添加自己的做法。
+
+详细说明见[让 agent 操作 OttoSmasher](docs/user/agents.md)。
 
 ## 功能介绍
 
