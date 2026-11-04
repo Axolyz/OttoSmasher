@@ -105,7 +105,7 @@ def test_open_starts_the_right_program(registry, monkeypatch):
     monkeypatch.setenv("OTTO_RESOURCES", "/Applications/OttoSmasher.app/Contents/Resources")
     monkeypatch.setenv("PYTHONHOME", "/leak")
     instances.launch(None)
-    assert seen["cmd"] == ["open", "-a", "/Applications/OttoSmasher.app"]
+    assert seen["cmd"] == ["open", "-a", str(resources.Path("/Applications/OttoSmasher.app"))]  # Windows 上跑测试时路径分隔符不同
     assert not any(k.startswith(("OTTO_", "PYTHON")) for k in seen["env"])  # otto 的环境不漏给应用
     instances.launch(resources.Path("/w/x"))
-    assert seen["cmd"][-2:] == ["--env", "OTTO_WORKSPACE=/w/x"]
+    assert seen["cmd"][-2:] == ["--env", f"OTTO_WORKSPACE={resources.Path('/w/x')}"]
