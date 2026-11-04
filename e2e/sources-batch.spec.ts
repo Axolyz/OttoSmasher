@@ -140,3 +140,46 @@ test("批量：整片分离、设默认人声轨、从台词段建采样、重�
   expect(left).toBe(4); // 采样和它们的音轨都还在
   await app.close();
 });
+
+test("批量导入字幕：取消和导入之后界面都还在", async () => {
+  test.setTimeout(120_000);
+  const dir = mkdtempSync(join(tmpdir(), "otto-batch-sub-"));
+  const files = ["01", "02"].map((ep) => {
+    const wav = join(dir, `[Group] Batch Show [${ep}].wav`);
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=3", "-ac", "2", "-c:a", "pcm_s16le", wav]);
+    writeFileSync(wav.replace(/\.wav$/, ".srt"), `1\n00:00:01,000 --> 00:00:02,000\n第${ep}話のせりふ\n`);
+    return wav;
+  });
+  const { app, page } = await launch();
+  const crashes: string[] = [];
+  page.on("pageerror", (e) => crashes.push(e.message));
+  await page.evaluate(async (paths) => void (await window.otto.core.request("sources.add", { paths })), files);
+  await page.keyboard.press("ControlOrMeta+2");
+  await page.keyboard.press("Escape");
+  const group = page.getByTestId("source-group").first();
+  await group.click({ button: "right" });
+  await page.getByTestId("menu-check").click();
+  const open = async () => {
+    await page.getByTestId("batch-actions").click();
+    await page.getByTestId("menu-subimport").click();
+    await expect(page.getByTestId("subtitle-import-batch").getByTestId("table-row")).toHaveCount(2);
+  };
+  const alive = async () => {
+    await expect(page.getByTestId("subtitle-import-batch")).toHaveCount(0);
+    expect(crashes).toEqual([]);
+    await expect(group).toBeVisible();
+  };
+
+  await open();
+  await page.getByTestId("subtitle-import-batch").getByRole("button", { name: "取消" }).click();
+  await alive();
+
+  await open();
+  await page.keyboard.press("Escape");
+  await alive();
+
+  await open();
+  await page.getByTestId("subimport-batch-run").click();
+  await alive();
+  await app.close();
+});

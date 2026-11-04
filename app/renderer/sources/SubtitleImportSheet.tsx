@@ -508,6 +508,8 @@ export function SubtitleBatchSheet(props: { sources: SourceRow[]; onClose: () =>
     }
   };
 
+  // 关闭时 sources 先清空、rows 要等 effect 才清：这一帧不能再渲染表格（byId 里已经没有这些原片）
+  if (!open) return null;
   const n = rows ? rows.filter((r) => checked.has(r.sourceId) && usable(r)).length : 0;
   const tableRows = (rows ?? []).map((r) => ({ ...r, id: r.sourceId }));
   const num = (r: SubtitleBatchRow, k: "new" | "unchanged" | "replace" | "skip") => (ok(r) ? <span className="num">{total(r, k)}</span> : "");
