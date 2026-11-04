@@ -19,11 +19,12 @@ OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游
 
 *OttoSmasher is a local desktop workstation for otoMAD material. Review, cut, separate, flatten, beat-stretch and search lines and sound effects from anime, videos, game voices and sample packs, then hand them off to REAPER and video editors. The interface is in Simplified Chinese and English; speech analysis supports Japanese. LLM agents such as Claude Code and Codex can operate it through the `otto` command line.*
 
-<img src="docs/images/library-detail.webp" alt="采样库：采样列表与详情区（波形、音素、音高曲线、节奏与卡拍）" width="100%">
-
-<p align="center">
-  <img src="docs/images/sources.webp" alt="原素材页：画面、带说话人的台本、整集时间线（台词段、音效提示、区段标签）" width="100%">
-</p>
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/library-detail.webp" alt="采样库：采样列表与详情区（波形、音素、音高曲线、节奏与卡拍）"></td>
+    <td width="50%"><img src="docs/images/sources.webp" alt="原素材页：画面、带说话人的台本、整集时间线（台词段、音效提示、区段标签）"></td>
+  </tr>
+</table>
 
 ## 工作流推荐
 
@@ -56,9 +57,9 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 ```
 
 - **可以查看和撤回**：agent 对资料的修改按会话记录，可以在应用的操作历史中查看，也可以整批撤回。新建的采样和音轨不能撤回，可以删除。
-- **危险操作需要确认**：删除原素材这类撤销不了的操作，需要你在应用里点击允许才会执行。
+- **危险操作需要确认**：删除原素材这类撤销不了的操作，不开启放行模式的情况下需要你在应用里点击允许才会执行。
 - **能“听”声音**：接上音频工具 audio-mcp 后，agent 可以看频谱、量响度、做带时间的转写。
-- **做法可以修改**：洗字幕、对轴、按说话人分组等内置做法都是工作区里的文件，可以直接修改，也可以添加自己的做法。
+- **可用于预处理任务或其他的复杂语音分析任务**：洗字幕、对轴、按说话人分组等对后续处理至关重要的预处理任务有内置 skill，是作者自己摸索出来的方法论，都是工作区里的文件，可以依照自己的喜好直接修改，也可以添加自己的做法。
 
 详细说明见[让 agent 操作 OttoSmasher](docs/user/agents.md)。
 
@@ -70,20 +71,20 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 ### 批量建采样
 
-可以把一整季的台词一次建成采样，也可以按音效提示或整个文件批量创建。OP 和 ED 里的台词会自动跳过。采样只记录音轨上的一段区间，不复制声音，所以建得再多也不会多占多少空间。
+可以把一整季的台词一次建成采样，也可以按音效提示或整个文件批量创建。OP 和 ED 里的台词会自动跳过。采样只记录音轨上的一段区间做映射，不会新建文件，所以建得再多也不会多占多少空间。
 
 ### 语音分析
 
-把日语台词转成音素和读音，再找出每个音素在音频里的时间。一句台词只分析一次，原混音、分离出的人声和拉平成品共用同一份结果。读音不对可以用用户辞典修正，边界不准可以手动拖动，人工修改不会被重新分析覆盖。
+把日语台词转成音素和读音，再找出每个音素在音频里的时间范围，通常称之为"音素对齐"。一句台词只分析一次，原混音、分离出的人声和拉平成品共用同一份结果。读音不对可以用用户辞典修正，边界不准可以手动拖动，人工修改不会被重新分析覆盖。
 
 ### 卡拍
 
-卡拍把台词的节奏对齐到 BPM 网格，同时尽量不让声音走形。原理是：
+卡拍把原语音的节奏通过微调对齐到 BPM 网格，同时尽量保留语音中固有的节奏感，不让声音走形。其大致原理是：
 
-1. 根据音素对齐找出每个音块（一个元音或拨音）的起音，再按实测时值推算每块占几格。
-2. 自动选择最接近原语速的密度，避免大幅拉伸。
-3. 起音前后最多 8 毫秒逐样本保留，所以咬字和音头不会被拉糊；两个起音之间才用 Rubber Band R3 保音高伸缩。
-4. 句中的停顿优先吸收多出来的时间，语音部分的伸缩比不超过整句的倍率，语速不容易被停顿带得忽快忽慢。
+1. 根据音素对齐找出每个音块（一个元音或拨音）的起音到下一个音块的起音之间的时长，再把这些时长的比例化成适当小的整数比。
+2. 嵌入 BPM 网格时自动选择最接近原语速的嵌入密度，避免大幅拉伸改变原素材宏观上的播放速度。
+3. 起音前后最多 8 毫秒原样保留，所以咬字和音头不会被拉糊；两个起音之间用 Rubber Band R3 保音高伸缩。
+4. 用句中的停顿优先吸收多出来的时间。
 
 每句话可以试听不同密度的方案，也可以手动调整每块占几格。不填 BPM 时，会按原语速卡拍。
 
@@ -99,14 +100,18 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 画几个音高块，在采样或整条音轨上查找音高正好是这几个音的片段，可以忽略八度。可用于辅助原音系音 MAD 的制作。
 
+### 导出和视频片段
+
+可以导出原声或卡拍后的 WAV，也可以从采样库直接拖到 DAW 中。视频片段会和声音同步，卡拍版本的画面也可以跟着变速。用复杂手段在外部处理好的声音可以放回原来的位置 (称为"回导")，成为一条新音轨，也能关联到原画面和原标签。
+
 ### 复制到 REAPER
 
-挑好的台词按 Ctrl+C / ⌘C 复制，到 REAPER 里粘贴就能接着编排，不用再手动找音头、一个个拉伸。粘贴进来的文件仍是未处理的原声，卡拍靠 REAPER 的拉伸标记实现，所以可以继续拖动标记微调，删除所有标记就回到原声。
+采样按 Ctrl+C / ⌘C 复制，到 REAPER 里粘贴，每个音头都已经自动挂好了拉伸标记，不用再一个个手动找音头、打标记，可以直接拖动标记调整。粘贴进来的文件仍是未处理的原声，删除所有标记就回到原声。
 
 可以选择两种方式：
 
-- 卡拍效果（默认）：听上去已经卡好拍。
-- 原声：只在每个音头放 1 倍速的标记，保持原来的节奏，方便自己卡拍。
+- 已卡拍：粘贴的 item 已经按照卡拍的方式调过拉伸标记了。如果指定了相应的 BPM，拉伸标记也会完全卡在 REAPER 某个倍数的 BPM 网格里，方便进一步编辑。
+- 原声：只在每个音头放拉伸标记，保持原来的节奏，方便自己卡拍。
 
 一次复制多条时，它们会在同一轨上依次排开，每条之间空一小节。
 
@@ -130,13 +135,12 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 音效包和乐器单音可以批量建成采样，有明确音高的按音名检索，打击和音效可以按起音时间、亮度、噪声倾向等指标筛选（实验功能）。游戏语音可以一句一个文件地导入，同名图片会自动绑定为立绘。
 
-### 导出和视频片段
-
-可以导出原声或卡拍后的 WAV，也可以直接拖到 DAW。视频片段会和声音同步，卡拍版本的画面也可以跟着变速。在 DAW 里处理好的声音可以放回原来的位置，成为一条新音轨。
-
 ### 独立化
 
 把要保留的采样存成无损切片，画面存成视频片段。之后即使删除整集原素材，这些采样也能继续播放、导出和读取语音分析结果，只是不能再返回原素材查看前后文。
+
+###人力
+另外，按照现在项目的成熟度，批量裁切拼字的音素、乃至半自动生成 UTAU 音源都可以轻松实现，但开发者不熟悉人力 VOCALOID 工作流所以不知道怎么做到软件里，如果你是一位熟悉上述工作流的音 mader，非常欢迎提这方面的开发思路。
 
 ## 系统要求
 
@@ -201,8 +205,6 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 
 问题和建议请[提交 issue](https://github.com/Axolyz/OttoSmasher/issues)，并附上系统版本、复现步骤和工作区 `Data/Logs/` 下的相关日志。
 
-另外，按照现在项目的成熟度，批量裁切拼字的音素、乃至半自动生成 UTAU 音源都可以轻松实现，但开发者不熟悉人力 VOCALOID 工作流所以不知道怎么做到软件里，如果你是一位熟悉上述工作流的音 mader，非常欢迎提这方面的开发思路。
-
 ## 致谢
 
 本项目使用了 [pydomino](https://github.com/DwangoMediaVillage/pydomino)、[pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus)、[tsqyomi](https://huggingface.co/tsukumijima/tsqyomi-models)、[FCPE](https://github.com/CNChTu/FCPE)、[HiFiShifter](https://github.com/ARounder-183/HiFiShifter)、[OpenVPI](https://github.com/openvpi) 的 PC-NSF-HiFiGAN、[Rubber Band](https://breakfastquay.com/rubberband/)、[mpv](https://mpv.io/)、[FFmpeg](https://ffmpeg.org/)、[ONNX Runtime](https://onnxruntime.ai/)、[Electron](https://www.electronjs.org/)、[React Aria](https://react-spectrum.adobe.com/react-aria/) 和 [PyMSS Studio](https://github.com/pymss-project/pymss-studio)。完整清单和各自的许可见 [THIRD_PARTY.md](docs/THIRD_PARTY.md)。
@@ -223,3 +225,9 @@ OttoSmasher 基于 [GPL-3.0-or-later](LICENSE) 发布，可以自由使用、修
 - 系统结构：[ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 现行决定：[DECISIONS.md](docs/DECISIONS.md)
 - 计划：[ROADMAP.md](docs/ROADMAP.md)
+
+## 友情链接
+
+- [HiFiShifter](https://github.com/ARounder-183/HiFiShifter)（我要在这里催更一下拉伸标记功能，将在更新第一时间适配）
+- HachiShifter（之后对人力 VOCALOID 工作流的适配会以这个项目为主要适配对象）
+
