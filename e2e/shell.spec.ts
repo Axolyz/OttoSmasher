@@ -118,7 +118,7 @@ test("顶栏显示当前工作区；源码运行标 Dev", async () => {
 });
 
 test("界面渲染出错：显示兜底画面、写日志、重新加载后恢复", async () => {
-  const { app, page, workspace } = await launch();
+  const { app, page, workspace } = await launch({ allowPageErrors: true });
   await page.getByTestId("nav-tools").click();
   await page.getByTestId("selftest-crash").click();
 

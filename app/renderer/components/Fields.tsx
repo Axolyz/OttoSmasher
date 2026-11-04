@@ -96,7 +96,7 @@ export function TextField(props: {
               } else if (e.key === "Escape" && props.onEscape) {
                 e.preventDefault();
                 props.onEscape();
-              }
+              } else e.continuePropagation(); // 自己不处理的键继续往外传：比如弹窗要收到 Esc 才能关
             }
           : undefined
       }

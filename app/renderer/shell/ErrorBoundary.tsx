@@ -12,6 +12,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
+    // 接住之后就不算未捕获的错误了：端到端测试靠这一行的前缀发现界面崩溃（e2e/helpers.ts）
+    console.error(`otto-render-crash: ${error.message}`);
     window.otto.app.reportRendererError({ message: error.message, stack: error.stack ?? "", componentStack: info.componentStack ?? "" });
   }
 

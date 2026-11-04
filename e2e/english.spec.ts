@@ -71,3 +71,28 @@ test("英语界面：主要页面和设置都没有中文", async () => {
   }
   await app.close();
 });
+
+test("设置里切换语言：窗口重载后生效，重新启动还是这个语言", async () => {
+  test.setTimeout(90_000);
+  const root = mkdtempSync(join(tmpdir(), "otto-lang-"));
+  const opts = { locale: null, workspace: join(root, "ws"), userData: join(root, "ud") };
+  const { app, page } = await launch(opts);
+  const nav = page.getByTestId("nav-library");
+  const choose = async (value: string) => {
+    await expect.poll(() => page.evaluate(async () => (await window.otto.core.status()).state), { timeout: 20000 }).toBe("ready");
+    await page.evaluate(async (v) => {
+      const req = window.otto.core.request;
+      const list = (await req("settings.list")) as { r: Record<string, { version: number }> };
+      await req("edits.apply", { batch: { ops: [{ entity: "setting", id: "general.ui_language", version: list.r["general.ui_language"]!.version, fields: { value: v } }] } });
+    }, value);
+  };
+  await choose("zh-CN");
+  await expect(nav).toHaveText(/采样库/, { timeout: 15000 });
+  await choose("en");
+  await expect(nav).toHaveText(/Library/, { timeout: 15000 });
+  await app.close();
+
+  const again = await launch(opts);
+  await expect(again.page.getByTestId("nav-library")).toHaveText(/Library/);
+  await again.app.close();
+});

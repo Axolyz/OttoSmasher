@@ -151,8 +151,6 @@ test("批量导入字幕：取消和导入之后界面都还在", async () => {
     return wav;
   });
   const { app, page } = await launch();
-  const crashes: string[] = [];
-  page.on("pageerror", (e) => crashes.push(e.message));
   await page.evaluate(async (paths) => void (await window.otto.core.request("sources.add", { paths })), files);
   await page.keyboard.press("ControlOrMeta+2");
   await page.keyboard.press("Escape");
@@ -166,7 +164,6 @@ test("批量导入字幕：取消和导入之后界面都还在", async () => {
   };
   const alive = async () => {
     await expect(page.getByTestId("subtitle-import-batch")).toHaveCount(0);
-    expect(crashes).toEqual([]);
     await expect(group).toBeVisible();
   };
 

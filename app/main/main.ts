@@ -50,7 +50,7 @@ if (paths.repo) {
   // 源码运行（开发）与发布版只在“身份”上区分，行为一样（所有者 2026-10-31）：名字、界面缓存文件夹、程序坞角标；
   // 工作区等其余差别也都在这个分支里（见 DEVELOPMENT「开发版与发布版并存」）
   app.setName("OttoSmasher Dev");
-  app.setPath("userData", join(app.getPath("appData"), "OttoSmasher Dev"));
+  app.setPath("userData", process.env.OTTO_USER_DATA ?? join(app.getPath("appData"), "OttoSmasher Dev")); // 测试用 OTTO_USER_DATA 隔开
 } else {
   // 发布版：Core 用随包的 Python 与媒体工具；用户环境里的 Python 变量不能漏进来（15 §15.8 冒烟：清空 Python/Conda 环境变量）
   for (const k of ["PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "VIRTUAL_ENV", "CONDA_PREFIX", "CONDA_DEFAULT_ENV"]) delete process.env[k];
