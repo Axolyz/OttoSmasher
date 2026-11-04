@@ -17,7 +17,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from . import instances
+from . import instances, skills
 from .. import resources
 from ..core.errors import ERRORS, CoreError
 
@@ -266,11 +266,11 @@ def cmd_status(args: argparse.Namespace) -> None:
     info = agent_link.read_endpoint(Workspace(ws).data)
     where = {"app": str(instances.app_location()), "build": instances.build(), "runningApps": instances.running()}
     if info is None:
-        out({"running": False, "workspace": str(ws), **where, "hint": "run `otto open` to start the app", "environment": environment(ws, None)}, args.pretty)
+        out({"running": False, "workspace": str(ws), **where, "hint": "run `otto open` to start the app", "environment": environment(args, ws, None)}, args.pretty)
         raise Exit(2)
     with connect(args) as c:
         out({"running": True, "workspace": str(ws), **where, "core": c.hello, "session": c.session,
-             "catalogVersion": catalog()["catalogVersion"], "sessions": c.call("agent.sessions"), "environment": environment(ws, c)}, args.pretty)
+             "catalogVersion": catalog()["catalogVersion"], "sessions": c.call("agent.sessions"), "environment": environment(args, ws, c)}, args.pretty)
 
 
 def cmd_open(args: argparse.Namespace) -> None:
@@ -299,25 +299,34 @@ def cmd_open(args: argparse.Namespace) -> None:
     out({"opened": True, "running": True, **base}, args.pretty)
 
 
-def environment(ws: Path, c: Any) -> dict[str, Any]:
-    """开工前的环境：otto 的位置、模型、PyMSS Studio、所有者有没有 playbook。缺什么就在 hints 里说怎么补。"""
+def environment(args: argparse.Namespace, ws: Path, c: Any) -> dict[str, Any]:
+    """开工前的环境：otto 的位置、模型、PyMSS Studio、用户有没有 playbook、有哪些 skill。缺什么就在 hints 里说怎么补。"""
     env: dict[str, Any] = {"otto": otto_command()}
     hints: list[str] = []
     if c is not None:
         try:
             env["models"] = {m["model"]: m["state"] for m in c.call("models.status")["files"]}
             if any(v != "ready" for v in env["models"].values()):
-                hints.append("some models are not ready: ask the owner to open Settings > Environment & models")
+                hints.append("some models are not ready: ask the user to open Settings > Environment & models")
         except CoreError:
             pass
         try:
             st = c.call("studio.status")
             env["pymssStudio"] = bool(st.get("ok"))
             if not st.get("ok"):
-                hints.append("PyMSS Studio is not available: separation will not run; ask the owner to install it")
+                hints.append("PyMSS Studio is not available: separation will not run; ask the user to install it")
         except CoreError:
             pass
     env["playbook"] = str(playbook_path(ws)) if playbook_path(ws).is_file() else None
+    try:
+        skills.sync(ws, skills_lang(args))
+        rows = skills.listing(ws)
+        updates = [u for r in rows for u in r["update"]]
+        env["skills"] = {"path": str(skills.skills_dir(ws)), "names": [r["name"] for r in rows], "updates": updates}
+        if updates:
+            hints.append("newer built-in skill files are waiting next to the user's edited copies (*.new): offer to merge them")
+    except OSError:
+        pass
     env["hints"] = hints
     return env
 
@@ -385,7 +394,7 @@ def cmd_call(args: argparse.Namespace) -> None:
             d = ev.get("d") or {}
             if ev.get("e") == "agent.confirm" and d.get("actor", {}).get("session") == c.session and d.get("method") == args.method:
                 limit = d.get("seconds") or 0
-                note({"note": "waiting for the owner to approve this in the app"
+                note({"note": "waiting for the user to approve this in the app"
                       + (f" (declined after {limit} s)" if limit else " (no time limit; stopping this process withdraws the request)"),
                       "confirmId": d.get("id")})
 
@@ -439,8 +448,9 @@ def cmd_events(args: argparse.Namespace) -> None:
             n += 1
 
 
-def guide_topics(lang: str) -> list[Path]:
-    return sorted((GUIDE / lang).glob("*.md"))
+def guide_topics() -> list[Path]:
+    """说明书：只有英文一份（给 agent 看；所有者 2026-11-04）。"""
+    return sorted((GUIDE / "reference").glob("*.md"))
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -451,18 +461,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     raise Exit(subprocess.run([sys.executable, args.script, *args.args], env=env).returncode)
 
 
-def guide_notes(lang: str) -> Path:
-    """第二层（主题 ``notes``）：做法与经验，不是规定，可能过时；与说明书冲突时以说明书为准。"""
-    return GUIDE / "notes" / f"{lang}.md"
-
-
-def guide_scripts() -> list[Path]:
-    """经验层附带的脚本（``otto guide <文件名>`` 原样打印）：agent 存到自己的临时目录，在自己的环境里跑，不在应用里跑。"""
-    return sorted((GUIDE / "scripts").glob("*.py"))
-
-
 def playbook_path(ws: Path) -> Path:
-    """第三层（主题 ``playbook``）：所有者自己的约定，放在工作区里（应用更新不覆盖、换 agent 工具也照样用）。"""
+    """用户自己的约定（主题 ``playbook``）：放在工作区里，应用更新不覆盖、换 agent 工具也照样用。"""
     return ws / "Agent" / "playbook.md"
 
 
@@ -472,44 +472,93 @@ def otto_command() -> str:
     return str(dev) if dev.is_file() else "otto"
 
 
+def skills_lang(args: argparse.Namespace) -> str:
+    """第一次把 skill 复制进工作区时用什么语言：--lang / OTTO_LOCALE，其次正在运行的应用的界面语言，其次系统语言。之后语言不再变（skills.sync）。"""
+    lang = getattr(args, "lang", None) or os.environ.get("OTTO_LOCALE")
+    if lang in LANGS:
+        return lang
+    for info in instances.running():
+        if info.get("build") == instances.build() and info.get("locale") in LANGS:
+            return info["locale"]
+    import locale
+
+    system = locale.getlocale()[0] or ""
+    return "en" if system and not system.lower().startswith("zh") else "zh-CN"
+
+
+def sync_skills(args: argparse.Namespace) -> dict[str, Any] | None:
+    """把内置 skill 同步到工作区；写不进去（只读、磁盘满）时在 stderr 说一声，不挡别的事。"""
+    try:
+        return skills.sync(workspace_of(args), skills_lang(args))
+    except OSError as e:
+        note({"note": f"could not update the skills folder: {e}"})
+        return None
+
+
+def print_skills(args: argparse.Namespace) -> None:
+    ws = workspace_of(args)
+    sync_skills(args)
+    rows = skills.listing(ws)
+    sys.stdout.write(f"Skills: procedures for tasks that need judgement. They live in {skills.skills_dir(ws)} and the user may edit them. Read a SKILL.md when its task comes up.\n")
+    for r in rows:
+        extra = " (a newer built-in version is next to it as .new; offer to merge it)" if r["update"] else ""
+        sys.stdout.write(f"- {r['name']}: {r['description']}{extra}\n  {r['path']}\n")
+    if not rows:
+        sys.stdout.write("(none)\n")
+
+
 def cmd_guide(args: argparse.Namespace) -> None:
     lang = lang_of(args)
-    topics = guide_topics(lang)
-    if args.topic == "notes":
-        sys.stdout.write(guide_notes(lang).read_text(encoding="utf-8"))
+    topics = guide_topics()
+    names = [p.stem.split("-", 1)[-1] for p in topics]
+    if args.topic in ("skills", "notes"):  # notes = 旧版的第二层，已经装好的入口 skill 还可能这么叫
+        print_skills(args)
         return
     if args.topic == "playbook":
         f = playbook_path(workspace_of(args))
         if f.is_file():
             sys.stdout.write(f"<!-- {f} -->\n" + f.read_text(encoding="utf-8"))
         else:
-            sys.stdout.write(f"<!-- {f} does not exist yet: the owner has no playbook. `otto setup playbook` creates it from this template. -->\n"
+            sys.stdout.write(f"<!-- {f} does not exist yet: the user has no playbook. `otto setup playbook` creates it from this template. -->\n"
                              + (GUIDE / "playbook" / f"{lang}.md").read_text(encoding="utf-8"))
         return
     if args.topic:
         match = [p for p in topics if p.stem == args.topic or p.stem.split("-", 1)[-1] == args.topic]
-        match = match or [p for p in guide_scripts() if p.name == args.topic]
-        if not match:
-            out({**error_wire("bad-request", {"method": "guide", "reason": f"no topic {args.topic}"}),
-                 "topics": [p.stem.split("-", 1)[-1] for p in topics] + ["notes", "playbook"], "scripts": [p.name for p in guide_scripts()]}, args.pretty)
-            raise Exit(2)
-        sys.stdout.write(match[0].read_text(encoding="utf-8"))
-        return
+        if match:
+            sys.stdout.write(match[0].read_text(encoding="utf-8"))
+            return
+        ws = workspace_of(args)
+        sync_skills(args)
+        f = skills.skills_dir(ws) / args.topic / "SKILL.md"
+        if f.is_file():
+            sys.stdout.write(f"<!-- {f} -->\n" + f.read_text(encoding="utf-8"))
+            return
+        out({**error_wire("bad-request", {"method": "guide", "reason": f"no topic {args.topic}"}),
+             "topics": names + ["skills", "playbook"], "skills": [r["name"] for r in skills.listing(ws)]}, args.pretty)
+        raise Exit(2)
     if args.all:
         sys.stdout.write("\n\n".join(p.read_text(encoding="utf-8").strip() for p in topics) + "\n")
         return
     sys.stdout.write(topics[0].read_text(encoding="utf-8").rstrip() + "\n\n")
-    sys.stdout.write("Topics: " + ", ".join(p.stem.split("-", 1)[-1] for p in topics[1:]) + ", notes, playbook\n")
-    sys.stdout.write("Scripts (from notes): " + ", ".join(p.name for p in guide_scripts()) + "\n")
+    sys.stdout.write("Topics: " + ", ".join(names[1:]) + ", skills, playbook\n\n")
+    print_skills(args)
 
 
 AUDIO_PKG = "audio-mcp[speech]==0.4.0"
 
 
 def cmd_setup(args: argparse.Namespace) -> None:
-    """安装帮手：``playbook`` 在工作区生成所有者的约定模板；``audio`` 只打印接音频工具的命令 / 配置（写用户配置的事由所有者决定）。
-    skill 不在这里装：仓库里托管 ``skills/ottosmasher/SKILL.md``，由 agent 下载、按自己工具的方式装到项目里（所有者 2026-10-30）。"""
+    """安装帮手：``playbook`` 在工作区生成用户的约定模板；``skills`` 同步并检查工作区里的 skill；``audio`` 只打印接音频工具的命令 / 配置（写用户配置的事由用户决定）。"""
     lang = lang_of(args)
+    if args.what == "skills":
+        report = sync_skills(args) or {}
+        from ..core.settings import SPECS
+
+        cat = catalog()
+        known = {c["name"] for c in cat["commands"]} | {e["name"] for e in cat["events"]} | set(SPECS)
+        ws = workspace_of(args)
+        out({**report, "skills": skills.listing(ws), "unknownCommands": skills.unknown_commands(ws, known)}, args.pretty)
+        return
     if args.what == "playbook":
         f = playbook_path(workspace_of(args))
         if f.is_file():
@@ -598,13 +647,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("script")
     p.add_argument("args", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_run)
-    p = sub.add_parser("guide", parents=[common], help="the agent guide (concepts, commands, rules); also `notes`, `playbook` and the scripts the notes refer to")
+    p = sub.add_parser("guide", parents=[common], help="the reference for agents (concepts, commands, rules); `otto guide skills` lists the editable procedures, `otto guide <skill>` prints one, `otto guide playbook` prints the user's conventions")
     p.add_argument("topic", nargs="?")
-    p.add_argument("--lang", choices=LANGS)
-    p.add_argument("--all", action="store_true", help="print every topic")
+    p.add_argument("--lang", choices=LANGS, help="language of the skills copied into a new workspace and of the playbook template; the reference is English only")
+    p.add_argument("--all", action="store_true", help="print every reference topic")
     p.set_defaults(fn=cmd_guide)
-    p = sub.add_parser("setup", parents=[common], help="helpers: the owner's playbook template, how to connect an audio tool")
-    p.add_argument("what", choices=("audio", "playbook"))
+    p = sub.add_parser("setup", parents=[common], help="helpers: the user's playbook template, check the skills folder, how to connect an audio tool")
+    p.add_argument("what", choices=("audio", "playbook", "skills"))
     p.add_argument("--for", dest="for_", choices=("claude-code", "codex", "other"))
     p.add_argument("--lang", choices=LANGS)
     p.set_defaults(fn=cmd_setup)

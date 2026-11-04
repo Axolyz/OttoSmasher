@@ -200,6 +200,28 @@ class AgentConfirmReplied(TypedDict):
     reasked: NotRequired[bool]
 
 
+class AgentSkillsParams(TypedDict, total=False):
+    """lang = 第一次把内置 skill 复制进工作区时用的语言；之后不再变。"""
+
+    lang: Literal["zh-CN", "en"]
+
+
+class AgentSkill(TypedDict):
+    name: str
+    description: str
+    path: str
+    # 是不是内置的（用户自己加的是 false）
+    builtin: bool
+    # 旁边有等着合并的新版本的文件（相对 skills 文件夹）
+    update: list[str]
+
+
+class AgentSkills(TypedDict):
+    path: str
+    playbook: str
+    skills: list[AgentSkill]
+
+
 class AgentMissed(TypedDict):
     """没人及时回答（timeout）或提问的连接断了（closed）的确认请求。"""
 

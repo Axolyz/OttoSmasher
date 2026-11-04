@@ -58,6 +58,25 @@ export interface AgentSession {
   session: string | null;
 }
 
+export interface AgentSkill {
+  builtin: boolean;
+  description: string;
+  name: string;
+  path: string;
+  update: string[];
+}
+
+export interface AgentSkills {
+  path: string;
+  playbook: string;
+  skills: AgentSkill[];
+}
+
+/** lang = 第一次把内置 skill 复制进工作区时用的语言；之后不再变。 */
+export interface AgentSkillsParams {
+  lang?: "en" | "zh-CN";
+}
+
 /**
  * 一句文字 + 它所在的那段声音（同 AudioRef）。窗口要紧贴实际说话（误差零点一到零点二秒），对齐不会自己找这句话在哪。
  *     ``lines``（代替 ``text``）：同一段声音里先后说的几行（例如一条字幕的两行），每行当一句对齐，结果另给每行的起止。
@@ -3009,7 +3028,7 @@ export interface WorkSettingsParams {
 
 /** All Core commands: params, result and effect. */
 export interface Commands {
-  /** The owner's answer to an agent.confirm request (approve runs the command for the waiting connection). */
+  /** The user's answer to an agent.confirm request (approve runs the command for the waiting connection). */
   "agent.confirmReply": { params: AgentConfirmReplyParams; result: AgentConfirmReplied; effect: "ui" };
   /** Remove missed confirmation requests from the list (all when ids is omitted). */
   "agent.dismissMissed": { params: DismissMissedParams; result: NoParams; effect: "ui" };
@@ -3017,6 +3036,8 @@ export interface Commands {
   "agent.missed": { params: NoParams; result: AgentMissed[]; effect: "read" };
   /** Command-line (agent / script) connections currently attached to this app. */
   "agent.sessions": { params: NoParams; result: AgentSession[]; effect: "read" };
+  /** Update the workspace's folder of agent skills from the built-in versions and list it (command-line agents use `otto guide skills`). */
+  "agent.skills": { params: AgentSkillsParams; result: AgentSkills; effect: "ui" };
   /** Number of user jobs that quitting would cancel (automatic background jobs are not counted; they resume on next start). */
   "app.prepareQuit": { params: NoParams; result: PrepareQuit; effect: "app" };
   /** Cancel jobs and stop Core. */

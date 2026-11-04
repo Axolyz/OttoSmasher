@@ -20,4 +20,4 @@ WAV exports (`exports.wav`, `exports.range`, `exports.stretched`, `hits.export`)
 After a video export finishes, its path is also in the job result (`result.path` in `jobs.list`), so you can look it up by job later.
 
 Video export fails with an error (no black video) when a sample has no picture; bind one first (topic `combine`).
-The global BPM for stretched versions: `rhythm.bpm` (read). It is set by the owner in the app.
+The global BPM for stretched versions: `rhythm.bpm` (read). It is set by the user in the app.

@@ -41,6 +41,7 @@ ipcMain.handle("app:setLanguage", (e, choice: string) => {
   writeFileSync(localeFile(), JSON.stringify(next));
   if (next === locale) return;
   locale = next;
+  registerInstance();
   t = makeT();
   e.sender.reload();
 });
@@ -266,7 +267,7 @@ function registerInstance(): void {
     mkdirSync(dirname(instanceFile), { recursive: true });
     writeFileSync(
       instanceFile,
-      JSON.stringify({ pid: process.pid, build: paths.repo ? "source" : "packaged", app: location, otto: ottoInfo().path, workspace: paths.workspace, version: app.getVersion(), startedAt: new Date().toISOString() }),
+      JSON.stringify({ pid: process.pid, build: paths.repo ? "source" : "packaged", app: location, otto: ottoInfo().path, workspace: paths.workspace, version: app.getVersion(), locale, startedAt: new Date().toISOString() }),
     );
   } catch (err) {
     logDesktopEvent("instance-register-failed", { error: String(err) });

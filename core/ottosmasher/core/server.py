@@ -103,7 +103,9 @@ class Core:
         r("agent.dismissMissed", "ui", T.DismissMissedParams, T.NoParams, "Remove missed confirmation requests from the list (all when ids is omitted).",
           lambda p: self.confirms.dismiss(p.get("ids")) or {})
         r("agent.confirmReply", "ui", T.AgentConfirmReplyParams, T.AgentConfirmReplied,
-          "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).", self._confirm_reply)
+          "The user's answer to an agent.confirm request (approve runs the command for the waiting connection).", self._confirm_reply)
+        r("agent.skills", "ui", T.AgentSkillsParams, T.AgentSkills,
+          "Update the workspace's folder of agent skills from the built-in versions and list it (command-line agents use `otto guide skills`).", self._agent_skills)
         r("settings.list", "read", T.NoParams, dict[str, T.SettingEntry], "All settings with value, default and version (edit via edits.apply, entity 'setting').",
           lambda p: settings_mod.read_all(self.conn))
         r("sources.inferTest", "read", T.InferTestParams, T.InferTest, "Try the work/episode inference rules (draft or current) on a file name.", self._infer_test)
@@ -784,6 +786,13 @@ class Core:
             chunk = ids[i:i + 500]
             versions.update(dict(self.conn.execute(f"SELECT id, version FROM {table} WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()))
         return {"preview": preview, "versions": versions}
+
+    def _agent_skills(self, p: dict[str, Any]) -> dict[str, Any]:
+        from ottosmasher.cli import skills
+
+        report = skills.sync(self.ws.root, p.get("lang") or "en")
+        rows = skills.listing(self.ws.root)
+        return {"path": report["path"], "playbook": str(self.ws.root / "Agent" / "playbook.md"), "skills": rows}
 
     def _confirm_reply(self, p: dict[str, Any]) -> dict[str, Any]:
         item = self.confirms.take(str(p["id"]))

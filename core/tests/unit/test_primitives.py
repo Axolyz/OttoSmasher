@@ -43,6 +43,9 @@ def test_parse_subtitle_file_without_registering(core, tmp_path):
     assert p["problems"]
     assert core.conn.execute("SELECT COUNT(*) FROM text_segment").fetchone()[0] == 0
     assert call(core, "subtitles.parse", path=str(tmp_path / "none.srt"))["e"]["code"] == "file-missing"
+    long = tmp_path / "long.srt"
+    long.write_text("1\n00:00:01,000 --> 00:02:02,000\n（音楽）\n", encoding="utf-8")
+    assert call(core, "subtitles.parse", path=str(long))["r"]["problems"] == [{"line": 1, "reason": "too-long"}]  # 导入时同样读成无效
 
 
 def test_audio_input_checks(core, tmp_path):

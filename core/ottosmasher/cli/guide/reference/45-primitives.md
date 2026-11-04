@@ -12,10 +12,10 @@ It depends on whether the result should stay and connect to the rest of the libr
 |---|---|---|
 | A one-off answer: check how a line reads or its timing, look at the pitch of a stretch, see how a subtitle file would be read | primitives, give the file directly | nothing enters the library, nothing to clean up |
 | **Separation** | register first | separation only takes tracks in the library (`separation.submit` needs an `assetId`); there is no un-stored separation |
-| Samples, search, beat-fitting, stretched exports, or anything the owner should see in the app | register first, use library commands | these only work on library objects; note that partial separation creates samples automatically (topic `prepare`) |
+| Samples, search, beat-fitting, stretched exports, or anything the user should see in the app | register first, use library commands | these only work on library objects; note that partial separation creates samples automatically (topic `prepare`) |
 | The same file used again and again (analysis, alignment, pitch several times) | register first | speech analysis is stored once and read afterwards; primitives recompute every time, and their results stay only in that job — not searchable, no samples |
 
-What registering costs: the app then prepares in the background (pitch measurement, search index), using the model channel for a while; **deleting a source cannot be undone and needs the owner's confirmation** — so do not register files you only want to compute something on once.
+What registering costs: the app then prepares in the background (pitch measurement, search index), using the model channel for a while; **deleting a source cannot be undone and needs the user's confirmation** — so do not register files you only want to compute something on once.
 For sources that are already registered, primitives can use their tracks directly (`assetId`); the results still do not enter the library.
 
 ## Sound input

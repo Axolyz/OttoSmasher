@@ -24,4 +24,5 @@ with LinkClient.from_env() as c:
 * `c.request(...)` returns the raw response `{"ok", "r" | "e"}` without raising.
 * `c.next_event(timeout)` returns the next event (`{"e": name, "d": data}`); to wait for a job, watch `job.updated` for its `id` and `status`,
   or simply use `otto wait job <id>` outside the script.
-* Commands that cannot be undone wait for the owner's confirmation in scripts too (overview rule 6).
+* Keeping one connection open through long external computations can let events pile up. For those, close it and use short calls, or `otto wait`.
+* Commands that cannot be undone wait for the user's confirmation in scripts too (overview, "Commands that cannot be undone").

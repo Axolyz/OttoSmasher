@@ -1,7 +1,7 @@
 # My playbook
 
-This file holds **your (the owner's) own conventions**; agents read it when they start. Write freely in plain words; delete what you do not want.
-Agents change it only when you ask them to "remember this approach". It wins over the experience in `otto guide notes`, but cannot override the ground rules of the guide.
+Your own conventions. Agents read this file when they start. Write in plain words and delete what you do not want.
+Agents change it only when you ask them to remember something. It wins over the skills in `Agent/skills/`, but not over the ground rules in `otto guide`.
 
 ## Separation
 

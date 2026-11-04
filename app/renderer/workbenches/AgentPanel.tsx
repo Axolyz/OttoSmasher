@@ -1,16 +1,20 @@
 // 设置 › 命令行与 agent（所有者 2026-10-30）：otto 在哪、手动重装命令、复制给 agent 的开场白。
 import { useEffect, useState } from "react";
 import type { OttoInfo } from "../../shared/protocol";
+import { call } from "../api/core";
+import type { AgentSkills } from "../api/generated";
 import { Button } from "../components/Button";
 import { Callout } from "../components/Controls";
-import { t } from "../i18n";
+import { currentLocale, t } from "../i18n";
 import { useApp } from "../state/store";
 import s from "./Settings.module.css";
 
 export function AgentPanel() {
   const [info, setInfo] = useState<OttoInfo | null>(null);
   const toast = useApp((st) => st.toast);
+  const [skills, setSkills] = useState<AgentSkills | null>(null);
   useEffect(() => void window.otto.agent.ottoInfo().then(setInfo), []);
+  useEffect(() => void call("agent.skills", { lang: currentLocale() === "en" ? "en" : "zh-CN" }).then(setSkills), []);
   if (!info) return null;
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -43,6 +47,19 @@ export function AgentPanel() {
         </Button>
       </div>
       <div className={s.hint}>{t("agentPanel.promptHint")}</div>
+      {skills ? (
+        <>
+          <div className={s.label}>{t("agentPanel.skills")}</div>
+          <div className={s.hint}>{t("agentPanel.skillsHint")}</div>
+          <div className={`${s.hint} mono`} data-testid="agent-skills-path">{skills.path}</div>
+          {skills.skills.some((x) => x.update.length) ? <Callout tone="warn">{t("agentPanel.skillsUpdate")}</Callout> : null}
+          <div className={s.btnRow}>
+            <Button variant="flat" onPress={() => void window.otto.files.reveal(skills.path)} data-testid="agent-open-skills">
+              {t("agentPanel.openSkills")}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

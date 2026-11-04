@@ -5,7 +5,7 @@ import zhCN from "./locales/zh-CN.json";
 
 const catalogs: Record<string, Catalog> = { "zh-CN": zhCN as Catalog, en: en as Catalog };
 
-function currentLocale(): string {
+export function currentLocale(): string {
   if (typeof window !== "undefined" && window.otto) return window.otto.app.locale;
   return "zh-CN";
 }

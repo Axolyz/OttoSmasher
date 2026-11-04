@@ -40,7 +40,7 @@ Tag expressions: `NOT` > `AND` > `OR`, parentheses, double quotes, `ns:*` for a 
   Commands such as `samples.batchEdit`, `tags.globalPlan`, `works.settingsBatch` return a **preview** with a `batch`;
   you inspect it and pass the batch unchanged to `edits.apply`. If something changed meanwhile, `edits.apply` refuses (re-plan).
 * Some commands write directly but are still undoable (`tracks.setDefault`, `visuals.bind`, `subtitles.importMany`, ...).
-* A few cannot be undone; they need the owner's confirmation (overview rule 6).
+* A few cannot be undone; they need the user's confirmation (overview, "Commands that cannot be undone").
 * Two-step flows with a **token**: `samples.plan` → `samples.createPlanned`, `subtitles.preview(Many)` → `subtitles.import(Many)`.
   Pass the token back; if the data changed you get a `*-stale` error: plan again.
 

@@ -9,6 +9,7 @@ otto call roots.add '{"path": "/path/to/root"}' --wait     # adopt + scan
 otto call sources.list                                     # all sources (work, episode, subtitle_path, counts, audio_streams)
 otto call sources.rescan --wait                            # rescan after changing or adding files
 ```
+A rescan registers new files and refreshes subtitle links of registered sources: a source with no link or a missing subtitle file gets the file found by the rules below, and a same-name `.ass` gives way to a new same-name `.srt`. It links but does not import. Sources whose `subtitle_path` was set or cleared with `edits.apply` or in the app keep that choice; the scan event reports the count in `subtitlesLinked`.
 Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once registered they can be separated, given lines and analysed; results stay in the library and can be undone.
 
 ## How the app finds and reads subtitles
@@ -26,6 +27,8 @@ Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once
   - So a segment's `speakers` are the speakers that could be read **for certain**; empty = unknown, not "nobody". The full labels are in the segment's `raw` (the original text of that cue; kept through edits and splits, joined from the parts after a merge).
     To get speakers on every cue, first clean the subtitles into "one person per cue, every speech line labelled".
   - Lines starting `♪～` / ending `～♪` mark the OP / ED (`〜` is recognised too).
+  - Music inside an episode (an insert song, a karaoke scene) uses the same marks, so a correct subtitle file can report OP/ED errors. Only pairs without errors import on their own; `opedErrors` and `problems` show the rest (skill `cleaning-subtitles`).
+  - A cue longer than 120 s cannot be a segment or sound hint: `subtitles.parse` lists it in `problems` and the preview marks it `invalid` / `too-long`. It is left out on import; split it into consecutive cues if you need it.
   - A line like `♪（ハミング）` becomes speech that is just "♪"; speech analysis fails with `frontend-failed` (`empty-text`).
 - **Line text is the alignment text**: speech analysis aligns the audio to it, so it must be the words actually spoken (Japanese only for now); translations or notes inside make alignment wrong or fail.
 
@@ -59,9 +62,10 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 ## Separation and vocal tracks
 
-- `studio.status`: whether PyMSS Studio is installed and which models it has (if `ok` is false, tell the owner to install PyMSS Studio).
+- Before separating, look for what exists: `tracks.separatedVocals {"sourceIds"}` lists finished vocal stems, including sources that have a stem but no default vocal track yet.
+- `studio.status`: whether PyMSS Studio is installed and which models it has (if `ok` is false, tell the user to install PyMSS Studio).
 - `separation.submit {"assetId", "model"}` separates the whole track; add `start` / `end` (asset seconds) to separate one part; `ranges: [[start, end], ...]` separates several parts in one job by joining them into one input (Studio works in blocks of about 22 s, so a short part alone still costs a whole block). Results: `separation.results {"jobId"}`, one new track per stem with its time mapping.
-  Stems from a partial separation cover only that part; the vocal stem gets the vocal role automatically; **every stem of a partial separation also gets a sample automatically** (whole-track separation does not) — those samples cannot be undone and deleting them needs the owner's confirmation, so a many-range separation creates many samples. Every request really separates again and makes new tracks; existing results are never reused. Check `assets.tracks` before re-running, and remove extras with `assets.delete` (tracks with samples on them cannot be deleted). Separating a whole episode takes ten to several tens of minutes (how to wait: ground rule 5 in the overview).
+  Stems from a partial separation cover only that part; the vocal stem gets the vocal role automatically; **every stem of a partial separation also gets a sample automatically** (whole-track separation does not) — those samples cannot be undone and deleting them needs the user's confirmation, so a many-range separation creates many samples. Every request really separates again and makes new tracks; existing results are never reused. Check `assets.tracks` before re-running, and remove extras with `assets.delete` (tracks with samples on them cannot be deleted). Separating a whole episode takes ten to several tens of minutes (how to wait: overview, "Long jobs").
 - The default vocal / sfx track must cover the whole source, so a partial stem cannot be the default. But wherever a track can be named, you can pass it:
   `speech.preview` / `speech.submit` with `"assetId"` analyse on that track (only segments inside its range), and `samples.create`, `exports.wav` and the primitives take an `assetId` too.
 - A line's phonemes exist once and belong to the source's timeline: whichever track analysed them, the original mix, a full vocal stem and partial stems all read the same ones.
@@ -71,7 +75,7 @@ In the `speech` item, segments that failed because their text has nothing to pro
 
 Separation, speech analysis and pitch measurement (including the primitives `speech.align` and `f0.track`) use the "model" channel; scans, `text.analyze` etc. use the "light" channel. How many run at once is set by
 `jobs.concurrency_model` (default 1) / `jobs.concurrency_light` (default 2) (read with `settings.list`, change with `edits.apply`, entity `setting`).
-While queued, jobs submitted by you or the owner go before the app's automatic preparation jobs, otherwise first come first served; `jobs.promote` moves a queued job to the front of its channel
+While queued, jobs submitted by you or the user go before the app's automatic preparation jobs, otherwise first come first served; `jobs.promote` moves a queued job to the front of its channel
 (the most recently promoted first); running jobs are never interrupted. A successful separation deletes its intermediate files; a failed one keeps them.
 
 ## A successful analysis is not proof of a good alignment

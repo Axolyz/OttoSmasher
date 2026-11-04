@@ -5,7 +5,7 @@
    "name": "agent.confirmReply",
    "effect": "ui",
    "layer": "library",
-   "summary": "The owner's answer to an agent.confirm request (approve runs the command for the waiting connection).",
+   "summary": "The user's answer to an agent.confirm request (approve runs the command for the waiting connection).",
    "params": {
     "$ref": "#/$defs/AgentConfirmReplyParams"
    },
@@ -53,6 +53,18 @@
     "items": {
      "$ref": "#/$defs/AgentSession"
     }
+   }
+  },
+  {
+   "name": "agent.skills",
+   "effect": "ui",
+   "layer": "library",
+   "summary": "Update the workspace's folder of agent skills from the built-in versions and list it (command-line agents use `otto guide skills`).",
+   "params": {
+    "$ref": "#/$defs/AgentSkillsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/AgentSkills"
    }
   },
   {
@@ -4090,6 +4102,74 @@
     "kind",
     "session"
    ]
+  },
+  "AgentSkill": {
+   "title": "AgentSkill",
+   "type": "object",
+   "properties": {
+    "builtin": {
+     "type": "boolean"
+    },
+    "description": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "update": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "builtin",
+    "description",
+    "name",
+    "path",
+    "update"
+   ]
+  },
+  "AgentSkills": {
+   "title": "AgentSkills",
+   "type": "object",
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "playbook": {
+     "type": "string"
+    },
+    "skills": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AgentSkill"
+     }
+    }
+   },
+   "required": [
+    "path",
+    "playbook",
+    "skills"
+   ]
+  },
+  "AgentSkillsParams": {
+   "title": "AgentSkillsParams",
+   "description": "lang = 第一次把内置 skill 复制进工作区时用的语言；之后不再变。",
+   "type": "object",
+   "properties": {
+    "lang": {
+     "enum": [
+      "en",
+      "zh-CN"
+     ]
+    }
+   },
+   "required": []
   },
   "AlignItemParams": {
    "title": "AlignItemParams",
