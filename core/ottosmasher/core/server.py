@@ -294,7 +294,8 @@ class Core:
           lambda p: self.samples.delete(list(p["ids"])), danger=True)
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
           "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
-          lambda p: self.handoff.export_samples(list(p["ids"]), dict(p.get("words", {})), dict(p.get("versions") or {})))
+          lambda p: self.handoff.export_samples(list(p["ids"]), dict(p.get("words", {})), dict(p.get("versions") or {}),
+                                                p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
         r("exports.stretched", "write", T.StretchedExportParams, T.ExportedWav,
           "Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping).",
           lambda p: self.handoff.export_stretched(p["id"], dict(p.get("words", {})), p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))

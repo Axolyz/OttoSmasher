@@ -1139,7 +1139,9 @@ export function LibraryPage() {
           }
           const version = e.shiftKey ? "stretched" : "original";
           const versions = Object.fromEntries(ids.map((id) => [id, version] as const));
-          beginDragOut(e, () => call("exports.samples", { ids, words: trackWords(), versions }));
+          // 单条卡拍用舞台上选的方案，和 ⌘C、⌥⌘ 一致（所有者 2026-11-04）；批量用默认方案
+          const opts = ids.length === 1 ? stageOpts(ids[0]!) : {};
+          beginDragOut(e, () => call("exports.samples", { ids, words: trackWords(), versions, plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false }));
         }}
         empty={
           data ? (

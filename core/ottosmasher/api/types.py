@@ -1343,8 +1343,12 @@ class ExportSamplesParams(TypedDict):
     ids: list[str]
     # 导出文件名里的固定词（按语言由界面给出）
     words: NotRequired[dict[str, str]]
-    # 拖出跟随最近一次成功试听的版本（12 §12.1）：采样 ID → original / stretched；没给 = 原声
+    # 每个采样导出哪个版本：采样 ID → original / stretched；没给 = 原声
     versions: NotRequired[dict[str, Literal["original", "stretched"]] | None]
+    # 卡拍用的方案；没给 = 就近偏快，不用 mora 和长音补格
+    plan: NotRequired["RhythmPlan | None"]
+    mora: NotRequired[bool | None]
+    longVowel: NotRequired[bool | None]
 
 
 class ExportWavParams(TypedDict):

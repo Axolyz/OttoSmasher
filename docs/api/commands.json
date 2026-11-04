@@ -5812,6 +5812,40 @@
       "type": "string"
      }
     },
+    "longVowel": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mora": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "plan": {
+     "anyOf": [
+      {
+       "enum": [
+        "double",
+        "near_fast",
+        "near_slow"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "versions": {
      "anyOf": [
       {

@@ -158,6 +158,19 @@ def test_reaper_snap_setting(core):  # noqa: F811
 
 
 @need_rb
+def test_drag_stretched_uses_the_given_plan(core):  # noqa: F811
+    """⌥⇧ 拖出单条用舞台上选的方案（所有者 2026-11-04）：不同方案是不同的文件，和直接导出这个方案的一样。"""
+    s = sample(core)
+    align(core, s)
+    core.rhythm.set_bpm(150)
+    fast = core.handoff.export_samples([s], WORDS, {s: "stretched"})
+    slow = core.handoff.export_samples([s], WORDS, {s: "stretched"}, plan="near_slow")
+    assert fast != slow
+    assert slow == [core.handoff.export_stretched(s, WORDS, "near_slow")["path"]]
+    assert fast == core.handoff.export_samples([s], WORDS, {s: "stretched"}, plan="near_fast")
+
+
+@need_rb
 def test_drag_reuses_the_audition_render(core, monkeypatch):  # noqa: F811
     s = sample(core)
     align(core, s)

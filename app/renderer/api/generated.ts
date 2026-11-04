@@ -459,6 +459,9 @@ export interface ExportRangeParams {
 
 export interface ExportSamplesParams {
   ids: string[];
+  longVowel?: boolean | null;
+  mora?: boolean | null;
+  plan?: "double" | "near_fast" | "near_slow" | null;
   versions?: Record<string, "original" | "stretched"> | null;
   words?: Record<string, string>;
 }

@@ -2,7 +2,7 @@
 
 - 卡拍 WAV：只能导出**完整采样**（命中随阶段 7）；方案在需要时自动计算；文件名处理信息「卡拍-<BPM>BPM」（拉平成品为「拉平-<音名>_卡拍-<BPM>BPM」）；
   清单（``Data/Manifests/``）记录方案与组合后的映射（卡拍输出秒 → 原片秒，R21.4）。
-- 拖出跟随最近一次成功试听的版本（列表/舞台：原声或卡拍；界面在本次运行内记住，规格 12 §12.1、D4）。
+- 拖出由按键决定（⌥ 原声、⌥⇧ 卡拍，不跟随最近一次试听）；单条卡拍用舞台上选的方案，批量用默认方案。
 - REAPER（两种，所有者 2026-11-04 明确）：都用**未烘焙的原声** WAV，复制到 ``Library/REAPER/<日期>/``（``<名称>__<版本>__<内容哈希>.wav``；同名但内容不同 → 报错）。
   ``original`` = 不卡拍，每个音头一个 1 倍速标记，方便手动卡；``fitted`` = 拉伸标记把它卡好，听上去是卡拍后的，删掉标记就回到原声。
   吸附 = 首个起音（设置可改为条目开头）；批量依次排开、每条间隔一小节（所有者 2026-10-08）；
@@ -93,12 +93,13 @@ class HandoffService:
             make=make, content=row["name"], track=track_label(asset, words), processing=processing, manifest=manifest,
         )
 
-    def export_samples(self, ids: list[str], words: dict[str, str], versions: dict[str, str] | None = None) -> list[str]:
-        """拖出与交接：每个采样按给定版本（原声 / 卡拍），没给 = 原声。"""
+    def export_samples(self, ids: list[str], words: dict[str, str], versions: dict[str, str] | None = None,
+                       plan: str = "near_fast", mora: bool = False, long_vowel: bool = False) -> list[str]:
+        """拖出与交接：每个采样按给定版本（原声 / 卡拍），没给 = 原声。卡拍按给定方案。"""
         out = []
         for sid in dict.fromkeys(ids):
             if (versions or {}).get(sid) == "stretched":
-                out.append(self.export_stretched(sid, words)["path"])
+                out.append(self.export_stretched(sid, words, plan, mora, long_vowel)["path"])
                 continue
             out += export_samples(self.exports, [sid], words)
         return out
