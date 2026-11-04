@@ -231,3 +231,26 @@ def test_commands_grep_is_a_plain_substring(capsys):
     assert main(["commands", "--grep", "samples.list|samples.get"]) == 0
     got = capsys.readouterr()
     assert json.loads(got.out) == [] and "not a regular expression" in got.err
+
+
+def test_status_hints_only_about_models_that_are_really_broken(tmp_path):
+    """“未校验”是文件在、还没校验（2026-11-04 实测：agent 把它当成模型未就绪转告用户），不提示；缺文件、文件不对才提示。"""
+    import argparse
+
+    from ottosmasher.cli.main import environment
+    from ottosmasher.core.errors import CoreError
+
+    class Fake:
+        def __init__(self, states):
+            self.states = states
+
+        def call(self, method, params=None):
+            if method == "models.status":
+                return {"files": [{"model": k, "state": v} for k, v in self.states.items()]}
+            raise CoreError("agent-link-failed", reason="not needed here")
+
+    args = argparse.Namespace(lang="en")
+    ok = environment(args, tmp_path, Fake({"fcpe": "unverified", "pydomino": "ready"}))
+    assert ok["models"]["fcpe"] == "unverified" and not [h for h in ok["hints"] if "models" in h]
+    bad = environment(args, tmp_path, Fake({"fcpe": "missing", "pydomino": "mismatch", "tsqyomi": "ready"}))
+    assert [h for h in bad["hints"] if "fcpe, pydomino" in h]

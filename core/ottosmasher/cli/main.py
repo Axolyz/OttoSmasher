@@ -306,8 +306,10 @@ def environment(args: argparse.Namespace, ws: Path, c: Any) -> dict[str, Any]:
     if c is not None:
         try:
             env["models"] = {m["model"]: m["state"] for m in c.call("models.status")["files"]}
-            if any(v != "ready" for v in env["models"].values()):
-                hints.append("some models are not ready: ask the user to open Settings > Environment & models")
+            # unverified = 文件在、只是还没校验，能正常用；提示它只会让 agent 把假警报转告用户
+            broken = sorted(k for k, v in env["models"].items() if v in ("missing", "mismatch"))
+            if broken:
+                hints.append(f"models missing or wrong: {', '.join(broken)}; ask the user to open Settings > Environment & models")
         except CoreError:
             pass
         try:
