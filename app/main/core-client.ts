@@ -40,6 +40,8 @@ export class CoreClient extends EventEmitter {
     const proc = spawn(this.opts.python, args, { cwd: this.opts.cwd, env: { ...process.env, PYTHONUTF8: "1" }, stdio: ["pipe", "pipe", "pipe"] });
     this.proc = proc;
     this.buf = Buffer.alloc(0);
+    // Core 退出的瞬间写入会 EPIPE。没有这个监听，主进程就是未捕获异常（弹错误框）；等待中的请求由下面的 exit 统一结束
+    proc.stdin!.on("error", (err) => process.stderr.write(`[core] stdin: ${String(err)}\n`));
     proc.stdout!.on("data", (chunk: Buffer) => this.onData(chunk));
     proc.stderr!.on("data", (chunk: Buffer) => process.stderr.write(`[core] ${chunk.toString()}`));
     proc.on("exit", (code) => {
