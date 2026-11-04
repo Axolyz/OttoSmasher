@@ -13,6 +13,8 @@ export function ToolsPage() {
   const toast = useApp((st) => st.toast);
   const setTasksOpen = useApp((st) => st.setTasksOpen);
   const [showSpecimen, setShowSpecimen] = useState(false);
+  const [crash, setCrash] = useState(false);
+  if (crash) throw new Error("selftest: render crash");
   const submit = async (kind: string, params: Record<string, unknown>) => {
     try {
       await call("jobs.submit", { kind, params });
@@ -50,6 +52,9 @@ export function ToolsPage() {
               </Button>
               <Button size="sm" variant="danger" onPress={() => void submit("selftest.fail", { reason: "demo" })}>
                 {t("tools.selftest.fail")}
+              </Button>
+              <Button size="sm" variant="danger" onPress={() => setCrash(true)} data-testid="selftest-crash">
+                {t("tools.selftest.crash")}
               </Button>
             </div>
           </section>

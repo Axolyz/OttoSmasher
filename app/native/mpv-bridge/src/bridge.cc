@@ -105,6 +105,10 @@ class Player : public Napi::ObjectWrap<Player> {
 
     tsfn_ = Napi::ThreadSafeFunction::New(env, info[1].As<Napi::Function>(), "mpv-events", 0, 1);
     event_thread_ = std::thread([this] { EventLoop(); });
+    // 窗口重载时 JS 不一定来得及 destroy，环境清理时 tsfn_ 已被 Node 回收，这时候析构函数再 Release 会永远卡在已释放的锁上（整个窗口卡死）。
+    // 清理钩子后注册先执行：赶在 tsfn_ 被回收之前收尾。
+    env_ = env;
+    napi_add_env_cleanup_hook(env_, &Player::OnEnvCleanup, this);
   }
 
   ~Player() override { Shutdown(); }
@@ -300,8 +304,11 @@ class Player : public Napi::ObjectWrap<Player> {
     return info.Env().Undefined();
   }
 
+  static void OnEnvCleanup(void* self) { static_cast<Player*>(self)->Shutdown(); }
+
   void Shutdown() {
     if (!mpv_) return;
+    napi_remove_env_cleanup_hook(env_, &Player::OnEnvCleanup, this);
     {
       std::lock_guard<std::mutex> lk(m_);
       quit_ = true;
@@ -319,6 +326,7 @@ class Player : public Napi::ObjectWrap<Player> {
     mpv_ = nullptr;
   }
 
+  napi_env env_ = nullptr;
   mpv_handle* mpv_ = nullptr;
   mpv_render_context* rctx_ = nullptr;
   bool video_ = false;

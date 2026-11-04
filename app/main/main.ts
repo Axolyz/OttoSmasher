@@ -83,6 +83,12 @@ function logDesktopEvent(kind: string, detail: Record<string, unknown>): void {
   }
 }
 
+ipcMain.on("app:rendererError", (_e, detail: Record<string, unknown>) => {
+  const text = (v: unknown) => String(v ?? "").slice(0, 8000);
+  logDesktopEvent("renderer-error", { message: text(detail?.message), stack: text(detail?.stack), componentStack: text(detail?.componentStack) });
+});
+ipcMain.on("app:reload", (e) => e.sender.reload());
+
 function broadcast(channel: string, payload: unknown): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(channel, payload);
 }

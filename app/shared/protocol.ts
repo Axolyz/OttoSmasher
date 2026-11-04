@@ -86,6 +86,10 @@ export interface OttoApi {
     locale: string;
     /** 界面语言：auto = 跟随系统；变了会重新载入窗口 */
     setLanguage(choice: string): Promise<void>;
+    /** 界面渲染出错（全局兜底接住的）：写进工作区的 Data/Logs/desktop-events.log */
+    reportRendererError(detail: { message: string; stack: string; componentStack: string }): void;
+    /** 重新载入窗口。由主进程做：页面自己的 location.reload() 会被 will-navigate 拦下 */
+    reload(): void;
     /** 源码运行（开发版，名叫 OttoSmasher Dev）还是发布版：只用来区分身份，行为一样 */
     build: "source" | "packaged";
   };

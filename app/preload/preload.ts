@@ -49,6 +49,8 @@ const api: OttoApi = {
     platform: process.platform,
     locale: ipcRenderer.sendSync("app:locale") as string,
     setLanguage: (choice: string) => ipcRenderer.invoke("app:setLanguage", choice),
+    reportRendererError: (detail) => ipcRenderer.send("app:rendererError", detail),
+    reload: () => ipcRenderer.send("app:reload"),
     build: buildArg?.slice("--otto-build=".length) === "packaged" ? "packaged" : "source",
   },
   player,

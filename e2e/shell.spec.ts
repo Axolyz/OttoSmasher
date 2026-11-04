@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { launch } from "./helpers";
 
 test("三页常驻、设置走编辑通道且可撤销、任务可取消与重试", async () => {
@@ -112,5 +114,25 @@ test("顶栏显示当前工作区；源码运行标 Dev", async () => {
   await expect(tag).toContainText(workspace.split(/[\\/]/).pop()!);
   await expect(page).toHaveTitle("OttoSmasher Dev");
   await expect(tag).toHaveAttribute("title", new RegExp(workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await app.close();
+});
+
+test("界面渲染出错：显示兜底画面、写日志、重新加载后恢复", async () => {
+  const { app, page, workspace } = await launch();
+  await page.getByTestId("nav-tools").click();
+  await page.getByTestId("selftest-crash").click();
+
+  const screen = page.getByTestId("crash-screen");
+  await expect(screen).toBeVisible();
+  await expect(page.getByTestId("crash-error")).toHaveText("selftest: render crash");
+  await expect(page.getByTestId("nav-library")).toHaveCount(0);
+  const log = join(workspace, "Data", "Logs", "desktop-events.log");
+  await expect.poll(() => (existsSync(log) ? readFileSync(log, "utf8") : "")).toContain("renderer-error");
+  expect(readFileSync(log, "utf8")).toContain("selftest: render crash");
+
+  await page.getByTestId("crash-reload").click();
+  await expect(page.getByTestId("nav-library")).toBeVisible();
+  await expect(screen).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => (await window.otto.core.status()).state), { timeout: 20000 }).toBe("ready");
   await app.close();
 });

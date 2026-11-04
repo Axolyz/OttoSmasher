@@ -37,6 +37,11 @@
 .muted { color: var(--muted); }
 .banner { display: flex; align-items: center; gap: 12px; padding: 6px 16px; background: var(--s2); border-bottom: 1px solid var(--line); font-size: var(--fs-sm); color: var(--sub); }
 .bannerBad { background: color-mix(in srgb, var(--bad) 10%, var(--s1)); border-color: var(--bad); color: var(--text); }
+.crash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; background: var(--bg); color: var(--text); text-align: center; }
+.crashTitle { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+.crashError { max-width: min(720px, 100%); max-height: 40vh; overflow: auto; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--s1); color: var(--sub); font-size: var(--fs-sm); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.crashReload { margin-top: 6px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--s2); color: var(--text); font: inherit; cursor: pointer; }
+.crashReload:hover { background: var(--s3); }
 .empty { margin: auto; text-align: center; max-width: 440px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .empty h3 { color: var(--sub); font-size: var(--fs-lg); margin: 0; font-weight: 600; }
 .keys { margin: 16px 20px; border-collapse: collapse; }
