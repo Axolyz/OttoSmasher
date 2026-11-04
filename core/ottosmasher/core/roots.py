@@ -5,6 +5,7 @@
   （与音频同名的视频/图片是它的画面，规则同导入），对还没登记的文件做准备（探测、确切时长、峰值）；登记在主线程：
   1. 先认移动/改名：文件快照（大小 + 修改时间 + 流签名）与某个“文件找不到”的原片相同 → 当作同一个原片换了位置（字幕标记、OP/ED、采样都保留）；
   2. 其余登记为新原片：作品 = 文件夹名，来源类型沿用作品文件夹的设置，同名画面按作品文件夹的开关绑定，同名字幕自动关联（只关联不导入）。
+  3. 已登记的原片补字幕关联（``subtitle_update``）：洗好字幕放回去后重新扫描就能用，只关联不导入；用户手选、手动清空过的不动。
   文件从文件夹里删掉不删原片，只是“文件找不到”。结果发 ``sources.scanned`` 事件（新、移动、找不到的数量与新原片 ID）。
 - **作品改名**（「作品设置…」）= 改磁盘上的作品文件夹名，并在一个事务里改这些原片的路径、作品名、媒体文件与字幕路径；
   数据库写入失败就把文件夹名改回去。目标名已有文件夹 / 原片文件夹不在 / 没权限 → 明确报错、什么都不动。改名不进撤销记录（是文件操作），再改一次即可。
@@ -29,7 +30,7 @@ from .clock import new_id, now_iso
 from .edits import ChangeSet, loads
 from .errors import CoreError
 from .imports import _probe_of, bind_picture, collect, scan
-from .sources import move_source, path_key
+from .sources import find_subtitle, move_source, path_key
 
 log = logging.getLogger(__name__)
 
@@ -37,8 +38,24 @@ NAME_MAX = 200
 BAD_CHARS = set('/\\:*?"<>|') | {chr(c) for c in range(32)}
 
 
-def scan_roots(roots: list[dict[str, str]], known: list[str], cache: Path, progress: Callable[[int, int], None]) -> dict[str, Any]:
-    """任务进程里执行：列出原片文件夹里没登记过的音频/视频并做准备。不碰数据库。"""
+def subtitle_update(media: str, current: str | None) -> str | None:
+    """已登记原片的字幕关联要不要换（调用方已排除用户手选过的）：没有关联、关联的文件不在了，或者关联的是完全同名的 .ass 而旁边新有了完全同名的 .srt（.srt 优先）。
+    返回新路径；不用换返回 None。"""
+    path = Path(media)
+    if not path.is_file():
+        return None
+    if current and os.path.isfile(current):
+        cur = Path(current)
+        if cur.parent != path.parent or cur.stem.lower() != path.stem.lower() or cur.suffix.lower() != ".ass":
+            return None
+    found = find_subtitle(path)
+    return found if found and found != current else None
+
+
+def scan_roots(
+    roots: list[dict[str, str]], known: list[str], cache: Path, progress: Callable[[int, int], None], linked: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """任务进程里执行：列出原片文件夹里没登记过的音频/视频并做准备；检查已登记原片的字幕关联（``linked``）。不碰数据库。"""
     offline = [r["id"] for r in roots if not os.path.isdir(r["path"])]
     paths = [r["path"] for r in roots if r["id"] not in offline]
     seen = set(known)
@@ -52,7 +69,12 @@ def scan_roots(roots: list[dict[str, str]], known: list[str], cache: Path, progr
             folders[r["id"]] = sorted(p.name for p in Path(r["path"]).iterdir() if p.is_dir() and not p.name.startswith("."))
         except OSError:
             folders[r["id"]] = []
-    return {"items": res["items"], "offline": offline, "folders": folders}
+    subtitles = []
+    for r in linked or ():
+        found = subtitle_update(r["path"], r["subtitle"])
+        if found:
+            subtitles.append({"id": r["id"], "from": r["subtitle"], "to": found})
+    return {"items": res["items"], "offline": offline, "folders": folders, "subtitles": subtitles}
 
 
 def _valid_name(name: str) -> str:
@@ -175,7 +197,20 @@ class RootService:
         for j in self.conn.execute("SELECT id FROM job WHERE kind='sources.scan' AND status IN ('queued', 'running')"):
             return {"id": j[0]}  # 已经在扫了
         known = [r[0] for r in self.conn.execute("SELECT path_key FROM source")]
-        return {"id": self.jobs.submit("sources.scan", {"roots": roots, "known": known})["id"]}
+        # 用户（或 agent）经编辑通道选过、清空过字幕的原片不自动改：清空也是一种选择，不能下次启动又关联回去
+        chosen = {
+            r[0]
+            for r in self.conn.execute(
+                "SELECT DISTINCT c.entity_id FROM edit_change c JOIN edit e ON e.id=c.edit_id"
+                " WHERE c.entity='source' AND e.undo_of IS NULL AND e.undone_by IS NULL AND json_type(c.after, '$.subtitle_path') IS NOT NULL"
+            )
+        }
+        linked = [
+            {"id": r[0], "path": r[1], "subtitle": r[2]}
+            for r in self.conn.execute("SELECT id, path, subtitle_path FROM source WHERE root_id IS NOT NULL AND media_state='available'")
+            if r[0] not in chosen
+        ]
+        return {"id": self.jobs.submit("sources.scan", {"roots": roots, "known": known, "linked": linked})["id"]}
 
     def _adopt_scan(self, job: dict[str, Any], result: dict[str, Any]) -> None:
         src = self.jobs.jobs_dir / job["id"] / "cache" / "Peaks"
@@ -230,6 +265,16 @@ class RootService:
                     cs.add("source", sid)
             except CoreError as e:
                 failed.append({"path": it["path"], "error": e.to_wire()})
+        relinked = 0
+        with transaction(self.conn):
+            for r in result.get("subtitles", ()):
+                # 扫描期间用户改过关联就不动（只换扫描时看到的那个值）
+                done = self.conn.execute(
+                    "UPDATE source SET subtitle_path=?, updated_at=?, version=version+1 WHERE id=? AND subtitle_path IS ?", (r["to"], now_iso(), r["id"], r["from"])
+                )
+                if done.rowcount:
+                    relinked += 1
+                    cs.add("source", r["id"])
         missing_now = sum(1 for r in self.conn.execute("SELECT path FROM source WHERE root_id IS NOT NULL AND media_state='available'") if not os.path.exists(r[0]))
         by_work: dict[str, int] = {}
         for sid in new_ids:
@@ -242,6 +287,7 @@ class RootService:
             {
                 "new": len(new_ids),
                 "moved": len(moved),
+                "subtitlesLinked": relinked,
                 "missing": missing_now,
                 "failed": failed[:50],
                 "newIds": new_ids,

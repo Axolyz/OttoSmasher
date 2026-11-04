@@ -13709,6 +13709,9 @@
      "items": {
       "type": "string"
      }
+    },
+    "subtitlesLinked": {
+     "type": "integer"
     }
    },
    "required": [
@@ -13718,7 +13721,8 @@
     "moved",
     "new",
     "newIds",
-    "offline"
+    "offline",
+    "subtitlesLinked"
    ]
   },
   "SpeakersRegenerated": {

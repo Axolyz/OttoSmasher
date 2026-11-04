@@ -128,3 +128,12 @@ def test_scripts_the_notes_refer_to(capsys, tmp_path):
     assert se.load_ranges(str(tmp_path / "r.json"), str(tmp_path / "m.json")) == [{"id": "a", "start": 1.0, "end": 2.5}]
     w = np.ones(16000, np.float32)
     assert len(se.cut(w, 0.5, 0.51)) == 1600 and len(se.cut(w, 0.0, 0.5)) == 8000
+    assert se.cut(np.frombuffer(w.tobytes(), np.float32), 0.0, 0.5).flags.writeable  # torch.from_numpy 要可写的数组
+
+
+def test_commands_grep_is_a_plain_substring(capsys):
+    assert main(["commands", "--grep", "SAMPLES.LIST"]) == 0
+    assert any(c["name"] == "samples.list" for c in json.loads(capsys.readouterr().out))
+    assert main(["commands", "--grep", "samples.list|samples.get"]) == 0
+    got = capsys.readouterr()
+    assert json.loads(got.out) == [] and "not a regular expression" in got.err

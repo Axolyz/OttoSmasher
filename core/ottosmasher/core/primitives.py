@@ -22,7 +22,7 @@ from ottosmasher.store.workspace import Workspace
 
 from . import assets as assets_mod
 from . import settings as settings_mod
-from .edits import loads
+from .edits import SEGMENT_MAX, loads
 from .errors import CoreError
 
 KINDS = {"speech.align": "align", "text.analyze": "text", "f0.track": "f0"}
@@ -128,11 +128,12 @@ class PrimitiveService:
                 speakers[n] = speakers.get(n, 0) + 1
         dur = duration if duration is not None else max((c.end for c in parsed.cues), default=0.0)
         res = oped_rule.identify(parsed.cues, float(dur), values["subtitle.oped_start"], values["subtitle.oped_end"])
+        too_long = [{"line": cue.order, "reason": "too-long"} for cue in parsed.cues if cue.end - cue.start > SEGMENT_MAX + 1e-9]  # 导入时同样读成无效
         return {
             "path": str(p), "format": parsed.format, "fingerprint": parsed.fingerprint, "cues": cues,
             "speakers": [{"name": k, "count": v} for k, v in sorted(speakers.items(), key=lambda kv: -kv[1])],
             "oped": {"pairs": [{"start": x.start, "end": x.end, "kind": x.suggest, "refs": [x.start_ref, x.end_ref]} for x in res.pairs], "errors": res.errors},
-            "problems": parsed.problems,
+            "problems": parsed.problems + too_long,
         }
 
     # ------------------------------------------------------------ 结果

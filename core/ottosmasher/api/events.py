@@ -54,6 +54,8 @@ class ScanFailed(TypedDict):
 class SourcesScanned(TypedDict):
     new: int
     moved: int
+    # 已登记的原素材这次新关联上字幕的个数（只关联不导入）
+    subtitlesLinked: int
     missing: int
     failed: list[ScanFailed]
     newIds: list[str]

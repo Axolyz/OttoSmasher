@@ -160,3 +160,18 @@ def test_batch_and_one_click(db, env, tmp_path):
     assert out[0]["created"]["segments"] == 6
     again = imp.import_default(sid)
     assert again["created"] == {"segments": 0, "hints": 0, "oped": 0} and again["counts"]["segments"]["unchanged"] == 6
+
+
+def test_preview_marks_what_import_would_refuse_as_too_long(db, env, tmp_path):
+    """超过 120 秒的条目（2026-11-04 字幕任务的反馈：音效提示预览通过、导入时整个原素材被拒）：预览写明无效，其余照常导入。"""
+    sid, _p, imp, _edits, _changes = env
+    db.execute("UPDATE source SET duration=400.0 WHERE id=?", (sid,))
+    f = tmp_path / "long.srt"
+    f.write_text(srt((1.0, 2.0, "こんにちは"), (3.0, 334.0, "（音楽）"), (340.0, 470.0 - 5.0, "長い台詞")), encoding="utf-8")
+    db.execute("UPDATE source SET duration=500.0, subtitle_path=? WHERE id=?", (str(f), sid))
+    pv = imp.preview(sid)
+    assert [(r["status"], r["reason"]) for r in pv["hints"]] == [("invalid", "too-long")]
+    assert [(r["status"], r["reason"]) for r in pv["segments"]] == [("new", None), ("invalid", "too-long")]
+    r = imp.import_(sid, pv["token"])
+    assert r["created"]["segments"] == 1 and r["created"]["hints"] == 0
+    assert sorted(x["reason"] for x in r["invalid"]) == ["too-long", "too-long"]

@@ -27,7 +27,7 @@ from ottosmasher.store.db import transaction
 
 from . import settings as settings_mod
 from .clock import now_iso
-from .edits import ChangeSet, EditService, dumps
+from .edits import SEGMENT_MAX, ChangeSet, EditService, dumps
 from .errors import CoreError
 from .text_layer import MANUAL_SQL, USED_BY_SQL
 
@@ -160,6 +160,8 @@ class SubtitleImporter:
                     reason = "empty"
                 elif cue.end > duration + DURATION_EPS:
                     reason = "beyond-end"
+                elif cue.end - cue.start > SEGMENT_MAX + 1e-9:
+                    reason = "too-long"  # 提交时编辑通道也会拒绝；预览就写明，不让它在导入时把整个原素材拦下
                 elif not row["text"].strip():
                     reason = "no-text"
                 if reason is not None:

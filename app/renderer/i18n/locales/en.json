@@ -751,6 +751,7 @@
   "subimport.reason.negative-start": "Invalid: starts before 0",
   "subimport.reason.empty": "Invalid: end isn't after start",
   "subimport.reason.beyond-end": "Invalid: past the source's duration",
+  "subimport.reason.too-long": "Invalid: longer than 120 s",
   "subimport.done": "Imported: {segments} new segments, {hints} SFX hints, {oped} OP/ED; replaced {removed} existing; skipped {skipped} lines",
   "subimport.stale": "Subtitles, text layer, OP/ED or subtitle rules changed after the preview. Previewed again; please confirm once more",
   "subimport.batchTitle": "Import subtitles ({n} sources)",

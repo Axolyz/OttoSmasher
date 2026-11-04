@@ -751,6 +751,7 @@
   "subimport.reason.negative-start": "无效：开始早于 0",
   "subimport.reason.empty": "无效：结束不晚于开始",
   "subimport.reason.beyond-end": "无效：超出原素材时长",
+  "subimport.reason.too-long": "无效：超过 120 秒",
   "subimport.done": "已导入：新增 {segments} 段、{hints} 条音效提示、{oped} 个 OP/ED；替换掉 {removed} 个已有；跳过 {skipped} 行",
   "subimport.stale": "预览之后字幕、文本层、OP/ED 或字幕规则变了，已重新预览，请再确认一次",
   "subimport.batchTitle": "导入字幕（{n} 个原素材）",

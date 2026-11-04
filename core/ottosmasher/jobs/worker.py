@@ -260,7 +260,7 @@ def _sources_scan(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:
     """原片文件夹扫描（阶段 3.13）：没登记过的音频/视频做准备，登记与认移动在 Core 里。"""
     from ..core.roots import scan_roots
 
-    return scan_roots(list(params["roots"]), list(params["known"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "sources-scanning"))
+    return scan_roots(list(params["roots"]), list(params["known"]), ctx.job_dir / "cache", lambda done, total: ctx.progress("scan", done, total, "sources-scanning"), list(params.get("linked") or ()))
 
 
 def _models_probe(params: dict[str, Any], ctx: Ctx) -> dict[str, Any]:

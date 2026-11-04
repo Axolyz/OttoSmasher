@@ -79,7 +79,7 @@ def load_ranges(path: str, mapping_path: str | None) -> list[dict]:
 
 
 def cut(wave: np.ndarray, start: float, end: float) -> np.ndarray:
-    x = np.asarray(wave[max(0, int(start * SR)):max(0, int(end * SR))], dtype=np.float32)
+    x = np.array(wave[max(0, int(start * SR)):max(0, int(end * SR))], dtype=np.float32)  # a copy: decode() gives a read-only buffer, torch.from_numpy needs a writable one
     if len(x) < MIN_SECONDS * SR:
         x = np.pad(x, (0, int(MIN_SECONDS * SR) - len(x)))
     return x

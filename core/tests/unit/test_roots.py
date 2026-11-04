@@ -42,7 +42,8 @@ class Svc:
     def scan(self):
         roots = [{"id": r[0], "path": r[1]} for r in self.db.execute("SELECT id, path FROM source_root")]
         known = [r[0] for r in self.db.execute("SELECT path_key FROM source")]
-        res = scan_roots(roots, known, self.ws.root / "Jobs" / "x" / "cache", lambda *_: None)
+        job = self.roots.rescan() and self.jobs.submitted[-1]
+        res = scan_roots(roots, known, self.ws.root / "Jobs" / "x" / "cache", lambda *_: None, job[1]["linked"])
         self.roots._adopt_scan({"id": "x"}, res)
         return self.events[-1][1]
 
@@ -168,3 +169,35 @@ def test_find_subtitle_priority(tmp_path):
     (tmp_path / "Ep 01.srt").write_text("x")
     assert find_subtitle(v).endswith("Ep 01.srt")  # 同一层 .srt 优先
     assert find_subtitle(tmp_path / "Other.mkv") is None
+
+
+@needs_ffmpeg
+def test_rescan_refreshes_subtitle_links(db, ws, tmp_path):
+    """洗好的字幕放回去后重新扫描就能用（2026-11-04 字幕任务的反馈）：没关联的补上、同名 .ass 让位给同名 .srt；用户手选、手动清空过的不动。"""
+    s = Svc(db, ws)
+    root = tmp_path / "root"
+    (root / "W").mkdir(parents=True)
+    names = ("none", "ass", "picked", "cleared")
+    for n in names:
+        wav(root / "W" / f"{n}.wav", 0.2)
+    (root / "W" / "ass.ass").write_text("", encoding="utf-8")
+    (root / "W" / "cleared.ass").write_text("", encoding="utf-8")
+    other = root / "W" / "other-name.srt"
+    other.write_text("", encoding="utf-8")
+    s.roots.add(str(root))
+    s.scan()
+    assert s.row("none.wav")["subtitle_path"] is None and s.row("ass.wav")["subtitle_path"].endswith("ass.ass")
+    for n, value in (("picked", str(other)), ("cleared", None)):
+        r = s.row(f"{n}.wav")
+        s.edits.apply({"label": {"code": "source-settings", "args": {"name": n}}, "ops": [{"entity": "source", "id": r["id"], "version": r["version"], "fields": {"subtitle_path": value}}]})
+    versions = {n: s.row(f"{n}.wav")["version"] for n in names}
+
+    for n in names:
+        (root / "W" / f"{n}.srt").write_text("", encoding="utf-8")
+    ev = s.scan()
+    assert ev["subtitlesLinked"] == 2 and ev["new"] == 0
+    assert s.row("none.wav")["subtitle_path"].endswith("none.srt") and s.row("ass.wav")["subtitle_path"].endswith("ass.srt")
+    assert s.row("picked.wav")["subtitle_path"] == str(other) and s.row("picked.wav")["version"] == versions["picked"]
+    assert s.row("cleared.wav")["subtitle_path"] is None
+    assert s.row("none.wav")["version"] == versions["none"] + 1
+    assert s.scan()["subtitlesLinked"] == 0  # 再扫一次没有变化

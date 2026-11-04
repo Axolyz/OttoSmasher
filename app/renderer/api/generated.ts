@@ -2106,6 +2106,7 @@ export interface SourcesScanned {
   new: number;
   newIds: string[];
   offline: string[];
+  subtitlesLinked: number;
 }
 
 export interface SpeakersRegenerated {

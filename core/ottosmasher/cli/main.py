@@ -341,6 +341,8 @@ def cmd_commands(args: argparse.Namespace) -> None:
         if "danger" in c:
             row["danger"] = c["danger"]
         rows.append(row)
+    if not rows and args.grep and any(ch in args.grep for ch in "|*^$()[]"):
+        note({"note": "--grep matches one plain substring, not a regular expression"})
     out(rows, args.pretty)
 
 
@@ -565,7 +567,7 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("commands", parents=[common], help="list commands (or events) from the catalog")
     p.add_argument("--effect", choices=("read", "write", "job"))
     p.add_argument("--layer", choices=("library", "primitive"), help="library = business commands on the library; primitive = compute only, no library changes")
-    p.add_argument("--grep")
+    p.add_argument("--grep", help="case-insensitive plain substring of the name and summary (not a regular expression)")
     p.add_argument("--events", action="store_true", help="list events instead")
     p.add_argument("--all", action="store_true", help="include interface-only commands (not callable here)")
     p.set_defaults(fn=cmd_commands)
