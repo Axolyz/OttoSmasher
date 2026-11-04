@@ -9,6 +9,7 @@
 | [`ROADMAP-stages.md`](ROADMAP-stages.md) | 原 `docs/ROADMAP.md` 全文：阶段 3–11 / A 的完成定义、会话交接协议、各阶段“开工前要知道的”、遗留事项登记表 L1–L54 |
 | [`UI_PLAN.md`](UI_PLAN.md) | 原 `docs/UI_PLAN.md`：阶段 0 照原型写的界面方案 §0–§10，加 §11 命令行与 agent（原 §23）。正文没随实现更新，现在以应用为准，仍有效的统一规则在 DECISIONS「界面」 |
 | [`UI_PLAN-rounds.md`](UI_PLAN-rounds.md) | 原 `docs/UI_PLAN.md` §11–§22：定稿前各轮修改、阶段 4–9 实现时的界面取舍 |
+| [`retiming-and-speakers-research.md`](retiming-and-speakers-research.md) | 字幕对轴与说话人识别试过哪些模型、流程架构怎么定下来、实测数字与局限；**要接着做或换模型时先读它** |
 | [`prototype.html`](prototype.html)、[`prototype-v1.html`](prototype-v1.html) | 阶段 0 与所有者敲定的可点原型（v3.3）和被否决的 v1。现在的应用已远比原型完善，**不再作为参照** |
 
 ## 编号去哪查

@@ -16,7 +16,7 @@
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 准备环境、运行、测试、发布、开发版与发布版并存 | 跑起来、测、构建时 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 当前版本、接下来做什么、未结事项（L 编号） | 挑活、收工时 |
 | [docs/spec/](docs/spec/README.md) | 原始需求规格（交接包 01–19，原样）；“规格 06 §6.2”“R4.4”“S11.3”“P6”这类编号 | 查某条规则的原文与数值例子 |
-| [docs/history/](docs/history/README.md) | 开发期的过程记录（问答、阶段计划、旧界面方案、原型），只追加不改 | 查旧编号（Q、D、L、阶段、UI_PLAN §）的出处 |
+| [docs/history/](docs/history/README.md) | 开发期的过程记录（问答、阶段计划、旧界面方案、原型），只追加不改 | 查旧编号（Q、D、L、阶段、UI_PLAN §）的出处；动对轴或说话人识别前读 `retiming-and-speakers-research.md` |
 | [docs/user/](docs/user/README.md)、README、`core/ottosmasher/cli/guide/` | 给用户和 agent 看的说明（写法见 DECISIONS §12） | 改了用户看得到的行为时同步改 |
 
 **冲突时的优先级**：所有者最新的明确答复 ＞ DECISIONS ＞ spec ＞ 现在的应用 ＞ 开发者判断。
