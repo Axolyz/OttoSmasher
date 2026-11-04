@@ -17,6 +17,9 @@ test("命令行与 agent：otto 的位置与开场白", async () => {
     expect(text).toContain("guide");
     expect(text).not.toContain("SKILL.md"); // 不用下载 skill（所有者 2026-11-04）
     await expect(page.getByText("已复制")).toBeVisible();
+    // 可以改的做法放在工作区（所有者 2026-11-04）：打开这页时放好，能看到位置和“打开文件夹”
+    await expect(page.getByTestId("agent-skills-path")).toContainText(/Agent[\\/]skills$/);
+    await expect(page.getByTestId("agent-open-skills")).toBeVisible();
   } finally {
     await app.close();
   }

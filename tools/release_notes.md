@@ -19,7 +19,7 @@
    （应用只做了本机签名、没有经过 Apple 公证，不运行这一句 macOS 会拦下它；每次替换新版本后都要再运行一次）。
 3. 四个模型（对齐、读音预测、音高、拉平）已随包，不用下载。人声分离需要另外安装 [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases)。
 
-详细说明见 [README](https://github.com/Axolyz/OttoSmasher#readme) 与 [用户使用说明](https://github.com/Axolyz/OttoSmasher/blob/main/docs/USER_GUIDE.md)。
+详细说明见 [README](https://github.com/Axolyz/OttoSmasher#readme) 与 [用户说明](https://github.com/Axolyz/OttoSmasher/blob/main/docs/user/README.md)。
 
 ## 许可
 

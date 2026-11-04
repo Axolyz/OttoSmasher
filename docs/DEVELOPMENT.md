@@ -1,6 +1,6 @@
 # 从源码运行、开发与测试
 
-给开发者看的；普通用户看 [README](../README.md) 和 [用户使用说明](USER_GUIDE.md)。
+给开发者看的；普通用户看 [README](../README.md) 和 [用户说明](user/README.md)。
 
 - 开发规则与**文档地图**：[AGENTS.md](../AGENTS.md)（先读它：每份文档回答什么、什么时候查）
 - 架构：[ARCHITECTURE.md](ARCHITECTURE.md)；现行决定（含界面规则）：[DECISIONS.md](DECISIONS.md)；路线图与未结事项：[ROADMAP.md](ROADMAP.md)

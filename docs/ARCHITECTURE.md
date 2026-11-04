@@ -170,7 +170,7 @@ core/
     jobs/                任务进程入口（worker.py 按任务种类分发）
     store/               db.py（连接、迁移、备份）、migrations/（0001–0017，只增不改）、workspace.py（工作区布局与锁）
     platform/            进程组 / 作业对象
-    cli/                 命令行 otto：main.py、client.py、guide/（说明书、经验层、playbook 模板、经验层附带的脚本）
+    cli/                 命令行 otto：main.py、client.py、skills.py、guide/（说明书、内置 skill、playbook 模板）
     resources.py         “仓库还是 Resources”的统一判断（源码运行 / 发布版）
   tests/                 unit/、integration/（真实进程与模型；带 OTTO_FIXTURES 时跑真实素材）、perf/（3 万条合成库）
 e2e/                     Playwright 驱动 Electron 的端到端测试（含伪语言、发布包冒烟）
@@ -624,20 +624,20 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
 
 - `docs/api/commands.json`（目录版本 3：每条带 `layer`）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
 - 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包里是 `Contents/Resources/bin/otto`）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
-  `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
+  `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `skills` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 
-### 15.5 说明书（三层，所有者 2026-10-30）
+### 15.5 agent 的说明（三处，所有者 2026-11-04）
 
-- **第 1 层 说明书** `core/ottosmasher/cli/guide/{en,zh-CN}/*.md`：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定（含“长任务别空等：能后台等就后台 `otto wait`，不能就告诉所有者并结束这一轮”）。测试核对两份逐节对应、提到的命令存在、示例参数合法。
-- **第 2 层 做法与经验** `guide/notes/{en,zh-CN}.md`（`otto guide notes`）：洗字幕、对轴、找 OP、分离策略、按说话人分组（实验性）、踩过的坑；写明不是规定、可能过时。
-  经验层附带的脚本放 `guide/scripts/`（`otto guide <文件名>` 原样打印）：agent 存到自己的临时目录、在自己的环境里跑（PEP 723 内联依赖，`uv run`），不在应用里跑、不随应用的 Python 环境安装依赖。
-  现有 `speaker_embed.py`（说话人声纹，anime_speaker_embedding；模型第一次用时由脚本从 Hugging Face 下载，应用不分发）。测试只核对 notes 提到的脚本存在、不需要模型的部分。
-- **第 3 层 所有者的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于第 2 层，改不了第 1 层的硬规定。
+- **说明书** `core/ottosmasher/cli/guide/reference/*.md`（`otto guide`，只有英文）：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定。随版本走，测试核对提到的命令存在、示例参数合法。
+- **skill** `guide/skills/{en,zh-CN}/<名字>/` 加 `guide/skills/common/<名字>/`（语言无关的文件，如 `scripts/speaker_embed.py`）：不确定的流程，格式是 Agent Skills。`cli/skills.py` 把它们同步到 `<工作区>/Agent/skills/`，清单是其中的 `.otto-skills.json`（语言、每个文件装入时和提示过的哈希）。更新规则见 DECISIONS §12。
+  `otto status`、`otto guide`、设置 › 命令行与 agent（`agent.skills`）都会同步。`otto guide` 末尾列出每个 skill 的名字、用途和路径，agent 用到时才读全文。`otto setup skills` 同步并列出 skill 里提到、应用已没有的命令。`otto guide notes` 是旧名字的别名。
+  附带的脚本由 agent 在自己的环境里跑（PEP 723 内联依赖，`uv run`），不在应用里跑。测试核对两种语言逐节对应、符合规范、提到的命令存在，以及不需要模型的那部分脚本。
+- **用户的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于 skill，改不了说明书的硬规定。
 - 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
   可选，想装时 agent 按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、手动重装 otto 和「复制给 agent 的开场白」（让 agent 先跑 `otto status`、`otto guide`，不用下载）。
   发布版启动时自动安装 otto（`app/main/otto-link.ts`；macOS 是 `~/.local/bin/otto` 链接，Windows 是 `WindowsApps/otto.cmd` 转发脚本），运行中的应用登记到 `Application Support/OttoSmasher/instances/<pid>.json`（`cli/instances.py` 读；`otto open` 打开应用）。
-  `otto status` 的 `environment` 报 otto 的位置、模型、PyMSS Studio、有没有 playbook，并给出 `hints`；`otto setup playbook` / `otto setup audio`（只打印接 audio-mcp 的命令 / 配置）。
+  `otto status` 的 `environment` 报 otto 的位置、模型、PyMSS Studio、有没有 playbook、skill 与待合并的新版本，并给出 `hints`；`otto setup audio` 只打印接 audio-mcp 的命令 / 配置。
 - `otto session`：这个会话的任务与修改，长任务之后接着干用。
 
 ### 15.6 两层命令与引擎边界（所有者 2026-10-30）

@@ -103,3 +103,18 @@ def test_join_lines_numbers_morae_and_words_across_lines():
     out = shape_alignment({"text": fe.text, "clock": "file", "window": [0.0, 1.0]}, fe, {"phones": phones}, spans)
     assert [(x["text"], x["start"], x["end"]) for x in out["lines"]] == [("はい、", 0.0, 0.3), ("うん", 0.6, 0.9)]
     assert out["speech"]["start"] == 0.0 and out["speech"]["end"] == 0.9
+
+
+def test_agent_skills_command_seeds_the_workspace_folder(core):
+    r = call(core, "agent.skills", lang="en")
+    assert r["ok"], r
+    names = {x["name"] for x in r["r"]["skills"]}
+    assert {"cleaning-subtitles", "grouping-speakers"} <= names and r["r"]["path"].endswith("skills")
+    assert all(x["builtin"] and x["update"] == [] and x["description"] for x in r["r"]["skills"])
+    assert call(core, "agent.skills")["ok"]  # 语言已经定下，不传也行
+
+
+@pytest.mark.parametrize("expr", ["character:京子 AND NOT topic:game", "(topic:game OR topic:food) AND character:*"])
+def test_user_guide_tag_examples_parse(core, expr):
+    r = call(core, "tags.checkExpr", expr=expr)
+    assert r["ok"] and r["r"]["ok"], r

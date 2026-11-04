@@ -17,7 +17,7 @@
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 当前版本、接下来做什么、未结事项（L 编号） | 挑活、收工时 |
 | [docs/spec/](docs/spec/README.md) | 原始需求规格（交接包 01–19，原样）；“规格 06 §6.2”“R4.4”“S11.3”“P6”这类编号 | 查某条规则的原文与数值例子 |
 | [docs/history/](docs/history/README.md) | 开发期的过程记录（问答、阶段计划、旧界面方案、原型），只追加不改 | 查旧编号（Q、D、L、阶段、UI_PLAN §）的出处 |
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md)、README、`core/ottosmasher/cli/guide/` | 给用户和 agent 看的说明 | 改了用户看得到的行为时同步改 |
+| [docs/user/](docs/user/README.md)、README、`core/ottosmasher/cli/guide/` | 给用户和 agent 看的说明（写法见 DECISIONS §12） | 改了用户看得到的行为时同步改 |
 
 **冲突时的优先级**：所有者最新的明确答复 ＞ DECISIONS ＞ spec ＞ 现在的应用 ＞ 开发者判断。
 发现下位文档和上位冲突，顺手改正下位（spec、history 不改正文：在 DECISIONS 里写清楚）。界面以**现在的应用**为准，旧原型和 history/UI_PLAN 只作出处。
@@ -91,7 +91,7 @@
 - **Core 命令**：在 `core/ottosmasher/core/server.py` 的 `_register` 登记（作用类别 + 参数/返回类型 + 一句英文说明 + `layer`），参数与返回写成 `core/ottosmasher/api/types.py` 里的 TypedDict；
   改完运行 `tools/uv run python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`（测试检查是否最新）。
   前端 `call()` 不写类型参数，按命令名推断；不在页面里手写 Core 返回值的接口。新错误码登记到 `core/ottosmasher/core/errors.py` 的 `ERRORS` 并在 zh-CN.json、en.json 都加 `error.<码>`。
-  给 agent 用的命令同步改说明书（`core/ottosmasher/cli/guide/` 中英两份，测试核对逐节对应）。
+  给 agent 用的命令同步改说明书（`core/ottosmasher/cli/guide/reference/`，只有英文）；提到这个命令的 skill 也要改（`guide/skills/{en,zh-CN}/`，测试核对两份逐节对应）。
 - 用户可见文案一律走文案资源（`app/renderer/i18n/locales/<lang>.json`，`t(key, 参数)`；只翻译文字，数字日期用统一格式），不在代码里写死中文；加文案要中文、英文一起加（`i18n:check` 核对键和参数）；
   `core/` 的代码（注释和文档字符串以外）不写中日文字面量（`i18n:check` 检查）；Core 错误返回“错误码 + 参数”。
 - 每个时间值都要明确所属时钟（原片秒 / 资产局部秒 / 文件秒 / 采样显示坐标）；换算只走 `domain.mapping` 一处。
