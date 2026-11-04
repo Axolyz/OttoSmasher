@@ -3,8 +3,9 @@
 - 卡拍 WAV：只能导出**完整采样**（命中随阶段 7）；方案在需要时自动计算；文件名处理信息「卡拍-<BPM>BPM」（拉平成品为「拉平-<音名>_卡拍-<BPM>BPM」）；
   清单（``Data/Manifests/``）记录方案与组合后的映射（卡拍输出秒 → 原片秒，R21.4）。
 - 拖出跟随最近一次成功试听的版本（列表/舞台：原声或卡拍；界面在本次运行内记住，规格 12 §12.1、D4）。
-- REAPER（两种，所有者 2026-10-08 加了卡好拍版）：**未烘焙的原声** WAV 复制到 ``Library/REAPER/<日期>/``（``<名称>__<版本>__<内容哈希>.wav``；同名但内容不同 → 报错）
-  + 卡拍拉伸标记；或卡好拍的 WAV + 每个起音一个拉伸标记（源 = 目标，REAPER 里可微调）；吸附 = 首个起音（设置可改为条目开头）；批量依次排开、每条间隔一小节（所有者 2026-10-08）；
+- REAPER（两种，所有者 2026-11-04 明确）：都用**未烘焙的原声** WAV，复制到 ``Library/REAPER/<日期>/``（``<名称>__<版本>__<内容哈希>.wav``；同名但内容不同 → 报错）。
+  ``original`` = 不卡拍，每个音头一个 1 倍速标记，方便手动卡；``fitted`` = 拉伸标记把它卡好，听上去是卡拍后的，删掉标记就回到原声。
+  吸附 = 首个起音（设置可改为条目开头）；批量依次排开、每条间隔一小节（所有者 2026-10-08）；
   每次交接写一份交接清单（方案、版本、吸附方式）放在 REAPER 目录。剪贴板由主进程写入并回读校验（Windows 未实测 → 未验收）。
 「版本」段（规格只写了占位）：开发者决定 = 音轨词（原混音 / 人声 / …）加拉平信息，说明这份原声是哪个声音。
 """
@@ -129,38 +130,32 @@ class HandoffService:
             staged.unlink(missing_ok=True)
         return target
 
-    def _items(self, ids: list[str], words: dict[str, str], plan: str, mora: bool, long_vowel: bool, baked: bool) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
-        """``baked=False``：未烘焙原声 + 卡拍拉伸标记（REAPER 里伸缩，可继续调节奏）；
-        ``baked=True``（所有者 2026-10-08 要的）：卡好拍的声音 + 每个起音一个拉伸标记（标记处源 = 目标，REAPER 里拖标记可微调）。"""
+    def _items(self, ids: list[str], words: dict[str, str], plan: str, mora: bool, long_vowel: bool, kind: str) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
+        """``original``：原声 + 音头处的 1 倍速标记；``fitted``：同一份原声 + 卡拍拉伸标记（每个起音都有，保护核心的锚点）。"""
         snap_mode = settings_mod.values(self.conn)["export.reaper_snap"]
         items, meta = [], []
         for sid in dict.fromkeys(ids):
             row = self._sample(sid)
             asset = assets_mod.get(self.conn, row["asset_id"])
             label = "_".join(x for x in (track_label(asset, words), processing_label(asset, words)) if x)
-            if baked:
-                an, s, cells, pcm, sr = self.rhythm.stretched_pcm(sid, plan, mora, long_vowel)
-                path = self._reaper_file(row, pcm, sr, None, f"{label}_{words.get('stretch', 'stretch')}-{bpm_text(s.bpm)}BPM")
-                m = s.map
-                onset_frames = sorted({f for c, f in zip(m.cps, m.onsets) if c.kind == "onset"})
-                pts = sorted({0, *onset_frames, len(pcm)})
-                markers = [(f / sr, f / sr) for f in pts]
+            an, s, cells = self._scheme(sid, plan, mora, long_vowel)
+            pcm, sr, media = self.rhythm._audio(row["asset_id"], float(row["start"]), float(row["end"]))
+            path = self._reaper_file(row, pcm, sr, media, label)
+            m = s.map
+            onsets = [(f, int(round((c.src - an.window[0]) * sr))) for c, f in zip(m.cps, m.onsets) if c.kind == "onset"]
+            if kind == "original":
+                markers = reaper.onset_markers([src for _f, src in onsets], len(pcm), sr)
                 length = len(pcm) / sr
+                first_onset = min(src for _f, src in onsets) / sr
             else:
-                an, s, cells = self._scheme(sid, plan, mora, long_vowel)
-                pcm, sr, media = self.rhythm._audio(row["asset_id"], float(row["start"]), float(row["end"]))
-                path = self._reaper_file(row, pcm, sr, media, label)
-                m = s.map
                 tp = dict((t, src) for src, t in m.knots)
-                for c, f in zip(m.cps, m.onsets):
-                    if c.kind == "onset":
-                        tp[f] = int(round((c.src - an.window[0]) * sr))  # 每个起音都有标记（保护核心的锚点）
+                tp.update(onsets)
                 markers = [(t / sr, tp[t] / sr) for t in sorted(tp)]
                 length = m.out_frames / sr
-            first_onset = next(f for c, f in zip(m.cps, m.onsets) if c.kind == "onset") / sr
+                first_onset = onsets[0][0] / sr
             beat = 60.0 / s.bpm
             items.append(reaper.Item(0.0, first_onset if snap_mode == "onset" else 0.0, length, beat, row["name"], markers, str(path)))
-            meta.append({"sample": sid, "file": str(path), "baked": baked, "plan": plan, "density": s.density, "bpm": s.bpm, "speed": s.speed, "cells": cells,
+            meta.append({"sample": sid, "file": str(path), "kind": kind, "plan": plan, "density": s.density, "bpm": s.bpm, "speed": s.speed, "cells": cells,
                          "route": "mora" if mora else "raw", "analysis": an.run, "markers": len(markers)})
         pos = reaper.lay_out([it.length for it in items], [it.beat for it in items])
         items = [reaper.Item(p, it.snap, it.length, it.beat, it.name, it.markers, it.path) for p, it in zip(pos, items)]
@@ -173,26 +168,27 @@ class HandoffService:
         p.write_text(dumps({"kind": kind, "snap": settings_mod.values(self.conn)["export.reaper_snap"], "items": meta, "createdAt": now_iso()}), encoding="utf-8")
         return p
 
-    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None,
+    def _kind(self, kind: str | None) -> str:
+        return kind or settings_mod.values(self.conn)["export.reaper_kind"]
+
+    def reaper_handoff(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, kind: str | None = None,
                        hits: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。``hits``：检索命中（各用证据方案）。"""
+        """返回剪贴板文本（由主进程写入 ``REAPERMedia`` 并回读校验）。``kind=None`` = 按设置「导出 → ⌘C 复制哪种」。``hits``：检索命中（各用证据方案）。"""
         if not ids and not hits:
             raise CoreError("reaper-empty")
-        if baked is None:
-            baked = settings_mod.values(self.conn)["export.reaper_kind"] == "baked"
-        items, meta = self.hits.reaper_items(hits, words, baked) if hits else self._items(ids, words, plan, mora, long_vowel, baked)
+        kind = self._kind(kind)
+        items, meta = self.hits.reaper_items(hits, words, kind) if hits else self._items(ids, words, plan, mora, long_vowel, kind)
         text = reaper.clipboard(items)
         manifest = self._write_manifest(meta, "clipboard")
         return {"clipboard": text, "files": [m["file"] for m in meta], "manifest": str(manifest), "count": len(items)}
 
-    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None,
+    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, kind: str | None = None,
                         hits: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """``.RTrackTemplate``：同内容的 ITEM，换行分隔；直接拖进 REAPER 就是带拉伸标记的条目。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。"""
+        """``.RTrackTemplate``：同内容的 ITEM，换行分隔；直接拖进 REAPER 就是带拉伸标记的条目。``kind=None`` = 按设置「导出 → ⌘C 复制哪种」。"""
         if not ids and not hits:
             raise CoreError("reaper-empty")
-        if baked is None:
-            baked = settings_mod.values(self.conn)["export.reaper_kind"] == "baked"
-        items, meta = self.hits.reaper_items(hits, words, baked) if hits else self._items(ids, words, plan, mora, long_vowel, baked)
+        kind = self._kind(kind)
+        items, meta = self.hits.reaper_items(hits, words, kind) if hits else self._items(ids, words, plan, mora, long_vowel, kind)
         d = self._reaper_dir()
         base = fname.truncate_utf8(fname.portable(items[0].name), 100).strip(" .") or "item"
         p = d / f"{base}__{new_id()[:8]}.RTrackTemplate"

@@ -12,6 +12,7 @@ import pytest
 from ottosmasher.core.errors import CoreError
 from ottosmasher.domain import reaper
 from ottosmasher.domain.mapping import Mapping
+from ottosmasher.core import settings as settings_mod
 from ottosmasher.media import wavfile
 
 from test_rhythm_service import SR, align, core, sample  # noqa: F401 — 同一组合成素材
@@ -107,7 +108,7 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
     align(core, a)
     align(core, b)
     core.rhythm.set_bpm(150)
-    h = core.handoff.reaper_handoff([a], WORDS, baked=False)
+    h = core.handoff.reaper_handoff([a], WORDS, kind="fitted")
     lines = h["clipboard"].rstrip("\0").split("\0")
     assert lines[0] == "<ITEM" and h["clipboard"].endswith("\0\0")
     f = h["files"][0]
@@ -127,21 +128,21 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
     assert len(snap) == 2 and float(snap[1]) == pytest.approx(first["tgt"], abs=1 / SR)
     assert (core.ws.library / "REAPER").exists() and h["manifest"].endswith(".json")
     # 再交接一次：同名同内容复用文件
-    assert core.handoff.reaper_handoff([a], WORDS, baked=False)["files"] == [f]
+    assert core.handoff.reaper_handoff([a], WORDS, kind="fitted")["files"] == [f]
     # 批量依次排开、间隔一小节
-    hb = core.handoff.reaper_handoff([a, b], WORDS, baked=False)
+    hb = core.handoff.reaper_handoff([a, b], WORDS, kind="fitted")
     blocks = hb["clipboard"].rstrip("\0").split("\0")
     pos = [float(ln.split()[1]) for ln in blocks if ln.startswith("POSITION")]
     lens = [float(ln.split()[1]) for ln in blocks if ln.startswith("LENGTH")]
     assert pos[0] == 0 and pos[1] == pytest.approx(lens[0] + 4 * 60 / 150, abs=1e-9)
-    t = core.handoff.reaper_template([a], WORDS, baked=False)
+    t = core.handoff.reaper_template([a], WORDS, kind="fitted")
     assert t["path"].endswith(".RTrackTemplate") and open(t["path"], encoding="utf-8").read().startswith("<ITEM\n")
     # 同名但内容不同 → 报错
     with open(f, "r+b") as fh:
         fh.seek(-4, 2)
         fh.write(b"\x01\x02\x03\x04")
     with pytest.raises(CoreError) as e:
-        core.handoff.reaper_handoff([a], WORDS, baked=False)
+        core.handoff.reaper_handoff([a], WORDS, kind="fitted")
     assert e.value.code == "reaper-file-conflict"
 
 
@@ -157,7 +158,7 @@ def test_reaper_snap_setting(core):  # noqa: F811
 
 
 @need_rb
-def test_reaper_baked_and_drag_reuses_the_audition_render(core, monkeypatch):  # noqa: F811
+def test_drag_reuses_the_audition_render(core, monkeypatch):  # noqa: F811
     s = sample(core)
     align(core, s)
     core.rhythm.set_bpm(150)
@@ -169,23 +170,41 @@ def test_reaper_baked_and_drag_reuses_the_audition_render(core, monkeypatch):  #
 
     monkeypatch.setattr(render_mod, "render", boom)
     # 拖出 / 导出卡拍：直接用试听渲染的结果
-    r = core.handoff.export_stretched(s, WORDS)
-    v = core.rhythm.view(s)
-    # REAPER 卡好拍版：声音是卡拍后的，标记在每个起音处且源 = 目标，首末各一个
-    h = core.handoff.reaper_handoff([s], WORDS, baked=True)
-    lines = h["clipboard"].rstrip("\0").split("\0")
-    assert "_卡拍-150BPM__" in h["files"][0]
-    _rate, _ch, _bits, frames = wavfile.info(h["files"][0])
-    assert frames == wavfile.info(r["path"])[3]
-    sm = [x.split() for x in next(ln for ln in lines if ln.startswith("SM ")).removeprefix("SM ").split(" + ")]
-    assert all(m[0] == m[1] for m in sm)
-    onsets = [p["tgt"] for p in v["schemes"]["near_fast"]["points"] if p["kind"] == "onset"]
-    assert float(sm[0][0]) == 0 and abs(float(sm[-1][0]) - frames / SR) < 1e-9
-    assert len(sm) == len(onsets) + 2 or len(sm) == len(onsets) + 1
-    for o in onsets:
-        assert any(abs(float(m[0]) - o) < 1.5 / SR for m in sm)
+    assert core.handoff.export_stretched(s, WORDS)["path"]
+
+
+def _markers(clip):
+    lines = clip.rstrip("\0").split("\0")
+    sm = next(ln for ln in lines if ln.startswith("SM ")).removeprefix("SM ").split(" + ")
     length = float(next(ln for ln in lines if ln.startswith("LENGTH")).split()[1])
-    assert abs(length - frames / SR) < 1e-9
+    return [(float(x.split()[0]), float(x.split()[1])) for x in sm], length
+
+
+@need_rb
+def test_reaper_two_kinds_share_the_original_audio(core):  # noqa: F811
+    """所有者 2026-11-04：original = 未卡拍的原声，音头有 1 倍速标记；fitted = 同一份原声，标记把它卡好；删掉标记就回到前者。"""
+    s = sample(core)
+    align(core, s)
+    core.rhythm.set_bpm(150)
+    original = core.handoff.reaper_handoff([s], WORDS, kind="original")
+    fitted = core.handoff.reaper_handoff([s], WORDS, kind="fitted")
+    assert original["files"] == fitted["files"] and "卡拍" not in original["files"][0]
+    _rate, _ch, _bits, frames = wavfile.info(original["files"][0])
+
+    pts, length = _markers(original["clipboard"])
+    assert all(t == src for t, src in pts)
+    assert pts[0][0] == 0 and abs(pts[-1][0] - frames / SR) < 1e-9 and abs(length - frames / SR) < 1e-9
+    v = core.rhythm.view(s)
+    start = core.conn.execute("SELECT start FROM sample WHERE id=?", (s,)).fetchone()[0]
+    onsets = [p["src"] - start for p in v["schemes"]["near_fast"]["points"] if p["kind"] == "onset"]
+    assert onsets
+    for o in onsets:  # 标记在原声里的音头上，不是卡拍后的位置
+        assert any(abs(t - o) < 1.5 / SR for t, _src in pts)
+
+    pts, _length = _markers(fitted["clipboard"])
+    assert any(abs(t - src) > 1e-6 for t, src in pts)  # 有非 1 倍速的段
+    for o in onsets:
+        assert any(abs(src - o) < 1.5 / SR for _t, src in pts)
 
 
 @need_rb
@@ -194,9 +213,19 @@ def test_reaper_default_kind_follows_setting(core):  # noqa: F811
 
     s = sample(core)
     align(core, s)
-    assert "_stretch-" in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]  # 默认：卡好拍＋起音标记
-    set_setting(core, "export.reaper_kind", "unbaked")
-    assert "_stretch-" not in core.handoff.reaper_handoff([s], {"stretch": "stretch"})["files"][0]
+    core.rhythm.set_bpm(150)
+    pts, _ = _markers(core.handoff.reaper_handoff([s], WORDS)["clipboard"])
+    assert any(abs(t - src) > 1e-6 for t, src in pts)  # 默认：卡拍效果
+    set_setting(core, "export.reaper_kind", "original")
+    pts, _ = _markers(core.handoff.reaper_handoff([s], WORDS)["clipboard"])
+    assert all(t == src for t, src in pts)
+
+
+@need_rb
+def test_reaper_kind_old_stored_values_read_as_fitted(core):  # noqa: F811
+    for old in ("baked", "unbaked"):
+        core.conn.execute("INSERT OR REPLACE INTO setting(key, value, version, updated_at) VALUES ('export.reaper_kind', ?, 1, '')", (f'"{old}"',))
+        assert settings_mod.values(core.conn)["export.reaper_kind"] == "fitted"
 
 
 @need_rb

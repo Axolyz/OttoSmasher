@@ -165,7 +165,7 @@ SPECS: dict[str, SettingSpec] = {
         # 导出：REAPER 交接的吸附（12 §12.3：首个起音落在编辑光标 / 以条目开头为准）
         SettingSpec("export.reaper_snap", "onset", _choice("onset", "start"), "export"),
         # ⌘C 复制哪种 REAPER 交接（所有者 2026-10-08 选丙）：卡好拍＋起音标记 / 原声＋拉伸标记（可再调）；菜单里两种都有
-        SettingSpec("export.reaper_kind", "baked", _choice("baked", "unbaked"), "export"),
+        SettingSpec("export.reaper_kind", "fitted", _choice("original", "fitted"), "export"),
         # 视频片段的编码（12 §12.5：默认 H.264 MP4 + AAC；可选高质量中间编码 ProRes 422 HQ MOV + PCM）
         SettingSpec("export.video_codec", "h264", _choice("h264", "prores"), "export"),
         # 任务并发（规格 13 §13.1.2、16 R19.3：模型 1、轻量 2；可设 1–4，0 拒绝）
@@ -206,6 +206,8 @@ def read_all(conn: Any) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for key, s in SPECS.items():
         value, version = stored.get(key, (s.default, 0))
+        if key == "export.reaper_kind" and value in ("baked", "unbaked"):  # 2026-11-04 之前存的：两种听上去都是卡好拍的
+            value = "fitted"
         out[key] = {"value": value, "default": s.default, "version": version, "group": s.group}
     return out
 

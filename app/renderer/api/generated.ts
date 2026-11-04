@@ -1252,13 +1252,13 @@ export interface ReaperHandoff {
 }
 
 /**
- * REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记 / false = 未烘焙原声 + 卡拍拉伸标记 /
+ * REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。kind：original = 原声 + 音头处的 1 倍速拉伸标记 / fitted = 原声 + 卡拍拉伸标记 /
  *     不给 = 按设置 export.reaper_kind（⌘C 用）。
  */
 export interface ReaperParams {
-  baked?: boolean | null;
   hits?: HitRefParams[] | null;
   ids: string[];
+  kind?: "fitted" | "original" | null;
   longVowel?: boolean | null;
   mora?: boolean | null;
   plan?: "double" | "near_fast" | "near_slow" | null;
@@ -3147,7 +3147,7 @@ export interface Commands {
   "playback.resolveRender": { params: RenderKeyParams; result: AssetHandle; effect: "read" };
   /** Playback handle for the source player (file, audio track, external stem). */
   "playback.resolveSource": { params: ResolveSourceParams; result: SourceHandle; effect: "read" };
-  /** Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers. */
+  /** Copy the original WAVs to the REAPER folder and build the REAPERMedia clipboard text: kind=original puts 1x stretch markers on the onsets, kind=fitted beat-fits with stretch markers. */
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
   /** Write the same items as an .RTrackTemplate file; dropping it into REAPER gives items with stretch markers. */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };

@@ -132,7 +132,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   await page.getByRole("menuitem", { name: "导出卡拍 WAV" }).click();
   await expect(page.getByText(/卡拍-180BPM/).first()).toBeVisible();
   await page.getByTestId("stage-handoff").click();
-  await page.getByRole("menuitem", { name: "复制 REAPER 交接（原始音频，靠拉伸标记卡拍）" }).click();
+  await page.getByRole("menuitem", { name: "复制 REAPER 交接（卡拍效果，用拉伸标记实现）" }).click();
   await expect(page.getByText("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")).toBeVisible();
   const clip = await app.evaluate(async ({ clipboard }) => {
     const fmt = 'electron application/osclipboard;format="REAPERMedia"';
@@ -141,7 +141,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
     }
     return null;
   });
-  // ⌘C（所有者选丙）：采样库里复制 REAPER 交接，默认“已卡拍的音频”。真实的 ⌘C 走应用菜单的「拷贝」= webContents.copy（Playwright 的合成按键不经过原生菜单）
+  // ⌘C（所有者选丙）：采样库里复制 REAPER 交接，默认“卡拍效果”。真实的 ⌘C 走应用菜单的「拷贝」= webContents.copy（Playwright 的合成按键不经过原生菜单）
   const readClip = () =>
     app.evaluate(async ({ clipboard }) => {
       const fmt = 'electron application/osclipboard;format="REAPERMedia"';
@@ -150,25 +150,30 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
       }
       return "";
     });
+  await app.evaluate(({ clipboard }) => clipboard.clear());
   await page.getByTestId("stage-title").click();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.copy());
-  await expect.poll(readClip, { timeout: 15000 }).toContain("卡拍-180BPM");
+  await expect.poll(readClip, { timeout: 15000 }).toContain("<ITEM");
   expect(clip).not.toBeNull();
   expect(clip!.startsWith("<ITEM\0")).toBe(true);
   expect(clip!.endsWith("\0\0")).toBe(true);
   expect(clip).toContain("PLAYRATE 1 1 0 -1 0 0.0025");
   // 只写秒：写了按采样 BPM 算的节拍位置，REAPER 粘贴时会整体缩放条目、改 Playback rate（所有者 2026-11-04）
-  // 两个菜单项各生成什么：原始音频的文件名没有“卡拍”，标记会拉伸（目标 ≠ 源）；已卡拍的音频文件名有“卡拍”，标记处目标 = 源
+  // 两个菜单项（所有者 2026-11-04）：用同一份未卡拍的原声；卡拍效果有非 1 倍速的标记，原声的标记全是 1 倍速
   const markersOf = (text: string) =>
     /\0SM ([^\0]+)\0/.exec(text)![1]!.split(" + ").map((m) => m.split(" ").map(Number) as [number, number]);
-  expect(/\0FILE [^\0]+/.exec(clip!)![0]).not.toContain("卡拍-");
+  const fileOf = (text: string) => /\0FILE [^\0]+/.exec(text)![0];
+  expect(fileOf(clip!)).not.toContain("卡拍");
   expect(markersOf(clip!).some(([t, src]) => Math.abs(t - src) > 1e-6)).toBe(true);
-  await app.evaluate(({ clipboard }) => clipboard.clear()); // 上面 ⌘C 留下的也是这一种，先清掉才算测到菜单项
+  expect(markersOf(await readClip()).some(([t, src]) => Math.abs(t - src) > 1e-6)).toBe(true); // ⌘C 默认也是卡拍效果
+  await app.evaluate(({ clipboard }) => clipboard.clear()); // 先清掉才算测到菜单项
   await page.getByTestId("stage-handoff").click();
-  await page.getByRole("menuitem", { name: "复制 REAPER 交接（已卡拍的音频，标记只用于微调）" }).click();
-  await expect.poll(readClip, { timeout: 15000 }).toContain("卡拍-180BPM");
-  const bakedClip = await readClip();
-  expect(markersOf(bakedClip).every(([t, src]) => Math.abs(t - src) < 1e-6)).toBe(true);
+  await page.getByRole("menuitem", { name: "复制 REAPER 交接（原声，音头带拉伸标记）" }).click();
+  await expect.poll(readClip, { timeout: 15000 }).toContain("<ITEM");
+  const originalClip = await readClip();
+  expect(fileOf(originalClip)).toBe(fileOf(clip!));
+  expect(markersOf(originalClip).length).toBeGreaterThan(2);
+  expect(markersOf(originalClip).every(([t, src]) => t === src)).toBe(true);
   expect(clip).toMatch(/\0LENGTH [\d.]+\0/);
   expect(clip).toMatch(/\0SM [\d.]+ [\d.]+( \+ [\d.]+ [\d.]+)*\0/);
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), before); // 还原所有者的剪贴板（文字）

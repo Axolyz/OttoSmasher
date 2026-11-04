@@ -537,15 +537,15 @@ export function LibraryPage() {
     }
     if (queued) toast({ text: t("video.queuedN", { n: queued }) });
   };
-  /** ``baked``：卡好拍的声音 + 起音拉伸标记；false = 未烘焙原声 + 卡拍拉伸标记（12 §12.3）；不给 = 按设置（⌘C） */
-  const copyReaper = async (ids: string[], opts: AuditionOpts = {}, baked?: boolean) => {
-    const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked });
+  /** ``kind``：original = 原声 + 音头处的 1 倍速标记；fitted = 原声 + 卡拍拉伸标记（12 §12.3）；不给 = 按设置（⌘C） */
+  const copyReaper = async (ids: string[], opts: AuditionOpts = {}, kind?: "original" | "fitted") => {
+    const r = await window.otto.reaper.copy({ ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, kind });
     if (!r.ok) return toast({ text: errorText(r.e), tone: "error" });
     toast({ text: t(r.r.count > 1 ? "reaper.copiedN" : "reaper.copied", { n: r.r.count }) });
   };
   const reaperTemplate = async (ids: string[], opts: AuditionOpts = {}) => {
     try {
-      const r = await call("reaper.template", { ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked: false });
+      const r = await call("reaper.template", { ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, kind: "fitted" });
       reveal(r.path);
     } catch (e) {
       fail(e);
@@ -563,8 +563,8 @@ export function LibraryPage() {
           { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportStretched([r.id], opts) },
           { id: "video", label: t("video.menu"), run: () => setVideoFor({ sample: r, ...opts }) },
           "-",
-          { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void copyReaper([r.id], opts, true) },
-          { id: "reaper", label: t("handoff.reaper"), run: () => void copyReaper([r.id], opts, false) },
+          { id: "reaperOriginal", label: t("handoff.reaperOriginal"), run: () => void copyReaper([r.id], opts, "original") },
+          { id: "reaperFitted", label: t("handoff.reaperFitted"), run: () => void copyReaper([r.id], opts, "fitted") },
           { id: "rtt", label: t("handoff.rtt"), run: () => void reaperTemplate([r.id], opts) },
         ];
 
@@ -784,8 +784,8 @@ export function LibraryPage() {
     const label = t("video.hitLabel", { name: it.name, a: (h.start - base).toFixed(2), b: (h.end - base).toFixed(2) });
     setVideoFor({ sample: r.sample, hit: { ...hitRef(r, i), label, stretch: (resPage?.result.kind ?? "speech") === "speech" } });
   };
-  const reaperHit = async (r: ResultRow, i: number, baked: boolean) => {
-    const x = await window.otto.reaper.copy({ ids: [], hits: [hitRef(r, i)], words: trackWords(), baked });
+  const reaperHit = async (r: ResultRow, i: number, kind: "original" | "fitted") => {
+    const x = await window.otto.reaper.copy({ ids: [], hits: [hitRef(r, i)], words: trackWords(), kind });
     if (!x.ok) return toast({ text: errorText(x.e), tone: "error" });
     toast({ text: t("reaper.copied", { n: 1 }) });
   };
@@ -813,8 +813,8 @@ export function LibraryPage() {
             "-",
             { id: "wav", label: t("handoff.wav"), run: () => void exportHit(r, i, "original") },
             { id: "stretched", label: t("handoff.stretchedWav"), run: () => void exportHit(r, i, "stretched") },
-            { id: "reaperBaked", label: t("handoff.reaperBaked"), run: () => void reaperHit(r, i, true) },
-            { id: "reaper", label: t("handoff.reaper"), run: () => void reaperHit(r, i, false) },
+            { id: "reaperOriginal", label: t("handoff.reaperOriginal"), run: () => void reaperHit(r, i, "original") },
+            { id: "reaperFitted", label: t("handoff.reaperFitted"), run: () => void reaperHit(r, i, "fitted") },
           ]
         : [];
     const videoItem: MenuItems = r.sample ? [{ id: "video", label: t("video.menu"), run: () => videoHit(it, r, i) }] : [];
@@ -882,8 +882,8 @@ export function LibraryPage() {
       id: "reaper",
       label: t("handoff.reaperMenu"),
       items: [
-        { id: "reaperBaked", label: t("handoff.reaperBakedN", { n: ids.length }), run: () => void copyReaper(ids, {}, true) },
-        { id: "reaper", label: t("handoff.reaperN", { n: ids.length }), run: () => void copyReaper(ids, {}, false) },
+        { id: "reaperOriginal", label: t("handoff.reaperOriginalN", { n: ids.length }), run: () => void copyReaper(ids, {}, "original") },
+        { id: "reaperFitted", label: t("handoff.reaperFittedN", { n: ids.length }), run: () => void copyReaper(ids, {}, "fitted") },
         { id: "rtt", label: t("handoff.rttN", { n: ids.length }), run: () => void reaperTemplate(ids) },
       ],
     },

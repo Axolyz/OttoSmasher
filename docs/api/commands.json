@@ -907,7 +907,7 @@
    "name": "reaper.handoff",
    "effect": "write",
    "layer": "library",
-   "summary": "Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers.",
+   "summary": "Copy the original WAVs to the REAPER folder and build the REAPERMedia clipboard text: kind=original puts 1x stretch markers on the onsets, kind=fitted beat-fits with stretch markers.",
    "params": {
     "$ref": "#/$defs/ReaperParams"
    },
@@ -9470,19 +9470,9 @@
   },
   "ReaperParams": {
    "title": "ReaperParams",
-   "description": "REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记 / false = 未烘焙原声 + 卡拍拉伸标记 /\n    不给 = 按设置 export.reaper_kind（⌘C 用）。",
+   "description": "REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。kind：original = 原声 + 音头处的 1 倍速拉伸标记 / fitted = 原声 + 卡拍拉伸标记 /\n    不给 = 按设置 export.reaper_kind（⌘C 用）。",
    "type": "object",
    "properties": {
-    "baked": {
-     "anyOf": [
-      {
-       "type": "boolean"
-      },
-      {
-       "type": "null"
-      }
-     ]
-    },
     "hits": {
      "anyOf": [
       {
@@ -9501,6 +9491,19 @@
      "items": {
       "type": "string"
      }
+    },
+    "kind": {
+     "anyOf": [
+      {
+       "enum": [
+        "fitted",
+        "original"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "longVowel": {
      "anyOf": [

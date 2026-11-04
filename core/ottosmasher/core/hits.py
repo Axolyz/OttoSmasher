@@ -208,7 +208,7 @@ class HitService:
 
     # ------------------------------------------------------------ REAPER
 
-    def reaper_items(self, refs: list[dict[str, Any]], words: dict[str, str], baked: bool) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
+    def reaper_items(self, refs: list[dict[str, Any]], words: dict[str, str], kind: str) -> tuple[list[reaper.Item], list[dict[str, Any]]]:
         snap_mode = settings_mod.values(self.conn)["export.reaper_snap"]
         items, meta = [], []
         for ref in refs:
@@ -216,28 +216,25 @@ class HitService:
             asset = assets_mod.get(self.conn, r["assetId"])
             label = "_".join(x for x in (track_label(asset, words), processing_label(asset, words)) if x)
             row = {"name": (r["name"] or "") + words.get("fragment", "")}
-            if baked:
-                an, plan, s, name, out, sr, (a, b) = self._stretched(r)
-                path = self.handoff._reaper_file(row, out, sr, None, f"{label}_{words.get('stretch', 'stretch')}-{bpm_text(s.bpm)}BPM")
-                onsets = sorted({f - a for c, f in zip(s.map.cps, s.map.onsets) if c.kind == "onset" and a <= f < b})
-                markers = [(f / sr, f / sr) for f in sorted({0, *onsets, len(out)})]
-                length = len(out) / sr
+            an, plan, s, name = self._scheme(r)
+            pcm, sr, media = self.rhythm._audio(r["assetId"], r["start"], r["end"])
+            path = self.handoff._reaper_file(row, pcm, sr, media, label)
+            a, b = self._slice(an, plan, s, r["start"], r["end"])
+            off = int(round((r["start"] - plan.window[0]) * sr))
+            pairs = [(f - a, int(round((c.src - plan.window[0]) * sr)) - off) for c, f in zip(s.map.cps, s.map.onsets) if c.kind == "onset" and a <= f < b]
+            if kind == "original":
+                onsets = [src for _t, src in pairs]
+                markers = reaper.onset_markers(onsets, len(pcm), sr)
+                length = len(pcm) / sr
             else:
-                an, plan, s, name = self._scheme(r)
-                pcm, sr, media = self.rhythm._audio(r["assetId"], r["start"], r["end"])
-                path = self.handoff._reaper_file(row, pcm, sr, media, label)
-                a, b = self._slice(an, plan, s, r["start"], r["end"])
-                off = int(round((r["start"] - plan.window[0]) * sr))
                 tp = {int(round(t)) - a: int(round(src)) - off for src, t in _slice_knots(s.map.knots, a, b)}
-                for c, f in zip(s.map.cps, s.map.onsets):
-                    if c.kind == "onset" and a <= f < b:
-                        tp[f - a] = int(round((c.src - plan.window[0]) * sr)) - off
+                tp.update(pairs)
                 markers = [(t / sr, max(0, min(len(pcm), tp[t])) / sr) for t in sorted(tp)]
                 length = (b - a) / sr
-                onsets = [f - a for c, f in zip(s.map.cps, s.map.onsets) if c.kind == "onset" and a <= f < b]
+                onsets = [t for t, _src in pairs]
             first_onset = (min(onsets) / sr) if onsets else 0.0
             items.append(reaper.Item(0.0, first_onset if snap_mode == "onset" else 0.0, length, 60.0 / s.bpm, row["name"], markers, str(path)))
-            meta.append({"hit": ref, "sample": r["sampleId"], "file": str(path), "baked": baked, "plan": name, "density": s.density, "bpm": s.bpm,
+            meta.append({"hit": ref, "sample": r["sampleId"], "file": str(path), "kind": kind, "plan": name, "density": s.density, "bpm": s.bpm,
                          "speed": s.speed, "range": [r["start"], r["end"]], "analysis": an.run, "markers": len(markers)})
         pos = reaper.lay_out([it.length for it in items], [it.beat for it in items])
         return [reaper.Item(p, it.snap, it.length, it.beat, it.name, it.markers, it.path) for p, it in zip(pos, items)], meta

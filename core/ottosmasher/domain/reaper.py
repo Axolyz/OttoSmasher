@@ -59,6 +59,11 @@ def check_markers(markers: Sequence[tuple[float, float]]) -> None:
             raise CoreError("reaper-markers-not-monotonic", at=round(t1, 6))
 
 
+def onset_markers(frames: Sequence[int], total: int, sr: int) -> list[tuple[float, float]]:
+    """原声版的标记：每个音头一个，目标 = 源（都是 1 倍速，手动卡拍时拖它们），首尾各一个。"""
+    return [(f / sr, f / sr) for f in sorted({0, total, *(f for f in frames if 0 < f < total)})]
+
+
 def item_lines(it: Item, guid: Callable[[], str] | None = None) -> list[str]:
     g = guid or (lambda: "{" + str(uuid.uuid4()).upper() + "}")
     check_markers(it.markers)

@@ -2477,7 +2477,7 @@ class StretchedExportParams(TypedDict):
 
 
 class ReaperParams(TypedDict):
-    """REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。baked：卡好拍的声音 + 起音拉伸标记 / false = 未烘焙原声 + 卡拍拉伸标记 /
+    """REAPER 交接（12 §12.3）：多条 = 依次排开、间隔一小节。kind：original = 原声 + 音头处的 1 倍速拉伸标记 / fitted = 原声 + 卡拍拉伸标记 /
     不给 = 按设置 export.reaper_kind（⌘C 用）。"""
 
     ids: list[str]
@@ -2485,7 +2485,7 @@ class ReaperParams(TypedDict):
     plan: NotRequired[RhythmPlan | None]
     mora: NotRequired[bool | None]
     longVowel: NotRequired[bool | None]
-    baked: NotRequired[bool | None]
+    kind: NotRequired[Literal["original", "fitted"] | None]
     # 检索命中（09 §9.7）：用各自证据所选的方案；给了就只交接这些命中（ids 留空）
     hits: NotRequired[list["HitRefParams"] | None]
 

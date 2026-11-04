@@ -55,7 +55,7 @@ const CHOICES: Record<string, string[]> = {
   "flatten.batch_target": ["auto", "edge"],
   // REAPER 交接的吸附（12 §12.3）
   "export.reaper_snap": ["onset", "start"],
-  "export.reaper_kind": ["baked", "unbaked"],
+  "export.reaper_kind": ["original", "fitted"],
   "export.video_codec": ["h264", "prores"],
 };
 const choiceLabel = (key: string, v: string) =>

@@ -46,8 +46,8 @@ def test_hit_render_uses_evidence_scheme_and_cuts_the_hit(core, tmp_path):
     p0 = core.hits.export(rid, row["rank"], 0, "original", WORDS)["path"]
     p1 = core.hits.export(rid, row["rank"], 0, "stretched", WORDS)["path"]
     assert " · frag" in p0 and "stretch-180BPM" in p1
-    for baked in (True, False):
-        out = core.handoff.reaper_handoff([], WORDS, baked=baked, hits=[{"resultId": rid, "rank": row["rank"], "index": 0}])
+    for kind in ("original", "fitted"):
+        out = core.handoff.reaper_handoff([], WORDS, kind=kind, hits=[{"resultId": rid, "rank": row["rank"], "index": 0}])
         assert out["count"] == 1 and out["clipboard"].startswith("<ITEM")
 
 
