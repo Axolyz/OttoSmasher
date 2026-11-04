@@ -152,4 +152,5 @@ def test_session_and_status_environment(app):
     assert rc == 0 and s["jobs"] == []
     rc, st, _ = otto(root, "status")
     env = st["environment"]
-    assert rc == 0 and env["otto"] and "models" in env and "skills" not in env and env["playbook"] is None
+    assert rc == 0 and env["otto"] and "models" in env and env["playbook"] is None
+    assert "cleaning-subtitles" in env["skills"]["names"] and env["skills"]["updates"] == []  # status 把内置 skill 放进工作区并报告
