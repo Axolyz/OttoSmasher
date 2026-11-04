@@ -1,6 +1,6 @@
 ---
 name: picking-lines
-description: "Picks lines by meaning from thousands of OttoSmasher segments without reading them all into context, then turns them into tagged samples. Use for requests such as finding every line that talks about games."
+description: "Picks lines by meaning from thousands of OttoSmasher segments without reading them all into context, then turns them into tagged samples. Use for requests such as finding every line that talks about games. Not needed for a handful of lines."
 ---
 
 # Picking lines

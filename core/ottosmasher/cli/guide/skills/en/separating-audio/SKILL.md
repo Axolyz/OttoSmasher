@@ -1,6 +1,6 @@
 ---
 name: separating-audio
-description: "Chooses between separating whole episodes and only the parts needed with PyMSS Studio in OttoSmasher, and estimates the time and disk cost. Use before submitting vocal separation."
+description: "Compares whole-episode and partial vocal separation in OttoSmasher, with time and disk costs. Use when many lines or episodes are involved and the user has not said what to separate. Not needed for a plain separation request."
 ---
 
 # Separating audio

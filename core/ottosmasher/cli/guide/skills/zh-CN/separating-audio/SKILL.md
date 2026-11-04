@@ -1,6 +1,6 @@
 ---
 name: separating-audio
-description: "在 OttoSmasher 里用 PyMSS Studio 分离人声时，决定整集分离还是只分离用得到的段，并估算时间和磁盘占用。提交人声分离之前使用。"
+description: "比较 OttoSmasher 里整集分离和局部分离的做法，并给出时间和磁盘占用。用于涉及很多句或很多集、用户又没说要分离哪些时。普通的分离请求不需要。"
 ---
 
 # 分离音频

@@ -1,6 +1,6 @@
 ---
 name: finding-op-ed
-description: "Finds opening and ending songs in OttoSmasher sources that have no usable subtitle marks, by comparing episodes of a work. Use when OP/ED ranges are missing or the subtitles do not mark them."
+description: "Finds opening and ending songs in OttoSmasher sources by comparing episodes of a work. Use only when OP/ED ranges are missing and the subtitles do not mark them."
 ---
 
 # Finding the OP and ED

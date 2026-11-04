@@ -22,7 +22,7 @@ Topic `primitives` explains when to register a file first.
 | Source | What it holds | Who changes it |
 |---|---|---|
 | This reference (`otto guide`) | Objects, commands, app behaviour, rules. Always matches the running app. | The app's developers |
-| Skills (the folder `Agent/skills/` in the workspace) | Procedures for tasks that need judgement. Listed at the end of `otto guide`; read one when its task comes up. | The user |
+| Skills (the folder `Agent/skills/` in the workspace) | Procedures for a few specific tasks. Listed at the end of `otto guide`. Read one only when your task matches its description; most tasks need none. | The user |
 | Playbook (`Agent/playbook.md` in the workspace) | The user's standing conventions. Read it when you start. | The user |
 
 The playbook wins over skills. Neither can override the ground rules below.
@@ -49,11 +49,13 @@ The installed `otto` talks to the installed app and `tools/otto` to the developm
 - The user's media files: read only.
 - Your own working files: keep them in your own temporary folder, not in the workspace or the material folders. Say what you left behind.
 
-### Check your tools before batch work
+### Check your audio tool before any task that needs judgement
 
-Before long batch work, confirm with a real call that each tool you depend on works, and report each as verified, unavailable or not yet tested.
-To judge sound and you cannot hear (checking an alignment, finding the OP, telling who speaks), use an audio tool in your environment.
-If there is none, ask the user to run `otto setup audio --for <your tool>`; do not guess from text.
+Only tasks that follow fixed steps can skip this, such as registering files or exporting samples the user named.
+Every other task needs you to hear the material: arranging an otomad rap, choosing a timbre, picking lines, cleaning subtitles, checking an alignment.
+
+Before such a task, call your audio tool on a short real clip, for example one spectrogram and one transcript. A listed tool is not a working tool. Report it as verified, unavailable or not yet tested.
+If it is unavailable, ask the user to run `otto setup audio --for <your tool>`. Do not judge sound from text.
 
 ### Output and exit codes
 

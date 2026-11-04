@@ -1,6 +1,6 @@
 ---
 name: retiming-lines
-description: "Fixes line boundaries in OttoSmasher with a rough pass and alignment, maps times from external tools back to the source, and writes many edits as one undo. Use when segments are mistimed or analysis results look wrong."
+description: "Fixes line boundaries in OttoSmasher with a rough pass and alignment, maps times from external tools back to the source, and writes many edits as one undo. Use when segments are mistimed or analysis results look wrong. Not needed for ordinary speech analysis."
 ---
 
 # Retiming lines

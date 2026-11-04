@@ -499,7 +499,7 @@ def print_skills(args: argparse.Namespace) -> None:
     ws = workspace_of(args)
     sync_skills(args)
     rows = skills.listing(ws)
-    sys.stdout.write(f"Skills: procedures for tasks that need judgement. They live in {skills.skills_dir(ws)} and the user may edit them. Read a SKILL.md when its task comes up.\n")
+    sys.stdout.write(f"Skills: procedures for a few specific tasks. They live in {skills.skills_dir(ws)} and the user may edit them. Read one only when your task matches its description; most tasks need none.\n")
     for r in rows:
         extra = " (a newer built-in version is next to it as .new; offer to merge it)" if r["update"] else ""
         sys.stdout.write(f"- {r['name']}: {r['description']}{extra}\n  {r['path']}\n")

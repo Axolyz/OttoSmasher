@@ -21,6 +21,6 @@ Try these in order:
 1. Run `otto status`. If the app is not running, run `otto open`.
 2. Run `otto guide`: the overview, the ground rules and the list of skills. Read it before your first command.
 3. Run `otto guide playbook`: the user's own conventions.
-4. Read the matching skill before a task that needs judgement, such as cleaning subtitles, retiming or grouping speakers. Those skills are files in the workspace, and the user may have edited them.
+4. Read a skill only when your task matches its description in that list. Those skills are files in the workspace, and the user may have edited them.
 
-Before batch work on subtitles or alignment, follow the "Before you start" steps in skill `cleaning-subtitles`, including a real call to your audio tool.
+Unless your task only follows fixed steps, check your audio tool as the overview describes before you start.

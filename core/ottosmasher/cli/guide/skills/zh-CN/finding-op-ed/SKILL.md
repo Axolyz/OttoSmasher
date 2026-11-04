@@ -1,6 +1,6 @@
 ---
 name: finding-op-ed
-description: "通过比对同一作品的多集，在 OttoSmasher 里为没有可用字幕标记的原素材找出片头曲和片尾曲。用于缺少 OP/ED 区间，或字幕没有标出它们时。"
+description: "通过比对同一作品的多集，在 OttoSmasher 里找出片头曲和片尾曲。只在缺少 OP/ED 区间、字幕也没有标出时使用。"
 ---
 
 # 找 OP 和 ED

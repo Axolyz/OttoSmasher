@@ -1,6 +1,6 @@
 ---
 name: cleaning-subtitles
-description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视频一个同名 UTF-8 SRT，只留说出口的话，一条一个人。用于字幕杂乱、中日双语、CC 字幕、要标说话人，或者字幕来自别的版本时。"
+description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视频一个同名 UTF-8 SRT，只留说出口的话，一条一个人。用于字幕杂乱、中日双语、CC 字幕、要补说话人标注，或者字幕来自别的版本时。字幕已经干净就不需要。"
 ---
 
 # 洗字幕
@@ -13,7 +13,7 @@ description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视�
 
 1. 运行 `otto status`。
 2. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离（skill `separating-audio`），因为拆字幕要听得清。
-3. 用音频工具实际处理一小段真实音频，例如出一张频谱图、转写一次。工具列得出来不等于能用。没有工具就请用户运行 `otto setup audio`。
+3. 按总览的要求检查音频工具。
 4. 给标注做体检（见下一节），之后才能相信标注和换人的位置。
 
 改字幕前都留一份 `backup_` 原件。同名的 `.ass` 可以留着。

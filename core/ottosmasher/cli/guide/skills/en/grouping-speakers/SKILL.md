@@ -1,6 +1,6 @@
 ---
 name: grouping-speakers
-description: "Labels who says each OttoSmasher line by comparing voiceprints from the bundled script, with or without existing speaker labels. Use when segments lack speakers and the user wants lines sorted by character. Experimental."
+description: "Labels who says each OttoSmasher line by clustering voiceprints from the bundled script, with or without existing speaker labels. Use only when the user asks to label or group lines by speaker across many lines. No other task needs voiceprints. Experimental."
 ---
 
 # Grouping lines by speaker (experimental)

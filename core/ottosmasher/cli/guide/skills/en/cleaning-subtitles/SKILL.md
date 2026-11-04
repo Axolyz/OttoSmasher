@@ -1,6 +1,6 @@
 ---
 name: cleaning-subtitles
-description: "Cleans subtitle files into the form OttoSmasher reads: one same-name UTF-8 SRT per video, spoken words only, one person per cue. Use for messy, bilingual or closed-caption subtitles, speaker labels, or subtitles timed for a different release."
+description: "Cleans subtitle files into the form OttoSmasher reads: one same-name UTF-8 SRT per video, spoken words only, one person per cue. Use for messy, bilingual or closed-caption subtitles, adding speaker labels, or subtitles timed for a different release. Not needed when the subtitles are already clean."
 ---
 
 # Cleaning subtitles
@@ -13,7 +13,7 @@ Do these before any batch work, and report each one as verified, unavailable or 
 
 1. Run `otto status`.
 2. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none (skill `separating-audio`), because splitting cues needs a clear voice.
-3. Call your audio tool on a short real clip, for example one spectrogram and one transcript. A listed tool is not a working tool. Without one, ask the user to run `otto setup audio`.
+3. Check your audio tool as the overview describes.
 4. Audit the labels (next section) before you trust any label or turn boundary.
 
 Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.

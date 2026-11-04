@@ -61,7 +61,9 @@
 
 ## 接上音频工具
 
-很多 agent 听不到声音。运行 `otto setup audio --for claude-code|codex|other`，它会给出接上 [audio-mcp](https://pypi.org/project/audio-mcp/) 的命令或配置。接上后，agent 能看频谱图、量响度、做带时间的转写。
+很多 agent 听不到声音。除了登记文件、导出指定采样这类按固定步骤做的事，agent 做需要判断的任务都要先接上音频工具，比如编排音 MAD rap、挑音色、挑台词、洗字幕。
+
+运行 `otto setup audio --for claude-code|codex|other`，它会给出接上 [audio-mcp](https://pypi.org/project/audio-mcp/) 的命令或配置。接上后，agent 能看频谱图、量响度、做带时间的转写。
 
 这需要先装好 `uv`。第一次使用会下载程序和 Whisper 模型，约 1.6 GB。它只用 CPU，所以长音频转写较慢。
 
