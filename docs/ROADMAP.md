@@ -5,7 +5,7 @@
 
 ## 1. 当前版本
 
-**0.1.4**（2026-11-04，macOS arm64 本地构建，Windows x64 预览版云端构建；已在 GitHub 发布；所有者日用的还是 0.1.3）。发布方式见 [DEVELOPMENT.md](DEVELOPMENT.md)「发布」，版本号与发布说明的规矩见 DECISIONS §14。
+**0.1.4**（2026-11-04，macOS arm64 本地构建，Windows x64 预览版云端构建；已在 GitHub 发布；所有者日用这个版本）。发布方式见 [DEVELOPMENT.md](DEVELOPMENT.md)「发布」，版本号与发布说明的规矩见 DECISIONS §14。
 
 ## 2. 接下来
 
