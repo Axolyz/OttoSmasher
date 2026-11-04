@@ -3149,7 +3149,7 @@ export interface Commands {
   "playback.resolveSource": { params: ResolveSourceParams; result: SourceHandle; effect: "read" };
   /** Copy WAVs to the REAPER folder and build the REAPERMedia clipboard text: unbaked original + stretch markers, or (baked) stretched audio + onset markers. */
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
-  /** Write the same items as an .RTrackTemplate file (experimental). */
+  /** Write the same items as an .RTrackTemplate file; dropping it into REAPER gives items with stretch markers. */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };
   /** Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample. */
   "reimport.commit": { params: ReimportCommitParams; result: SampleRow; effect: "write" };

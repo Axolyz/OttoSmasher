@@ -919,7 +919,7 @@
    "name": "reaper.template",
    "effect": "write",
    "layer": "library",
-   "summary": "Write the same items as an .RTrackTemplate file (experimental).",
+   "summary": "Write the same items as an .RTrackTemplate file; dropping it into REAPER gives items with stretch markers.",
    "params": {
     "$ref": "#/$defs/ReaperParams"
    },

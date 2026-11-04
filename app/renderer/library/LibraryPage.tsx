@@ -545,7 +545,7 @@ export function LibraryPage() {
   };
   const reaperTemplate = async (ids: string[], opts: AuditionOpts = {}) => {
     try {
-      const r = await call("reaper.template", { ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false });
+      const r = await call("reaper.template", { ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false, baked: false });
       reveal(r.path);
     } catch (e) {
       fail(e);
@@ -1126,9 +1126,17 @@ export function LibraryPage() {
         renderDeps={[playing, playingVer, hitPlaying]}
         rowData={(r): Record<string, string> => (r._res ? { "data-nature": r.nature, "data-top": "" } : { "data-nature": r.nature })}
         onRowPointerDown={(e, r) => {
-          // ⌥ 拖出原声、⌥⇧ 拖出卡拍（所有者 2026-10-08 选丙）；在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
+          // ⌥ 拖出原声、⌥⇧ 拖出卡拍（所有者 2026-10-08 选丙）；⌥⌘ 拖出 REAPER 条目：带拉伸标记，哪种跟 ⌘C 的设置（所有者 2026-11-04）；
+          // 在勾选集里且 ≥2 → 整个勾选集；按钮、复选框上按下不接管（规格 12 §12.2）
           if ((e.target as Element).closest("button, input, label")) return;
           const ids = checked.has(r.id) && checked.size >= 2 ? [...checked] : [r.id];
+          if (e.metaKey || e.ctrlKey) {
+            const opts = ids.length === 1 ? stageOpts(ids[0]!) : {};
+            beginDragOut(e, async () => [
+              (await call("reaper.template", { ids, words: trackWords(), plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false })).path,
+            ]);
+            return;
+          }
           const version = e.shiftKey ? "stretched" : "original";
           const versions = Object.fromEntries(ids.map((id) => [id, version] as const));
           beginDragOut(e, () => call("exports.samples", { ids, words: trackWords(), versions }));

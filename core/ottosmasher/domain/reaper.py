@@ -2,8 +2,10 @@
 
 剪贴板（REAPER 7.x macOS 实测格式）：类型 ``REAPERMedia``，UTF-8，各行以 NUL 分隔，末尾两个 NUL；内容是 ``<ITEM … >`` 块。
 - 数值保留 12 位小数；文件路径加引号时从 ``"`` ``'`` `````` 里选一个路径里没有的；路径含 NUL/CR/LF → 拒绝；标记非单调 → 拒绝；
-- 拉伸标记 ``SM 目标 源 0 0 目标/拍长 + …``：目标与源都严格递增（时间映射的节点 + 保护核心的锚点，每个起音都有）；
-- ``.RTrackTemplate``（试验入口）：同样的 ITEM，换行分隔。
+- 拉伸标记 ``SM 目标 源 + …``：目标与源都严格递增（时间映射的节点 + 保护核心的锚点，每个起音都有）；
+- 只写秒，不写节拍位置：REAPER 的第二个数是按工程速度算的四分音符数，我们不知道工程速度。按采样 BPM 写，粘贴时 REAPER 会按两边速度之比
+  整体缩放条目并改 Playback rate（所有者 2026-11-04 实测 1.3～1.5 倍）；
+- ``.RTrackTemplate``：同样的 ITEM，换行分隔、没有 TRACK，所以能拖进已有的轨道（所有者 2026-11-04 实测，带 TRACK 的会新建一条轨）。
 时间：条目内的秒（目标 = 卡拍后的条目时间，源 = 原声 WAV 文件的秒）。
 """
 
@@ -45,7 +47,7 @@ class Item:
     position: float  # 秒（相对第一条）
     snap: float  # 吸附偏移（秒，条目内）：首个起音，或 0 = 以条目开头为准
     length: float  # 条目长度（卡拍后，秒）
-    beat: float  # 拍长（秒）
+    beat: float  # 拍长（秒）：只用来算批量排开的间隔，不写进条目
     name: str
     markers: Sequence[tuple[float, float]]  # (目标秒, 源秒)
     path: str
@@ -60,12 +62,12 @@ def check_markers(markers: Sequence[tuple[float, float]]) -> None:
 def item_lines(it: Item, guid: Callable[[], str] | None = None) -> list[str]:
     g = guid or (lambda: "{" + str(uuid.uuid4()).upper() + "}")
     check_markers(it.markers)
-    sm = " + ".join(f"{f12(t)} {f12(s)} 0 0 {f12(t / it.beat)}" for t, s in it.markers)
+    sm = " + ".join(f"{f12(t)} {f12(s)}" for t, s in it.markers)
     return [
         "<ITEM",
-        f"POSITION {f12(it.position)} {f12(it.position / it.beat)}",
-        f"SNAPOFFS {f12(it.snap)} {f12(it.snap / it.beat)}",
-        f"LENGTH {f12(it.length)} {f12(it.length / it.beat)}",
+        f"POSITION {f12(it.position)}",
+        f"SNAPOFFS {f12(it.snap)}",
+        f"LENGTH {f12(it.length)}",
         "LOOP 0",
         "ALLTAKES 0",
         "FADEIN 1 0 0 1 0 0 0",
@@ -97,7 +99,7 @@ def clipboard(items: Sequence[Item], guid: Callable[[], str] | None = None) -> s
 
 
 def template(items: Sequence[Item], guid: Callable[[], str] | None = None) -> str:
-    """``.RTrackTemplate``（试验）：同样的 ITEM，换行分隔。"""
+    """``.RTrackTemplate``：同样的 ITEM，换行分隔。"""
     return "\n".join(ln for it in items for ln in item_lines(it, guid)) + "\n"
 
 

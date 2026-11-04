@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
@@ -132,7 +132,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   await page.getByRole("menuitem", { name: "导出卡拍 WAV" }).click();
   await expect(page.getByText(/卡拍-180BPM/).first()).toBeVisible();
   await page.getByTestId("stage-handoff").click();
-  await page.getByRole("menuitem", { name: "复制 REAPER 交接（原声＋拉伸标记，可再调）" }).click();
+  await page.getByRole("menuitem", { name: "复制 REAPER 交接（原始音频，靠拉伸标记卡拍）" }).click();
   await expect(page.getByText("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")).toBeVisible();
   const clip = await app.evaluate(async ({ clipboard }) => {
     const fmt = 'electron application/osclipboard;format="REAPERMedia"';
@@ -141,7 +141,7 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
     }
     return null;
   });
-  // ⌘C（所有者选丙）：采样库里复制 REAPER 交接，默认“卡好拍＋起音标记”。真实的 ⌘C 走应用菜单的「拷贝」= webContents.copy（Playwright 的合成按键不经过原生菜单）
+  // ⌘C（所有者选丙）：采样库里复制 REAPER 交接，默认“已卡拍的音频”。真实的 ⌘C 走应用菜单的「拷贝」= webContents.copy（Playwright 的合成按键不经过原生菜单）
   const readClip = () =>
     app.evaluate(async ({ clipboard }) => {
       const fmt = 'electron application/osclipboard;format="REAPERMedia"';
@@ -153,11 +153,52 @@ test("节奏与卡拍：BPM、面板、试听、分组与停顿、人工占格�
   await page.getByTestId("stage-title").click();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.copy());
   await expect.poll(readClip, { timeout: 15000 }).toContain("卡拍-180BPM");
-  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), before); // 还原所有者的剪贴板（文字）
   expect(clip).not.toBeNull();
   expect(clip!.startsWith("<ITEM\0")).toBe(true);
   expect(clip!.endsWith("\0\0")).toBe(true);
   expect(clip).toContain("PLAYRATE 1 1 0 -1 0 0.0025");
+  // 只写秒：写了按采样 BPM 算的节拍位置，REAPER 粘贴时会整体缩放条目、改 Playback rate（所有者 2026-11-04）
+  // 两个菜单项各生成什么：原始音频的文件名没有“卡拍”，标记会拉伸（目标 ≠ 源）；已卡拍的音频文件名有“卡拍”，标记处目标 = 源
+  const markersOf = (text: string) =>
+    /\0SM ([^\0]+)\0/.exec(text)![1]!.split(" + ").map((m) => m.split(" ").map(Number) as [number, number]);
+  expect(/\0FILE [^\0]+/.exec(clip!)![0]).not.toContain("卡拍-");
+  expect(markersOf(clip!).some(([t, src]) => Math.abs(t - src) > 1e-6)).toBe(true);
+  await app.evaluate(({ clipboard }) => clipboard.clear()); // 上面 ⌘C 留下的也是这一种，先清掉才算测到菜单项
+  await page.getByTestId("stage-handoff").click();
+  await page.getByRole("menuitem", { name: "复制 REAPER 交接（已卡拍的音频，标记只用于微调）" }).click();
+  await expect.poll(readClip, { timeout: 15000 }).toContain("卡拍-180BPM");
+  const bakedClip = await readClip();
+  expect(markersOf(bakedClip).every(([t, src]) => Math.abs(t - src) < 1e-6)).toBe(true);
+  expect(clip).toMatch(/\0LENGTH [\d.]+\0/);
+  expect(clip).toMatch(/\0SM [\d.]+ [\d.]+( \+ [\d.]+ [\d.]+)*\0/);
+  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), before); // 还原所有者的剪贴板（文字）
+
+  // ---- ⌥⌘ 拖出 = REAPER 条目文件（只有 ITEM，能拖进已有的轨道，带拉伸标记）；系统拖拽本身人工验收
+  await app.evaluate(({ BrowserWindow }) => {
+    const g = globalThis as unknown as { __drags: string[][] };
+    g.__drags = [];
+    for (const w of BrowserWindow.getAllWindows())
+      w.webContents.startDrag = (item: { files?: string[]; file: string }) => {
+        g.__drags.push(item.files ?? [item.file]);
+      };
+  });
+  const dragged = () => app.evaluate(() => (globalThis as unknown as { __drags: string[][] }).__drags);
+  const rb = (await rows.filter({ hasText: "かかかかかか" }).boundingBox())!;
+  await page.keyboard.down("Alt");
+  await page.keyboard.down("ControlOrMeta");
+  await page.mouse.move(rb.x + rb.width * 0.5, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + rb.width * 0.5 + 40, rb.y + rb.height / 2, { steps: 4 });
+  await expect.poll(async () => (await dragged()).length, { timeout: 15000 }).toBe(1);
+  await page.mouse.up();
+  await page.keyboard.up("ControlOrMeta");
+  await page.keyboard.up("Alt");
+  const [rtt] = (await dragged())[0]!;
+  expect(rtt).toMatch(/\.RTrackTemplate$/);
+  const rttText = readFileSync(rtt!, "utf8");
+  expect(rttText.startsWith("<ITEM\n")).toBe(true);
+  expect(rttText).not.toContain("<TRACK");
+  expect(rttText).toContain("\nSM ");
 
   // ---- 列表播放按钮：右键 = 卡拍（近快）；单音没有节奏面板、没有 ♩ 卡拍
   await rows.filter({ hasText: "かかかかかか" }).getByTestId("sample-play").click({ button: "right" });

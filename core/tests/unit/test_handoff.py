@@ -41,9 +41,10 @@ def test_clipboard_format():
     assert text.startswith("<ITEM\0") and text.endswith(">\0>\0\0")
     lines = text.rstrip("\0").split("\0")
     assert "PLAYRATE 1 1 0 -1 0 0.0025" in lines
-    assert "SNAPOFFS 0.250000000000 0.500000000000" in lines and "LENGTH 1.000000000000 2.000000000000" in lines
+    # 只写秒，不写节拍位置：REAPER 会按工程速度和这个节拍数的比例缩放条目（所有者 2026-11-04：rate 变成 1.3～1.5）
+    assert "SNAPOFFS 0.250000000000" in lines and "LENGTH 1.000000000000" in lines and "POSITION 0.000000000000" in lines
     sm = next(ln for ln in lines if ln.startswith("SM "))
-    assert sm == "SM 0.000000000000 0.000000000000 0 0 0.000000000000 + 0.500000000000 0.400000000000 0 0 1.000000000000 + 1.000000000000 1.000000000000 0 0 2.000000000000"
+    assert sm == "SM 0.000000000000 0.000000000000 + 0.500000000000 0.400000000000 + 1.000000000000 1.000000000000"
     assert 'FILE "/tmp/a.wav"' in lines and 'NAME "やったー"' in lines
     assert "\n" not in text
     assert reaper.template([item()], guid=lambda: "{G}").splitlines()[0] == "<ITEM"
@@ -123,7 +124,7 @@ def test_reaper_handoff_original_file_markers_and_batch(core):  # noqa: F811
         assert any(abs(s_ - o) < 1.5 / SR for _t, s_ in pts)
     snap = next(ln for ln in lines if ln.startswith("SNAPOFFS")).split()
     first = next(p for p in v["schemes"]["near_fast"]["points"] if p["kind"] == "onset")
-    assert float(snap[1]) == pytest.approx(first["tgt"], abs=1 / SR)
+    assert len(snap) == 2 and float(snap[1]) == pytest.approx(first["tgt"], abs=1 / SR)
     assert (core.ws.library / "REAPER").exists() and h["manifest"].endswith(".json")
     # 再交接一次：同名同内容复用文件
     assert core.handoff.reaper_handoff([a], WORDS, baked=False)["files"] == [f]
@@ -152,7 +153,7 @@ def test_reaper_snap_setting(core):  # noqa: F811
     align(core, s)
     set_setting(core, "export.reaper_snap", "start")
     lines = core.handoff.reaper_handoff([s], WORDS)["clipboard"].split("\0")
-    assert "SNAPOFFS 0.000000000000 0.000000000000" in lines
+    assert "SNAPOFFS 0.000000000000" in lines
 
 
 @need_rb

@@ -185,11 +185,13 @@ class HandoffService:
         manifest = self._write_manifest(meta, "clipboard")
         return {"clipboard": text, "files": [m["file"] for m in meta], "manifest": str(manifest), "count": len(items)}
 
-    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool = False,
+    def reaper_template(self, ids: list[str], words: dict[str, str], plan: str = "near_fast", mora: bool = False, long_vowel: bool = False, baked: bool | None = None,
                         hits: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """``.RTrackTemplate``（试验入口）：同内容的 ITEM，换行分隔。"""
+        """``.RTrackTemplate``：同内容的 ITEM，换行分隔；直接拖进 REAPER 就是带拉伸标记的条目。``baked=None`` = 按设置「导出 → ⌘C 复制哪种」。"""
         if not ids and not hits:
             raise CoreError("reaper-empty")
+        if baked is None:
+            baked = settings_mod.values(self.conn)["export.reaper_kind"] == "baked"
         items, meta = self.hits.reaper_items(hits, words, baked) if hits else self._items(ids, words, plan, mora, long_vowel, baked)
         d = self._reaper_dir()
         base = fname.truncate_utf8(fname.portable(items[0].name), 100).strip(" .") or "item"
