@@ -9,12 +9,11 @@ description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视�
 
 ## 开工前
 
-批量处理前先做完这几步，并逐项汇报“已验证”“不可用”或“未测试”：
+批量处理前先做完这几步：
 
-1. 运行 `otto status`。
-2. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离（skill `separating-audio`），因为拆字幕要听得清。
-3. 按总览的要求检查音频工具。
-4. 给标注做体检（见下一节），之后才能相信标注和换人的位置。
+1. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离，因为拆字幕要听得清。
+2. 按总览的要求检查音频工具。
+3. 给标注做体检（见下一节），之后才能相信标注和换人的位置。
 
 改字幕前都留一份 `backup_` 原件。同名的 `.ass` 可以留着。
 
@@ -62,7 +61,7 @@ description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视�
 | 哼歌写成 `♪（ハミング）` | 改成音效行 `（ハミング）`，或者写出歌词。 |
 | 字幕文件名和视频不同 | 写一份同名的。正式字幕和机器转写都有时用正式字幕，因为它带说话人。 |
 | 内挂字幕 | 用 `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass` 提取。图形字幕要先做文字识别。 |
-| 没有字幕 | 用语音识别生成同名 `.srt`，把结果当草稿。 |
+| 没有字幕 | 用 skill `transcribing-without-subtitles`。 |
 
 ## 核对这个版本的时间轴
 
@@ -77,7 +76,7 @@ description: "把字幕文件整理成 OttoSmasher 能读的写法：每个视�
 
 ## 转写只用来核对
 
-Whisper 容易漏掉尖声的感叹和人群喊话，提示里写了角色名时还可能编出没人说过的话。放宽窗口有时有用，不行就看波形、对照原字幕。
+转写可能漏词，也可能编出没人说过的话（见 `otto guide combine`）。它和字幕不一致时，看波形、对照原字幕来判断。
 
 ## 音乐标记
 
@@ -88,4 +87,4 @@ Whisper 容易漏掉尖声的感叹和人群喊话，提示里写了角色名时
 
 1. 用 `subtitles.parse {"path", "duration"}` 检查文件。看 `speakers`（出现台词片段、读音或奇怪的名字，说明括号没清干净）、`withheld` 为真的条目（有标注但没记）、`problems`、`oped`。
 2. 已登记的原素材运行 `sources.rescan --wait`，再到 `sources.list` 确认 `subtitle_path`。手动选过字幕的原素材不会自动换，要换就用 `edits.apply`（实体 `source`，字段 `subtitle_path`）。
-3. 运行 `subtitles.previewMany {"sourceIds"}`，再运行 `subtitles.importMany`。时间和文字都没变的段不会更新说话人，要从头来就先运行 `subtitles.clear`。
+3. 按 `otto guide prepare` 导入。时间和文字都没变的段不会更新说话人，要从头来就先运行 `subtitles.clear`。

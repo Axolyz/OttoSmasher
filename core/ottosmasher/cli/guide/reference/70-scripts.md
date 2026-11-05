@@ -24,5 +24,6 @@ with LinkClient.from_env() as c:
 * `c.request(...)` returns the raw response `{"ok", "r" | "e"}` without raising.
 * `c.next_event(timeout)` returns the next event (`{"e": name, "d": data}`); to wait for a job, watch `job.updated` for its `id` and `status`,
   or simply use `otto wait job <id>` outside the script.
+* To map a time from an external tool back to the source: `from ottosmasher.domain.mapping import Mapping; Mapping.of(m).to_source(t)`, where `m` is the `mapping` of a WAV export.
 * Keeping one connection open through long external computations can let events pile up. For those, close it and use short calls, or `otto wait`.
 * Commands that cannot be undone wait for the user's confirmation in scripts too (overview, "Commands that cannot be undone").

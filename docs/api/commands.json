@@ -246,7 +246,7 @@
    "name": "edits.apply",
    "effect": "write",
    "layer": "library",
-   "summary": "Apply an edit batch atomically (undoable).",
+   "summary": "Apply an edit batch atomically (undoable). Remove a segment with fields {\"deleted\": true}. Changing a segment's text or bounds retires its old analysis; it is re-analysed automatically only if the setting analysis.auto_rerun_segments is on.",
    "params": {
     "$ref": "#/$defs/EditBatchParams"
    },

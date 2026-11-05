@@ -139,7 +139,7 @@ class Core:
         r("edits.undoSession", "write", T.SessionParams, T.SessionUndone,
           "Undo everything one command-line session changed, newest first; stops at the first edit changed again afterwards and reports it.",
           lambda p: self.edits.undo_session(str(p["session"])))
-        r("edits.apply", "write", T.EditBatchParams, T.EditApplied, "Apply an edit batch atomically (undoable).", lambda p: self.edits.apply(p["batch"]))
+        r("edits.apply", "write", T.EditBatchParams, T.EditApplied, "Apply an edit batch atomically (undoable). Remove a segment with fields {\"deleted\": true}. Changing a segment's text or bounds retires its old analysis; it is re-analysed automatically only if the setting analysis.auto_rerun_segments is on.", lambda p: self.edits.apply(p["batch"]))
         r("edits.undo", "write", T.NoParams, T.EditUndone, "Undo the latest edit that can be undone safely.", lambda p: self.edits.undo())
         r("edits.undoOne", "write", T.EditIdParams, T.EditUndone,
           "Undo one specific edit from the history, if nothing it changed was edited again afterwards (edits.history marks it undoable).",

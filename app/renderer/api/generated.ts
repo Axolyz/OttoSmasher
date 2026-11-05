@@ -3066,7 +3066,7 @@ export interface Commands {
   "dictionary.preview": { params: DictionaryPreviewParams; result: JobSummary; effect: "job" };
   /** Compile the user dictionary in a job; on success it becomes active atomically (undoable, rejected if changed meanwhile). */
   "dictionary.save": { params: DictionarySaveParams; result: JobSummary; effect: "job" };
-  /** Apply an edit batch atomically (undoable). */
+  /** Apply an edit batch atomically (undoable). Remove a segment with fields {"deleted": true}. Changing a segment's text or bounds retires its old analysis; it is re-analysed automatically only if the setting analysis.auto_rerun_segments is on. */
   "edits.apply": { params: EditBatchParams; result: EditApplied; effect: "write" };
   /** Edit records, newest first; filter by actor kind or by command-line session. */
   "edits.history": { params: EditHistoryParams; result: EditHistoryItem[]; effect: "read" };

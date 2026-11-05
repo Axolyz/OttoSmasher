@@ -160,10 +160,10 @@ def test_setup_skills_reports_commands_the_app_no_longer_has(tmp_path, capsys, m
     assert main(["setup", "skills", "--lang", "en"]) == 0
     r = json.loads(capsys.readouterr().out)
     assert r["unknownCommands"] == [] and {"cleaning-subtitles", "grouping-speakers"} <= {s["name"] for s in r["skills"]}
-    f = skills.skills_dir(tmp_path) / "picking-lines" / "SKILL.md"
+    f = skills.skills_dir(tmp_path) / "retiming-lines" / "SKILL.md"
     f.write_text(f.read_text(encoding="utf-8") + "\nUse `samples.gone` here.\n", encoding="utf-8")
     assert main(["setup", "skills"]) == 0
-    assert json.loads(capsys.readouterr().out)["unknownCommands"] == [{"file": "picking-lines/SKILL.md", "command": "samples.gone"}]
+    assert json.loads(capsys.readouterr().out)["unknownCommands"] == [{"file": "retiming-lines/SKILL.md", "command": "samples.gone"}]
 
 
 def test_hosted_skill_is_an_entry_point():

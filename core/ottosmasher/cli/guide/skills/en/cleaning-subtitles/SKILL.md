@@ -9,12 +9,11 @@ Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue hold
 
 ## Before you start
 
-Do these before any batch work, and report each one as verified, unavailable or not yet tested:
+Do these before any batch work:
 
-1. Run `otto status`.
-2. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none (skill `separating-audio`), because splitting cues needs a clear voice.
-3. Check your audio tool as the overview describes.
-4. Audit the labels (next section) before you trust any label or turn boundary.
+1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none, because splitting cues needs a clear voice.
+2. Check your audio tool as the overview describes.
+3. Audit the labels (next section) before you trust any label or turn boundary.
 
 Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.
 
@@ -62,7 +61,7 @@ To fill in unlabelled cues from voices, use skill `grouping-speakers`.
 | Humming written `♪（ハミング）` | Write the sound line `（ハミング）`, or the lyrics. |
 | Subtitle name differs from the video | Write a same-name copy. Prefer proper subtitles over a machine transcript, because they have speakers. |
 | Embedded subtitles | Extract with `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`. Image subtitles need text recognition first. |
-| No subtitles | Run speech recognition and write a same-name `.srt`. Treat the text as a draft. |
+| No subtitles | Use skill `transcribing-without-subtitles`. |
 
 ## Check timing against this release
 
@@ -77,7 +76,7 @@ A successful alignment does not prove its window was right, so check windows ind
 
 ## Use transcripts to check, not to replace
 
-Whisper misses high-pitched exclamations and crowd chanting, and a prompt with character names can produce text nobody said. A wider window helps sometimes. Otherwise use the waveform and the original subtitle.
+A transcript can miss words or invent them (see `otto guide combine`). When it disagrees with the subtitle, use the waveform and the original subtitle to decide.
 
 ## Music marks
 
@@ -88,4 +87,4 @@ Keep the real OP and ED pairs. Rewrite other music as a sound line such as `（�
 
 1. Check the file with `subtitles.parse {"path", "duration"}`. Look at `speakers` (pieces of speech, readings or odd names mean brackets are left), cues with `withheld` true (labels present but not recorded), `problems`, and `oped`.
 2. For registered sources, run `sources.rescan --wait`, then confirm `subtitle_path` in `sources.list`. A source whose subtitle was chosen by hand keeps that choice; change it with `edits.apply` (entity `source`, field `subtitle_path`).
-3. Run `subtitles.previewMany {"sourceIds"}`, then `subtitles.importMany`. An existing segment with unchanged time and text keeps its old speakers; run `subtitles.clear` first to start over.
+3. Import as `otto guide prepare` describes. An existing segment with unchanged time and text keeps its old speakers; run `subtitles.clear` first to start over.
