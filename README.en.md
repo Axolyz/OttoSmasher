@@ -53,17 +53,26 @@ For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The 
 
 Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
-Send your agent this message, followed by your task:
+Send your agent one of these messages, followed by your task.
+
+To work with the app and its library:
 
 ```
 Please operate OttoSmasher on my computer with its command line otto: first run otto status and otto guide; if the app is not open, run otto open.
 Task: ...
 ```
 
-- **A full set of capabilities, no fixed pipeline**: phoneme alignment, reading analysis, pitch measurement, search, separation and flattening are all carefully chosen. The app only does deterministic computation; the agent organizes the work from context and can script batch calls.
+For audio computation only, without touching the library:
+
+```
+Please do an audio computation with the otto command line; if the app is not open, run otto open.
+Use only the primitives: find commands with otto commands --layer primitive, and read otto guide primitives for usage. Do not read or write the library, and skip the other documentation.
+Task: ...
+```
+
+- **Open capabilities, no fixed pipeline**: phoneme alignment, reading analysis, pitch measurement, search, separation and flattening are independent capabilities. The app itself only does deterministic computation; the agent organizes the work from context and can script batch calls.
 - **Data managed by the app**: sources, tracks, lines, phonemes, samples and tags live in a structured library. The agent queries what it needs, without filling its context or managing piles of files.
 - **Review and undo**: the agent's data edits are recorded by session. You can review them in the app's history and undo a whole session. New samples and tracks cannot be undone, but they can be deleted.
-- **Confirmation for dangerous actions**: actions that cannot be undone, such as deleting a source, only run after you click Allow in the app (unless "No confirmation for actions that can't be undone" is on).
 - **Hearing sound**: with the audio tool audio-mcp connected, the agent can view spectrograms, measure loudness and make timed transcripts.
 - **Preprocessing and complex speech analysis**: preprocessing that later steps depend on, such as cleaning subtitles, retiming and grouping lines by speaker, comes with built-in skills based on methods the author worked out. They are files in your workspace, so you can edit them or add your own.
 
@@ -73,7 +82,7 @@ See [Using agents with OttoSmasher](docs/user/agents.md) (in Chinese) for detail
 
 ### Cut while you watch
 
-Sources are registered in place, never copied or transcoded. You can select a range on the timeline during playback, or create a sample directly from a line in the script. Lines can be searched by text or reading, across episodes. Every sample remembers where it came from, so you can always go back to the source for context.
+You can select a range on the timeline during playback, or create a sample directly from a line in the script. Lines can be searched by text or reading, across episodes. Every sample remembers where it came from, so you can always go back to the source for context.
 
 ### Creating samples in bulk
 
@@ -81,7 +90,7 @@ You can turn a whole season of lines into samples at once, or create samples in 
 
 ### Speech analysis
 
-Turns Japanese lines into phonemes and readings, then finds the time range of each phoneme in the audio, which is usually called phoneme alignment. Each line is analysed once, and the original mix, separated vocals and flattened results share that result. Wrong readings can be corrected in the user dictionary and boundaries can be dragged by hand. Manual edits are not overwritten by re-analysis.
+Turns Japanese lines into phonemes and readings, then finds the time range of each phoneme in the audio, which is usually called phoneme alignment. Wrong readings can be corrected in the user dictionary, and inaccurate boundaries can be fixed by hand.
 
 ### Beat-fit
 
@@ -96,7 +105,7 @@ You can audition different densities for each line and adjust how many cells eac
 
 ### Rhythm search
 
-Draw a row of blocks, optionally set the vowel, consonant, relative pitch and loudness of each, and search the whole library for matching lines. Rhythm can be left unconstrained, so only the order of the blocks matters. You can also require the drawn rhythm, or rank results by how similar their rhythm is. Hits can be auditioned as beat-fits straight away, exported or copied to REAPER.
+Draw a row of blocks, optionally specify the vowel, consonant, pitch and loudness of each, and search the whole library for matching samples. Hits can be auditioned as beat-fits straight away, exported or copied to REAPER.
 
 | Draw blocks and set conditions | See where hits are and how well they match |
 |---|---|
@@ -108,15 +117,15 @@ Draw a few pitch blocks and find passages in samples or whole tracks that hit ex
 
 ### Export and video clips
 
-You can export WAV files of the original or the beat-fit, or drag samples from the library straight into a DAW. Video clips stay in sync with the sound, and the picture of a beat-fit version can change speed with it. Sound processed elsewhere can be put back in its original place (reimport). It becomes a new track and stays connected to the original picture and tags.
+You can export WAV files of the original or the beat-fit, or drag WAV files from the library straight into a DAW. Sound processed elsewhere with more elaborate methods can be put back in its original place (reimport). It becomes a new track and stays connected to the original picture and tags.
 
 ### Copy to REAPER
 
-Press Ctrl+C / ⌘C on a sample and paste it into REAPER. Every onset already has a stretch marker, so you do not have to find onsets and place markers by hand, and you can drag the markers straight away. The pasted file is still the unprocessed original, so deleting all the markers brings back the original sound.
+Press Ctrl+C / ⌘C on a sample and paste it into REAPER. Every onset already has a stretch marker, so you do not have to find onsets and place markers by hand, and you can drag the markers straight away.
 
 There are two modes:
 
-- Beat-fit: the pasted item's stretch markers are already set the way beat-fit would set them. With a matching BPM, the markers also land exactly on a multiple of the REAPER BPM grid, ready for further editing.
+- Beat-fit: the pasted item's stretch markers are already set the way beat-fit would set them. With a matching BPM, the markers also land exactly on a multiple of the REAPER BPM grid, ready for further editing. Deleting all the markers brings back the original sound.
 - Original: stretch markers only mark each onset and the original rhythm stays as it is, ready for fitting by hand.
 
 When you copy several samples, they are laid out one after another on the same track, with one bar between them.
@@ -137,9 +146,9 @@ Flattens the pitch of a stretch of speech onto one note, keeping the words, and 
 
 Tags can be inherited automatically from the work, subtitle speakers and range tags, or added by hand. You can use stars and tag expressions, filter by work, person, pitch and more, and save common conditions as filters. Batch edits show a before-and-after comparison first, and data edits can be undone.
 
-### Sample packs, game voices and one-shots
+### Sample packs and one-shots
 
-Sample packs and instrument one-shots can be turned into samples in bulk. Those with a definite pitch can be searched by note name, and percussion and sound effects can be filtered by attack time, brightness, noisiness and other measures (experimental). Game voices can be imported as one file per line, and a same-name image is bound automatically as the character portrait.
+Sample packs and instrument one-shots can be turned into samples in bulk. Those with a definite pitch can be searched by note name, and percussion and sound effects can be filtered by attack time, brightness, noisiness and other measures (one-shot filtering is experimental, and results may be poor).
 
 ### Independence
 
