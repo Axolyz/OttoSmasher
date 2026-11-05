@@ -44,7 +44,7 @@ description: "用附带脚本算声纹并聚类，给 OttoSmasher 的台词标�
 
 ## 写回
 
-用 `edits.apply` 写 `speakers`（实体 `segment`，字段 `speakers`）。它会记成“改过说话人”，`segments.regenerateSpeakers` 会跳过。
+字幕还没导入时，把名字写进字幕文件（顺序见 skill `cleaning-subtitles`）。已经在资料库里的段，用 `edits.apply` 写 `speakers`（实体 `segment`，字段 `speakers`）。它会记成“改过说话人”，`segments.regenerateSpeakers` 会跳过。
 
 - 字幕已经标了的段不要覆盖。猜的结果和标注冲突时列给用户。
 - 一条里有两个人时，可以写两个名字，也可以用 `segments.split` 切开后各写一个。按 playbook 做，没写就问用户。

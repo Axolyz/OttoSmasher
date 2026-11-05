@@ -8,6 +8,8 @@ description: "Labels who says each subtitle line in anime by comparing voiceprin
 Compute voiceprints with the script in `scripts/`, then do the grouping and decisions yourself. These methods and numbers come from one show, so recalibrate for another. Results are in `references/experiments.md`.
 Users usually care only about named main characters. Minor characters may stay pending, and two voice styles of one character may stay two groups.
 
+It works best in one pass with skill `cleaning-subtitles`, which gives the full order: clean the text and split cues first, label next, and produce one final subtitle file.
+
 ## Audit the labels first
 
 Closed captions label speakers in different ways, so measure this for each source before you trust it. The only certainty is that a speaker change starts a new text line.

@@ -44,7 +44,7 @@ Two rules matter here:
 
 ## Write back
 
-Set `speakers` with `edits.apply` (entity `segment`, field `speakers`). It is recorded as a speaker edit, and `segments.regenerateSpeakers` skips it.
+If the subtitles are not imported yet, write the names into the subtitle file (see the order in skill `cleaning-subtitles`). For segments already in the library, set `speakers` with `edits.apply` (entity `segment`, field `speakers`). It is recorded as a speaker edit, and `segments.regenerateSpeakers` skips it.
 
 - Do not overwrite segments the subtitles already label. List predictions that contradict a label for the user.
 - For two people in one cue, write both names, or use `segments.split` and write one on each. Follow the playbook; if it says nothing, ask.

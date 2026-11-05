@@ -1,12 +1,16 @@
 # 音 MAD 素材预处理 skills
 
-三个独立的 [Agent Skills](https://agentskills.io/specification)，给番剧这类日语语音素材做预处理。不需要安装任何软件，能运行命令的 agent（Claude Code、Codex 等）都能用。
+五个独立的 [Agent Skills](https://agentskills.io/specification)，给番剧这类日语语音素材做预处理。不需要安装任何软件，能运行命令的 agent（Claude Code、Codex 等）都能用。
 
 | Skill | 做什么 |
 |---|---|
-| `finding-op-ed` | 比对多集音频，找出片头曲和片尾曲 |
-| `retiming-subtitles` | 对照语音修正字幕时间，也包括跨版本和没有字幕的情况 |
+| `cleaning-subtitles` | 洗字幕：只留说出口的话，一条一个人 |
+| `retiming-subtitles` | 对照语音修正字幕时间，也包括跨版本的情况 |
 | `labeling-speakers` | 用声纹给台词标说话人（实验性） |
+| `transcribing-without-subtitles` | 给没有字幕的素材打轴（工具没有定型） |
+| `finding-op-ed` | 比对多集音频，找出片头曲和片尾曲 |
+
+洗字幕、拆行和标说话人建议放在同一轮做完，顺序见 `cleaning-subtitles`。
 
 ## 安装
 
@@ -16,7 +20,7 @@
 
 - **查看音频的工具：** 比如 [audio-mcp](https://pypi.org/project/audio-mcp/)。没有听觉的 agent 全靠它判断声音。
 - **ffmpeg。**
-- **强制对齐器：** `retiming-subtitles` 和 `labeling-speakers` 要用。这些数字是用 [pydomino](https://github.com/DwangoMediaVillage/pydomino) 测的，只支持日语。
+- **强制对齐器：** `cleaning-subtitles`、`retiming-subtitles` 和 `labeling-speakers` 要用。这些数字是用 [pydomino](https://github.com/DwangoMediaVillage/pydomino) 测的，只支持日语。
 - **分离好的人声：** 推荐先分离，比如用 PyMSS Studio。
 - **uv：** `labeling-speakers` 的声纹脚本要用，第一次运行会下载 PyTorch 和模型，共几百 MB。
 

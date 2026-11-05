@@ -7,6 +7,18 @@ description: "Cleans subtitle files into the form OttoSmasher reads: one same-na
 
 Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue holds one person's spoken words. Reading rules are in `otto guide prepare`; this skill covers how to get there.
 
+## Recommended order
+
+Clean the text, split cues and label speakers in one pass, and produce one final subtitle file. Later steps depend on earlier ones:
+
+1. Separate the vocals.
+2. Check the timing against this release and fix any overall offset. Alignment needs windows that are close.
+3. Clean the text down to spoken words. It becomes the alignment text.
+4. Audit the labels.
+5. Split two-person cues. Voiceprints need one person per range.
+6. Compute voiceprints on the split lines and label speakers.
+7. Write one final subtitle file, check it, and import it once. A later re-import does not update the speakers of unchanged segments.
+
 ## Before you start
 
 Do these before any batch work:

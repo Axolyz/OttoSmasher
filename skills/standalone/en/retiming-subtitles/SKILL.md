@@ -1,6 +1,6 @@
 ---
 name: retiming-subtitles
-description: "Fixes subtitle timing against speech: rough timing first, then forced alignment, including subtitles made for a different release and video with no subtitles. Use when precise line timing matters, such as phoneme-level work on Japanese speech."
+description: "Fixes subtitle timing against speech: rough timing first, then forced alignment, including subtitles made for a different release. Use when precise line timing matters, such as phoneme-level work on Japanese speech."
 ---
 
 # Retiming subtitles
@@ -36,12 +36,7 @@ Subtitles from a TV or streaming release on a BD video may be off by a fixed amo
 
 ## No subtitles at all
 
-ASR alone drifts slightly, and ASR followed by forced alignment tends to break sentences badly. This has worked better, though the tools are not settled:
-
-1. Run low-threshold VAD, accepting many small pieces in exchange for accurate starts and ends.
-2. Run ASR per piece, keeping the VAD boundaries as the timing.
-3. Merge pieces into sentences without rewriting the recognized words.
-4. List low-confidence parts for the user, who reviews only those.
+Use skill `transcribing-without-subtitles`.
 
 ## Use transcripts to check, not to replace
 
