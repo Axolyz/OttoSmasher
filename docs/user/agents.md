@@ -8,21 +8,27 @@ agent 也可以出编排方案，但目前更推荐它做上游的素材处理�
 
 ## 接上 agent
 
-1. 打开一次 OttoSmasher。发布版启动时会把 `otto` 装成命令（`~/.local/bin/otto`；Windows 在 `WindowsApps`）。
-2. 打开设置 → 命令行与 agent，点「复制给 agent 的开场白」。
-3. 把开场白发给 agent，后面接上你的任务。
+1. 打开一次 OttoSmasher，它会自动安装 `otto` 命令。之后应用没开时，agent 可以用 `otto open` 自己打开。
+2. 把这段话发给 agent，后面接上任务：
 
-终端里找不到 `otto` 时，把 `~/.local/bin` 加进 PATH，或者用设置里写的完整路径。
+   ```
+   请用命令行 otto 操作我电脑上的 OttoSmasher：先运行 otto status 和 otto guide，应用没开就运行 otto open。
+   任务：……
+   ```
 
-可选：想让 agent 不用你提醒也知道这个工具，请它把 [skills/ottosmasher/SKILL.md](../../skills/ottosmasher/SKILL.md) 按它自己工具的方式装到当前项目。不要装成全局，免得别的项目里也带着它。
+3. 如果任务需要判断声音，比如洗字幕、挑台词、挑音色，先[接上音频工具](#接上音频工具)。
+
+如果 agent 找不到 `otto`，到设置 → 命令行与 agent 点「复制给 agent 的开场白」，里面带完整路径。macOS 上也可以把 `~/.local/bin` 加进 PATH。
+
+可选：想让 agent 不用你提醒也知道这个工具，可以请它把入口 skill [skills/ottosmasher/SKILL.md](../../skills/ottosmasher/SKILL.md) 装到当前项目。它只告诉 agent 怎么找到 `otto`，和工作区里的内置 skill 不是一回事。不要装成全局，免得别的项目里也带着它。
 
 示例：
 
 ```
-（先贴设置里复制的开场白）
+（先贴上面的开场白）
 任务：~/Movies/otomad素材/某番 里是新下的几集和字幕。登记文件夹，整集分离（用 HyperACE v2），对着人声把字幕洗干净（改文件之前把计划给我看），
 导入字幕，把说到游戏的台词都建成语音采样、分析、打上 topic:game，
-然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中导出到 ~/Desktop/game-hits。做完告诉我建了哪些采样、哪些拿不准。
+然后在这些采样里找“前两拍各一个音、第二个音长”的节奏，把命中打上 mycandidate 标签，导出到 ~/Desktop/game-hits。做完告诉我建了哪些采样、哪些拿不准。
 ```
 
 ## 只做音频计算
@@ -52,14 +58,14 @@ agent 也可以出编排方案，但目前更推荐它做上游的素材处理�
 
 内置的 skill 是作者自己摸索出来的方法论，可以按自己的喜好修改：
 
-| 名字 | 做什么 |
-|---|---|
-| `cleaning-subtitles` | 洗字幕、标说话人、核对跨版本的时间轴 |
-| `separating-audio` | 决定整集分离还是局部分离 |
-| `retiming-lines` | 修正台词边界 |
-| `finding-op-ed` | 没有字幕时找片头片尾 |
-| `grouping-speakers` | 用声纹按说话人分组（实验性；需要 uv 和 ffmpeg，第一次会下载几百 MB） |
-| `picking-lines` | 从几千句台词里按意思挑选 |
+| 名字                   | 做什么                                       |
+| -------------------- | ----------------------------------------- |
+| `cleaning-subtitles` | 洗字幕、标说话人、核对跨版本的时间轴                        |
+| `separating-audio`   | 决定整集分离还是局部分离                              |
+| `retiming-lines`     | 修正台词边界                                    |
+| `finding-op-ed`      | 没有字幕时找片头片尾                                |
+| `grouping-speakers`  | 用声纹按说话人分组（实验性；需要 uv 和 ffmpeg，第一次会下载几百 MB） |
+| `picking-lines`      | 从几千句台词里按意思挑选                              |
 
 你也可以新建文件夹，加自己的 skill。格式是 [Agent Skills](https://agentskills.io/specification)：一个文件夹，里面一个 `SKILL.md`，开头写 `name` 和 `description`。
 
