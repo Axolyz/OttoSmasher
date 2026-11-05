@@ -9,6 +9,7 @@ import type { PlayerState } from "../app/shared/protocol";
 // 只在 OTTO_PACKAGED_E2E=1 时运行（平时的 e2e 测的是源码运行）。
 const WIN = process.platform === "win32";
 const APP = resolve(WIN ? "out/release/OttoSmasher/OttoSmasher.exe" : "out/release/OttoSmasher.app/Contents/MacOS/OttoSmasher");
+const RESOURCES = join(APP, "..", "..", "Resources"); // macOS：.app/Contents/Resources；测试音频用包里的 ffmpeg，顺便证明它能在这台机器上运行
 test.skip(!process.env.OTTO_PACKAGED_E2E || !existsSync(APP), "需要 OTTO_PACKAGED_E2E=1 和打好的发布包（tools/package_mac.py、tools/package_win.py）");
 // 不继承开发环境（没有 Homebrew、没有 .venv）
 const ENV: Record<string, string> = WIN
@@ -19,7 +20,7 @@ test("发布包：随包的模型、媒体工具、播放与命令行", async ()
   const dir = mkdtempSync(join(tmpdir(), "otto-packaged-"));
   const wav = join(dir, "素材 目录", "试听 片段.wav");
   mkdirSync(join(dir, "素材 目录"), { recursive: true });
-  execFileSync(WIN ? "ffmpeg" : "/opt/homebrew/bin/ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=3", wav]);
+  execFileSync(WIN ? "ffmpeg" : join(RESOURCES, "bin", "ffmpeg"), ["-v", "error", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=3", wav]);
   const workspace = join(dir, "工作 区");
   const app = await electron.launch({
     executablePath: APP,
