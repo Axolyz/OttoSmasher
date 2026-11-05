@@ -1,32 +1,11 @@
----
-name: labeling-speakers
-description: "Labels who says each subtitle line in anime by comparing voiceprints, with or without existing speaker labels in the subtitles. Use when lines need speaker or character labels across many lines. Experimental, tuned on one anime."
----
-
 # Labeling lines by speaker (experimental)
 
-Compute voiceprints with the script in `scripts/`, then do the grouping and decisions yourself. These methods and numbers come from one show, so recalibrate for another. Results are in `references/experiments.md`.
+Compute voiceprints with the script in `scripts/`, then do the grouping and decisions yourself. These methods and numbers come from one show, so recalibrate for another. Results are in `references/experiments.md`. Paths are relative to the skill folder.
 Users usually care only about named main characters. Minor characters may stay pending, and two voice styles of one character may stay two groups.
 
-It works best in one pass with skill `cleaning-subtitles`, which gives the full order: clean the text and split cues first, label next, and produce one final subtitle file.
-
-## Audit the labels first
-
-Closed captions label speakers in different ways, so measure this for each source before you trust it. The only certainty is that a speaker change starts a new text line.
-
-Count these per source:
-
-- both lines of a cue labelled (a change of speaker)
-- first line only (often the same person)
-- second line only
-- a label alone on its own line
-- two consecutive cues with the same label
-
-Then listen to a sample from each pattern in each source. In the subtitles tried so far, consecutive labelled cues named the same person 3% to 47% of the time, and cues labelled only on the second line ranged from none to over a thousand.
-
-Fansub subtitles usually have no labels. Closed captions label a line only when the speaker is not obvious, so labelled lines tend to be the harder ones. Reading brackets are not names, and 人, たち, 一同 and the like mean several people.
-
 ## Prepare
+
+Audit the labels first (`references/cleaning.md`). Reading brackets are not names, and 人, たち, 一同 and the like mean several people.
 
 1. Use separated vocals, not the original mix.
 2. Split two-line cues by aligning the lines one after another with a forced aligner, using the cue time ± 0.2 s as the window. Cut at the middle of the gap. If one line aligns to under 0.1 s, it was probably not found; leave that cue unsplit. Diarization models could not tell anime female voices apart in the trial.

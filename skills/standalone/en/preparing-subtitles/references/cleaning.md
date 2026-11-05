@@ -1,27 +1,4 @@
----
-name: cleaning-subtitles
-description: "Cleans anime subtitle files for speech work: spoken words only, one person per cue, consistent speaker labels. Use for messy, bilingual or closed-caption subtitles, or before phoneme alignment and speaker labeling."
----
-
 # Cleaning subtitles
-
-Goal: one UTF-8 `.srt` per video with the same name, where each cue holds one person's spoken words. Keep a backup of every subtitle file you change.
-
-## Recommended order
-
-Clean the text, split cues and label speakers in one pass, and produce one final subtitle file. Later steps depend on earlier ones:
-
-1. Separate the vocals.
-2. Check the timing against this release and fix any overall offset. Alignment needs windows that are close.
-3. Clean the text down to spoken words. It becomes the alignment text.
-4. Audit the labels.
-5. Split two-person cues. Voiceprints need one person per range.
-6. Compute voiceprints on the split lines and label speakers.
-7. Write one final subtitle file, check it, and import it once.
-
-## Before you start
-
-Use separated vocals where you can, because splitting cues needs a clear voice. Check your audio tool with a real call on a short clip: a listed tool is not a working tool.
 
 ## Audit the labels
 
@@ -54,7 +31,7 @@ To split a two-person cue:
 2. Cut at the middle of the gap between the two lines. The two cues may extend to the speech the alignment found.
 3. If one line aligns to under 0.1 s, it was probably not found in the vocals. Leave that cue unsplit and unlabelled.
 
-To fill in unlabelled cues from voices, use skill `labeling-speakers`.
+To fill in unlabelled cues from voices, see `references/speakers.md`.
 
 ## Common fixes
 
@@ -67,8 +44,8 @@ To fill in unlabelled cues from voices, use skill `labeling-speakers`.
 | Humming written `♪（ハミング）` | Write the sound line `（ハミング）`, or the lyrics. |
 | Subtitle name differs from the video | Write a same-name copy. Prefer proper subtitles over a machine transcript, because they have speakers. |
 | Embedded subtitles | Extract with `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`. Image subtitles need text recognition first. |
-| Subtitles from another release | Use skill `retiming-subtitles`. |
-| No subtitles | Use skill `transcribing-without-subtitles`. |
+| Subtitles from another release | See `references/retiming.md`. |
+| No subtitles | See `references/no-subtitles.md`. |
 
 ## Music marks
 

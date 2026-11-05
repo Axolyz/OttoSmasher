@@ -1,16 +1,11 @@
 # Preprocessing skills for otoMAD material
 
-Five standalone [Agent Skills](https://agentskills.io/specification) for preprocessing Japanese speech material such as anime. They need no app, and work with any agent that can run commands, such as Claude Code or Codex.
+Two standalone [Agent Skills](https://agentskills.io/specification) for preprocessing Japanese speech material such as anime. They need no app, and work with any agent that can run commands, such as Claude Code or Codex.
 
 | Skill | What it does |
 |---|---|
-| `cleaning-subtitles` | Cleans subtitles: spoken words only, one person per cue |
-| `retiming-subtitles` | Fixes subtitle timing against speech, including other releases |
-| `labeling-speakers` | Labels lines by speaker with voiceprints (experimental) |
-| `transcribing-without-subtitles` | Makes timed subtitles for material with none (tools not settled) |
+| `preparing-subtitles` | Cleans subtitles, fixes timing, splits two-person cues, labels speakers with voiceprints (experimental), and makes timed subtitles when there are none (tools not settled). Run the whole workflow or a single step |
 | `finding-op-ed` | Compares audio across episodes to find opening and ending songs |
-
-Cleaning, splitting and speaker labeling work best in one pass; `cleaning-subtitles` gives the order.
 
 ## Install
 
@@ -20,9 +15,9 @@ Copy the folders you need from `en/` (English) or `zh-CN/` (Chinese) to where yo
 
 - **An audio inspection tool:** such as [audio-mcp](https://pypi.org/project/audio-mcp/). Agents that cannot hear rely on it to judge sound.
 - **ffmpeg.**
-- **A forced aligner:** for `cleaning-subtitles`, `retiming-subtitles` and `labeling-speakers`. The numbers were measured with [pydomino](https://github.com/DwangoMediaVillage/pydomino), which supports Japanese only.
+- **A forced aligner:** for `preparing-subtitles`. The numbers were measured with [pydomino](https://github.com/DwangoMediaVillage/pydomino), which supports Japanese only.
 - **Separated vocals:** recommended, for example from PyMSS Studio.
-- **uv:** for the voiceprint script in `labeling-speakers`. The first run downloads PyTorch and the model, a few hundred MB.
+- **uv:** for the voiceprint script used in speaker labeling. The first run downloads PyTorch and the model, a few hundred MB.
 
 ## Before you use them
 

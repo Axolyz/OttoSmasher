@@ -1,11 +1,6 @@
----
-name: retiming-subtitles
-description: "Fixes subtitle timing against speech: rough timing first, then forced alignment, including subtitles made for a different release. Use when precise line timing matters, such as phoneme-level work on Japanese speech."
----
-
 # Retiming subtitles
 
-You need a way to inspect audio (spectrograms, loudness, timed transcripts), such as audio-mcp, and a forced aligner for the language. Use separated vocals where you can; they are steadier than the original mix. Keep a backup of any subtitle file you change.
+Separated vocals are steadier than the original mix.
 
 ## How forced alignment behaves
 
@@ -33,11 +28,3 @@ Subtitles from a TV or streaming release on a BD video may be off by a fixed amo
 2. Apply one shift for an overall offset, or shift from the exact cue where the offset starts.
 3. Locate an edit point at a specific line. The nearest subtitle is not precise enough when a release has extra dialogue.
 4. Keep a written record of dialogue that exists in only one release. Do not force alignment onto different words.
-
-## No subtitles at all
-
-Use skill `transcribing-without-subtitles`.
-
-## Use transcripts to check, not to replace
-
-Whisper misses high-pitched exclamations and crowd chanting, and a prompt with character names can produce text nobody said. When a transcript disagrees with the subtitle, use the waveform and the original subtitle to decide.
