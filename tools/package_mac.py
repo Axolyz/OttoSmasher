@@ -262,10 +262,11 @@ def check_min_macos(root: Path) -> None:
             if h.read(4) not in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
                 continue
         out = subprocess.run(["vtool", "-show-build", str(f)], capture_output=True, text=True).stdout
-        for m in re.finditer(r"^\s*(?:minos|version)\s+(\d+(?:\.\d+)*)\s*$", out, re.M):
-            have = tuple(int(x) for x in m.group(1).split("."))
-            if have > want:
-                bad.append(f"{f.relative_to(root)}: {m.group(1)}")
+        # minos 属于 LC_BUILD_VERSION；旧格式的系统版本在 LC_VERSION_MIN_MACOSX 下。别的 version 行是链接器版本，不能算
+        for m in re.finditer(r"^\s*minos\s+(\d+(?:\.\d+)*)\s*$|LC_VERSION_MIN_MACOSX\n(?:.*\n)*?\s*version\s+(\d+(?:\.\d+)*)\s*$", out, re.M):
+            found = m.group(1) or m.group(2)
+            if tuple(int(x) for x in found.split(".")) > want:
+                bad.append(f"{f.relative_to(root)}: {found}")
                 break
     if bad:
         sys.exit(f"这些文件要求的系统版本高于 macOS {MIN_MACOS}：\n  " + "\n  ".join(sorted(bad)[:40]))
