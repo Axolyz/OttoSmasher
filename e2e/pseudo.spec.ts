@@ -133,6 +133,7 @@ test("伪语言下没有写死的界面文字", async () => {
 
   // 导入独立采样框（预览出来以后）
   await app.evaluate(({ dialog }, d) => {
+    dialog.showMessageBox = (async () => ({ response: 1, checkboxChecked: false })) as typeof dialog.showMessageBox; // 先问选哪种：选文件夹
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
   }, wav);
   await page.getByTestId("library-import").click();

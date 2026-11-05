@@ -108,7 +108,9 @@ export function SourceList(props: {
           aria-label={t("roots.rescan")}
           data-testid="sources-rescan"
         />
-        <Button variant="primary" icon={<Plus />} onPress={props.onAdd} title={t("sources.add")} data-testid="sources-add" />
+        <Button variant="primary" icon={<Plus />} onPress={props.onAdd} title={t("sources.addHint")} data-testid="sources-add">
+          {t("import.button")}
+        </Button>
       </div>
       <CollectionList<Item>
         label={t("sources.listLabel")}

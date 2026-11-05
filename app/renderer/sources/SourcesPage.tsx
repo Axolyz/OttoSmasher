@@ -441,7 +441,7 @@ export function SourcesPage() {
           body={rows && rows.length ? t("sources.pick.body") : t("sources.empty.body")}
           actions={
             <Button variant="primary" icon={<Plus />} onPress={() => void pickAndAdd()} data-testid="sources-add-empty">
-              {t("sources.add")}
+              {t("import.title")}
             </Button>
           }
         />

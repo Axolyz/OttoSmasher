@@ -20,6 +20,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   const { app, page } = await launch();
   // 系统对话框换成固定返回这个文件夹（主进程里）
   await app.evaluate(({ dialog }, d) => {
+    dialog.showMessageBox = (async () => ({ response: 1, checkboxChecked: false })) as typeof dialog.showMessageBox; // 先问选哪种：选文件夹
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
   }, dir);
   await page.getByTestId("library-import").click();
@@ -79,6 +80,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   mkdirSync(more);
   ff("-f", "lavfi", "-i", "sine=f=440:duration=1.5", join(more, "[Group] Show B [01].wav"));
   await app.evaluate(({ dialog }, d) => {
+    dialog.showMessageBox = (async () => ({ response: 1, checkboxChecked: false })) as typeof dialog.showMessageBox; // 先问选哪种：选文件夹
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [d] })) as typeof dialog.showOpenDialog;
   }, more);
   await page.keyboard.press("ControlOrMeta+2");
