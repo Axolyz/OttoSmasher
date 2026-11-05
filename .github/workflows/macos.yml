@@ -1,0 +1,85 @@
+# macOS 发布包：在 macOS 14 上构建并跑发布包冒烟，所以冒烟通过就说明最低系统版本真的能运行。
+# 版本标签自动触发，通过后传到 Release 草稿；也可以手动运行，只留下构建产物。
+name: macOS
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Python 环境
+        run: tools/uv sync --locked
+      - name: 第三方文件
+        run: .venv/bin/python tools/fetch_third_party.py
+      - name: pydomino 扩展
+        run: tools/uv run --with setuptools python tools/build_domino.py
+      - uses: actions/cache@v5
+        with:
+          path: dev-workspace/Models
+          key: models-${{ hashFiles('core/ottosmasher/models/registry.py') }}
+      - name: 模型权重
+        run: .venv/bin/python tools/fetch_models.py
+      - name: Node 依赖
+        run: tools/npm ci
+      - name: mpv 渲染桥
+        run: node tools/build-native.mjs
+      - name: 打包
+        run: .venv/bin/python tools/package_mac.py --no-bump
+      - name: 发布包冒烟
+        env:
+          OTTO_PACKAGED_E2E: "1"
+        run: tools/npm exec -- playwright test e2e/packaged.spec.ts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-package
+          path: |
+            out/release/*.zip
+            out/release/*.sha256
+            out/release/RELEASE_NOTES.md
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: package-results
+          path: .cache/playwright-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # 两个平台的工作流依次写同一个草稿，免得同时新建出两个
+    concurrency:
+      group: release-draft-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-package
+          path: release-files
+      - run: tools/release_upload.sh "$GITHUB_REF_NAME" release-files

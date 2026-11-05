@@ -1,0 +1,30 @@
+# 生成随包的 macOS 媒体工具（tools/build_media_tools_macos.py）。在 macOS 14 上取成品，最低系统版本才是 14。
+# 产物手动传到 third-party 预发布版本，并在 tools/third_party.json 固定 SHA-256。
+name: 生成媒体工具（macOS）
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/build_media_tools_macos.py
+      - .github/workflows/build-media-tools.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: 安装
+        run: brew install ffmpeg rubberband
+      - name: 打包
+        run: python3 tools/build_media_tools_macos.py "$RUNNER_TEMP/media-tools"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: media-tools-macos-arm64
+          path: ${{ runner.temp }}/media-tools/media-tools-macos-arm64-*.tar.gz
+          retention-days: 90
+          if-no-files-found: error

@@ -9,7 +9,7 @@
 - ``python/``：python-build-standalone（与开发环境同一个）+ Core 及依赖（按 uv.lock，不含开发依赖）
 - ``third_party/``：模型支持文件、pydomino 扩展
 - ``models/``：随包的模型权重（按 registry 的 SHA-256 核对后复制）
-- ``bin/``、``lib/``：ffmpeg、ffprobe、rubberband（取本机 Homebrew 的，连同它们依赖的动态库一起复制并改成包内相对路径）与 ``otto`` 启动器
+- ``bin/``、``lib/``：ffmpeg、ffprobe、rubberband（third_party 里固定版本的那一份，由 tools/build_media_tools_macos.py 在云端生成）与 ``otto`` 启动器
 - ``licenses/``：本项目与第三方的许可
 全部 Mach-O 文件逐个 ad-hoc 签名，最后签整个 .app（没有 Apple 开发者证书，不公证）。
 """
@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import hashlib
 import json
 import os
@@ -59,15 +60,10 @@ def preflight() -> dict[str, Path]:
         "libmpv": ROOT / "third_party" / "libmpv" / "macos-arm64",
         "support": ROOT / "third_party" / "model-support",
         "native": ROOT / "third_party" / "native" / "darwin-arm64",
+        "media": ROOT / "third_party" / "media-tools" / "macos-arm64",
         "models": ROOT / "dev-workspace" / "Models",
     }
     missing = [f"{k}: {v}" for k, v in need.items() if not v.exists()]
-    for t in TOOLS:
-        p = shutil.which(t)
-        if not p:
-            missing.append(f"{t}: 不在 PATH 上（需要 Homebrew 的 ffmpeg 与 rubberband）")
-        else:
-            need[t] = Path(p).resolve()
     if missing:
         sys.exit("缺少：\n  " + "\n  ".join(missing))
     return need
@@ -186,7 +182,7 @@ def copy_models(res: Path, need: dict[str, Path]) -> None:
             shutil.copy2(src, dst / f.rel_path)
 
 
-# ---------------------------------------------------------------- 媒体工具（Homebrew → 包内）
+# ---------------------------------------------------------------- 媒体工具（bundle_tools 由 build_media_tools_macos.py 调用）
 
 
 def macho_deps(path: Path) -> list[str]:
@@ -249,6 +245,32 @@ def bundle_tools(res: Path, need: dict[str, Path]) -> None:
             sys.exit(f"{t} 还引用包外的库：{bad}")
 
 
+def copy_media(res: Path, need: dict[str, Path]) -> None:
+    """固定版本的媒体工具放进包里：本地和云端打包用的是同一份。"""
+    for sub in ("bin", "lib"):
+        shutil.copytree(need["media"] / sub, res / sub, symlinks=True)
+
+
+def check_min_macos(root: Path) -> None:
+    """包里任何一个可执行文件或动态库要求的系统版本都不能高于声明的最低版本（ROADMAP L70）。"""
+    want = tuple(int(x) for x in MIN_MACOS.split("."))
+    bad = []
+    for f in root.rglob("*"):
+        if f.is_symlink() or not f.is_file():
+            continue
+        with open(f, "rb") as h:
+            if h.read(4) not in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
+                continue
+        out = subprocess.run(["vtool", "-show-build", str(f)], capture_output=True, text=True).stdout
+        for m in re.finditer(r"^\s*(?:minos|version)\s+(\d+(?:\.\d+)*)\s*$", out, re.M):
+            have = tuple(int(x) for x in m.group(1).split("."))
+            if have > want:
+                bad.append(f"{f.relative_to(root)}: {m.group(1)}")
+                break
+    if bad:
+        sys.exit(f"这些文件要求的系统版本高于 macOS {MIN_MACOS}：\n  " + "\n  ".join(sorted(bad)[:40]))
+
+
 LAUNCHER = """#!/bin/sh
 # OttoSmasher 命令行 otto（发布版）：用包里的 Python 运行；可以经 ~/.local/bin/otto 的链接调用
 self="$0"
@@ -300,10 +322,8 @@ def copy_licenses(res: Path, need: dict[str, Path]) -> None:
     start = tp.index("### 模型权重")
     (d / "MODELS.md").write_text(tp[start : tp.index("### ", start + 4)], encoding="utf-8")
     (d / "PC-NSF-HiFiGAN-NOTICE.txt").write_text(VOCODER_NOTICE, encoding="utf-8")
-    for t in ("ffmpeg", "rubberband"):  # Homebrew 安装目录里的许可文件
-        prefix = need[t].parents[1]
-        for lic in list(prefix.glob("LICENSE*")) + list(prefix.glob("COPYING*")):
-            shutil.copy2(lic, d / f"{t}-{lic.name}")
+    for lic in (need["media"] / "licenses").iterdir():  # build_media_tools_macos.py 随压缩包带的 ffmpeg、rubberband 许可
+        shutil.copy2(lic, d / lic.name)
     for lic in (need["libmpv"] / "licenses").iterdir():  # build_libmpv_macos.sh 随压缩包带的 mpv、FFmpeg、dav1d 许可
         shutil.copy2(lic, d / f"libmpv-{lic.name}")
 
@@ -361,8 +381,6 @@ def git(*args: str) -> str:
 
 def bump_version() -> str:
     """小版本号加一，写进全部版本位置，提交“版本 x.y.z”并打本地标签 vx.y.z。要求工作区干净：构建出来的包对应一个提交。"""
-    import re
-
     if git("status", "--porcelain", "--untracked-files=no"):
         sys.exit("有未提交的修改：先提交（构建要对应一个提交），或用 --no-bump 按当前版本重新构建")
     old = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
@@ -414,7 +432,11 @@ def main() -> None:
     ap.add_argument("--skip-build", action="store_true")
     ap.add_argument("--no-zip", action="store_true")
     ap.add_argument("--no-bump", action="store_true", help="不加版本号，按当前版本重新构建")
+    ap.add_argument("--bump-only", action="store_true", help="只加版本号、提交并打标签，不构建（发版由标签触发云端构建）")
     a = ap.parse_args()
+    if a.bump_only:
+        bump_version()
+        return
     need = preflight()
     if not a.no_bump:
         bump_version()
@@ -435,12 +457,14 @@ def main() -> None:
     copy_support(res, need)
     copy_models(res, need)
     step("ffmpeg / ffprobe / rubberband 与它们的动态库、otto 启动器")
-    bundle_tools(res, need)
+    copy_media(res, need)
     write_launcher(res)
     step("许可")
     copy_licenses(res, need)
     step("ad-hoc 签名")
     sign(app)
+    step("核对最低系统版本")
+    check_min_macos(app)
     total = sum(p.stat().st_size for p in app.rglob("*") if p.is_file() and not p.is_symlink())
     print(f"{app}  {total / 1e6:.0f} MB")
     z = None
