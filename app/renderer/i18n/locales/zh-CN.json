@@ -356,7 +356,7 @@
   "error.player-not-attached": "播放器还没有准备好（画面区域不存在）",
   "error.asset-not-found": "声音资产不存在（可能已随原素材删除）",
   "error.default-track-invalid": "这条音轨不能当默认轨：{reason}",
-  "error.source-has-independent-samples": "这个原素材有 {n} 个已独立化的采样；保留它们的删除方式在后续阶段实现，暂时不能删除",
+  "error.source-has-independent-samples": "这个原素材有 {n} 个已独立化的采样。要保留它们，请选择释放媒体后再删除",
   "error.unknown-method": "未知命令：{method}",
   "error.bad-request": "请求不合法：{method}",
   "error.app-not-running": "这个工作区上没有正在运行的 OttoSmasher：{workspace}（命令行只连接正在运行的应用，请先打开应用）",

@@ -174,7 +174,7 @@ class Core:
         r("samples.independ", "job", T.IndependParams, T.JobSummary,
           "Make samples independent of their source media (lossless WAV slice + picture clip), optionally then delete the source (media released).",
           lambda p: self.independence.submit(list(p["ids"]), p.get("deleteSource")), danger=lambda p: bool(p.get("deleteSource")))
-        r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files.", lambda p: self.roots.rescan())
+        r("sources.rescan", "job", T.NoParams, T.JobRef | None, "Scan all source folders for new, moved or missing files, and link newly found subtitles to registered sources (link only, no import; subtitles chosen or cleared by hand are kept).", lambda p: self.roots.rescan())
         r("roots.list", "read", T.NoParams, list[T.SourceRoot], "Source folders.", lambda p: self.roots.list())
         r("roots.add", "write", T.PathParams, T.RootAdded, "Add a source folder (adopts sources already inside, then scans).", lambda p: self.roots.add(str(p["path"])))
         r("roots.remove", "write", T.IdParams, T.RootRemoved, "Stop treating a folder as a source folder (sources stay).", lambda p: self.roots.remove(str(p["id"])))
@@ -237,7 +237,7 @@ class Core:
         r("samples.suggest", "read", T.SuggestParams, T.SampleSuggestion, "Suggested name and nature for a new sample on an asset range.",
           lambda p: self.samples.suggest(p["assetId"], float(p["start"]), float(p["end"]), local_marker=p.get("localMarker", "")))
         r("samples.create", "write", T.SampleCreateParams, T.SampleRow,
-          "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
+          "Create one sample on an asset range with suggested defaults (name and nature can be overridden).",
           lambda p: self.samples.get(self.sample_plan.create_selection(
               p["assetId"], float(p["start"]), float(p["end"]), name=p.get("name"), nature=p.get("nature"),
               via=p.get("via") or "manual")))
@@ -295,7 +295,7 @@ class Core:
         r("samples.delete", "write", T.IdsParams, T.Deleted, "Delete samples (assets, measurements and exports stay; not undoable).",
           lambda p: self.samples.delete(list(p["ids"])), danger=True)
         r("exports.samples", "write", T.ExportSamplesParams, list[str],
-          "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
+          "Export samples as WAV files (original, or stretched per sample); returns file paths.",
           lambda p: self.handoff.export_samples(list(p["ids"]), dict(p.get("words", {})), dict(p.get("versions") or {}),
                                                 p.get("plan") or "near_fast", bool(p.get("mora")), bool(p.get("longVowel"))))
         r("exports.stretched", "write", T.StretchedExportParams, T.ExportedWav,
@@ -319,7 +319,7 @@ class Core:
           lambda p: text_layer_mod.promote_batch(self.conn, p["sampleId"], list(p["tags"]), role=p.get("role"), start=p.get("start"), end=p.get("end")))
         # ---- 字幕导入、文本层、音效提示、区段标签、OP/ED（所有者 2026-10-09）
         r("subtitles.preview", "read", T.SubtitlePreviewParams, T.SubtitlePreview,
-          "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line).",
+          "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip / invalid per line).",
           lambda p: self.subtitles.preview(p["sourceId"], p.get("path"), p.get("options")))
         r("subtitles.import", "write", T.SubtitleImportParams, T.SubtitleImportResult, "Import a subtitle file as previewed (one atomic, undoable edit).",
           lambda p: self.subtitles.import_(p["sourceId"], p["token"], p.get("options"), p.get("path")))
@@ -370,7 +370,7 @@ class Core:
         r("speech.preview", "read", T.SpeechPlanParams, T.SpeechPreview,
           "What a speech analysis would do: M segments to analyze (each on a track covering the whole segment), N up to date (skipped), K blocked with reasons.",
           lambda p: self.speech.preview(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
-        r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job (inputs frozen now; one process for all items).",
+        r("speech.submit", "job", T.SpeechPlanParams, T.JobSummary, "Queue a speech analysis job; read per-item results with speech.results.",
           lambda p: self.speech.submit(p["entry"], list(p["ids"]), bool(p.get("rerunFresh", False)), p.get("assetId")))
         r("speech.saveManual", "write", T.SpeechManualParams, T.SpeechHeadRef,
           "Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed).",
@@ -400,11 +400,11 @@ class Core:
         r("f0.trackResults", "read", T.PrimitiveResultsParams, list[T.F0TrackRow], "Frames of an f0.track job.",
           lambda p: self.primitives.results(p["jobId"], "f0.track", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")
         r("subtitles.parse", "read", T.SubtitleParseParams, T.SubtitleParsed,
-          "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing.",
+          "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs, cues too long to import in problems), without registering or importing.",
           lambda p: self.primitives.parse_subtitles(p["path"], p.get("duration")), layer="primitive")
         r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status())
-        r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset (range) with a Studio model; reuses identical results.",
+        r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem.",
           lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges")))
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
@@ -422,19 +422,19 @@ class Core:
         # ---- 节奏与卡拍（阶段 6）
         # ---- 三大搜索（规格 09 §9.6、10 §10.2）
         r("search.coverage", "read", T.SearchCoverageParams, T.SearchCoverage,
-          "How much of the current browse scope is ready to search (speech index built / F0 measured).",
+          "How much of a scope is ready to search (speech index built / F0 measured).",
           lambda p: self.search.coverage(p["mode"], p.get("scope")))
         r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
-          "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
+          "Queue a job that prepares the search index for a scope (speech: rhythm index; pitch: F0). Does not search.",
           lambda p: self.search.prepare(p["mode"], p.get("scope")))
         r("metrics.status", "read", T.MetricsStatusParams, T.MetricsStatus,
-          "Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
+          "Single-sound metrics in a scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
           lambda p: self.acoustic.status(p.get("scope"), list(p.get("metrics") or [])))
         r("metrics.prepare", "job", T.MetricsPrepareParams, T.JobSummary,
-          "Queue a job that measures missing F0 and computes the single-sound metrics for the current scope.",
+          "Queue a job that measures missing F0 and computes the single-sound metrics for a scope.",
           lambda p: self.acoustic.prepare(p.get("scope")))
         r("search.speech", "write", T.SearchSpeechParams, T.SearchStarted,
-          "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
+          "Start a speech/rhythm search on a scope; finishes with event search.finished and a fixed result (all hits kept).",
           lambda p: self.search.run_speech(p["query"], p.get("scope")))
         r("search.pitch", "write", T.SearchPitchParams, T.SearchStarted,
           "Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result.",
@@ -446,7 +446,7 @@ class Core:
           lambda p: self.search.cancel(p["searchId"]))
         r("search.status", "read", T.SearchIdParams, T.SearchFinished, "State of a search started in this session.",
           lambda p: self.search.status(p["searchId"]))
-        r("hits.resolve", "read", T.HitRefParams, T.HitInfo, "Check that a hit is still valid and return its range and evidence scheme (09 §9.7).",
+        r("hits.resolve", "read", T.HitRefParams, T.HitInfo, "Check that a hit is still valid and return its range and evidence scheme.",
           lambda p: self.hits.wire(p["resultId"], int(p["rank"]), int(p["index"])))
         r("hits.render", "write", T.HitRenderParams, T.RhythmRendered,
           "Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks.",
@@ -473,7 +473,7 @@ class Core:
           lambda p: self.storage.clean(derived=bool(p.get("derived"))), danger=True)
         r("storage.cleanBackups", "write", T.NoParams, T.StorageCleaned, "Delete old pre-upgrade database backups, keeping the newest one.",
           lambda p: self.storage.clean_backups(), danger=True)
-        r("app.userInput", "read", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
+        r("app.userInput", "ui", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
           lambda p: self.storage.user_input())
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
           lambda p: self.search.results())
@@ -484,7 +484,7 @@ class Core:
           lambda p: self.search.close(p["id"]))
         r("results.setUi", "ui", T.ResultUiParams, None, "Remember a fixed result's UI state (active, page, selection, scroll).",
           lambda p: self.search.set_ui(p["id"], p.get("uiState")))
-        r("rhythm.bpm", "read", T.NoParams, T.Bpm, "Global target BPM (null = original-speed stretch).", lambda p: {"bpm": self.rhythm.bpm()})
+        r("rhythm.bpm", "read", T.NoParams, T.Bpm, "Global target BPM (null = original-speed stretch). Read only here: the user sets it in the app.", lambda p: {"bpm": self.rhythm.bpm()})
         r("rhythm.setBpm", "ui", T.BpmParams, T.Bpm, "Set the global target BPM (20-400 or null); a working parameter, not undoable; broadcast as rhythm.bpm.",
           lambda p: self.rhythm.set_bpm(p.get("bpm")))
         r("rhythm.view", "read", T.RhythmViewParams, T.RhythmView,

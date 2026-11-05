@@ -356,7 +356,7 @@
   "error.player-not-attached": "The player isn't ready yet (no video area)",
   "error.asset-not-found": "Sound asset not found (it may have been deleted with its source)",
   "error.default-track-invalid": "This track can't be the default track: {reason}",
-  "error.source-has-independent-samples": "This source has {n} independent sample(s). Deleting it while keeping them comes in a later stage, so it can't be deleted for now",
+  "error.source-has-independent-samples": "This source has {n} independent samples. To keep them, choose to release the media when deleting",
   "error.unknown-method": "Unknown command: {method}",
   "error.bad-request": "Invalid request: {method}",
   "error.app-not-running": "No OttoSmasher running on this workspace: {workspace} (the command line only connects to a running app, so open the app first)",

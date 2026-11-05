@@ -3043,7 +3043,7 @@ export interface Commands {
   /** Cancel jobs and stop Core. */
   "app.quit": { params: QuitParams; result: Quit; effect: "app" };
   /** The UI reports real user input (idle timer for automatic cache cleanup; polling does not count). */
-  "app.userInput": { params: NoParams; result: null; effect: "read" };
+  "app.userInput": { params: NoParams; result: null; effect: "ui" };
   /** Delete generated tracks and their library files, measurements and range tags (not undoable). Refused for original streams and tracks with samples on them. */
   "assets.delete": { params: AssetDeleteParams; result: AssetsDeleted; effect: "write" };
   /** What deleting a track would do: whether it can be deleted, samples on it, default roles, analyses, size. */
@@ -3082,7 +3082,7 @@ export interface Commands {
   "edits.undoSession": { params: SessionParams; result: SessionUndone; effect: "write" };
   /** Export an asset range as WAV named by the naming rule (+ fragment word). */
   "exports.range": { params: ExportRangeParams; result: ExportedWav; effect: "write" };
-  /** Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths. */
+  /** Export samples as WAV files (original, or stretched per sample); returns file paths. */
   "exports.samples": { params: ExportSamplesParams; result: string[]; effect: "write" };
   /** Export a whole sample as a stretched WAV at the global BPM (scheme computed on demand; manifest with the composed mapping). */
   "exports.stretched": { params: StretchedExportParams; result: ExportedWav; effect: "write" };
@@ -3116,7 +3116,7 @@ export interface Commands {
   "hits.export": { params: HitExportParams; result: ExportedWav; effect: "write" };
   /** Render a hit for audition: stretched with the scheme its evidence chose (whole scope rendered, hit range cut out), or original with clicks. */
   "hits.render": { params: HitRenderParams; result: RhythmRendered; effect: "write" };
-  /** Check that a hit is still valid and return its range and evidence scheme (09 §9.7). */
+  /** Check that a hit is still valid and return its range and evidence scheme. */
   "hits.resolve": { params: HitRefParams; result: HitInfo; effect: "read" };
   /** Export a hit as a video clip: original, or stretched by the scheme the hit's evidence chose (picture synced to the same mapping, or at original speed). */
   "hits.video": { params: HitVideoParams; result: VideoExportStarted; effect: "write" };
@@ -3138,9 +3138,9 @@ export interface Commands {
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
   /** FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN). */
   "measure.f0": { params: AssetRangeParams; result: F0Frames; effect: "read" };
-  /** Queue a job that measures missing F0 and computes the single-sound metrics for the current scope. */
+  /** Queue a job that measures missing F0 and computes the single-sound metrics for a scope. */
   "metrics.prepare": { params: MetricsPrepareParams; result: JobSummary; effect: "job" };
-  /** Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match). */
+  /** Single-sound metrics in a scope: prepared count and, per chosen metric, how many samples lack it (they never match). */
   "metrics.status": { params: MetricsStatusParams; result: MetricsStatus; effect: "read" };
   /** Explicitly download missing model weights from their pinned URLs (one job per model; SHA-256 checked before placing). */
   "models.download": { params: ModelsDownloadParams; result: ModelDownloadStarted[]; effect: "job" };
@@ -3188,7 +3188,7 @@ export interface Commands {
   "results.page": { params: ResultPageParams; result: ResultPage; effect: "read" };
   /** Remember a fixed result's UI state (active, page, selection, scroll). */
   "results.setUi": { params: ResultUiParams; result: null; effect: "ui" };
-  /** Global target BPM (null = original-speed stretch). */
+  /** Global target BPM (null = original-speed stretch). Read only here: the user sets it in the app. */
   "rhythm.bpm": { params: NoParams; result: Bpm; effect: "read" };
   /** Render an audition (original or stretched; voice, voice+click or click only) into the rebuildable cache. */
   "rhythm.render": { params: RhythmRenderParams; result: RhythmRendered; effect: "write" };
@@ -3208,7 +3208,7 @@ export interface Commands {
   "roots.remove": { params: IdParams; result: RootRemoved; effect: "write" };
   /** Plan a batch edit of samples (name, nature, star, rating, local tags +/-): preview only; apply the returned batch with edits.apply. */
   "samples.batchEdit": { params: BatchEditParams; result: BatchEditPlan; effect: "read" };
-  /** Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides). */
+  /** Create one sample on an asset range with suggested defaults (name and nature can be overridden). */
   "samples.create": { params: SampleCreateParams; result: SampleRow; effect: "write" };
   /** Create the chosen planned samples atomically (always new samples). */
   "samples.createPlanned": { params: SampleCreatePlannedParams; result: SamplesCreated; effect: "write" };
@@ -3234,15 +3234,15 @@ export interface Commands {
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
   /** Cancel a running search (a cancelled search writes no fixed result). */
   "search.cancel": { params: SearchIdParams; result: SearchCancelled; effect: "ui" };
-  /** How much of the current browse scope is ready to search (speech index built / F0 measured). */
+  /** How much of a scope is ready to search (speech index built / F0 measured). */
   "search.coverage": { params: SearchCoverageParams; result: SearchCoverage; effect: "read" };
   /** Start a complete pitch search (saved samples or analysed source tracks); finishes with event search.finished and a fixed result. */
   "search.pitch": { params: SearchPitchParams; result: SearchStarted; effect: "write" };
   /** Validate a pitch query (blocks or the text helper format) and return on-the-spot problems; no search. */
   "search.pitchCheck": { params: PitchCheckParams; result: PitchChecked; effect: "read" };
-  /** Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search. */
+  /** Queue a job that prepares the search index for a scope (speech: rhythm index; pitch: F0). Does not search. */
   "search.prepare": { params: SearchCoverageParams; result: JobSummary; effect: "job" };
-  /** Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept). */
+  /** Start a speech/rhythm search on a scope; finishes with event search.finished and a fixed result (all hits kept). */
   "search.speech": { params: SearchSpeechParams; result: SearchStarted; effect: "write" };
   /** State of a search started in this session. */
   "search.status": { params: SearchIdParams; result: SearchFinished; effect: "read" };
@@ -3262,7 +3262,7 @@ export interface Commands {
   "segments.split": { params: SegmentSplitParams; result: SegmentsSplit; effect: "write" };
   /** Assets registered by a separation job. */
   "separation.results": { params: JobIdParams; result: AssetRecord[]; effect: "read" };
-  /** Separate an asset (range) with a Studio model; reuses identical results. */
+  /** Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem. */
   "separation.submit": { params: SeparationSubmitParams; result: SeparationSubmitted; effect: "job" };
   /** All settings with value, default and version (edit via edits.apply, entity 'setting'). */
   "settings.list": { params: NoParams; result: Record<string, SettingEntry>; effect: "read" };
@@ -3286,7 +3286,7 @@ export interface Commands {
   "sources.relocateMany": { params: RelocateManyParams; result: SourceRelocated[]; effect: "write" };
   /** Batch relocate: find each source in a new folder by its path relative to the import root, else by unique file name. */
   "sources.relocatePlan": { params: RelocatePlanParams; result: RelocateItem[]; effect: "read" };
-  /** Scan all source folders for new, moved or missing files. */
+  /** Scan all source folders for new, moved or missing files, and link newly found subtitles to registered sources (link only, no import; subtitles chosen or cleared by hand are kept). */
   "sources.rescan": { params: NoParams; result: JobRef | null; effect: "job" };
   /** Spectrogram of up to 30 s of the chosen audio (STFT of the samples, fixed -90..0 dB; log / linear / mel rows). */
   "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
@@ -3304,7 +3304,7 @@ export interface Commands {
   "speech.sample": { params: IdParams; result: SpeechSampleView; effect: "read" };
   /** Save edited phoneme times of a segment (as seen on a track) as a new manual version of its one shared analysis (times only; labels/order fixed; rejected if the version changed). */
   "speech.saveManual": { params: SpeechManualParams; result: SpeechHeadRef; effect: "write" };
-  /** Queue a speech analysis job (inputs frozen now; one process for all items). */
+  /** Queue a speech analysis job; read per-item results with speech.results. */
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
   /** Make another successful version of a segment's analysis the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
@@ -3326,9 +3326,9 @@ export interface Commands {
   "subtitles.importDefault": { params: SourceIdParams; result: SubtitleImportResult; effect: "write" };
   /** Batch subtitle import with default options, each source atomic. */
   "subtitles.importMany": { params: SubtitleImportManyParams; result: SubtitleImportManyRow[]; effect: "write" };
-  /** How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing. */
+  /** How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs, cues too long to import in problems), without registering or importing. */
   "subtitles.parse": { params: SubtitleParseParams; result: SubtitleParsed; effect: "read" };
-  /** Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line). */
+  /** Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip / invalid per line). */
   "subtitles.preview": { params: SubtitlePreviewParams; result: SubtitlePreview; effect: "read" };
   /** Batch preview of subtitle import (sources without subtitles are skipped). */
   "subtitles.previewMany": { params: SourceIdsParams; result: SubtitleBatchRow[]; effect: "read" };

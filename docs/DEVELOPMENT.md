@@ -82,7 +82,7 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
    ```
    发之前 `gh release list` 看一眼有没有同一个标签的草稿（所有者可能在网页上起过草稿）。
 
-**Windows 包**由云端构建（`tools/package_win.py`），发布时：macOS 构建加好版本号、打好标签并推送之后，在这个提交上跑 Windows 工作流（`gh workflow run windows.yml --ref vx.y.z`），确认 `package` 任务（含发布包冒烟）通过，再 `gh run download <id> -n windows-package`，把 ZIP 和 `.sha256` 一起传到同一个 Release，并把 SHA-256 填进发布说明的 `{windows_sha256}`。Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。
+**Windows 包**由云端构建（`tools/package_win.py`）。macOS 构建加好版本号、打好标签并推送之后，标签会自动触发 Windows 工作流；`package` 任务（含发布包冒烟）通过后，会把 ZIP 和 `.sha256` 传到这个标签的 Release 草稿（没有草稿就新建，已经发布的不动）。之后把 SHA-256 填进发布说明的 `{windows_sha256}`，再把发布说明更新到草稿。Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。
 
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
 本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。

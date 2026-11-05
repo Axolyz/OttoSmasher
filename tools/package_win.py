@@ -172,7 +172,7 @@ def make_zip(folder: Path, version: str) -> Path:
     if size >= 2_000_000_000:
         sys.exit(f"ZIP 超过 2 GB：{size}")
     h = hashlib.sha256(z.read_bytes()).hexdigest()
-    (OUT / f"{z.name}.sha256").write_text(f"{h}  {z.name}\n", encoding="utf-8")
+    (OUT / f"{z.name}.sha256").write_text(f"{h}  {z.name}\n", encoding="utf-8", newline="\n")  # macOS 的 shasum -c 读不了 CRLF
     print(f"{z}  {size / 1e6:.0f} MB  sha256 {h}")
     return z
 

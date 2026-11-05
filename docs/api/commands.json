@@ -93,7 +93,7 @@
   },
   {
    "name": "app.userInput",
-   "effect": "read",
+   "effect": "ui",
    "layer": "library",
    "summary": "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
    "params": {
@@ -352,7 +352,7 @@
    "name": "exports.samples",
    "effect": "write",
    "layer": "library",
-   "summary": "Export samples as WAV files for drag-out (original, or stretched per sample); returns file paths.",
+   "summary": "Export samples as WAV files (original, or stretched per sample); returns file paths.",
    "params": {
     "$ref": "#/$defs/ExportSamplesParams"
    },
@@ -568,7 +568,7 @@
    "name": "hits.resolve",
    "effect": "read",
    "layer": "library",
-   "summary": "Check that a hit is still valid and return its range and evidence scheme (09 §9.7).",
+   "summary": "Check that a hit is still valid and return its range and evidence scheme.",
    "params": {
     "$ref": "#/$defs/HitRefParams"
    },
@@ -703,7 +703,7 @@
    "name": "metrics.prepare",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue a job that measures missing F0 and computes the single-sound metrics for the current scope.",
+   "summary": "Queue a job that measures missing F0 and computes the single-sound metrics for a scope.",
    "params": {
     "$ref": "#/$defs/MetricsPrepareParams"
    },
@@ -715,7 +715,7 @@
    "name": "metrics.status",
    "effect": "read",
    "layer": "library",
-   "summary": "Single-sound metrics in the current scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
+   "summary": "Single-sound metrics in a scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
    "params": {
     "$ref": "#/$defs/MetricsStatusParams"
    },
@@ -1018,7 +1018,7 @@
    "name": "rhythm.bpm",
    "effect": "read",
    "layer": "library",
-   "summary": "Global target BPM (null = original-speed stretch).",
+   "summary": "Global target BPM (null = original-speed stretch). Read only here: the user sets it in the app.",
    "params": {
     "$ref": "#/$defs/NoParams"
    },
@@ -1141,7 +1141,7 @@
    "name": "samples.create",
    "effect": "write",
    "layer": "library",
-   "summary": "Create one sample on an asset range with the same defaults as the unified new-sample action (name/nature optional overrides).",
+   "summary": "Create one sample on an asset range with suggested defaults (name and nature can be overridden).",
    "params": {
     "$ref": "#/$defs/SampleCreateParams"
    },
@@ -1308,7 +1308,7 @@
    "name": "search.coverage",
    "effect": "read",
    "layer": "library",
-   "summary": "How much of the current browse scope is ready to search (speech index built / F0 measured).",
+   "summary": "How much of a scope is ready to search (speech index built / F0 measured).",
    "params": {
     "$ref": "#/$defs/SearchCoverageParams"
    },
@@ -1344,7 +1344,7 @@
    "name": "search.prepare",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue a job that prepares the search index for the current scope (speech: rhythm index; pitch: F0). Does not search.",
+   "summary": "Queue a job that prepares the search index for a scope (speech: rhythm index; pitch: F0). Does not search.",
    "params": {
     "$ref": "#/$defs/SearchCoverageParams"
    },
@@ -1356,7 +1356,7 @@
    "name": "search.speech",
    "effect": "write",
    "layer": "library",
-   "summary": "Start a speech/rhythm search on the current scope; finishes with event search.finished and a fixed result (all hits kept).",
+   "summary": "Start a speech/rhythm search on a scope; finishes with event search.finished and a fixed result (all hits kept).",
    "params": {
     "$ref": "#/$defs/SearchSpeechParams"
    },
@@ -1479,7 +1479,7 @@
    "name": "separation.submit",
    "effect": "job",
    "layer": "library",
-   "summary": "Separate an asset (range) with a Studio model; reuses identical results.",
+   "summary": "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem.",
    "params": {
     "$ref": "#/$defs/SeparationSubmitParams"
    },
@@ -1639,7 +1639,7 @@
    "name": "sources.rescan",
    "effect": "job",
    "layer": "library",
-   "summary": "Scan all source folders for new, moved or missing files.",
+   "summary": "Scan all source folders for new, moved or missing files, and link newly found subtitles to registered sources (link only, no import; subtitles chosen or cleared by hand are kept).",
    "params": {
     "$ref": "#/$defs/NoParams"
    },
@@ -1763,7 +1763,7 @@
    "name": "speech.submit",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue a speech analysis job (inputs frozen now; one process for all items).",
+   "summary": "Queue a speech analysis job; read per-item results with speech.results.",
    "params": {
     "$ref": "#/$defs/SpeechPlanParams"
    },
@@ -1900,7 +1900,7 @@
    "name": "subtitles.parse",
    "effect": "read",
    "layer": "primitive",
-   "summary": "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs), without registering or importing.",
+   "summary": "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs, cues too long to import in problems), without registering or importing.",
    "params": {
     "$ref": "#/$defs/SubtitleParseParams"
    },
@@ -1912,7 +1912,7 @@
    "name": "subtitles.preview",
    "effect": "read",
    "layer": "library",
-   "summary": "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip per line).",
+   "summary": "Preview importing a subtitle file into the text layer, sfx hints, speakers and OP/ED (new / unchanged / replace / skip / invalid per line).",
    "params": {
     "$ref": "#/$defs/SubtitlePreviewParams"
    },
@@ -2455,7 +2455,7 @@
    "args": [
     "method"
    ],
-   "summary": "The owner declined this command in the app (it cannot be undone, so it needs their confirmation)."
+   "summary": "The user declined this command in the app (it cannot be undone, so it needs their confirmation). Do not retry unless they ask."
   },
   {
    "code": "agent-confirm-timeout",
@@ -2463,7 +2463,7 @@
     "method",
     "seconds"
    ],
-   "summary": "Nobody confirmed this command in the app in time; it was not run."
+   "summary": "Nobody confirmed this command in the app in time; it was not run. Do not retry unless the user asks."
   },
   {
    "code": "agent-confirm-unknown",
@@ -2511,7 +2511,7 @@
    "args": [
     "workspace"
    ],
-   "summary": "OttoSmasher is not running on this workspace; open the app first (the command line only talks to a running app)."
+   "summary": "OttoSmasher is not running on this workspace; run otto open first (the command line only talks to a running app)."
   },
   {
    "code": "asset-file-missing",
@@ -2629,7 +2629,7 @@
     "id",
     "index"
    ],
-   "summary": "Object changed since it was read (version mismatch)."
+   "summary": "Object changed since it was read (version mismatch); read it again and rebuild the edit."
   },
   {
    "code": "edit-duplicate-object",
@@ -2666,7 +2666,7 @@
     "reason",
     "role"
    ],
-   "summary": "Edit value rejected."
+   "summary": "Edit value rejected (field and reason in args)."
   },
   {
    "code": "edit-not-found",
@@ -3240,7 +3240,7 @@
    "args": [
     "id"
    ],
-   "summary": "The sample has no successful speech analysis (needed for rhythm)."
+   "summary": "The sample has no successful speech analysis (needed for rhythm); run speech.submit."
   },
   {
    "code": "rhythm-no-blocks",
@@ -3298,7 +3298,7 @@
     "segments",
     "n"
    ],
-   "summary": "Some segments read by this sample were edited after their analysis; analyze them again."
+   "summary": "Some segments read by this sample were edited after their analysis; analyze them again with speech.submit."
   },
   {
    "code": "rhythm-segments-missing",
@@ -3306,7 +3306,7 @@
     "segments",
     "n"
    ],
-   "summary": "Some segments read by this sample have no usable analysis on this track yet."
+   "summary": "Some segments read by this sample have no usable analysis on this track yet; run speech.submit."
   },
   {
    "code": "rhythm-too-many-blocks",
@@ -3501,7 +3501,7 @@
    "args": [
     "key"
    ],
-   "summary": "Only the owner can change this setting, in the app's settings; the command line cannot change or undo it."
+   "summary": "Only the user can change this setting, in the app's settings; the command line cannot change or undo it."
   },
   {
    "code": "setting-invalid",
@@ -3542,7 +3542,7 @@
     "id",
     "n"
    ],
-   "summary": "Source has independent samples (handled in stage 9)."
+   "summary": "Source has independent samples; pass release=true to keep them and release the media."
   },
   {
    "code": "source-no-audio",
@@ -3672,12 +3672,12 @@
    "args": [
     "model"
    ],
-   "summary": "Model is not available in Studio."
+   "summary": "Model is not available in Studio. Ask the user to download it there; the app neither downloads separation models nor substitutes another."
   },
   {
    "code": "studio-models-unknown",
    "args": [],
-   "summary": "Studio models have not been listed yet."
+   "summary": "Studio models have not been listed yet; call studio.status again shortly."
   },
   {
    "code": "studio-no-runtime",
@@ -3699,7 +3699,7 @@
    "args": [
     "path"
    ],
-   "summary": "Subtitle file is not UTF-8."
+   "summary": "Subtitle file is not UTF-8; convert it first."
   },
   {
    "code": "subtitle-format",
