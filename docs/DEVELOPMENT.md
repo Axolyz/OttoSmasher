@@ -56,12 +56,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 
 ## 发布
 
-macOS（Apple 芯片）本地构建，Windows（x64 预览版）云端构建，两个 ZIP 发到同一个 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
-
-```bash
-.venv/bin/python tools/package_mac.py   # 先把小版本号加一并提交、打本地标签，再构建 → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip、.sha256、RELEASE_NOTES.md
-OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # 发布包冒烟：清空环境变量、中文与空格路径、随包模型、播放、otto 路径
-```
+两个平台的发布包都由云端构建（macOS 在 macOS 14 上，Windows x64 是预览版），传到同一个 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
 
 **构建前先跑全量 e2e**（所有者 2026-11-04）：`tools/npm run e2e` 全部通过后才更新版本号。一般提交只跑相关的文件。
 
@@ -69,23 +64,22 @@ OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # �
 提交“版本 x.y.z（构建）”并打**本地**标签 `vx.y.z`；要求没有未提交的修改（包对应一个提交）。`--no-bump` 按当前版本重新构建。
 `RELEASE_NOTES.md` 由 `tools/release_notes.md` 模板生成，“这一版的改动”列出相对上一个版本的提交（上一个标签；没有标签时找上一个“版本 …”提交），发布前可以手改。
 
-**发到 GitHub**（所有者 2026-10-31：构建和发布由开发者用 GitHub CLI 做，但**只在所有者明确说要构建 / 要发布时才做**）：
-1. 推 `main`，再**只推这一版的标签**：`git push origin vx.y.z`（不用 `--tags`，旧的本地标签不一定要公开）。标签打在构建用的那个提交上，
-   Release 因此对应包里的代码。
-2. 发布说明 `out/release/RELEASE_NOTES.md`（不进 Git）：“这一版的改动”是按提交说明自动列的，改成用户看得懂的几条，**发之前给所有者过目**（所有者可能自己改）；
-   核对 SHA-256 与 `.sha256` 文件一致（`shasum -a 256 out/release/OttoSmasher-*.zip`）。安装步骤、已知限制来自模板，模板过时就改 `tools/release_notes.md`。
-3. 发布（第一行标题去掉，GitHub 上 Release 的标题就是它）：
-   ```bash
-   tail -n +3 out/release/RELEASE_NOTES.md > <临时目录>/notes.md
-   gh release create vx.y.z --verify-tag --title "OttoSmasher x.y.z" --notes-file <临时目录>/notes.md --latest \
-     out/release/OttoSmasher-x.y.z-macos-arm64.zip out/release/OttoSmasher-x.y.z-macos-arm64.zip.sha256
-   ```
-   发之前 `gh release list` 看一眼有没有同一个标签的草稿（所有者可能在网页上起过草稿）。
+**发到 GitHub**（所有者 2026-10-31：只在所有者明确说要发布时才做）：
+1. 全量 e2e 通过后，`.venv/bin/python tools/package_mac.py --bump-only` 升版本、提交并打本地标签。
+2. 推 `main`，再**只推这一版的标签**：`git push origin vx.y.z`（不用 `--tags`）。标签会触发 `macos.yml` 和 `windows.yml`，打包和发布包冒烟都通过后，ZIP、`.sha256` 和自动生成的发布说明会进这个标签的 Release 草稿。已经发布的 Release 不会被覆盖。
+3. 发布说明里“这一版的改动”是按提交说明自动列的，改成用户看得懂的几条，填上 Windows 的 SHA-256，**发之前给所有者过目**。模板过时就改 `tools/release_notes.md`。
+4. 所有者过目后发布：`gh release edit vx.y.z --draft=false --latest`。
 
-**Windows 包**由云端构建（`tools/package_win.py`）。macOS 构建加好版本号、打好标签并推送之后，标签会自动触发 Windows 工作流；`package` 任务（含发布包冒烟）通过后，会把 ZIP 和 `.sha256` 传到这个标签的 Release 草稿（没有草稿就新建，已经发布的不动）。之后把 SHA-256 填进发布说明的 `{windows_sha256}`，再把发布说明更新到草稿。Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。
+要替换本机的应用，直接用这个 Release 里的 macOS ZIP，这样和用户下载到的是同一个文件。
+
+**本地打包**还能用（`tools/package_mac.py --no-bump`），用的是同一份固定版本的媒体工具，但 mpv 渲染桥和 pydomino 扩展是本机编译的，只用于排查问题，不用于发布。
+
+**媒体工具**（`tools/build_media_tools_macos.py`）只生成一次：运行 `build-media-tools` 工作流，把产物传到 `third-party-1`，再更新 `tools/third_party.json` 的地址、大小和 SHA-256。打包时会检查所有文件的最低系统版本，超过 14 就报错。
+
+Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。
 
 构建前要有：上面“准备环境”的全部产物（`.venv`、`third_party/`、mpv 渲染桥、pydomino 扩展）、`dev-workspace/Models` 里四个模型（脚本按 SHA-256 核对）、
-本机 Homebrew 的 `ffmpeg` / `ffprobe` / `rubberband`（脚本把它们连同依赖的动态库复制进包，改成包内相对路径）。
+`tools/fetch_third_party.py` 拉到的固定版本媒体工具。
 包是 ad-hoc 签名、没有公证（没有 Apple 开发者证书），README 写了用户第一次打开的办法。
 布局与原因见 [ARCHITECTURE.md §14](ARCHITECTURE.md)，随包组件与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 

@@ -15,6 +15,19 @@
       "note": "tools/build_libmpv_macos.sh 在云端从官方源码编译：mpv 8ca245f2 + FFmpeg n9.0.2，只开 LGPL，静态并进一个 dylib。"
     },
     {
+      "id": "media-tools-macos-arm64",
+      "platforms": [
+        "darwin-arm64"
+      ],
+      "kind": "archive",
+      "url": "https://github.com/Axolyz/OttoSmasher/releases/download/third-party-1/media-tools-macos-arm64-9.0.1.tar.gz",
+      "sha256": "b1045fc01469f3ac5a570b6a82967b07163bdbb4526e440931624d5dbbd04de4",
+      "size": 18954616,
+      "dest": "media-tools/macos-arm64",
+      "strip_components": 1,
+      "note": "tools/build_media_tools_macos.py 在云端 macOS 14 上生成：Homebrew 的 ffmpeg 9.0.1、rubberband 4.0.0 和它们依赖的动态库，最低系统版本 14。只用于打包，开发期仍用本机 Homebrew。"
+    },
+    {
       "id": "libmpv-windows-x64",
       "platforms": [
         "win32-x64"

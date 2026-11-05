@@ -52,7 +52,7 @@
   npm 11 只运行 `package.json` 的 `allowScripts` 里批准过的安装脚本（目前是 electron、esbuild）。
 - 原生扩展、pydomino 扩展、第三方二进制（libmpv 等）的拉取与编译见 DEVELOPMENT「准备环境」；都固定版本、校验 SHA-256（`tools/third_party.json`），产物在 `third_party/`（不进 Git）。
   开发需要的依赖可以直接装（所有者 2026-10-05），仍然只装在项目内。
-- macOS 的开发期和发布构建都用本机 Homebrew 的 ffmpeg / rubberband（只调用、复制，不改动）；Windows 用 `third_party/media-tools` 里固定版本的。
+- macOS 开发期用本机 Homebrew 的 ffmpeg / rubberband（只调用，不改动）；发布包和 Windows 都用 `third_party/media-tools` 里固定版本的。
 
 ## 5. 不进 Git 的东西
 
