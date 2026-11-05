@@ -51,7 +51,7 @@
 | msgspec、numpy、scipy、regex、onnxruntime 1.30.0（Windows：onnxruntime-directml 1.24.4）、pyopenjtalk-plus[tsqyomi] 0.4.1.post9 | 见 `pyproject.toml` | Core；pydomino 只编译上游 tokenizer + Viterbi 成 `_domino` 扩展（`core/native/domino_ext.cpp` + `tools/build_domino.py`），ONNX 推理走统一会话工厂 |
 | pytest、hypothesis；vitest、@testing-library/react、@playwright/test | — | 测试 |
 
-外部可执行文件与库：ffmpeg / ffprobe 与 Rubber Band（开发期用 Homebrew 的，发布包随包复制）、libmpv（media-kit 的 macOS 构建，`tools/third_party.json` 固定版本与 SHA-256）。
+外部可执行文件与库：ffmpeg / ffprobe 与 Rubber Band（开发期用 Homebrew 的，发布包用固定版本的）、libmpv（media-kit 的 macOS 构建，`tools/third_party.json` 固定版本与 SHA-256）。
 
 ### 1.3 组件库与设计语言
 
@@ -577,7 +577,7 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
 - `Contents/Resources/` 布局（`app/main/paths.ts` 与 `core/ottosmasher/resources.py` 按它找；源码运行时同样的相对路径在仓库里）：
   `app/`（`out/` 与界面文案、mpv 渲染桥 + `libmpv/`）、`python/`（与开发环境同一个 python-build-standalone 3.12 + 按 uv.lock 装的 Core 与依赖）、
   `third_party/`（模型支持文件、pydomino 扩展）、`models/`（四个模型权重；工作区 `Models/` 里有同名文件时优先用工作区的）、
-  `bin/` + `lib/`（ffmpeg、ffprobe、rubberband 取自本机 Homebrew，依赖的动态库一起复制、改成 `@loader_path`；`otto` 启动器）、`licenses/`。
+  `bin/` + `lib/`（ffmpeg、ffprobe、rubberband 来自固定版本的压缩包（`tools/build_media_tools_macos.py` 在 macOS 14 上生成），依赖的动态库一起复制、改成 `@loader_path`；`otto` 启动器）、`licenses/`。
 - 发布版运行时：主进程设 `OTTO_RESOURCES`、`OTTO_FFMPEG` / `OTTO_FFPROBE` / `OTTO_RUBBERBAND`，清掉 `PYTHONHOME` / `PYTHONPATH` / Conda 等变量；
   默认工作区 `~/Documents/OttoSmasher Workspace`（L3，`OTTO_WORKSPACE` 可改）；随包的模型文件直接算已核对（构建时按 SHA-256 核对、.app 有签名）。
 - 程序目录只读；工作区与程序分离；不需要首次启动“释放运行库”。冒烟检查：`e2e/packaged.spec.ts`（清空环境变量、中文与空格路径、空工作区、随包模型就绪、登记、试听截停、otto 路径）。

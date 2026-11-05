@@ -40,8 +40,12 @@ jobs:
         run: tools/npm ci
       - name: mpv 渲染桥
         run: node tools/build-native.mjs
+      - name: Electron 本体（第一次运行时才下载，打包要用）
+        run: tools/npm exec -- node node_modules/electron/install.js
       - name: 打包
-        run: .venv/bin/python tools/package_mac.py --no-bump
+        run: |
+          export UV_PYTHON_INSTALL_DIR="$PWD/.uv-python" UV_CACHE_DIR="$PWD/.uv-cache"
+          .venv/bin/python tools/package_mac.py --no-bump
       - name: 发布包冒烟
         env:
           OTTO_PACKAGED_E2E: "1"
