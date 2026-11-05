@@ -45,7 +45,7 @@ OTTO_DEV=1 tools/npm start          # 构建并启动（开发模式：工具页
 tools/npm test                                        # 前端单元测试（vitest）
 tools/npm run typecheck                               # TypeScript 类型检查
 tools/npm run i18n:check                              # 源码里没有写死的中日文、文案键齐全
-tools/npm run e2e                                     # Playwright 驱动真实 Electron（临时工作区、静音输出）
+tools/npm run e2e                                     # Playwright 驱动真实 Electron（临时工作区、静音输出；默认看不见窗口，不抢前台、不挡鼠标，要看窗口设 OTTO_E2E_FOREGROUND=1）
 ```
 
 - 真实素材（第三方版权内容，不复制进仓库、不进 Git，见 AGENTS §5）：设 `OTTO_FIXTURES=<素材目录>` 再跑
@@ -62,6 +62,8 @@ macOS（Apple 芯片）本地构建，Windows（x64 预览版）云端构建，�
 .venv/bin/python tools/package_mac.py   # 先把小版本号加一并提交、打本地标签，再构建 → out/release/OttoSmasher.app、OttoSmasher-<版本>-macos-arm64.zip、.sha256、RELEASE_NOTES.md
 OTTO_PACKAGED_E2E=1 tools/npm exec -- playwright test e2e/packaged.spec.ts   # 发布包冒烟：清空环境变量、中文与空格路径、随包模型、播放、otto 路径
 ```
+
+**构建前先跑全量 e2e**（所有者 2026-11-04）：`tools/npm run e2e` 全部通过后才更新版本号。一般提交只跑相关的文件。
 
 **版本号**（所有者 2026-10-31）：每次构建自动把小版本号加一（`package.json`、`package-lock.json`、`pyproject.toml`、`core/ottosmasher/__init__.py`、`uv.lock` 一起改），
 提交“版本 x.y.z（构建）”并打**本地**标签 `vx.y.z`；要求没有未提交的修改（包对应一个提交）。`--no-bump` 按当前版本重新构建。

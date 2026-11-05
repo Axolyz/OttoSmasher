@@ -33,6 +33,8 @@ export async function launch(
 ): Promise<Launched> {
   const workspace = opts.workspace ?? join(mkdtempSync(join(tmpdir(), "otto-e2e-")), "工作区 test");
   const env: Record<string, string> = { ...(process.env as Record<string, string>), OTTO_WORKSPACE: workspace, OTTO_DEV: "1", OTTO_STRICT_API: "1", OTTO_MPV_AO: process.env.OTTO_MPV_AO ?? "null" };
+  // 默认看不见窗口、不抢前台、不挡鼠标；要看窗口时设 OTTO_E2E_FOREGROUND=1
+  if (!process.env.OTTO_E2E_FOREGROUND) env.OTTO_TEST_BACKGROUND = "1";
   if (opts.locale === null) delete env.OTTO_LOCALE;
   else env.OTTO_LOCALE = opts.locale ?? "zh-CN";
   if (opts.userData) env.OTTO_USER_DATA = opts.userData;

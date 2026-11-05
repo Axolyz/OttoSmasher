@@ -115,7 +115,7 @@ Draw a row of blocks, optionally specify the vowel, consonant, pitch and loudnes
 
 Draw a few pitch blocks and find passages in samples or whole tracks that hit exactly those notes, optionally ignoring the octave. This helps with pitch-matched otoMAD work.
 
-### Export and video clips
+### Export
 
 You can export WAV files of the original or the beat-fit, or drag WAV files from the library straight into a DAW. Sound processed elsewhere with more elaborate methods can be put back in its original place (reimport). It becomes a new track and stays connected to the original picture and tags.
 

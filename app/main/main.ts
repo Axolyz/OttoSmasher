@@ -48,6 +48,8 @@ ipcMain.handle("app:setLanguage", (e, choice: string) => {
 });
 const devServer = process.env.OTTO_DEV_SERVER; // 开发期 Vite 地址
 const isDev = process.env.OTTO_DEV === "1";
+// macOS：不进程序坞、不抢前台。要在应用就绪前设
+if (process.env.OTTO_TEST_BACKGROUND && process.platform === "darwin") app.setActivationPolicy("accessory");
 
 if (paths.repo) {
   // 源码运行（开发）与发布版只在“身份”上区分，行为一样（所有者 2026-10-31）：名字、界面缓存文件夹、程序坞角标；
@@ -114,7 +116,16 @@ function createWindow(): BrowserWindow {
       additionalArguments: [`--otto-build=${paths.repo ? "source" : "packaged"}`],
     },
   });
-  win.once("ready-to-show", () => win.show());
+  // 自动测试不打扰开发者（e2e/helpers.ts）：窗口照常显示和渲染，但全透明、鼠标穿透、不激活
+  win.once("ready-to-show", () => {
+    if (process.env.OTTO_TEST_BACKGROUND) {
+      win.setOpacity(0);
+      win.setIgnoreMouseEvents(true);
+      win.setSkipTaskbar(true); // 不出现在 Windows 任务栏
+      if (process.platform === "darwin") win.setHiddenInMissionControl(true); // 不出现在调度中心，免得手动切到透明窗口
+      win.showInactive();
+    } else win.show();
+  });
   win.webContents.on("render-process-gone", (_e, details) => {
     logDesktopEvent("render-process-gone", { ...details });
     if (details.reason !== "clean-exit") win.reload();
