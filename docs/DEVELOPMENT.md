@@ -74,6 +74,8 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 
 **本地打包**还能用（`tools/package_mac.py --no-bump`），用的是同一份固定版本的媒体工具，但 mpv 渲染桥和 pydomino 扩展是本机编译的，只用于排查问题，不用于发布。
 
+**版本固定**：Python 版本写在 `.python-version`；工作流里的 uv 版本写在 `setup-uv` 的 `version`，因为同一个 Python 版本在不同 uv 下可能下载到不同的构建；其他 Python 依赖由 `uv.lock` 固定。升级 Python 时这几处一起改，并确认本机 uv 也能下载到这个版本。
+
 **媒体工具**（`tools/build_media_tools_macos.py`）只生成一次：运行 `build-media-tools` 工作流，把产物传到 `third-party-1`，再更新 `tools/third_party.json` 的地址、大小和 SHA-256。打包时会检查所有文件的最低系统版本，超过 14 就报错。
 
 Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS Studio、声音和 REAPER（大版本时）；真实素材不放云端（AGENTS §5）。

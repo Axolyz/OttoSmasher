@@ -34,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.12.19" # 和本地一致：uv 决定下载到哪个 Python 构建（DEVELOPMENT.md）
       - name: Python 环境
         run: tools/uv sync --locked
       - name: 第三方文件
@@ -76,6 +78,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.12.19" # 和本地一致：uv 决定下载到哪个 Python 构建（DEVELOPMENT.md）
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -139,6 +143,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.12.19" # 和本地一致：uv 决定下载到哪个 Python 构建（DEVELOPMENT.md）
       - uses: actions/setup-node@v7
         with:
           node-version: 26
