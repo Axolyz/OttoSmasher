@@ -3542,7 +3542,7 @@
     "id",
     "n"
    ],
-   "summary": "Source has independent samples; pass release=true to keep them and release the media."
+   "summary": "Source has independent samples and cannot be deleted without releasing its media."
   },
   {
    "code": "source-no-audio",

@@ -94,7 +94,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "source-path-taken": (("other", "path"), "Another source is registered at this path."),
     "source-changed": (("path", "what"), "Source file was replaced or changed since registration."),
     "source-has-active-jobs": (("id", "jobs"), "Source cannot be deleted while jobs use it."),
-    "source-has-independent-samples": (("id", "n"), "Source has independent samples; pass release=true to keep them and release the media."),
+    "source-has-independent-samples": (("id", "n"), "Source has independent samples and cannot be deleted without releasing its media."),
     "stream-not-found": (("ordinal", "source"), "No such audio stream."),
     "asset-not-found": (("id",), "No such sound asset."),
     "asset-file-missing": (("id", "path"), "Sound asset file not found."),
