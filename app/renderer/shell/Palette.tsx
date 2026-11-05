@@ -9,12 +9,11 @@ import type { EditLabel } from "../api/types";
 import { CommandPalette, type PaletteCommand, type PaletteSection } from "../components/CommandPalette";
 import { errorText, t } from "../i18n";
 import { collectCommands, useCommands } from "../state/commands";
-import { type Page, useApp } from "../state/store";
+import { type Page, useApp, visiblePages } from "../state/store";
 import { SETTINGS_GROUPS } from "../workbenches/SettingsSheet";
 import { describeLabel } from "./labels";
 import { useUndo } from "./useUndo";
 
-const PAGES: Page[] = ["library", "sources", "tools"];
 const RECENT = 5;
 
 async function setBpm(value: number | null): Promise<void> {
@@ -49,7 +48,7 @@ function useGlobalCommands(peek: EditLabel | null) {
       st.setPage(p);
     };
     const items: PaletteCommand[] = [
-      ...PAGES.map((p, i) => ({ key: `global/page-${p}`, label: t("cmd.goto", { page: t(`nav.${p}`) }), group: g, shortcut: `⌘${i + 1}`, disabled: st.page === p && !st.settingsOpen, run: go(p) })),
+      ...visiblePages(st.hello?.dev ?? false).map((p, i) => ({ key: `global/page-${p}`, label: t("cmd.goto", { page: t(`nav.${p}`) }), group: g, shortcut: `⌘${i + 1}`, disabled: st.page === p && !st.settingsOpen, run: go(p) })),
       {
         key: "global/undo",
         label: peek ? t("top.undo.tip", { label: describeLabel(peek) }) : t("top.undo.none"),

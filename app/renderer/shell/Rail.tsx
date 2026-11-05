@@ -18,6 +18,7 @@ function Item(props: { on?: boolean; icon: ReactNode; label: string; badge?: num
 
 export function Rail(props: { activeJobs: number }) {
   const page = useApp((st) => st.page);
+  const dev = useApp((st) => st.hello?.dev ?? false);
   const setPage = useApp((st) => st.setPage);
   const setTasksOpen = useApp((st) => st.setTasksOpen);
   const setSettingsOpen = useApp((st) => st.setSettingsOpen);
@@ -30,7 +31,7 @@ export function Rail(props: { activeJobs: number }) {
       <img className={s.logo} src={logo} alt="" aria-hidden draggable={false} />
       <Item testId="nav-library" on={page === "library"} icon={<SquareStack />} label={t("nav.library")} onPress={go("library")} />
       <Item testId="nav-sources" on={page === "sources"} icon={<Clapperboard />} label={t("nav.sources")} onPress={go("sources")} />
-      <Item testId="nav-tools" on={page === "tools"} icon={<Wrench />} label={t("nav.tools")} onPress={go("tools")} />
+      {dev ? <Item testId="nav-tools" on={page === "tools"} icon={<Wrench />} label={t("nav.tools")} onPress={go("tools")} /> : null}
       <div className={s.grow} />
       <Item testId="nav-tasks" icon={<AudioLines />} label={t("nav.tasks")} badge={props.activeJobs} onPress={() => setTasksOpen(true)} />
       <Item testId="nav-settings" icon={<Settings />} label={t("nav.settings")} onPress={() => setSettingsOpen(true)} />

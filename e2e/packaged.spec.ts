@@ -44,6 +44,9 @@ test("发布包：随包的模型、媒体工具、播放与命令行", async ()
       return seen.filter((s) => s.player === "audition");
     }, wav);
     expect(states.some((s) => s.ended)).toBe(true);
+    // 工具页只在开发版显示（所有者 2026-11-04）
+    await expect(page.getByTestId("nav-tools")).toHaveCount(0);
+    await expect(page.getByTestId("page-tools")).toHaveCount(0);
     // 设置里的 otto 指向包里的启动器
     await page.keyboard.press("ControlOrMeta+,");
     await page.getByTestId("settings-group-agent").click();

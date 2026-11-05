@@ -5,6 +5,11 @@ import type { Hello, RhythmPlan, RhythmSound } from "../api/types";
 
 export type Page = "library" | "sources" | "tools";
 
+// 工具页只有组件样张和开发自检，发布版不显示（所有者 2026-11-04）
+export function visiblePages(dev: boolean): Page[] {
+  return dev ? ["library", "sources", "tools"] : ["library", "sources"];
+}
+
 export interface Toast {
   id: number;
   text: string;

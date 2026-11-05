@@ -8,7 +8,7 @@ import { LibraryPage } from "../library/LibraryPage";
 import { keys, t } from "../i18n";
 import { SourcesPage } from "../sources/SourcesPage";
 import { fileSize } from "../format";
-import { type Page, useApp } from "../state/store";
+import { type Page, useApp, visiblePages } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
 import { FlattenSheet } from "./FlattenSheet";
@@ -26,7 +26,6 @@ import { TaskDrawer, useJobs } from "./TaskDrawer";
 import { TopBar } from "./TopBar";
 import { useUndo } from "./useUndo";
 
-const PAGES: Page[] = ["library", "sources", "tools"];
 
 function isTyping(el: Element | null): boolean {
   if (!el) return false;
@@ -44,6 +43,10 @@ export function App() {
   const st = useApp();
   const jobs = useJobs();
   const undo = useUndo();
+  // 以前保存的页面可能是工具页；发布版没有这一页，回到采样库
+  useEffect(() => {
+    if (st.hello && !st.hello.dev && st.page === "tools") st.setPage("library");
+  }, [st.hello, st.page]);
   const restored = useRef(false);
   const active = jobs.filter((j) => j.status === "queued" || j.status === "running").length;
 
@@ -62,7 +65,7 @@ export function App() {
       if (h.interrupted_on_start > 0) st.toast({ text: t("tasks.interruptedOnStart", { n: h.interrupted_on_start }) });
     });
     void call("ui.get", { page: "shell" }).then((v) => {
-      if (typeof v.page === "string" && PAGES.includes(v.page as Page)) st.setPage(v.page as Page);
+      if (typeof v.page === "string" && visiblePages(true).includes(v.page as Page)) st.setPage(v.page as Page);
       if (v.theme === "light" || v.theme === "dark") st.setTheme(v.theme);
       restored.current = true;
       // 新工作区第一次打开、缺模型权重：提醒一次去哪里下载（所有者 2026-10-10：发布包不带模型；只提醒，不自动下载）
@@ -150,8 +153,11 @@ export function App() {
         st.setPaletteOpen(!useApp.getState().paletteOpen);
       } else if (mod && ["1", "2", "3"].includes(e.key)) {
         e.preventDefault();
-        st.setSettingsOpen(false);
-        st.setPage(PAGES[Number(e.key) - 1]!);
+        const target = visiblePages(useApp.getState().hello?.dev ?? false)[Number(e.key) - 1];
+        if (target) {
+          st.setSettingsOpen(false);
+          st.setPage(target);
+        }
       } else if (mod && e.key === ",") {
         e.preventDefault();
         st.setSettingsOpen(true);
@@ -184,9 +190,11 @@ export function App() {
           <div className={`${s.page} ${st.page === "sources" ? "" : s.hidden}`}>
             <SourcesPage />
           </div>
-          <div className={`${s.page} ${st.page === "tools" ? "" : s.hidden}`}>
-            <ToolsPage />
-          </div>
+          {st.hello?.dev ? (
+            <div className={`${s.page} ${st.page === "tools" ? "" : s.hidden}`}>
+              <ToolsPage />
+            </div>
+          ) : null}
         </div>
         <Dock />
       </div>
@@ -204,7 +212,7 @@ export function App() {
           <tbody>
             {[
               ["⌘K", t("top.command")],
-              ["⌘1 / ⌘2 / ⌘3", t("shortcuts.pages")],
+              [st.hello?.dev ? "⌘1 / ⌘2 / ⌘3" : "⌘1 / ⌘2", t("shortcuts.pages")],
               ["⌘,", t("shortcuts.settings")],
               ["⌘J", t("shortcuts.tasks")],
               ["⌘Z", t("shortcuts.undo")],

@@ -151,7 +151,7 @@ app/                     Electron + 前端（TypeScript）
     library/             采样库：列表、查找栏与范围行、检索浮层与画布、详情区
     sources/             原素材页：列表（含台词搜索）、查看器（画面 + 台本 + 时间线）、准备清单、各种对话框
     workbenches/         设置、字幕规则等全屏工作台
-    tools/               工具页（组件样张、开发期 mpv 探针）
+    tools/               工具页（组件样张、开发期 mpv 探针；只在开发版显示）
     components/          组件库（React Aria 包一层）：CollectionList / ActionList（统一选择规则）、Menu、Overlay、Fields、WaveCard（自研波形画布）……
     state/               zustand：store.ts（全局状态）、commands.ts（命令面板来源）、settings.ts
     i18n/                t()、locales/zh-CN.json、en.json、伪语言
