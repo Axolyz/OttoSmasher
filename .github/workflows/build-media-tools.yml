@@ -7,6 +7,7 @@ on:
   push:
     paths:
       - tools/build_media_tools_macos.py
+      - tools/package_mac.py
       - .github/workflows/build-media-tools.yml
 
 permissions:
