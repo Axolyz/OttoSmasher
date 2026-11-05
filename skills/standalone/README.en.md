@@ -24,3 +24,7 @@ Copy the folders you need from `en/` (English) or `zh-CN/` (Chinese) to where yo
 These methods come from the author's own exploration, mainly on a few anime series. Treat the numbers as a reference and recalibrate for another show. Results are not guaranteed, so check what matters by hand.
 
 They come from [OttoSmasher](https://github.com/Axolyz/OttoSmasher), which connects these workflows to a sample library and human review.
+
+## License
+
+The skills and scripts in this folder are released under the [MIT License](LICENSE). The model downloaded by the voiceprint script and its dependencies have their own licenses.

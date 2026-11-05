@@ -1,34 +1,3 @@
----
-name: cleaning-subtitles
-description: "Cleans subtitle files into the form OttoSmasher reads: one same-name UTF-8 SRT per video, spoken words only, one person per cue. Use for messy, bilingual or closed-caption subtitles, adding speaker labels, or subtitles timed for a different release. Not needed when the subtitles are already clean."
----
-
-# Cleaning subtitles
-
-Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue holds one person's spoken words. Reading rules are in `otto guide prepare`; this skill covers how to get there.
-
-## Recommended order
-
-Clean the text, split cues and label speakers in one pass, and produce one final subtitle file. Later steps depend on earlier ones:
-
-1. Separate the vocals.
-2. Check the timing against this release and fix any overall offset. Alignment needs windows that are close.
-3. Clean the text down to spoken words. It becomes the alignment text.
-4. Audit the labels.
-5. Split two-person cues. Voiceprints need one person per range.
-6. Compute voiceprints on the split lines and label speakers.
-7. Write one final subtitle file, check it, and import it once. A later re-import does not update the speakers of unchanged segments.
-
-## Before you start
-
-Do these before any batch work:
-
-1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none, because splitting cues needs a clear voice.
-2. Check your audio tool as the overview describes.
-3. Audit the labels (next section) before you trust any label or turn boundary.
-
-Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.
-
 ## Audit the labels
 
 Sources label speakers differently, so measure this for each source before you trust it. The only certainty is that a speaker change starts a new text line.
@@ -60,7 +29,7 @@ To split a two-person cue:
 2. Cut at the middle of the gap between the two lines. The two cues may extend to the speech the alignment found.
 3. If one line aligns to under 0.1 s, it was probably not found in the vocals. Leave that cue unsplit and unlabelled.
 
-To fill in unlabelled cues from voices, use skill `grouping-speakers`.
+To fill in unlabelled cues from voices, see `references/speakers.md`.
 
 ## Common fixes
 
@@ -73,7 +42,7 @@ To fill in unlabelled cues from voices, use skill `grouping-speakers`.
 | Humming written `♪（ハミング）` | Write the sound line `（ハミング）`, or the lyrics. |
 | Subtitle name differs from the video | Write a same-name copy. Prefer proper subtitles over a machine transcript, because they have speakers. |
 | Embedded subtitles | Extract with `ffmpeg -i ep01.mkv -map 0:s:0 ep01.ass`. Image subtitles need text recognition first. |
-| No subtitles | Use skill `transcribing-without-subtitles`. |
+| No subtitles | See `references/no-subtitles.md`. |
 
 ## Check timing against this release
 

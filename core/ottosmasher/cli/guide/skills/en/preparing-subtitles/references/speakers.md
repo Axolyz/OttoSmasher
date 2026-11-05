@@ -1,8 +1,3 @@
----
-name: grouping-speakers
-description: "Labels who says each OttoSmasher line by clustering voiceprints from the bundled script, with or without existing speaker labels. Use only when the user asks to label or group lines by speaker across many lines. No other task needs voiceprints. Experimental."
----
-
 # Grouping lines by speaker (experimental)
 
 The app does not do this. Compute voiceprints with the script in `scripts/`, do the grouping and decisions yourself, and write the result to the segments' `speakers`.
@@ -11,7 +6,7 @@ The user usually cares only about named main characters. Minor characters may st
 
 ## Prepare
 
-1. Audit the labels first (skill `cleaning-subtitles`). A segment's `speakers` hold only what could be read for certain. Segments with `speakersWithheld` true still have labels in `raw`.
+1. Audit the labels first (`references/cleaning.md`). A segment's `speakers` hold only what could be read for certain. Segments with `speakersWithheld` true still have labels in `raw`.
 2. Read label samples from `raw` or the subtitle file, and interpret them by the audit. A bracket alone on a line may label the next line, reading brackets are not names, and 人, たち, 一同 and the like mean several people.
 3. Use separated vocals. Find the track with `assets.tracks` and export it with `exports.wav`; its `mapping` converts file seconds to source seconds.
 4. Split two-line cues with `speech.align` and `lines`, using the cue time ± 0.2 s as the window. Diarization models could not tell anime female voices apart in the trial.
@@ -44,7 +39,7 @@ Two rules matter here:
 
 ## Write back
 
-If the subtitles are not imported yet, write the names into the subtitle file (see the order in skill `cleaning-subtitles`). For segments already in the library, set `speakers` with `edits.apply` (entity `segment`, field `speakers`). It is recorded as a speaker edit, and `segments.regenerateSpeakers` skips it.
+If the subtitles are not imported yet, write the names into the subtitle file (see the order in `SKILL.md`). For segments already in the library, set `speakers` with `edits.apply` (entity `segment`, field `speakers`). It is recorded as a speaker edit, and `segments.regenerateSpeakers` skips it.
 
 - Do not overwrite segments the subtitles already label. List predictions that contradict a label for the user.
 - For two people in one cue, write both names, or use `segments.split` and write one on each. Follow the playbook; if it says nothing, ask.

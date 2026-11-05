@@ -1,8 +1,3 @@
----
-name: grouping-speakers
-description: "用附带脚本算声纹并聚类，给 OttoSmasher 的台词标上是谁说的，有没有现成的说话人标注都能做。只在用户要给大量台词标说话人或按说话人分组时使用，其他任务都不需要声纹。实验性。"
----
-
 # 按说话人分组（实验性）
 
 应用不做这件事。用 `scripts/` 里的脚本算声纹，分组和判断由你自己完成，结果写回段的 `speakers`。
@@ -11,7 +6,7 @@ description: "用附带脚本算声纹并聚类，给 OttoSmasher 的台词标�
 
 ## 准备
 
-1. 先给标注做体检（skill `cleaning-subtitles`）。段的 `speakers` 只有确定能读出的部分，`speakersWithheld` 为真的段在 `raw` 里还有标注。
+1. 先给标注做体检（`references/cleaning.md`）。段的 `speakers` 只有确定能读出的部分，`speakersWithheld` 为真的段在 `raw` 里还有标注。
 2. 从 `raw` 或字幕文件读标注样本，并按体检结果解释：整行括号可能标的是下一行，读音括号不是名字，「人」「たち」「一同」之类表示多人。
 3. 用分离后的人声。用 `assets.tracks` 找音轨，用 `exports.wav` 导出，它返回的 `mapping` 能把文件秒换成原片秒。
 4. 用 `speech.align` 的 `lines` 切开两行字幕，窗口是字幕时间前后各 0.2 秒。试验里，说话人切分模型分不清动画里的女声。
@@ -44,7 +39,7 @@ description: "用附带脚本算声纹并聚类，给 OttoSmasher 的台词标�
 
 ## 写回
 
-字幕还没导入时，把名字写进字幕文件（顺序见 skill `cleaning-subtitles`）。已经在资料库里的段，用 `edits.apply` 写 `speakers`（实体 `segment`，字段 `speakers`）。它会记成“改过说话人”，`segments.regenerateSpeakers` 会跳过。
+字幕还没导入时，把名字写进字幕文件（顺序见 `SKILL.md`）。已经在资料库里的段，用 `edits.apply` 写 `speakers`（实体 `segment`，字段 `speakers`）。它会记成“改过说话人”，`segments.regenerateSpeakers` 会跳过。
 
 - 字幕已经标了的段不要覆盖。猜的结果和标注冲突时列给用户。
 - 一条里有两个人时，可以写两个名字，也可以用 `segments.split` 切开后各写一个。按 playbook 做，没写就问用户。

@@ -27,7 +27,7 @@ Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once
   - So a segment's `speakers` are the speakers that could be read **for certain**; empty = unknown, not "nobody". The full labels are in the segment's `raw` (the original text of that cue; kept through edits and splits, joined from the parts after a merge).
     To get speakers on every cue, first clean the subtitles into "one person per cue, every speech line labelled".
   - Lines starting `♪～` / ending `～♪` mark the OP / ED (`〜` is recognised too).
-  - Music inside an episode (an insert song, a karaoke scene) uses the same marks, so a correct subtitle file can report OP/ED errors. Only pairs without errors import on their own; `opedErrors` and `problems` show the rest (skill `cleaning-subtitles`).
+  - Music inside an episode (an insert song, a karaoke scene) uses the same marks, so a correct subtitle file can report OP/ED errors. Only pairs without errors import on their own; `opedErrors` and `problems` show the rest (skill `preparing-subtitles`).
   - A cue longer than 120 s cannot be a segment or sound hint: `subtitles.parse` lists it in `problems` and the preview marks it `invalid` / `too-long`. It is left out on import; split it into consecutive cues if you need it.
   - A line like `♪（ハミング）` becomes speech that is just "♪"; speech analysis fails with `frontend-failed` (`empty-text`).
 - **Line text is the alignment text**: speech analysis aligns the audio to it, so it must be the words actually spoken (Japanese only for now); translations or notes inside make alignment wrong or fail.

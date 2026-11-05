@@ -18,7 +18,7 @@
 2. 把字幕改成和视频同名、编码为 UTF-8 的 SRT。
 3. 按[字幕写法](reference.md#字幕写法)清理内容。
 
-字幕乱的话，交给 agent 最快：它有一个专门的 `cleaning-subtitles` skill（见[让 agent 操作 OttoSmasher](agents.md)）。
+字幕乱的话，交给 agent 最快：它有一个专门的 `preparing-subtitles` skill（见[让 agent 操作 OttoSmasher](agents.md)）。
 
 ## 登记原素材
 

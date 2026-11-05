@@ -60,11 +60,8 @@ agent 也可以出编排方案，但目前更推荐它做上游的素材处理�
 
 | 名字                   | 做什么                                       |
 | -------------------- | ----------------------------------------- |
-| `cleaning-subtitles` | 洗字幕、标说话人、核对跨版本的时间轴                        |
-| `retiming-lines`     | 修正台词边界                                    |
+| `preparing-subtitles` | 洗字幕、修时间、拆两人条目、用声纹标说话人（实验性；需要 uv 和 ffmpeg，第一次会下载几百 MB）、给没有字幕的素材打轴（工具没有定型）。可以走完整流程，也可以只做其中一步 |
 | `finding-op-ed`      | 没有字幕时找片头片尾                                |
-| `transcribing-without-subtitles` | 给没有字幕的素材打轴（还在完善，工具没有定型） |
-| `grouping-speakers`  | 用声纹按说话人分组（实验性；需要 uv 和 ffmpeg，第一次会下载几百 MB） |
 
 你也可以新建文件夹，加自己的 skill。格式是 [Agent Skills](https://agentskills.io/specification)：一个文件夹，里面一个 `SKILL.md`，开头写 `name` 和 `description`。
 

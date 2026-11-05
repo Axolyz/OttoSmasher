@@ -109,7 +109,7 @@ def test_agent_skills_command_seeds_the_workspace_folder(core):
     r = call(core, "agent.skills", lang="en")
     assert r["ok"], r
     names = {x["name"] for x in r["r"]["skills"]}
-    assert {"cleaning-subtitles", "grouping-speakers"} <= names and r["r"]["path"].endswith("skills")
+    assert {"preparing-subtitles", "finding-op-ed"} <= names and r["r"]["path"].endswith("skills")
     assert all(x["builtin"] and x["update"] == [] and x["description"] for x in r["r"]["skills"])
     assert call(core, "agent.skills")["ok"]  # 语言已经定下，不传也行
 

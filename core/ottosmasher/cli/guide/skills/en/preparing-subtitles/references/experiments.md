@@ -41,4 +41,4 @@ Mistakes concentrated between Nijika and Ryo, and between Hitori and Nijika or K
 
 ## A full cleaning run
 
-On 2026-10-31 the 12 episodes were cleaned with skill `cleaning-subtitles`. Of 227 two-person cues, 210 were split and 17 left alone because one line was not found. Of 2882 unlabelled cues, 2129 got a speaker from voiceprints, calibrated to 97% precision.
+On 2026-10-31 the 12 episodes were cleaned with this workflow. Of 227 two-person cues, 210 were split and 17 left alone because one line was not found. Of 2882 unlabelled cues, 2129 got a speaker from voiceprints, calibrated to 97% precision.

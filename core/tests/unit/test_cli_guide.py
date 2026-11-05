@@ -86,16 +86,16 @@ def test_guide_command_prints_reference_and_skills(tmp_path, capsys, monkeypatch
     monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
     assert main(["guide", "--lang", "zh-CN"]) == 0
     text = capsys.readouterr().out
-    assert "Ground rules" in text and "cleaning-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
-    assert "把字幕文件整理成" in text  # skill 的说明用工作区的语言
+    assert "Ground rules" in text and "preparing-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
+    assert "为 OttoSmasher 准备字幕" in text  # skill 的说明用工作区的语言
     assert main(["guide", "undo"]) == 0
     assert "edits.undoSession" in capsys.readouterr().out
     assert main(["guide", "--all"]) == 0
     assert "primitives" in capsys.readouterr().out
-    assert main(["guide", "retiming-lines"]) == 0
-    assert "edits.apply" in capsys.readouterr().out
+    assert main(["guide", "preparing-subtitles"]) == 0
+    assert "references/retiming.md" in capsys.readouterr().out
     assert main(["guide", "notes"]) == 0  # 旧名字：已经装好的入口 skill 还可能这么叫
-    assert "grouping-speakers" in capsys.readouterr().out
+    assert "finding-op-ed" in capsys.readouterr().out
     assert main(["guide", "nope"]) == 2
 
 
@@ -159,11 +159,11 @@ def test_setup_skills_reports_commands_the_app_no_longer_has(tmp_path, capsys, m
     monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
     assert main(["setup", "skills", "--lang", "en"]) == 0
     r = json.loads(capsys.readouterr().out)
-    assert r["unknownCommands"] == [] and {"cleaning-subtitles", "grouping-speakers"} <= {s["name"] for s in r["skills"]}
-    f = skills.skills_dir(tmp_path) / "retiming-lines" / "SKILL.md"
+    assert r["unknownCommands"] == [] and {"preparing-subtitles", "finding-op-ed"} <= {s["name"] for s in r["skills"]}
+    f = skills.skills_dir(tmp_path) / "preparing-subtitles" / "references" / "retiming.md"
     f.write_text(f.read_text(encoding="utf-8") + "\nUse `samples.gone` here.\n", encoding="utf-8")
     assert main(["setup", "skills"]) == 0
-    assert json.loads(capsys.readouterr().out)["unknownCommands"] == [{"file": "retiming-lines/SKILL.md", "command": "samples.gone"}]
+    assert json.loads(capsys.readouterr().out)["unknownCommands"] == [{"file": "preparing-subtitles/references/retiming.md", "command": "samples.gone"}]
 
 
 def test_hosted_skill_is_an_entry_point():
@@ -200,15 +200,15 @@ def test_setup_audio_prints_only(capsys):
 
 
 def test_speaker_embed_script(tmp_path):
-    """grouping-speakers 附带的脚本：不需要模型的部分（时间换算、补零）在这里测。"""
+    """preparing-subtitles 附带的脚本：不需要模型的部分（时间换算、补零）在这里测。"""
     import importlib.util
 
     import numpy as np
 
-    script = SKILLS / "common" / "grouping-speakers" / "scripts" / "speaker_embed.py"
+    script = SKILLS / "common" / "preparing-subtitles" / "scripts" / "speaker_embed.py"
     assert script.read_text(encoding="utf-8").startswith("# /// script")  # uv 认得的内联依赖
     for lang in LANGS:
-        assert "scripts/speaker_embed.py" in (SKILLS / lang / "grouping-speakers" / "SKILL.md").read_text(encoding="utf-8")
+        assert "scripts/speaker_embed.py" in (SKILLS / lang / "preparing-subtitles" / "references" / "speakers.md").read_text(encoding="utf-8")
     spec = importlib.util.spec_from_file_location("speaker_embed", script)
     se = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(se)  # 模型与 torch 只在 main 里导入
@@ -254,3 +254,13 @@ def test_status_hints_only_about_models_that_are_really_broken(tmp_path):
     assert ok["models"]["fcpe"] == "unverified" and not [h for h in ok["hints"] if "models" in h]
     bad = environment(args, tmp_path, Fake({"fcpe": "missing", "pydomino": "mismatch", "tsqyomi": "ready"}))
     assert [h for h in bad["hints"] if "fcpe, pydomino" in h]
+
+
+def test_skill_references_point_to_real_files():
+    """入口和细节互相提到的文件都要存在：合并成一个 skill 后，agent 靠这些路径找到要读的部分。"""
+    for lang in LANGS:
+        for f in (SKILLS / lang).rglob("*.md"):
+            root = SKILLS / lang / f.relative_to(SKILLS / lang).parts[0]
+            for ref in re.findall(r"`(references/[\w.-]+)`", f.read_text(encoding="utf-8")):
+                assert (root / ref).is_file(), (f, ref)
+            assert "skill `cleaning" not in f.read_text(encoding="utf-8")

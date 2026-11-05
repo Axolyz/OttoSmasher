@@ -1,8 +1,3 @@
----
-name: retiming-lines
-description: "Fixes line boundaries in OttoSmasher with a rough pass and forced alignment. Use when segments are mistimed. Not needed for ordinary speech analysis."
----
-
 # Retiming lines
 
 The aligner fits the whole line into the window it receives and does not look for where the line is. Numbers are in `otto guide primitives`. If a fansub's rough timing exists, start from it; fine-tuning it has worked better than the automatic tools tried so far.
