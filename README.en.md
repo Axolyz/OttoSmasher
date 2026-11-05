@@ -13,7 +13,9 @@
   <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
 </p>
 
-OttoSmasher is a workstation for otoMAD material. It keeps lines, samples and sound effects from anime, videos, game voices and sample packs in one place, and handles cutting, vocal separation, flattening and beat-fitting. You can search the whole library by rhythm or pitch, then hand the results to a DAW or video editor. Agents such as Claude Code and Codex can also operate it from the command line, for work that needs judgement, such as cleaning subtitles, picking lines and choosing timbres.
+OttoSmasher is a workstation for otoMAD material. It keeps lines, samples and sound effects from anime, videos, game voices and sample packs in one place, and handles cutting, vocal separation, flattening and beat-fitting. You can search the whole library by rhythm or pitch, then hand the results to a DAW or video editor. Agents such as Claude Code and Codex can also operate it from the command line, for work that needs judgement, such as cleaning subtitles, picking lines and choosing timbres. Without an agent, it is still a complete material workstation.
+
+OttoSmasher does not generate music or create on your behalf. It cuts the repetitive work in processing and managing material; what to choose, how to arrange it and what to express stay with you.
 
 **The project is at an early stage and the Windows version is a preview, so expect bugs and rough edges.**
 
@@ -49,7 +51,7 @@ For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The 
 
 ## Using it with agents
 
-Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres, arranging a rap.
+Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
 Send your agent this message, followed by your task:
 
@@ -58,6 +60,8 @@ Please operate OttoSmasher on my computer with its command line otto: first run 
 Task: ...
 ```
 
+- **A full set of capabilities, no fixed pipeline**: phoneme alignment, reading analysis, pitch measurement, search, separation and flattening are all carefully chosen. The app only does deterministic computation; the agent organizes the work from context and can script batch calls.
+- **Data managed by the app**: sources, tracks, lines, phonemes, samples and tags live in a structured library. The agent queries what it needs, without filling its context or managing piles of files.
 - **Review and undo**: the agent's data edits are recorded by session. You can review them in the app's history and undo a whole session. New samples and tracks cannot be undone, but they can be deleted.
 - **Confirmation for dangerous actions**: actions that cannot be undone, such as deleting a source, only run after you click Allow in the app (unless "No confirmation for actions that can't be undone" is on).
 - **Hearing sound**: with the audio tool audio-mcp connected, the agent can view spectrograms, measure loudness and make timed transcripts.
