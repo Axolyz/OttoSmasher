@@ -1,10 +1,9 @@
-.page { flex: 1; display: grid; grid-template-columns: 300px minmax(0, 1fr); min-width: 0; min-height: 0; }
-@media (max-width: 1100px) { .page { grid-template-columns: 240px minmax(0, 1fr); } }
-.page[data-list-hidden] { grid-template-columns: 0 minmax(0, 1fr); }
+/* 原素材列表与右侧之间、视频与台词栏之间都是可拖动的分隔条（SplitPane；所有者 2026-11-05） */
+.page { flex: 1; display: flex; min-width: 0; min-height: 0; }
 .page[data-drop] { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* 列表 */
-.list { border-right: 1px solid var(--line2); display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--s1); }
+.list { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--s1); }
 .listHead { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--line2); align-items: center; }
 /* 搜索时列表下面多一节“台词”（所有者 2026-10-31）：上面的原素材最多占四成高度 */
 .list[data-searching] > :nth-child(2) { flex: 0 1 auto; max-height: 40%; }
@@ -24,10 +23,11 @@
 .topName { font-size: var(--fs-lg); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* 查看器 */
-.viewer { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(150px, 1fr) auto; overflow-y: auto; min-width: 0; min-height: 0; outline: none; padding: 12px 14px 12px; gap: 12px; }
+.viewer { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(150px, 1fr) auto; overflow-y: auto; min-width: 0; min-height: 0; outline: none; padding: 12px 14px 12px; gap: 12px; }
 .viewer:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 .grow { flex: 1; }
-.stageRow { display: grid; grid-template-columns: minmax(0, 1fr) clamp(200px, 30%, 300px); gap: 12px; min-height: 0; min-width: 0; }
+.stageRow { display: flex; min-height: 0; min-width: 0; }
+.stageRow .video, .stageRow .transcript { flex: 1; }
 .video { position: relative; background: #000; border-radius: var(--r-lg); overflow: hidden; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .video canvas { width: 100%; height: 100%; display: block; }
 .video[data-audio-only] { background: var(--s2); }

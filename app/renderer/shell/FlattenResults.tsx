@@ -1,7 +1,7 @@
 // 拉平结果（规格 11 §11.4、§11.6、03 §3.1.3）：批量的逐条结果表（成品 / 失败原因）与「只重跑失败项」；单个的「打开结果」直接跳到成品采样。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
-import type { FlattenResultRow } from "../api/types";
+import type { FlattenResultRow, JobSummary } from "../api/types";
 import { Button } from "../components/Button";
 import { PagedTable } from "../components/PagedTable";
 import { errorText, t } from "../i18n";
@@ -20,6 +20,35 @@ export function useOpenProduct(): (sampleId: string) => void {
     setPage("library");
     setTasksOpen(false);
   };
+}
+
+/** 拉平完成的提示（所有者 2026-11-05）：成品不插进当前列表（PB8），单个给「打开成品」，批量给「查看结果」（打开任务抽屉） */
+export function useFlattenDoneToast(): void {
+  const toast = useApp((st) => st.toast);
+  const setTasksOpen = useApp((st) => st.setTasksOpen);
+  const open = useOpenProduct();
+  const seen = useRef(new Set<string>());
+  useCoreEvent("job.updated", (d) => {
+    const j = d as JobSummary;
+    if (j.kind !== "flatten" || j.status !== "succeeded" || seen.current.has(j.id)) return;
+    seen.current.add(j.id);
+    const batch = !!(j.result as { batch?: boolean } | null)?.batch || (j.items?.total ?? 1) > 1;
+    if (batch) {
+      toast({
+        text: t("flatten.doneBatch", { ok: j.items?.ok ?? 0, failed: j.items?.failed ?? 0 }),
+        action: { label: t("tasks.openResults"), run: () => setTasksOpen(true) },
+      });
+      return;
+    }
+    void call("flatten.results", { jobId: j.id }).then(
+      (rows) => {
+        const r = rows.find((x) => x.productId);
+        if (!r) return;
+        toast({ text: t("flatten.done", { name: r.name ?? "", note: r.target ?? "" }), action: { label: t("flatten.openProduct"), run: () => open(r.productId!) } });
+      },
+      () => {},
+    );
+  });
 }
 
 export function FlattenResults({ jobId }: { jobId: string }) {

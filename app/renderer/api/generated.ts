@@ -3230,6 +3230,8 @@ export interface Commands {
   "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };
   /** Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first. */
   "samples.related": { params: RelatedParams; result: RelatedSamples; effect: "read" };
+  /** List rows (as in samples.list, without detail) for these sample IDs, at most 500; deleted ones are left out. */
+  "samples.rows": { params: IdsParams; result: SampleRow[]; effect: "read" };
   /** Suggested name and nature for a new sample on an asset range. */
   "samples.suggest": { params: SuggestParams; result: SampleSuggestion; effect: "read" };
   /** Cancel a running search (a cancelled search writes no fixed result). */

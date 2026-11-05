@@ -1,18 +1,19 @@
 // 左右分栏 + 可拖动的分隔条（UI_PLAN §2：列表占 32–68%，记住）。键盘：分隔条获得焦点后 ←→ 每次 2%，Home/End 到边界。
-// 比例的保存由页面负责（ui_state），这里只报告变化。
+// 比例的保存由页面负责（ui_state），这里只报告变化。leftHidden：收起左侧（右侧留在原来的位置，不重建，例如原片页的播放器）。
 import { type ReactNode, useRef } from "react";
 import s from "./Collection.module.css";
 
-export function SplitPane(props: { left: ReactNode; right: ReactNode; ratio: number; onRatio: (r: number) => void; min?: number; max?: number; label: string }) {
+export function SplitPane(props: { left: ReactNode; right: ReactNode; ratio: number; onRatio: (r: number) => void; min?: number; max?: number; label: string; testId?: string; leftHidden?: boolean }) {
   const min = props.min ?? 0.32;
   const max = props.max ?? 0.68;
   const root = useRef<HTMLDivElement>(null);
   const clamp = (r: number) => Math.min(max, Math.max(min, r));
   const ratio = clamp(props.ratio);
   return (
-    <div className={s.split} ref={root} style={{ gridTemplateColumns: `${ratio * 100}% 7px minmax(0, 1fr)` }}>
-      <div className={s.splitPart}>{props.left}</div>
+    <div className={s.split} ref={root} style={{ gridTemplateColumns: props.leftHidden ? "0 0 minmax(0, 1fr)" : `${ratio * 100}% 7px minmax(0, 1fr)` }}>
+      <div className={s.splitPart}>{props.leftHidden ? null : props.left}</div>
       <div
+        hidden={props.leftHidden}
         role="separator"
         aria-orientation="vertical"
         aria-label={props.label}
@@ -21,7 +22,7 @@ export function SplitPane(props: { left: ReactNode; right: ReactNode; ratio: num
         aria-valuenow={Math.round(ratio * 100)}
         tabIndex={0}
         className={s.splitter}
-        data-testid="splitter"
+        data-testid={props.testId ?? "splitter"}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           e.preventDefault();

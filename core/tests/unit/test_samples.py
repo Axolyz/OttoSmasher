@@ -146,6 +146,20 @@ def test_list_filters_and_paging(db, svc, src):
         svc.list(sort="nope")
 
 
+# 浏览列表就地更新状态（所有者 2026-11-05）：按 ID 取与 list 相同的行，删掉的不返回
+def test_rows_by_ids_match_list(db, svc, src):
+    aid = asset(db, src)
+    a = svc.create(aid, 1, 2, name="a")
+    b = svc.create(aid, 3, 4, name="b")
+    listed = {r["id"]: r for r in svc.list()["rows"]}
+    got = svc.rows([b["id"], a["id"], b["id"]])
+    assert sorted(r["id"] for r in got) == sorted([a["id"], b["id"]])
+    assert all(r == listed[r["id"]] for r in got)
+    svc.delete([a["id"]])
+    assert [r["id"] for r in svc.rows([a["id"], b["id"]])] == [b["id"]]
+    assert svc.rows([]) == []
+
+
 # R8.9 10,001 条按标题排序取第 101–200 条 < 3 秒；“选全部匹配”返回全部 ID
 def test_paging_10k(db, svc, src):
     aid = asset(db, src, duration=20000.0)

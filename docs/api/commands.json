@@ -1281,6 +1281,21 @@
    }
   },
   {
+   "name": "samples.rows",
+   "effect": "read",
+   "layer": "library",
+   "summary": "List rows (as in samples.list, without detail) for these sample IDs, at most 500; deleted ones are left out.",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SampleRow"
+    }
+   }
+  },
+  {
    "name": "samples.suggest",
    "effect": "read",
    "layer": "library",

@@ -72,6 +72,9 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   await page.getByTestId("nav-tasks").click();
   const job = page.getByTestId("job").filter({ hasText: "拉平" }).first(); // 抽屉里还有自动准备检索的后台任务
   await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 120000 });
+  // 完成提示带「打开成品」（所有者 2026-11-05）；成品不插进当前列表
+  await expect(page.getByText(/^拉平完成：ふぁー A♯3/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "打开成品" })).toBeVisible();
   await job.getByTestId("job-results").click();
   // 「打开结果」= 选中成品并回到采样库
   await expect(page.getByTestId("stage-title")).toHaveText("ふぁー");

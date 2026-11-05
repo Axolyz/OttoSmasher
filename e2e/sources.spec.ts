@@ -35,6 +35,31 @@ test("原素材页：列表、时间线、导出、设置、删除", async () =>
   // 波形生成后状态提示消失
   await expect(page.getByTestId("source-viewer").getByTestId("timeline-status")).toHaveCount(0, { timeout: 15000 });
 
+  // 分隔条（所有者 2026-11-05）：原素材列表、视频与台词栏都能拖宽窄并记住；收起列表时查看器不重建（播放器留在原处）
+  const list = page.getByTestId("source-list");
+  const w0 = (await list.boundingBox())!.width;
+  const sp = (await page.getByTestId("list-splitter").boundingBox())!;
+  await page.mouse.move(sp.x + sp.width / 2, sp.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(sp.x + sp.width / 2 + 120, sp.y + 100, { steps: 4 });
+  await page.mouse.up();
+  expect((await list.boundingBox())!.width).toBeGreaterThan(w0 + 80);
+  const stageSp = page.getByTestId("stage-splitter");
+  const v0 = Number(await stageSp.getAttribute("aria-valuenow"));
+  await stageSp.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(stageSp).toHaveAttribute("aria-valuenow", String(v0 - 2));
+  await expect
+    .poll(async () => page.evaluate(async () => (await window.otto.core.request("ui.get", { page: "sources" })) as { ok: boolean; r: Record<string, unknown> }).then((x) => [typeof x.r.listSplit, Math.round(Number(x.r.stageSplit) * 100)]))
+    .toEqual(["number", v0 - 2]);
+  await viewer.evaluate((el) => ((el as unknown as { __mark: number }).__mark = 1));
+  await page.getByTestId("list-toggle").click();
+  await expect(list).toHaveCount(0);
+  expect(await viewer.evaluate((el) => (el as unknown as { __mark?: number }).__mark)).toBe(1);
+  await page.getByTestId("list-toggle").click();
+  await expect(list).toBeVisible();
+  await page.screenshot({ path: ".cache/playwright-results/sources-split.png" });
+
   // 拖出选区（20% → 40% ≈ 1.6–3.2 秒）
   const tl = page.getByTestId("source-viewer").getByTestId("timeline");
   const box = (await tl.boundingBox())!;

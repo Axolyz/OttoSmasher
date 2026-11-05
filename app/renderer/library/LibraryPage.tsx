@@ -318,6 +318,27 @@ export function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  // 资料变了（任务完成、后台补分析、别处的编辑）：当前页已有的行就地换成最新状态（分析标识、名称、标签……），
+  // 不插入、不删除、不重排（P8；所有者 2026-11-05，DECISIONS §13）。新增的采样仍等「刷新浏览列表」。合并 400 毫秒。
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const patchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useCoreEvent("data.changed", (d) => {
+    if (!Object.keys(d as Record<string, string[]>).some((k) => k !== "setting" && k !== "saved_filter")) return;
+    if (patchTimer.current) clearTimeout(patchTimer.current);
+    patchTimer.current = setTimeout(() => {
+      patchTimer.current = null;
+      const page0 = dataRef.current;
+      if (!page0?.rows.length) return;
+      void call("samples.rows", { ids: page0.rows.map((r) => r.id) }).then((fresh) => {
+        const byId = new Map(fresh.map((r) => [r.id, r]));
+        // 期间整页重读过（换页、换条件、刷新）就不再合并：那份已经是最新的
+        setData((cur) => (cur !== page0 ? cur : cur && { ...cur, rows: cur.rows.map((r) => byId.get(r.id) ?? r) }));
+      }, () => {});
+    }, 400);
+  });
+  useEffect(() => () => void (patchTimer.current && clearTimeout(patchTimer.current)), []);
+
   // 「刷新浏览列表」：按当前条件重读当前页（勾选与焦点保留）
   const refreshTick = useApp((st) => st.refreshTick);
   useEffect(() => {

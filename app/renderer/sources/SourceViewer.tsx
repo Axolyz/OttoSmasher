@@ -12,6 +12,7 @@ import { Button } from "../components/Button";
 import { Select, TimeField } from "../components/Fields";
 import { Menu, type MenuEntry, type MenuItems, useContextMenu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
+import { SplitPane } from "../components/SplitPane";
 import { basename, clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { useUndo } from "../shell/useUndo";
@@ -47,7 +48,16 @@ const toggleSet = <T,>(x: Set<T>, v: T, on: boolean) => {
   return n;
 };
 
-export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => void; onSeparate: (input: SeparationInput) => void }) {
+/** 视频与台词栏之间的分隔条：视频占的比例（所有者 2026-11-05：可拖动、记住） */
+export const STAGE_SPLIT = { min: 0.45, max: 0.85, initial: 0.72 };
+
+export function SourceViewer(props: {
+  row: SourceRow;
+  onImportSubtitles: () => void;
+  onSeparate: (input: SeparationInput) => void;
+  stageSplit: number;
+  onStageSplit: (r: number) => void;
+}) {
   const { row } = props;
   const toast = useApp((st) => st.toast);
   const requestFlatten = useApp((st) => st.requestFlatten);
@@ -597,93 +607,105 @@ export function SourceViewer(props: { row: SourceRow; onImportSubtitles: () => v
     >
       {/* 原片播放器的画布整个窗口只有一个（preload 用 data-otto-video 找到它） */}
       <div className={s.stageRow}>
-        <div className={s.video} data-audio-only={!hasVideo || !!openError || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
-          {/* 原片播放器的画布：整个窗口只有一个（preload 用 data-otto-video 找到它） */}
-          <canvas data-otto-video="" style={{ display: hasVideo && !openError ? "block" : "none" }} />
-          {openError ? (
-            <div className={s.audioOnly} data-testid="video-error">
-              <TriangleAlert size={26} strokeWidth={1.4} />
-              {t("sources.cannotOpen")}
+        <SplitPane
+          testId="stage-splitter"
+          label={t("sources.stageSplitter")}
+          ratio={props.stageSplit}
+          onRatio={props.onStageSplit}
+          min={STAGE_SPLIT.min}
+          max={STAGE_SPLIT.max}
+          left={
+            <div className={s.video} data-audio-only={!hasVideo || !!openError || undefined} onClick={() => root.current?.focus()} onDoubleClick={playPause}>
+              {/* 原片播放器的画布：整个窗口只有一个（preload 用 data-otto-video 找到它） */}
+              <canvas data-otto-video="" style={{ display: hasVideo && !openError ? "block" : "none" }} />
+              {openError ? (
+                <div className={s.audioOnly} data-testid="video-error">
+                  <TriangleAlert size={26} strokeWidth={1.4} />
+                  {t("sources.cannotOpen")}
+                </div>
+              ) : null}
+              {!hasVideo && !openError && row.has_picture ? <BoundPicture sourceId={row.id} /> : null}
+              {!hasVideo && !openError && !row.has_picture ? (
+                <div className={s.audioOnly}>
+                  <AudioLines size={28} strokeWidth={1.3} />
+                  {t("sources.audioOnly")}
+                </div>
+              ) : null}
+              {/* 画面内字幕（规格 03 §3.4：纯文本画在画面内部底部，不执行样式指令） */}
+              {subtitleNow ? (
+                <div
+                  className={s.videoSub}
+                  lang="ja"
+                  data-testid="video-subtitle"
+                  data-user-data=""
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const p = playhead();
+                    const gs = p == null ? [] : segs.filter((a) => p >= a.start && p < a.end).slice(0, 5);
+                    if (gs.length) segMenu.open(e, objectMenu(gs, [], { x: e.clientX, y: e.clientY }, p));
+                  }}
+                >
+                  {subtitleNow}
+                </div>
+              ) : null}
+              {/* 画面控制条（规格 03 §3.4：播放/暂停、时间、静音；音源名） */}
+              <div className={s.videoBar} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} aria-label={playing ? t("player.pause") : t("player.play")} />
+                <span className="num mono" data-testid="video-time">
+                  {clock(playhead(), 2)}
+                </span>
+                <span className={s.grow} />
+                <span className={s.videoTrack} data-user-data="">
+                  {t("sources.sourceIs", { track: trackName })}
+                </span>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  icon={muted ? <VolumeX /> : <Volume2 />}
+                  onPress={() => {
+                    window.otto.player.setMuted(!muted);
+                    setMuted(!muted);
+                  }}
+                  aria-label={muted ? t("player.unmute") : t("player.mute")}
+                  aria-pressed={muted}
+                  data-testid="mute"
+                />
+              </div>
             </div>
-          ) : null}
-          {!hasVideo && !openError && row.has_picture ? <BoundPicture sourceId={row.id} /> : null}
-          {!hasVideo && !openError && !row.has_picture ? (
-            <div className={s.audioOnly}>
-              <AudioLines size={28} strokeWidth={1.3} />
-              {t("sources.audioOnly")}
-            </div>
-          ) : null}
-          {/* 画面内字幕（规格 03 §3.4：纯文本画在画面内部底部，不执行样式指令） */}
-          {subtitleNow ? (
-            <div
-              className={s.videoSub}
-              lang="ja"
-              data-testid="video-subtitle"
-              data-user-data=""
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const p = playhead();
-                const gs = p == null ? [] : segs.filter((a) => p >= a.start && p < a.end).slice(0, 5);
-                if (gs.length) segMenu.open(e, objectMenu(gs, [], { x: e.clientX, y: e.clientY }, p));
+          }
+          right={
+            <Transcript
+              sourceId={row.id}
+              segs={segs}
+              opeds={opeds}
+              playhead={playhead()}
+              sel={sel}
+              hasSubtitleFile={!!row.subtitle_path}
+              canQuickImport={!!row.subtitle_path && !segs.length}
+              onImport={props.onImportSubtitles}
+              onQuickImport={() => void quickImport()}
+              onMenu={(g, at) => segMenu.open({ clientX: at.x, clientY: at.y }, objectMenu([g], [], at, null))}
+              onSelect={(a, b, mode) => {
+                // 单击 = 选区设为该段并跳到开头（不播放）；Shift 单击 = 扩展到该段
+                if (mode === "extend" && sel) setSel({ a: Math.min(sel.a, a), b: Math.max(sel.b, b) });
+                else {
+                  setSel({ a, b });
+                  window.otto.player.seek(a);
+                }
+                root.current?.focus({ preventScroll: true });
               }}
-            >
-              {subtitleNow}
-            </div>
-          ) : null}
-          {/* 画面控制条（规格 03 §3.4：播放/暂停、时间、静音；音源名） */}
-          <div className={s.videoBar} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-            <Button size="sm" variant="flat" icon={playing ? <Pause /> : <Play />} onPress={playPause} aria-label={playing ? t("player.pause") : t("player.play")} />
-            <span className="num mono" data-testid="video-time">
-              {clock(playhead(), 2)}
-            </span>
-            <span className={s.grow} />
-            <span className={s.videoTrack} data-user-data="">
-              {t("sources.sourceIs", { track: trackName })}
-            </span>
-            <Button
-              size="sm"
-              variant="flat"
-              icon={muted ? <VolumeX /> : <Volume2 />}
-              onPress={() => {
-                window.otto.player.setMuted(!muted);
-                setMuted(!muted);
+              onJump={(a, b) => {
+                setSel({ a, b });
+                window.otto.player.seek(a);
               }}
-              aria-label={muted ? t("player.unmute") : t("player.mute")}
-              aria-pressed={muted}
-              data-testid="mute"
+              onPlay={(a, b) => {
+                setSel({ a, b });
+                if (!covers(a, b)) return outOfCover();
+                window.otto.player.playRange(a, b);
+              }}
             />
-          </div>
-        </div>
-        <Transcript
-          sourceId={row.id}
-          segs={segs}
-          opeds={opeds}
-          playhead={playhead()}
-          sel={sel}
-          hasSubtitleFile={!!row.subtitle_path}
-          canQuickImport={!!row.subtitle_path && !segs.length}
-          onImport={props.onImportSubtitles}
-          onQuickImport={() => void quickImport()}
-          onMenu={(g, at) => segMenu.open({ clientX: at.x, clientY: at.y }, objectMenu([g], [], at, null))}
-          onSelect={(a, b, mode) => {
-            // 单击 = 选区设为该段并跳到开头（不播放）；Shift 单击 = 扩展到该段
-            if (mode === "extend" && sel) setSel({ a: Math.min(sel.a, a), b: Math.max(sel.b, b) });
-            else {
-              setSel({ a, b });
-              window.otto.player.seek(a);
-            }
-            root.current?.focus({ preventScroll: true });
-          }}
-          onJump={(a, b) => {
-            setSel({ a, b });
-            window.otto.player.seek(a);
-          }}
-          onPlay={(a, b) => {
-            setSel({ a, b });
-            if (!covers(a, b)) return outOfCover();
-            window.otto.player.playRange(a, b);
-          }}
+          }
         />
       </div>
 

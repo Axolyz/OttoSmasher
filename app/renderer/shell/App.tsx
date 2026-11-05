@@ -12,6 +12,7 @@ import { type Page, useApp, visiblePages } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
 import { FlattenSheet } from "./FlattenSheet";
+import { useFlattenDoneToast } from "./FlattenResults";
 import { SeparationDialog } from "../sources/SeparationDialog";
 import { NewSamplesSheet } from "../sources/NewSamplesSheet";
 import { SettingsSheet } from "../workbenches/SettingsSheet";
@@ -43,6 +44,7 @@ export function App() {
   const st = useApp();
   const jobs = useJobs();
   const undo = useUndo();
+  useFlattenDoneToast();
   // 以前保存的页面可能是工具页；发布版没有这一页，回到采样库
   useEffect(() => {
     if (st.hello && !st.hello.dev && st.page === "tools") st.setPage("library");

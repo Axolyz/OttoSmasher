@@ -8,13 +8,17 @@ import { Button } from "../components/Button";
 import { EmptyState } from "../components/Controls";
 import { Menu, type MenuSpec } from "../components/Menu";
 import { TopSlot } from "../shell/TopSlot";
+import { SplitPane } from "../components/SplitPane";
 import { errorText, t } from "../i18n";
 import { useCommands } from "../state/commands";
 import { useApp } from "../state/store";
 import { type PaletteSection, fromMenu } from "../components/CommandPalette";
 import { DeleteDialog, InputSettingsDialog, RelocateDialog } from "./SourceDialogs";
 import { SourceList, displayName, displayTitle } from "./SourceList";
-import { SourceViewer } from "./SourceViewer";
+import { STAGE_SPLIT, SourceViewer } from "./SourceViewer";
+
+/** 原素材列表与右侧之间的分隔条：列表占的比例（原来固定 300 像素） */
+const LIST_SPLIT = { min: 0.14, max: 0.45, initial: 0.22 };
 import { SubtitleBatchSheet, SubtitleImportSheet } from "./SubtitleImportSheet";
 import { type IdentifyResult, OpedDialog, identifyText } from "./OpedDialog";
 import { SeparatedVocalDialog } from "./SeparatedVocalDialog";
@@ -42,6 +46,9 @@ export function SourcesPage() {
   const [current, setCurrent] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [listHidden, setListHidden] = useState(false);
+  // 分隔条（所有者 2026-11-05）：原素材列表占的比例、视频占查看器上半部的比例；拖完 300 毫秒记住
+  const [listSplit, setListSplit] = useState(LIST_SPLIT.initial);
+  const [stageSplit, setStageSplit] = useState(STAGE_SPLIT.initial);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
@@ -75,6 +82,8 @@ export function SourcesPage() {
       if (typeof ui.current === "string" && r.some((x) => x.id === ui.current)) setCurrent(ui.current);
       if (Array.isArray(ui.expanded)) setExpanded(ui.expanded as string[]);
       if (typeof ui.listHidden === "boolean") setListHidden(ui.listHidden);
+      if (typeof ui.listSplit === "number") setListSplit(ui.listSplit);
+      if (typeof ui.stageSplit === "number") setStageSplit(ui.stageSplit);
       restored.current = true;
     })();
   }, [ready, reload]);
@@ -85,6 +94,14 @@ export function SourcesPage() {
   useEffect(() => remember("current", current), [current]);
   useEffect(() => remember("expanded", expanded), [expanded]);
   useEffect(() => remember("listHidden", listHidden), [listHidden]);
+  useEffect(() => {
+    const id = setTimeout(() => remember("listSplit", listSplit), 300);
+    return () => clearTimeout(id);
+  }, [listSplit]);
+  useEffect(() => {
+    const id = setTimeout(() => remember("stageSplit", stageSplit), 300);
+    return () => clearTimeout(id);
+  }, [stageSplit]);
 
   // 「返回原片」：打开该原片（区间由查看器接手）
   const jump = useApp((st) => st.sourceJump);
@@ -390,6 +407,30 @@ export function SourcesPage() {
     return out;
   });
 
+  const main =
+    currentRow?.media_state === "released" ? (
+      <ReleasedViewer row={currentRow} />
+    ) : currentRow ? (
+      <SourceViewer
+        row={currentRow}
+        onImportSubtitles={() => setImportFor(currentRow)}
+        onSeparate={setSepInput}
+        stageSplit={stageSplit}
+        onStageSplit={setStageSplit}
+      />
+    ) : (
+      <EmptyState
+        icon={<Clapperboard />}
+        title={rows && rows.length ? t("sources.pick.title") : t("sources.empty.title")}
+        body={rows && rows.length ? t("sources.pick.body") : t("sources.empty.body")}
+        actions={
+          <Button variant="primary" icon={<Plus />} onPress={() => void pickAndAdd()} data-testid="sources-add-empty">
+            {t("import.title")}
+          </Button>
+        }
+      />
+    );
+
   return (
     <div
       className={s.page}
@@ -410,42 +451,34 @@ export function SourcesPage() {
         if (paths.length) setImportPaths(paths);
       }}
     >
-      {!listHidden ? (
-        <SourceList
-          rows={rows ?? []}
-          current={current}
-          expanded={expanded}
-          checked={checked}
-          onOpen={open}
-          onToggleGroup={(w, o) => setExpanded((e) => ((o ?? !e.includes(w)) ? (e.includes(w) ? e : [...e, w]) : e.filter((x) => x !== w)))}
-          onChecked={setChecked}
-          onAdd={() => void pickAndAdd()}
-          onRescan={roots.length ? () => void rescan() : null}
-          menu={sourceMenu}
-          groupMenu={groupMenu}
-          onDelete={setDeleteIds}
-          onJumpLine={(h) => setSourceJump({ sourceId: h.sourceId, a: h.start, b: h.end, zoom: false })}
-          onImportMany={setBatchImport}
-        />
-      ) : (
-        <div />
-      )}
-      {currentRow?.media_state === "released" ? (
-        <ReleasedViewer row={currentRow} />
-      ) : currentRow ? (
-        <SourceViewer row={currentRow} onImportSubtitles={() => setImportFor(currentRow)} onSeparate={setSepInput} />
-      ) : (
-        <EmptyState
-          icon={<Clapperboard />}
-          title={rows && rows.length ? t("sources.pick.title") : t("sources.empty.title")}
-          body={rows && rows.length ? t("sources.pick.body") : t("sources.empty.body")}
-          actions={
-            <Button variant="primary" icon={<Plus />} onPress={() => void pickAndAdd()} data-testid="sources-add-empty">
-              {t("import.title")}
-            </Button>
-          }
-        />
-      )}
+      <SplitPane
+        leftHidden={listHidden}
+        testId="list-splitter"
+        label={t("sources.listSplitter")}
+        ratio={listSplit}
+        onRatio={setListSplit}
+        min={LIST_SPLIT.min}
+        max={LIST_SPLIT.max}
+        left={
+          <SourceList
+            rows={rows ?? []}
+            current={current}
+            expanded={expanded}
+            checked={checked}
+            onOpen={open}
+            onToggleGroup={(w, o) => setExpanded((e) => ((o ?? !e.includes(w)) ? (e.includes(w) ? e : [...e, w]) : e.filter((x) => x !== w)))}
+            onChecked={setChecked}
+            onAdd={() => void pickAndAdd()}
+            onRescan={roots.length ? () => void rescan() : null}
+            menu={sourceMenu}
+            groupMenu={groupMenu}
+            onDelete={setDeleteIds}
+            onJumpLine={(h) => setSourceJump({ sourceId: h.sourceId, a: h.start, b: h.end, zoom: false })}
+            onImportMany={setBatchImport}
+          />
+        }
+        right={main}
+      />
       <TopSlot page="sources">
         <Button
           variant="flat"

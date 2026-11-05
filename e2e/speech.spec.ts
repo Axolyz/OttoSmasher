@@ -68,8 +68,7 @@ test("语音分析：确认框、任务、结果表、再发起", async () => {
   // 再从全部三条发起：成功的那条已是最新，跳过
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("speech-results")).toBeHidden();
-  // 列表里的分析状态（刷新后）
-  await refreshLists(page);
+  // 列表里的分析状态：任务完成后已有的行就地更新，不用点「刷新浏览列表」（所有者 2026-11-05）
   // 分析属于“段 + 轨”：对齐出来的音素可能伸出采样范围一点 → 已分析 ◐（只读到这段的一部分）
   await expect(rows.filter({ hasText: "ああ" }).getByTestId("row-analysis")).toHaveText(/^(手动截取 · 已分析( ◐)?|\d+ 块( · .*)?)$/); // 索引建好后显示节奏字形 + 音块数
   await expect(rows.filter({ hasText: "おと" }).getByTestId("row-analysis")).toHaveText("手动截取 · 分析失败");

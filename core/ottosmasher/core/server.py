@@ -289,6 +289,9 @@ class Core:
           "Saved filters (named scope-row presets: tag conditions only) in user order; create/rename/update/delete/reorder via edits.apply.",
           lambda p: saved_filters.list_filters(self.conn))
         r("samples.get", "read", T.IdParams, T.SampleRow, "One sample with its effective tags.", lambda p: self.samples.get(p["id"]))
+        r("samples.rows", "read", T.IdsParams, list[T.SampleRow],
+          "List rows (as in samples.list, without detail) for these sample IDs, at most 500; deleted ones are left out.",
+          lambda p: self.samples.rows(p["ids"]))
         r("samples.related", "read", T.RelatedParams, T.RelatedSamples,
           "Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first.",
           lambda p: self.samples.related(p["id"], int(p.get("limit") or 12)))
