@@ -1,4 +1,4 @@
-# macOS 发布包：在 macOS 14 上构建并跑发布包冒烟，所以冒烟通过就说明最低系统版本真的能运行。
+# macOS 发布包：在 macOS 15 上构建并跑发布包冒烟；包内二进制另检查最低系统版本。
 # 版本标签自动触发，通过后传到 Release 草稿；也可以手动运行，只留下构建产物。
 name: macOS
 
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   package:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
