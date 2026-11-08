@@ -34,6 +34,7 @@ The user documentation is currently in Chinese only. The interface is available 
 
 For speech material such as anime and voiced videos, we recommend:
 
+0. (Optional) Have an agent follow the built-in skill to [prepare subtitles](docs/user/how-to.md#预处理字幕): clean, retime, split where needed, and label speakers. Skip this if your subtitles are already prepared
 1. Organize the material into one folder per work, with a same-name subtitle file next to each video (see [folders and subtitle format](docs/user/reference.md), in Chinese)
 2. Register the folder in OttoSmasher. Same-name subtitles are linked automatically; import them with one more click
 3. Separate the vocals and set them as the default vocal track (requires PyMSS Studio and a manually downloaded model). If you skip this on material with background sound, speech analysis will be largely unusable
