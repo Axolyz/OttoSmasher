@@ -7,7 +7,7 @@
 
 | 系统 | 文件 | SHA-256 |
 |---|---|---|
-| macOS 14 或更新（Apple 芯片） | `{zip}` | `{sha256}` |
+| macOS 15 或更新（Apple 芯片） | `{zip}` | `{sha256}` |
 | Windows 10 / 11 x64（预览版） | `{windows_zip}` | `{windows_sha256}` |
 
 ## 这一版的改动
