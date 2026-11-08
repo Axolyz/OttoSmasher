@@ -584,7 +584,7 @@ def cmd_setup(args: argparse.Namespace) -> None:
                   "withoutMcp": f'uvx --from "{AUDIO_PKG}" audio-mcp analyze|view|melody|timeline <file>  (no transcription without MCP)'},
     }
     which = args.for_ or "other"
-    out({"tool": "audio-mcp", "needs": "uv (uvx) on PATH; the first use downloads the package and the Whisper model (about 1.6 GB, CPU only)",
+    out({"tool": "audio-mcp", "needs": "uv (uvx) on PATH; first use installs packages; first transcription downloads the selected Whisper model (turbo about 1.6 GB, CPU only)",
          "for": which, "guide": "otto guide audio",
          "capabilities": {"cli": ["view", "analyze", "timeline", "melody"], "transcription": "MCP required; preparing-subtitles/scripts/audio_probe.py is a portable client", "verified": False}, **plans[which]}, args.pretty)
 
