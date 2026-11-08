@@ -54,5 +54,6 @@
 | L71 | 音高零命中的分阶段诊断：音域／八度、容差、有效窗口与未准备的分别计数，帮助选择查询范围和参数 | 2026-11-08 agent 反馈，未实现 |
 | L74 | 语音不可用原因的统一解释：speech.sample blocked、samples.list analysis:none 与预览／任务失败的关系 | 2026-11-08 部分在 flatten.alignmentIssue 透出；其余未实现 |
 | L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PowerShell/IPC、缩放、实际按精度完成；补中文系统（默认编码、中文用户名、区域设置）回归。CLI 在无应用语言可参考时仅按 zh 前缀判中文，Windows 的 Chinese_China 名称可能选到英文，和新增测试留到下次发版；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 接入回归见 DEVELOPMENT「测试」，内容方法见 history/retiming-and-speakers-research.md；使用限制同步 README「已知问题」 |
-
 | L76 | GitHub 已停用 macOS 14 runner，生成 macOS 媒体工具的辅助工作流无法运行；本次发布沿用固定并校验的现有媒体工具，不受影响。下次更新依赖前需要解决在支持的构建机上生成兼容 macOS 14 的二进制；两个辅助工作流在版本标签上也会被触发（GitHub 对标签不应用 paths 筛选） | 后续调整生成方式与触发范围；不直接在 macOS 15 上取 Homebrew 成品来替换现有包 |
+
+| L77 | 将现行字幕预处理方法论整理为不依赖 OttoSmasher 的独立 skill：保留清洗、对轴、必要拆行、说话人标注与精度选择；盘点现有通用 skill，复用已有内容，将 Otto 专用命令与导入交接留在应用接入层 | 所有者 2026-11-08 提出；后续规划，当前未实现 |
