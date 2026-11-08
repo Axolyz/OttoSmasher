@@ -29,4 +29,5 @@ Subtitles from a TV or streaming release on a BD video may be off by a fixed amo
 3. Locate an edit point at a specific line. The nearest subtitle is not precise enough when a release has extra dialogue.
 4. Keep a written record of dialogue that exists in only one release. Do not force alignment onto different words.
 
-Boundary screening must inspect both starts and ends, even with no silence gap. Use the actual curve, whole-sentence contents and neighbouring speech together. ASR word times, energy runs and forced alignment are clues, not ground truth. Avoid fixed padding or automatic midpoints.
+
+Review both starts and ends, including adjacent speech with no silence gap. Compare the curve, full sentences and neighbouring speech, using ASR and alignment for location and refinement. Adjust each boundary to the actual speech.

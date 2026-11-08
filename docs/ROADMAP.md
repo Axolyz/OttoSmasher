@@ -51,8 +51,8 @@
 | L60 | 删除音轨时，这条轨的测量文件（`Data/Measurements`）只删记录、文件留着（和删原素材一样）                                                                    | 占用小，视需要                      |
 | L59 | 纯音频播放器（试听）在 `ao=null` 下，eof-reached 比实际停下早约 0.45 秒（新旧 mpv 一样，不是换版本引入的）；接真实音频设备时是否也这样没测                                   | 视需要                          |
 
-| L71 | 音高零命中的分阶段诊断：音域／八度、容差、有效窗口与未准备的分别计数；不要以自动放宽查询掩盖原因 | 2026-11-08 agent 反馈，未实现；见 history/agent-workflow-review-2026-11-08.md |
+| L71 | 音高零命中的分阶段诊断：音域／八度、容差、有效窗口与未准备的分别计数，帮助选择查询范围和参数 | 2026-11-08 agent 反馈，未实现；见 history/agent-workflow-review-2026-11-08.md |
 | L72 | MIDI 对象／导入及 program、音域等展示；当前交给外部解析库，避免把任务脚本变成应用新子系统 | 2026-11-08 评估保留，未排期 |
-| L73 | 导出名长度和 Exports 生命周期：考虑短名加稳定索引、可预览的清理范围；不得自动删用户已使用文件 | 2026-11-08 反馈，未实现 |
+| L73 | 导出名长度和 Exports 生命周期：考虑短名加稳定索引、可预览的清理范围，清理前先预览文件范围 | 2026-11-08 反馈，未实现 |
 | L74 | 语音不可用原因的统一解释：speech.sample blocked、samples.list analysis:none 与预览／任务失败的关系 | 2026-11-08 部分在 flatten.alignmentIssue 透出；其余未实现 |
-| L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PowerShell/IPC、缩放、实际按精度完成；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 复测场景见 history/agent-workflow-review-2026-11-08.md，不把本机合成回归当实机或模型遵循证明；用户可见的限制同步 README「已知问题」 |
+| L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PowerShell/IPC、缩放、实际按精度完成；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 复测场景见 history/agent-workflow-review-2026-11-08.md，另做实机和模型验证；用户可见的限制同步 README「已知问题」 |

@@ -1,17 +1,17 @@
 # Timbre selection and flattening
 
-## Decide the output shape
+## Choose a useful piece of sound
 
-For an instrument source, establish monophonic note/vowel versus a whole spoken phrase, target register, attack/sustain needs and candidate count per track. A flattened sentence still contains consonants and several articulations. Flattening changes pitch; it neither cuts out one vowel nor normalizes loudness. For a single note, locate a suitable vowel, cut the usable range and verify its articulation before flattening. OP/ED audio is eligible through explicit asset selections even when line-sample planning skips those ranges.
+For instrument material, first establish whether the user wants one note or vowel, or a whole phrase. Consider register, attack, sustain and candidate count per track. Flattening changes pitch and retains the words and duration. For one note, locate a suitable vowel and select its usable range first. Song material in OP/ED can be sampled through an explicit asset selection.
 
-Use `samples.metrics {"ids"}` to compare cached metrics (including rmsDb, pitchSpread and voicedDuration); missing/stale is not zero. `metrics.prepare` explicitly queues missing work. Compare representative candidates with audio tools; pitch and spectral numbers alone do not establish timbre suitability. Level-match temporary listening copies when useful, preserving original products. Start with a few end-to-end examples before creating a large set.
+`samples.metrics {"ids"}` reads cached measures such as rmsDb, pitchSpread and voicedDuration; `metrics.prepare` computes missing ones. Compare representative candidates with audio tools. Temporary level-matched copies help when loudness differences get in the way. Try a few finished samples before processing a large set.
 
 ## Open, estimate and submit
 
-1. `flatten.open {"assetId", "start", "end", "entry": "single", "sampleId"}` freezes asset-local selection and returns token, defaults, alignment and alignmentIssue. Times in alignment, inner and processing intervals are input-local seconds (selection start = 0).
-2. `alignmentIssue` explains missing segments, unavailable analysis, incomplete windows, conflicts or a track lacking vocal role. With a sample, inspect `speech.sample`, then `speech.preview` and `speech.submit` if appropriate. Do not replace a requested vowel treatment with whole just to bypass missing evidence.
-3. `flatten.estimate {"token", "options", "sampleId"}` returns processing intervals and a target from available cached measurements, without running a model or creating a product. Unknown target remains in-job; insufficient evidence remains insufficient. This is an estimate, not sound-quality verification or all submit-time validation.
-4. `flatten.submit {"token", "options", "name", "sampleId"}` checks the frozen input and starts the job. `flatten.results {"jobId"}` returns per-item outcomes; `flatten.rerunFailed` retries failed items. Validate a small end-to-end example before producing many samples.
+1. `flatten.open {"assetId", "start", "end", "entry": "single", "sampleId"}` freezes an asset-local selection and returns token, defaults, alignment and alignmentIssue. Times in alignment, inner and processing intervals are input-local seconds, with the selection start at zero.
+2. If alignment is unavailable, alignmentIssue gives the reason. With a sample, check speech.sample, then use speech.preview and speech.submit as needed to prepare phonemes for first or vowels processing.
+3. `flatten.estimate {"token", "options", "sampleId"}` reads cached measurements and returns processing intervals and a target. in-job means the target will be determined during processing; insufficient carries the reason more evidence is needed.
+4. `flatten.submit {"token", "options", "name", "sampleId"}` checks the frozen input and starts a job. Read per-item outcomes with `flatten.results {"jobId"}`; use `flatten.rerunFailed` for failed items.
 
 ## Options
 
@@ -25,6 +25,7 @@ Use `samples.metrics {"ids"}` to compare cached metrics (including rmsDb, pitchS
 | target edge | Determine from the chosen left/right edge; insufficient evidence does not switch sides |
 | target manual | Explicit A4, C#5, B♭3 or 445Hz; bare numbers are ambiguous and rejected |
 
-Read `otto describe flatten.open` and settings.list for entry-specific defaults (detail/single/batch); selecting another range does not change target automatically. `flatten.submitBatch {"ids", "options"}` takes shared auto/edge options and cannot use manual or inner. For different manual targets or inner ranges, use `otto run` with one connection and call the existing open / estimate / submit for each chosen item. Keep each job ID and inspect its result; a task script does not require a second batch API.
 
-A successful product registers a flattened track and one pitched sample, with a pitch tag. Identical audio may be reused, but each explicit save creates a sample. Creation cannot be undone; use createdBySession in samples.ids/list for inventory, then existing deletion previews and user confirmation. Start with small experiments. Full return schemas are available through otto describe.
+Entry defaults for detail/single/batch come from flatten.open and settings.list. Range and target are separate choices. `flatten.submitBatch {"ids", "options"}` uses shared auto/edge options. For different manual targets or inner ranges, use `otto run` and call open / estimate / submit per selected item, keeping the job IDs for checking results.
+
+Each save creates a pitched sample with a pitch tag and registers its flattened track; identical audio may be reused. Creation is outside edit undo. samples.ids/list with createdBySession helps inventory products for the existing deletion flow. Flattening preserves the input level; level normalization is a separate operation.

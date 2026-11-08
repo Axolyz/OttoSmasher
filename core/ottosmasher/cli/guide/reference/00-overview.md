@@ -54,11 +54,11 @@ The installed `otto` talks to the installed app and `tools/otto` to the developm
 Only tasks that follow fixed steps can skip this, such as registering files or exporting samples the user named.
 Every other task needs you to hear the material: arranging an otomad rap, choosing a timbre, picking lines, cleaning subtitles, checking an alignment.
 
-Before judging sound, make a real call on a short clip. An installed aligner, a tool listing, or an MCP configuration is not proof of working audio tools. Read `otto guide audio` for discovery, CLI/MCP setup, capability checks and failure handling. Do independent work while blocked, but report the missing evidence and do not present audio-dependent decisions as verified.
+Try the needed tools on a short real clip before starting. Read `otto guide audio` for connection methods, short inputs and using the results. If setup takes time, continue other preparation and note which sound checks are still pending.
 
-### Agree on scope, precision and completion
+### Agree on scope and precision
 
-Read `otto guide workflow` for judgement tasks. If no explicit precision or applicable standing preference exists, ask once for quick / standard / fine, explaining the actual task-specific cost and checks. Follow explicit requirements without asking again. Read the matching skill and relevant references before planning its steps. Keep evidence and remaining work visible; `sources.prep` describes app readiness, not content quality.
+Read `otto guide workflow` and the relevant skill before planning judgement work. Follow existing user requirements; if precision is open, ask once for quick / standard / fine and explain the difference for this task. Keep a short record of decisions and remaining work. `sources.prep` shows the app's preparation state; content review is recorded with the task.
 
 ### Output and exit codes
 
@@ -82,7 +82,7 @@ Binary fields such as pitch frames and spectrograms are base64 strings (`content
 ### Long jobs
 
 Add `--wait` to follow a returned job, search or video export to its end: `otto call speech.submit '{...}' --wait`.
-Use `jobs.summaries` for compact status (queuedAhead counts earlier queued work, not an ETA), `jobs.get` for a full job by id. Waiting prints the full final JSON for compatibility.
+Use `jobs.summaries` for compact status and the number of queued jobs ahead on the same channel, or `jobs.get` for a full job by ID. Waiting returns the complete final result.
 A `succeeded` batch job does not mean every item worked; check per-item failures in the result (topic `concepts`).
 
 Separating an episode takes ten to several tens of minutes and batch analysis a few minutes. Do not poll the status over and over:

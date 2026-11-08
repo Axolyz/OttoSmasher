@@ -41,4 +41,4 @@ Whisper misses high-pitched exclamations and crowd chanting, and a prompt with c
 
 ## Precision and completion
 
-When not specified, ask once for quick / standard / fine, explaining this task's actual tradeoff. Reuse explicit requirements. Fine means screen the whole scope and review every suspicious boundary/turn, sampling normal scenes. Every-line verification can be requested. Screening proposes cases, not automatic edits; preserve evidence and pending counts. Mechanical helpers can prepare data while the agent chooses suitable judgement methods.
+Follow the user's scope and precision. If unspecified, ask once for quick / standard / fine and explain the difference for this task. Fine includes full-scope screening, review of every suspicious boundary/turn and samples of other scenes; every-line review can be added. Choose methods for the material and keep notes on decisions and remaining cases.

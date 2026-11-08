@@ -28,7 +28,7 @@ with LinkClient.from_env() as c:
 
 ## 分页和二进制
 
-通过 `otto run script.py` 跑脚本能沿用应用 Python、工作区和 session。`LinkClient.from_env()` 也会寻找同种运行应用，但显式 OTTO_WORKSPACE 优先。Python 返回 bytes，直接用 numpy.frombuffer，不要再 base64 解码。
+通过 `otto run script.py` 跑脚本能沿用应用 Python、工作区和 session。`LinkClient.from_env()` 也会寻找同种运行应用，但显式 OTTO_WORKSPACE 优先。Python 返回 bytes，可直接用 numpy.frombuffer 读取。
 
 ```python
 from ottosmasher.cli.client import LinkClient
@@ -36,7 +36,7 @@ with LinkClient.from_env() as c:
     rows = list(c.iter_results("speech.alignResults", "<jobId>"))
 ```
 
-所有原始计算结果默认每页 100 条，不能把第一页当全部；iter_results 逐页读取，保留失败条目。外部时间换回原片用 `Mapping.of(mapping).to_source(t)`，不要把局部轨时间直接加到原片上。
+原始计算结果默认每页 100 条，iter_results 会逐页读取并保留失败条目。外部时间换回原片用 `Mapping.of(mapping).to_source(t)`，mapping 来自相应音频导出。
 
 ## PowerShell 与任务摘要
 
@@ -49,6 +49,6 @@ with LinkClient.from_env() as c:
 
 `-` 从 stdin 读 JSON。注意 PowerShell 单元素数组展开；批量多次调用优先用 otto run，避免手拼命令行 JSON。
 
-`jobs.summaries` 支持 offset/limit/session，返回小摘要；`jobs.get` 才取单个完整结果。queuedAhead 是同通道排在前面的待执行数，不含运行中任务，也不是预计耗时。otto call ... --wait 和 otto wait 默认不刷进度，--progress 开启 stderr 进度；最终完整返回保持兼容。
+`jobs.summaries` 支持 offset/limit/session，返回小摘要；`jobs.get` 才取单个完整结果。queuedAhead 是同通道排在前面的待执行数。otto call ... --wait 和 otto wait 默认不刷进度，--progress 开启 stderr 进度；最终返回完整结果。
 
-otto session --session ID 显示摘要任务和本会话新建采样／资产的数量及最近 ID，--details 才取完整任务。这里的编辑历史最多 200 条；清单不表示可以安全删除，也不会自动清理。
+otto session --session ID 显示摘要任务和本会话新建采样／资产的数量及最近 ID，--details 才取完整任务。这里的编辑历史最多显示 200 条；需要整理创建物时，使用现有删除流程。

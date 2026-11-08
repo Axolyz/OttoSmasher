@@ -80,8 +80,8 @@ otto call sources.rescan --wait                            # 改过、新加过�
 
 ## 当前导入与准备状态
 
-`subtitles.parse` 会在 problems 中列出超过 120 秒的条目，导入跳过这些条目。重扫只更新关联、不导入；手动选过或清空过的关联保持用户选择。相同时间和文字的段再导入不会更新说话人和 raw。修订优先使用 edits.apply 更新已有对象，必要时先看 subtitles.clearPlan 再清导入标记。受保护对象需要明确处理，不能清空整个资料库来修字幕。
+`subtitles.parse` 会在 problems 中列出超过 120 秒的条目，导入跳过这些条目。重扫只更新关联、不导入；手动选过或清空过的关联保持用户选择。相同时间和文字的段再导入不会更新说话人和 raw。修订优先使用 edits.apply 更新已有对象，必要时先看 subtitles.clearPlan 再清导入标记。受保护对象按预览结果分别处理。
 
-`sources.prep {"id"}` 返回 subtitle、oped、separation、defaultVocal、defaultSfx、lineSamples、speech 七个顶层键，各自有 ok；没有 items 数组。这些只表示应用准备状态，不证明字幕核验完成。sources.list 的 counts.speech 是语音性质采样数，counts.analyzed 是其中有可用分析的数量；段数看 counts.lines。
+`sources.prep {"id"}` 返回 subtitle、oped、separation、defaultVocal、defaultSfx、lineSamples、speech 七个顶层键，各自有 ok；没有 items 数组。这些项目显示应用准备状态，内容核验另见 workflow。sources.list 的 counts.speech 是语音性质采样数，counts.analyzed 是其中有可用分析的数量；段数看 counts.lines。
 
 原片含多音轨时 default_audio_stream 决定分析流，不会自动更换默认人声轨。

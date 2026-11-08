@@ -147,7 +147,7 @@ class Core:
         r("edits.peekUndo", "read", T.NoParams, T.UndoPeek | None, "What undo would revert next.", lambda p: self.edits.peek_undo())
         r("jobs.list", "read", T.JobsListParams, list[T.JobSummary], "Recent jobs, newest first.", lambda p: self.jobs.list(int(p.get("limit", 200))))
         r("jobs.get", "read", T.IdParams, T.JobSummary, "One job, including its full result and affected objects.", lambda p: self.jobs.summary(p["id"]))
-        r("jobs.summaries", "read", T.JobsBriefParams, list[T.JobBrief], "Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time.",
+        r("jobs.summaries", "read", T.JobsBriefParams, list[T.JobBrief], "Compact recent jobs with per-channel queuedAhead counts; full results are available through jobs.get.",
           lambda p: self.jobs.brief(max(1, min(500, int(p.get("limit", 50)))), p.get("session"), max(0, int(p.get("offset", 0)))))
         r("jobs.submit", "job", T.JobSubmitParams, T.JobSummary, "Submit a job of a registered kind (low-level; prefer the specific commands).",
           lambda p: self.jobs.submit(p["kind"], p.get("params", {}), p.get("affects")))
@@ -199,7 +199,7 @@ class Core:
         # ---- 资产、播放、波形、缩略图
         r("assets.listForSource", "read", T.SourceIdParams, list[T.AssetInfo], "All sound assets of a source, full tracks first.",
           lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]))
-        r("assets.listForSession", "read", T.SessionAssetsParams, T.SessionAssetsPage, "Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete.", self._session_assets)
+        r("assets.listForSession", "read", T.SessionAssetsParams, T.SessionAssetsPage, "Live sound assets created by a session, returned in pages.", self._session_assets)
         r("assets.get", "read", T.IdParams, T.AssetRecord, "One sound asset.", lambda p: assets_mod.get(self.conn, p["id"]))
         r("assets.deletePreview", "read", T.IdParams, T.AssetDeletePreview, "What deleting a track would do: whether it can be deleted, samples on it, default roles, analyses, size.",
           lambda p: self.sources.asset_delete_preview(p["id"]))
@@ -420,7 +420,7 @@ class Core:
           lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
         r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged).",
           lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId")))
-        r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue a batch flatten: one job, each sample targets independently (auto only).",
+        r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue one batch flatten with shared auto/edge options; determine each sample target independently.",
           lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"])))
         r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
           lambda p: self.flatten.rerun_failed(p["jobId"]))
@@ -434,7 +434,7 @@ class Core:
         r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
           "Queue a job that prepares the search index for a scope (speech: rhythm index; pitch: F0). Does not search.",
           lambda p: self.search.prepare(p["mode"], p.get("scope")))
-        r("samples.metrics", "read", T.IdsParams, list[T.SampleMetricsRow], "Cached acoustic metrics per sample; ready/stale/missing, never starts inference.", lambda p: self.acoustic.read(list(p["ids"])))
+        r("samples.metrics", "read", T.IdsParams, list[T.SampleMetricsRow], "Read cached acoustic metrics with ready/stale/missing state for each sample.", lambda p: self.acoustic.read(list(p["ids"])))
         r("metrics.status", "read", T.MetricsStatusParams, T.MetricsStatus,
           "Single-sound metrics in a scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
           lambda p: self.acoustic.status(p.get("scope"), list(p.get("metrics") or [])))

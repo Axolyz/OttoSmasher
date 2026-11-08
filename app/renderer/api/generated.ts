@@ -3095,7 +3095,7 @@ export interface Commands {
   "assets.deletePreview": { params: IdParams; result: AssetDeletePreview; effect: "read" };
   /** One sound asset. */
   "assets.get": { params: IdParams; result: AssetRecord; effect: "read" };
-  /** Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete. */
+  /** Live sound assets created by a session, returned in pages. */
   "assets.listForSession": { params: SessionAssetsParams; result: SessionAssetsPage; effect: "read" };
   /** All sound assets of a source, full tracks first. */
   "assets.listForSource": { params: SourceIdParams; result: AssetInfo[]; effect: "read" };
@@ -3155,7 +3155,7 @@ export interface Commands {
   "flatten.results": { params: JobIdParams; result: FlattenResultRow[]; effect: "read" };
   /** Queue one flatten (checks the frozen asset is unchanged). */
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
-  /** Queue a batch flatten: one job, each sample targets independently (auto only). */
+  /** Queue one batch flatten with shared auto/edge options; determine each sample target independently. */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
   /** Add an sfx hint by hand (protected). */
   "hints.add": { params: HintAddParams; result: SegmentAdded; effect: "write" };
@@ -3185,7 +3185,7 @@ export interface Commands {
   "jobs.retry": { params: IdParams; result: JobSummary; effect: "job" };
   /** Submit a job of a registered kind (low-level; prefer the specific commands). */
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
-  /** Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time. */
+  /** Compact recent jobs with per-channel queuedAhead counts; full results are available through jobs.get. */
   "jobs.summaries": { params: JobsBriefParams; result: JobBrief[]; effect: "read" };
   /** FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN). */
   "measure.f0": { params: AssetRangeParams; result: F0Frames; effect: "read" };
@@ -3277,7 +3277,7 @@ export interface Commands {
   "samples.independPlan": { params: IdsParams; result: IndependItem[]; effect: "read" };
   /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
-  /** Cached acoustic metrics per sample; ready/stale/missing, never starts inference. */
+  /** Read cached acoustic metrics with ready/stale/missing state for each sample. */
   "samples.metrics": { params: IdsParams; result: SampleMetricsRow[]; effect: "read" };
   /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
   "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };

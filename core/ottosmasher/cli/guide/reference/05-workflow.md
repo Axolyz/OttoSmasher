@@ -1,32 +1,29 @@
-# Scope, precision and evidence
+# Scope and precision
 
-## Agree once
+## Choose the scope and precision
 
-For judgement tasks, establish sources/episodes, input versions, intended output, existing usable work, and precision. Reuse explicit requests and applicable playbook preferences. Otherwise ask once with quick / standard / fine and explain what changes for this task. Extra requirements override the preset; a user asking to check every suspicious item has already chosen that coverage.
+Start with the sources or episodes, the desired output and any work you can reuse. Follow the user's request and applicable playbook preferences. If precision is still open, ask once for quick / standard / fine and explain what each means for this task.
 
 | Precision | Subtitle work | Selection / timbre / separation work |
 |---|---|---|
-| quick | Clean text, check version offsets and actual annotation patterns; investigate obvious defects, report unrefined parts | Small candidate set, limited comparisons, usable first selection |
-| standard | Screen the whole scope; inspect high-risk cases and samples across patterns, scenes and speakers | Broader candidate search, compare representative results against the goal |
-| fine | Screen the whole scope; review every suspicious start/end, turn and overlap; sample normal scenes | Iterative search and review of every agreed candidate |
+| quick | Clean text, check release offsets and annotation habits, fix obvious problems | A small candidate set and a usable first selection |
+| standard | Screen the full scope, review high-risk cases and sample other scenes and speakers | Broader search and representative comparisons |
+| fine | Review every suspicious start/end, turn and overlap; sample normal scenes | Repeated search and review of all agreed candidates |
 
-Precision changes coverage and effort, not permission to invent identities, cut words, skip failures or claim unchecked results are verified. Every-line review is an explicit extension of fine. Explain relative time/token cost; do not invent estimates. Ask before a material downgrade; lack of a reply is not approval to reduce agreed coverage.
+The user can also ask for every-line review or focus the effort on particular episodes. Explain the likely difference in time and token use. If the agreed scope needs changing, discuss it before continuing at a lower precision. Unknown names and unresolved cases stay visible at every level.
 
-## Freedom within the contract
+## Choose a method for the material
 
-Use scripts for pagination, clocks, inventory and completeness. Follow the skill's prerequisite dependencies (single-speaker intervals before voiceprints, for example), but choose analysis methods to suit the material. A reproducible default route helps; it is not a fixed sequence of tool calls. Document why an alternative meets the same goal. Do not classify models as smart or weak to change correctness requirements.
+Read the relevant skill and references, then adapt the route to the source. Some steps depend on others: voiceprint references, for example, need single-speaker intervals. Within those dependencies, choose the tools and order that suit the task.
 
-Read the task skill and relevant references before planning. Discover each source's conventions, including unlisted ones. Example numbers and measured performance belong to their experiment, not to every work. For sustained tasks keep a small report in your temporary task folder, rather than a new workflow database in the app.
+Use scripts for pagination, time conversion and counting. For caption statistics, first look at the source's actual writing and try examples against audio. New conventions may need a different counting method. The app's parser helps check the final import format; interpreting the original captions is part of your work.
 
+## Keep enough context to resume
 
-## Checks and judgements
+For a long task, keep a short record in your task folder: input versions, processed scope, reviewed cases, decisions and unresolved items. Choose a format that is useful for the work. `sources.prep` gives the app's preparation status; your notes describe the content review.
 
-Input conventions are open-ended. Understand the raw material before choosing a method or writing a task script. Brackets, line count, short duration and energy are not universal rules for identities, turns or suspicious boundaries. Preserve unfamiliar cases; revise assumptions when new forms appear. The app parser describes the destination format, not every possible source.
+## Finish the task
 
-Scripts can check declared fields, pagination, clock conversion, counts and input changes. They cannot decide whether a caption means a speaker change, whether a sound belongs to the next line or whether the task has been adequately reviewed. Choose evidence and notes appropriate to the task. No fixed ledger or passing script certifies quality. `sources.prep` reports app readiness, not content verification.
+Check the requested scope against the saved files, app state and per-item results. At fine precision, each suspicious case should have an outcome: kept, corrected or still uncertain. Summarize the actual review coverage and anything that needs further attention.
 
-## Completion
-
-Before declaring completion reconcile requested scope, processed scope, reviewed scope, unresolved items, failed/skipped analysis items, saved files and app state. Fine requires zero unreviewed suspicious items; reviewed-but-uncertain items remain reported, not guessed. Recompute overlap and coverage after applying confirmed changes. A new input version invalidates affected reports. For an updated media arrangement, either refresh all dependent timing rows or label exactly which rows still belong to an older snapshot.
-
-If independent work remains, continue it. If a required capability or external limit prevents completion, state the blocker and preserve resumable progress. Never turn a sample check into a claim of full review.
+After revisions, recheck overlaps and coverage and refresh affected analysis. When an arrangement changes, update its dependent timing rows together, or mark the rows that still refer to an earlier version. If a required tool or external limit interrupts the task, save the progress and explain what is needed to continue.

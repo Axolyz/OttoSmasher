@@ -2,13 +2,13 @@
 # requires-python = ">=3.11"
 # dependencies = ["mcp"]
 # ///
-"""Run real audio-mcp calls without editing the host agent's MCP configuration.
+"""Call audio-mcp through a local stdio connection.
 
 uv run audio_probe.py requests.json results.json
 Requests: [{"name":"audio_view", "arguments":{"path":"short.wav", "kind":"both"}},
            {"name":"audio_transcribe", "arguments":{"path":"short.wav", "language":"ja"}}]
 Use short prepared clips. First transcription may download the selected model (turbo is about 1.6 GB).
-This helper runs the local MCP server, not Otto. Errors remain errors.
+Starts the local MCP server, saves responses and images, and reports per-call errors.
 """
 import asyncio
 import base64

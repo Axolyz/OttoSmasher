@@ -49,8 +49,9 @@ Rename or remove a tag everywhere: `tags.globalPlan` → `edits.apply`.
 `natures`, `starred`, `text`, `sourceId`, `expr` (main expression), `tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`.
 Example: `otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`.
 
+
 ## Cached acoustic metrics
 
-`samples.metrics {"ids": [...]}` reads existing metrics, with state ready/stale/missing per sample. It does not compute or refresh. Use `metrics.prepare` when needed; a successful analysis job does not imply every acoustic field exists. For pitch curves use measure.f0 on the selected sample asset range; glyphs in list rows are not a saved F0 curve. `spectrum.get` returns frequencies (Hz for each row center), scale, nyquist and byte data; decode bytes by the API clock and shape rather than assuming uniform frequency bins on log/mel scales.
+`samples.metrics {"ids": [...]}` reads existing metrics with ready/stale/missing state for each sample. Use `metrics.prepare` to compute missing measures. Fields with no measured value remain null. For a pitch curve, read measure.f0 over the sample's asset range; the list's glyphs show its speech shape.
 
-List sorting accepts created / name / source / duration. `createdBySession` filters live samples by their creation session and also works in samples.ids. Stable IDs identify tracks and samples even if names repeat.
+`spectrum.get` returns data bytes with the scale, nyquist and row-center frequencies in Hz, useful for interpreting log/mel rows. List sorting accepts created / name / source / duration. createdBySession filters samples by their creation session and also works with samples.ids. Use IDs to identify tracks or samples with repeated names.

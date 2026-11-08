@@ -28,7 +28,7 @@ Use labels directly as voice samples.
 
 1. Split a two-line cue when its halves' voiceprints differ (0.36 in the trial, the middle of the two-peaked distribution), and forbid the halves from going to the same person. Also forbid lines that overlap in time.
 2. Group lines of at least 1.5 s. First chain neighbours with a gap of at most 1 s and similarity of at least 0.45, then cluster the whole season with constrained average-linkage hierarchical clustering.
-3. Take the top 20 groups by total duration and export a few representative lines of each for the user to name. A character may have several groups. Keep unnamed groups pending; a background "other" class is not an output identity.
+3. Take the top 20 groups by total duration and export a few representative lines of each for the user to name. A character may have several groups. Keep unnamed groups pending. Use the background "other" class for comparison, then write identified character names.
 4. For each line, assign the most similar main-character group only if the similarity is high enough and beats other characters and "other" by a margin. Relax the margin by 0.05 for characters already confirmed within 60 s.
 5. Recompute the groups from the long lines assigned to them, then decide once more.
 
@@ -42,10 +42,11 @@ Two rules matter here:
 If the subtitles are not imported yet, write the names into the subtitle file (see the order in `SKILL.md`). For segments already in the library, set `speakers` with `edits.apply` (entity `segment`, field `speakers`). It is recorded as a speaker edit, and `segments.regenerateSpeakers` skips it.
 
 - Do not overwrite segments the subtitles already label. List predictions that contradict a label for the user.
-- For sequential turns, use `segments.split` (or split before import), keeping each turn and its known identity separate. Multiple names on one cue are for simultaneous speech.
-- Leave unknown identities unwritten. A known turn change still needs a split; preserve the known identity on its own turn. Report how many are pending and in which episodes.
+- For sequential turns, use `segments.split` or split before import, keeping known names on their own turns. Use multiple names for simultaneous speech.
+- Keep unknown names pending and known names on their respective turns. Report how many are pending and in which episodes.
 - Spot-check similar-sounding main characters first, where mistakes concentrate.
+
 
 ## Calibration and review coverage
 
-Season-wide grouping, 40 lines, top-5, 98% or bimodal thresholds are experiment starting points, not cross-work constants. Reuse user-confirmed references and calibrate across styles/scenes, reporting reference size, prediction coverage and validation error. Keep duplicate or near-duplicate utterances in the same fold. A tiny validation set cannot substantiate high accuracy. Review similar voices, short lines, groups and label conflicts at the agreed precision. The background other class is not an output identity. Split known sequential turns independently of uncertain names; simultaneous speech can retain several known names.
+The numbers above come from one experiment. Reuse confirmed references and recalibrate on the current work, sampling different scenes and delivery styles. Keep near-duplicate utterances in the same validation fold. Report reference size, coverage and observed error, noting when samples are few. Give similar voices, short lines, groups and label conflicts attention at the chosen precision.

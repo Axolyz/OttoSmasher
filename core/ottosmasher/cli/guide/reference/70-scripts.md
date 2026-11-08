@@ -37,13 +37,13 @@ For complex JSON, especially in PowerShell, use a UTF-8 JSON file:
 & 'C:\path with spaces\otto.cmd' call samples.metrics '@params.json'
 ```
 
-The CLI accepts a UTF-8 BOM. `-` reads JSON from stdin. JSON is not shell syntax; do not reconstruct arrays by piping one item at a time through PowerShell's implicit unrolling. `otto run` avoids shell quoting for multi-call work.
+The CLI accepts a UTF-8 BOM. `-` reads JSON from stdin. Keep arrays intact when constructing PowerShell JSON, especially single-element arrays. For many calls, `otto run` keeps the arguments in Python.
 
 ```python
 with LinkClient.from_env() as c:
     rows = list(c.iter_results("speech.alignResults", job["id"]))
 ```
 
-`iter_results` supports `speech.alignResults`, `text.analyzeResults`, `f0.trackResults`; it reads through all pages, preserving failures. Raw calculation APIs default to 100 rows: that is a page, not a job limit. CLI JSON encodes bytes as base64; Python LinkClient retains bytes (numpy.frombuffer directly).
+`iter_results` supports `speech.alignResults`, `text.analyzeResults`, `f0.trackResults`; it reads through all pages, preserving failures. Raw calculation APIs default to 100 rows: read further pages to cover the job. CLI JSON encodes bytes as base64; Python LinkClient retains bytes (numpy.frombuffer directly).
 
-Use `jobs.summaries` (offset/limit/session) for compact job lists, `jobs.get` for one full result, and `queuedAhead` for earlier queued jobs on the same channel (not running jobs or an ETA). `otto call ... --wait` and `otto wait` are quiet by default; `--progress` adds stderr progress. The final full result stays compatible. `otto session --session ID` includes compact jobs and counts/latest IDs of created samples/assets; `--details` includes full job payloads. Edit history here is limited to 200; this is not a cleanup or deletion authorization.
+Use `jobs.summaries` (offset/limit/session) for compact job lists, `jobs.get` for one full result, and `queuedAhead` for the number of earlier queued jobs on the same channel. `otto call ... --wait` and `otto wait` are quiet by default; `--progress` adds stderr progress. The final result is returned in full. `otto session --session ID` includes compact jobs and counts/latest IDs of created samples/assets; `--details` includes full job payloads. This view includes up to 200 edit-history entries. Use the existing deletion flow when tidying created objects.

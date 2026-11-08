@@ -1,36 +1,36 @@
 ---
 name: preparing-subtitles
-description: "Prepare subtitles for OttoSmasher: clean text, retime across versions, split speaker turns, identify speakers, or transcribe material without captions. Use for CC/bilingual/messy subtitles, timing or speaker work; skip when captions already satisfy the task."
+description: "Prepare subtitles for OttoSmasher: clean text, retime across releases, split speaker turns, identify speakers, or transcribe material without captions. Use for CC, bilingual or messy subtitles and timing/speaker work; reuse parts that already meet the request."
 ---
 
 # Prepare subtitles
 
-Deliver one same-name UTF-8 SRT per requested video, with spoken text, correct source-time ranges and one continuous speaker turn per cue. Simultaneous speech may overlap. Unknown identity remains unknown even when a turn must be split. App parsing and import behaviour live in `otto guide prepare`.
+Prepare a same-name UTF-8 SRT for each requested video, with the words actually spoken and times in source seconds. Keep one person's continuous speech in each cue; simultaneous speech may overlap and unknown names stay blank. App parsing and import are described in otto guide prepare.
 
-## Start with the task contract
+## Before starting
 
-Follow `otto guide workflow`: agree on scope, precision and completion once, reusing explicit requests. Discover and actually verify the audio capabilities required (`otto guide audio`). Reuse existing stems via `tracks.separatedVocals` / `tracks.defaultFromSeparation`; separate missing ones as needed. Back up input captions before changes. Read the matching references before planning; examples are not an exhaustive catalog of CC conventions.
+Read otto guide workflow to choose scope and precision, following existing user requirements. Try the needed audio tools as described in otto guide audio. Use `tracks.separatedVocals` / `tracks.defaultFromSeparation` to find and reuse vocals, separating missing ones as needed. Back up captions before editing.
 
-## Default route and dependencies
+## Suggested route
 
-1. Check version offsets and editing differences with representative audio from beginning, middle and end. Read `references/retiming.md`.
-2. Clean the alignment text and inventory this source's actual CC annotation patterns. Read `references/cleaning.md`; keep the counts and interpretation.
-3. Resolve sequential speaker turns before building voiceprint references. Identify names independently of deciding where the turns are. Read `references/speakers.md` when names must be inferred.
-4. Screen both starts and ends, turn ambiguity and overlaps; review the agreed coverage using complete-context evidence. Read `references/verification.md`. In fine mode, every suspicious item needs a recorded outcome, including kept or uncertain.
-5. Parse and inspect the final file, then import and create missing samples if requested. Reuse existing samples/analysis. Reconcile per-item results and search readiness rather than just job success. Corrections after import use edits where possible; do not delete and rebuild everything as a routine repair.
+1. Take representative audio from the beginning, middle and end to check release offsets and editing differences. See references/retiming.md.
+2. Clean alignment text and count and interpret this source's annotation habits. See references/cleaning.md.
+3. Split sequential turns before building voiceprint references. A known turn can be split while its name is still pending. See references/speakers.md.
+4. Check starts, ends, uncertain turns and overlaps. At fine precision, record an outcome for each suspicious case and sample other scenes. See references/verification.md.
+5. Check the final parsing result and import. Create requested missing samples and reuse analysis. Small corrections after import can edit existing objects; finish by checking per-item results and search coverage.
 
-This route captures dependencies, not a mandated sequence of tool calls. Choose better methods when the material warrants them and retain evidence that they meet the contract. Confirmation about names can be deferred without merging known turns. Do not convert experimental thresholds into fixed rules or adjust boundaries automatically from screening flags.
+This route describes dependencies; tools and order can be adapted to the material. Experiment parameters are useful starting points, to be reconsidered against the audio of a different work.
 
-## Partial tasks
+## Doing just one part
 
 | Task | References |
 |---|---|
 | Clean text / interpret CC annotations | cleaning.md |
-| Timing / subtitles from another version | retiming.md and cleaning.md |
+| Timing / subtitles from another release | retiming.md and cleaning.md |
 | Identify speakers | cleaning.md annotation audit, then speakers.md |
 | No captions | no-subtitles.md |
-| Inspect suspicious boundaries and finish a batch | verification.md |
+| Review suspicious boundaries and finish a batch | verification.md |
 
-## Useful helpers
+## Included scripts
 
-Paths are relative to this skill. `scripts/speaker_embed.py` computes voiceprints; classification and naming remain your judgement. `scripts/audio_probe.py` is a portable audio-mcp client when the host has no MCP integration. No bundled script interprets caption conventions or certifies review completeness. Choose task-specific statistics and evidence after understanding the source; see references/verification.md.
+Paths are relative to this skill. scripts/speaker_embed.py computes voiceprints for your grouping and naming; scripts/audio_probe.py calls audio-mcp from hosts without an MCP connection. Choose caption statistics to suit the source; see references/verification.md.

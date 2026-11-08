@@ -270,7 +270,7 @@ def test_reference_languages_have_the_same_topics(tmp_path, monkeypatch, capsys)
     monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
     root = GUIDE / "reference"
     assert {p.name for p in root.glob("*.md")} == {p.name for p in (root / "zh-CN").glob("*.md")}
-    for lang, word in (("en", "normalizes"), ("zh-CN", "响度")):
+    for lang, word in (("en", "normalization"), ("zh-CN", "响度")):
         assert main(["guide", "flatten", "--lang", lang]) == 0
         text = capsys.readouterr().out
         assert word in text and "flatten.estimate" in text and "flatten.submit" in text

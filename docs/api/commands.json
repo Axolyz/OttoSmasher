@@ -144,7 +144,7 @@
    "name": "assets.listForSession",
    "effect": "read",
    "layer": "library",
-   "summary": "Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete.",
+   "summary": "Live sound assets created by a session, returned in pages.",
    "params": {
     "$ref": "#/$defs/SessionAssetsParams"
    },
@@ -532,7 +532,7 @@
    "name": "flatten.submitBatch",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue a batch flatten: one job, each sample targets independently (auto only).",
+   "summary": "Queue one batch flatten with shared auto/edge options; determine each sample target independently.",
    "params": {
     "$ref": "#/$defs/FlattenBatchParams"
    },
@@ -715,7 +715,7 @@
    "name": "jobs.summaries",
    "effect": "read",
    "layer": "library",
-   "summary": "Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time.",
+   "summary": "Compact recent jobs with per-channel queuedAhead counts; full results are available through jobs.get.",
    "params": {
     "$ref": "#/$defs/JobsBriefParams"
    },
@@ -1299,7 +1299,7 @@
    "name": "samples.metrics",
    "effect": "read",
    "layer": "library",
-   "summary": "Cached acoustic metrics per sample; ready/stale/missing, never starts inference.",
+   "summary": "Read cached acoustic metrics with ready/stale/missing state for each sample.",
    "params": {
     "$ref": "#/$defs/IdsParams"
    },

@@ -1,21 +1,21 @@
-# Reviewing evidence and finishing
+# Checking and finishing
 
-## Understand this source
+## Understand these captions
 
-Read the original captions and relevant style/track information before choosing how to count annotations. Input formats and conventions are open-ended. The examples in cleaning.md are examples, not a recognized-format list. A parser's empty speakers or non-dialogue classification does not prove that the original has no speaker information or speech.
+Read the original text and relevant style/track information, then compare a few passages with audio. Establish how this source marks names, turns, readings and sound cues. cleaning.md gives common examples to start from; add the forms particular to these captions.
 
-Form hypotheses from this source's actual writing and check representative audio/context. If scripting counts or candidate collection, derive that temporary script from the observations, preserve unknown cases and revise it when a new convention appears. Do not force an unfamiliar form into a known class or treat unflagged cues as correct. The app's parsing rules describe the destination format; they are not an interpretation of every possible input.
+When counts or candidate collection would help, write a temporary script from those observations. Set aside unfamiliar forms to examine in context and adjust the counting method as you learn. The app's parsing rules help check the finished output.
 
-## Review at the agreed coverage
+## Review at the chosen precision
 
-Choose suitable evidence and screening for the material. Inspect both starts and ends, sequential turns and overlaps, including adjacent speech with no silence. Do not prescribe a universal energy threshold, short-cue duration or bracket pattern. In fine mode review every suspicious case identified across the agreed scope and sample normal scenes; explain what the screening can miss.
+Check starts, ends, sequential turns and overlaps, including neighbouring utterances with no silent gap. Choose screening methods and thresholds for the material. At fine precision, review every suspicious case found and sample other scenes.
 
-Use `exports.wav` to obtain full sentences and sufficient context, retaining the returned mapping. Use audio-mcp to view the actual curve and check content, expanding the context when needed. ASR word times, energy and forced alignment are clues, not ground truth or proof of sound ownership. Unknown identity does not cancel splitting a known sequential turn.
+Use `exports.wav` for complete sentences with enough context, keep the mapping, then view the curve and check content with audio-mcp. Expand context when sound ownership is unclear, adding alignment or voiceprints as useful. Known turns can be split while names are pending, keeping known identities on their own turns.
 
-For a long task, keep enough notes to resume: input version, actual coverage, observations, decisions, evidence and unresolved cases. Choose a useful format; no fixed ledger schema or script exit code certifies completion. Do not mark cases reviewed from threshold output or from generating audio files.
+For long work, note input versions, actual coverage, decisions and unresolved cases in a form that makes it easy to resume. Leave a short outcome and useful evidence locations for reviewed cases.
 
-## Reconcile and write
+## Write back and check results
 
-Only confirmed changes go into a versioned `edits.apply` batch or final captions before import. Use `subtitles.parse` to check the final output against the current app rules; successful parsing proves neither the interpretation of the input nor timing quality.
+Apply confirmed changes through a versioned `edits.apply` batch or use them to generate captions before import. Read the final speakers, problems and OP/ED pairs with `subtitles.parse`, then check overlaps, coverage and name consistency.
 
-Recheck overlaps, coverage, names and requested scope after revisions. Do not remove every overlap by midpoint or extend every cue with fixed padding. Inspect per-item analysis failures and refresh affected results. App readiness is not content verification. Changed inputs invalidate affected conclusions; report what remains uncertain or unchecked rather than turning a sample check into a full-review claim.
+Inspect per-item analysis results and refresh parts affected by revisions. Update related records when inputs or arrangements change. Finish by reporting the scope actually checked, saved results and cases still needing confirmation.

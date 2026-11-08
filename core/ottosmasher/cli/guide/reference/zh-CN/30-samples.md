@@ -55,8 +55,9 @@ otto call edits.apply '{"batch": <预览里的 batch>}'
 
 已有采样用相关范围和来源判断后复用；新建不可撤销。局部采样读到 partial 分析可能是有意截取，并不必然是错误。
 
+
 ## 已缓存的声学指标
 
-`samples.metrics {"ids": [...]}` 读取现有指标，每个采样带 ready/stale/missing，不触发计算或刷新。需要时用 metrics.prepare；任务成功不代表每个字段都有值。单个采样音高曲线用 measure.f0 读取其资产范围，列表里的语音符号不是已存的 F0 曲线。spectrum.get 返回每行中心频率 frequencies（Hz）、scale、nyquist 和字节 data；log/mel 不能假设频率均匀分布。
+`samples.metrics {"ids": [...]}` 读取现有指标，每个采样带 ready/stale/missing 状态。缺失的测量用 metrics.prepare 计算，尚无测量值的字段保持 null。采样的音高曲线用 measure.f0 读取对应资产范围，列表的 glyphs 显示语音形状。
 
-samples.list 的 sort 接受 created / name / source / duration。createdBySession 按创建会话筛选现存采样，samples.ids 也支持。轨道／采样名可能重复，稳定 ID 才是对象身份。
+spectrum.get 返回 data 字节、scale、nyquist 和每行中心频率 frequencies（Hz），可用来解释 log/mel 行。列表 sort 接受 created / name / source / duration；createdBySession 按创建会话筛选，samples.ids 也支持。同名的轨道或采样用 ID 区分。

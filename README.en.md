@@ -219,13 +219,11 @@ But many advanced features depend on clean vocals and phoneme alignment, and the
 
 ## Known issues
 
-- **Windows agent sandboxes:** some restricted agent sandboxes deny access to OttoSmasher's local named pipe with Access denied even while the app is running. For LLM agents other than Codex on Windows, the current recommendation is for the user to enable **Full Access** in the agent host. This workaround comes from the reported environments; every host has not been tested. OttoSmasher continues to use named pipes.
-- **Subtitle and speaker quality needs review:** input formats, annotation conventions and release differences are open-ended. Successful alignment, green preparation status or a passing script does not establish correctness. Voiceprint methods remain experimental, especially for short lines, similar voices and simultaneous speech. Fine work should review every suspicious case; regexes, energy thresholds and ASR timestamps are not sufficient evidence.
-- **First-use audio-tool costs:** audio-mcp is an external agent tool and must be verified separately. First transcription may download a model (turbo is about 1.6 GB), network failures can interrupt it, and long CPU transcription is slow. Extract short clips first. A working visualizer does not verify transcription.
-- **Created objects cannot be undone by session:** new samples, tracks and exported files are outside edit undo. Inventory them by session and use the existing deletion flow, which requires in-app confirmation. Test a few products first, especially when the intended output is one note rather than a flattened sentence.
-- **Limited diagnostics for zero pitch hits:** rejection counts do not fully separate register, octave, tolerance and valid-window causes. Check index coverage and representative audio before changing the query. Analysis preview and job results are still needed to explain some samples with no usable analysis.
-- **Exports and MIDI workflows:** export names can be long and there is no dedicated Exports cleanup flow. MIDI has no built-in object/import; agents need an external parser.
-- **Some Windows DAW interactions remain limited:** release Alt before dropping into File Explorer. Some combinations of REAPER bulk drag/paste still need verification. See the [roadmap](docs/ROADMAP.md) for the remaining details.
+- Some restricted agent sandboxes on Windows, such as DeepSeek Harness, block local named-pipe connections with Access denied. For LLM agents other than Codex, the current recommendation is to enable **Full Access** in the host.
+- The first audio-mcp transcription downloads a model (turbo is about 1.6 GB) and needs a suitable network connection. Long CPU transcription can be slow; extracting short clips first helps.
+- On Windows, release Alt before dropping into File Explorer.
+- See the [roadmap](docs/ROADMAP.md) for the remaining issues.
+- The skills are still being refined. The author mainly uses and recommends macOS + Codex (sandbox) + GPT 6.1 Sol. On Windows, DeepSeek Harness with Full Access works well for basic tasks; complex work such as subtitle preparation and sample selection, which combines tools and content judgement, still needs improvement.
 
 ## Feedback
 

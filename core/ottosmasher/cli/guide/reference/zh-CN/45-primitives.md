@@ -43,8 +43,8 @@
 结果里的 `edges`（窗口两端到首尾音素的空白）和 `longestPhone`（最长的音素）是事实，不是判定：空白接近 0 可能是说话被窗口截断，某个音长得离谱多半是窗口太宽。
 窗口从哪来：已有的台词段、带词时间戳的转写、或者音量起止。日语以外的语言不支持。
 
-## 结果与边界
+## 读取结果
 
-speech.alignResults、text.analyzeResults、f0.trackResults 默认分页，每页 100 条。`--wait` 自动取全，脚本用 LinkClient.iter_results。成功仅证明计算完成，edges 接近零、异常音长是可疑信号，需要另外核验。转写词时间和响度起止只能提供定位线索。
+speech.alignResults、text.analyzeResults、f0.trackResults 默认分页，每页 100 条。`--wait` 自动取全，脚本用 LinkClient.iter_results。edges 接近零或音长异常的地方，可以结合转写、响度和上下文回看。
 
 `spectrum.get` 返回 frequencies，顺序对应 data 的每一行中心频率（Hz），从低到高；data 为行优先 uint8。JSON 的 data 是 base64，Python 客户端返回 bytes。

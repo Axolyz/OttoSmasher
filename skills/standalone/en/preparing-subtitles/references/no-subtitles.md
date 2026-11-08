@@ -10,15 +10,15 @@ These are the author's conclusions after trying several methods, without a quant
 - **Forced alignment in a time window:** it is accurate when the window holds exactly this line. With 0.5 s extra or missing, results get poor.
 - **ASR, then forced alignment:** this fixes some drift, but sentence breaks are poor. A sentence may be split across two cues, and it needs manual polishing.
 
-VAD proposes timing; it does not certify boundaries. The agent decides sentence breaks and verifies content and uncertain starts/ends at the agreed precision. Neither ASR word timestamps nor low energy alone proves who owns a sound.
+Use VAD for candidate timing, then decide sentence breaks and check content and uncertain starts/ends at the agreed precision. Context helps distinguish adjacent utterances.
 
 ## Steps
 
 1. **Prepare the sound.** Use separated vocals; material that is already dry can be used as is.
-2. **Run low-threshold VAD.** Keep weak/short speech as candidates. Low thresholds can include noise and still miss word edges.
-3. **Run ASR per piece.** Use VAD boundaries as initial windows, with context; verify rather than treating them as final timestamps.
+2. **Run low-threshold VAD.** Keep weak and short speech as candidates, then refine their edges in context.
+3. **Run ASR per piece.** Start from the VAD windows, include context and refine the sentence boundaries.
 4. **Merge into sentences.** Join pieces into complete sentences, one person's continuous speech per cue. Merging changes only boundaries and grouping; do not rewrite the recognized words along the way.
-5. **Flag low-confidence parts.** For example, words the tool marks as uncertain, very short pieces, places where the meaning does not connect, and places where people may overlap. List them for the user with times and reasons. Review these at the agreed coverage; ask the user only for identities or decisions the available evidence cannot resolve.
+5. **Flag low-confidence parts.** For example, words the tool marks as uncertain, very short pieces, places where the meaning does not connect, and places where people may overlap. List them for the user with times and reasons. Review these at the chosen precision and ask the user about unresolved identities or decisions.
 6. **Write back.** Write a UTF-8 `.srt` with the same name as the video, then continue with `references/cleaning.md` if the text needs more cleaning.
 
 ## When not to use this

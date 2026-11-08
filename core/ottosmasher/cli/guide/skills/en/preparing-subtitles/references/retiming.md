@@ -1,17 +1,17 @@
 # Retiming
 
-The aligner fits text into its supplied window without checking whether that sentence is there. Start from existing rough captions, verify version differences in real audio, and establish global or piecewise offsets. Lyric markers do not establish the musical start of OP/ED.
+Check release differences before refining individual boundaries. Use dialogue to locate overall offsets and edit points. OP/ED lyric marks can help find the area; check the full music start and end against the sound.
 
-## Refine one boundary
+## Refine a line
 
-1. Prepare the full sentence and adjacent speech, inspect the actual waveform/energy curve, and use original captions plus contextual transcription when needed to check contents. ASR word times are only location clues.
-2. Establish whether edge audio belongs to this sentence or its neighbour, including continuous speech without a gap. Use speech.align, lines or voiceprints when helpful. Phonemes can refine an already suitable window, but their edges are not automatic ground truth.
-3. Write only confirmed changes and retain evidence/reasons. For existing segments use edits.apply, preferring small versioned batches, then reconcile coverage, order and actual overlap.
+1. Take the full sentence and neighbouring dialogue. View the waveform/energy curve and check contents against captions and, where useful, a transcript. ASR word times help with rough location.
+2. Establish whether edge sounds belong to this line or the next, including continuous speech with no silent gap. Once the window closely holds the utterance, speech.align and lines can refine it, with voiceprints helping identify turns where useful.
+3. Record the reason for confirmed changes. For existing segments, write small batches with edits.apply, then check coverage, order and overlaps together.
 
-## Suspicious signals
+## Finding cases to review
 
-Energy before/after an edge, abrupt cuts, unclear neighbouring contents, near-zero edges or absurd phoneme lengths flag cases. Screening must not modify boundaries or select only cases with silence gaps. Fine reviews every suspicious item, sampling normal scenes; see verification.md.
+Sound on both sides of an edge, an abruptly cut tail, unclear neighbouring content, edges near zero and unusually long phones are useful signals. At fine precision, review all such cases and sample other scenes; see verification.md.
 
-## Choosing methods
+## Judging results
 
-A/B windows with more/less context can help establish content completeness. ASR omission, hallucination and changed context alter recognition, so output differences alone are not conclusions. Do not pad every sentence or midpoint away every overlap, and do not assume professional CC is exact. Simultaneous speech may overlap; sequential speech should not absorb the neighbouring sentence.
+A/B transcripts with more or less context can help check complete words. ASR sometimes misses or adds words, so compare the text with the actual curve. Alignment is good at refining a given window, which makes locating the utterance first essential. Adjust to the real speech: use a gap when one exists, and keep overlaps where people actually speak together.

@@ -1,27 +1,27 @@
 ---
 name: preparing-subtitles
-description: "为 OttoSmasher 准备字幕，清洗文字、跨版本对轴、拆说话轮次、识别说话人，或为无字幕素材打轴。用于 CC、双语、杂乱字幕及时间／说话人处理；字幕已符合任务要求时不用。"
+description: "为 OttoSmasher 准备字幕：清洗文字、跨版本对轴、拆说话轮次、识别说话人，或为无字幕素材打轴。用于 CC、双语、杂乱字幕及时间／说话人处理；已经符合要求的部分可以直接复用。"
 ---
 
 # 准备字幕
 
-每个指定视频交付完全同名的 UTF-8 SRT，文字为实际说出口的内容，时间用原片秒，一条对应一个连续说话轮次。同时发言允许重叠。即使不知道名字，明确换人仍要拆开。应用解析及导入行为见 otto guide prepare。
+为指定视频准备完全同名的 UTF-8 SRT，文字写实际说出口的内容，时间用原片秒。一条放一个人连续说的话；同时发言可重叠，未知名字留空。应用的解析和导入方式见 otto guide prepare。
 
-## 先明确任务约定
+## 开始前
 
-按 otto guide workflow 确认一次范围、精度和完成条件，沿用用户明确要求。发现并真实验证任务需要的音频能力，见 otto guide audio。通过 `tracks.separatedVocals` / `tracks.defaultFromSeparation` 复用已有人声，缺失时按需分离。改前备份字幕。计划前读对应引用，示例不穷举 CC 写法。
+读 otto guide workflow，选定范围和精度，沿用用户已有要求。按 otto guide audio 试好需要的音频工具。用 `tracks.separatedVocals` / `tracks.defaultFromSeparation` 查找和复用已有的人声，缺失时再分离。改字幕前留备份。
 
-## 参考路线与必要依赖
+## 参考路线
 
-1. 用开头、中间、结尾代表音频核对版本偏移和剪辑差异，读 references/retiming.md。
-2. 清洗对齐文字，统计本来源实际 CC 标注写法，读 references/cleaning.md，保留数量与解释。
-3. 先解决先后换人，再建立声纹参考；身份命名与轮次边界独立判断。需要补名字时读 references/speakers.md。
-4. 筛查首端、尾端、换人不明和重叠，结合完整上下文按约定范围核验，读 references/verification.md。精细档每个可疑项都要有保留／修正／仍待定的结论。
-5. 检查最终文件解析后导入，按请求补采样。复用已有采样和分析，核对逐项结果与搜索覆盖。导入后修正优先改已有对象，不把全部删除重建当日常修复方法。
+1. 从开头、中间、结尾取代表音频，核对版本偏移和剪辑差异。见 references/retiming.md。
+2. 清洗对齐文字，统计并理解当前来源的标注习惯。见 references/cleaning.md。
+3. 将先后换人的条目拆开，再建立声纹参考。轮次确定后即可拆分，名字可以稍后补。见 references/speakers.md。
+4. 核对首尾、换人疑点和重叠。精细档逐项留下保留、修正或待定的结论，其他条目按场景抽查。见 references/verification.md。
+5. 检查最终解析结果后导入，按请求补采样，复用已有分析。导入后的小修正可直接编辑已有对象；收尾时查看逐项结果和搜索覆盖。
 
-路线描述必要依赖，不规定固定工具调用序列。材料需要时选更好的方法，保留它满足约定的依据。名字可待定，明确轮次仍应拆开。实验阈值不升级为硬规则，可疑信号不自动改边界。
+这条路线说明了先后依赖，工具和顺序可按素材调整。实验参数可以作为起点，换作品时结合实际声音重新判断。
 
-## 部分任务
+## 只做其中一步
 
 | 任务 | 引用 |
 |---|---|
@@ -31,6 +31,6 @@ description: "为 OttoSmasher 准备字幕，清洗文字、跨版本对轴、�
 | 没有字幕 | no-subtitles.md |
 | 可疑边界核验与批量收尾 | verification.md |
 
-## 可复用助手
+## 附带脚本
 
-路径相对本技能目录。scripts/speaker_embed.py 算声纹，分类与命名由你判断。scripts/audio_probe.py 在宿主未接 MCP 时调用 audio-mcp。没有内置脚本解释字幕惯例或认证核验完成；先理解来源，再按任务选择统计和证据，见 references/verification.md。
+路径相对本技能目录。scripts/speaker_embed.py 计算声纹，供你分组和命名；scripts/audio_probe.py 让未接 MCP 的宿主调用 audio-mcp。字幕统计方法根据当前来源选择，用法见 references/verification.md。
