@@ -54,9 +54,9 @@ For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The 
 
 Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
-The author currently recommends a coding agent with a model at least around the capability of DeepSeek v4 flash or GLM 5.3 Flash. On Windows, many agent hosts need Full Access to connect to Otto through the current local IPC setup.
+macOS is the recommended operating system for agent integration, with fewer setup issues in the author’s experience; Windows is also supported. On Windows, many agent hosts need Full Access to connect to Otto through the current local IPC setup.
 
-The recommended setup, used by the author, is macOS + Codex (sandbox) + GPT 6.1 Sol. DeepSeek Harness with Full Access works well for basic tasks on Windows; complex subtitle preparation and sample selection still vary in quality after this round of improvements.
+Codex (sandbox) + GPT 6.1 Sol is the author’s recommended setup and the one used in practice. For Chinese models, use a coding agent with a model at least around the capability of DeepSeek v4 flash or GLM 5.3 Flash. DeepSeek Harness with Full Access works well for basic tasks, but complex subtitle preparation and sample selection remain inconsistent; the author has found DeepSeek’s instruction following particularly poor despite a round of targeted improvements.
 
 Send your agent one of these messages, followed by your task.
 
@@ -70,7 +70,7 @@ Task: ...
 For subtitle preparation, follow the opening with:
 
 ```
-Please follow the preparing-subtitles skill for [material folder]. Use [subtitle path] as the correct subtitle source, align it to [target video], and work at [quick / standard / fine] precision.
+Please follow the preparing-subtitles skill to prepare subtitles in [file or material folder]. Use subtitles from [subtitle path] and align them to [target video].
 ```
 
 For audio computation only, without touching the library:
