@@ -273,58 +273,7 @@ def test_reference_languages_have_the_same_topics(tmp_path, monkeypatch, capsys)
     for lang, word in (("en", "normalizes"), ("zh-CN", "响度")):
         assert main(["guide", "flatten", "--lang", lang]) == 0
         text = capsys.readouterr().out
-        assert word in text and "flatten.preview" in text and "flatten.submitMany" in text
-
-
-def _review_helper():
-    import importlib.util
-    path = SKILLS / "common" / "preparing-subtitles" / "scripts" / "review.py"
-    spec = importlib.util.spec_from_file_location("otto_review", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def test_review_ledger_requires_evidence_and_detects_changed_inputs(tmp_path):
-    review = _review_helper()
-    original = tmp_path / "original.srt"
-    original.write_text("original", encoding="utf-8")
-    cues = [{"no": 1, "kind": "line", "start": 1, "end": 2, "text": "hi", "raw": "（A）hi\nthere", "speakers": [], "withheld": True},
-            {"no": 2, "kind": "line", "start": 1.9, "end": 2.5, "text": "bye", "raw": "bye", "speakers": []}]
-    report = review.scan({"cues": cues}, [original], "fine", "all suspicious cases")
-    assert len(report["items"]) == 2 and not review.check(report, tmp_path)["ok"]
-    evidence = tmp_path / "curve.json"
-    evidence.write_text("{}")
-    for item in report["items"]:
-        item.update(status="uncertain", reason="cannot resolve ownership", evidence=[{"path": "curve.json", "note": "actual curve inspected"}])
-    assert review.check(report, tmp_path)["ok"]
-    evidence.unlink()
-    assert not review.check(report, tmp_path)["ok"]
-    evidence.write_text("{}")
-    original.write_text("changed")
-    assert "input changed" in review.check(report, tmp_path)["errors"][0]
-
-
-def test_review_screens_start_and_end_without_a_silence_gap(tmp_path):
-    import numpy as np
-    from ottosmasher.media import wavfile
-    review = _review_helper()
-    path = tmp_path / "continuous.wav"
-    t = np.arange(32000) / 16000
-    wavfile.save_wav24(path, (.2 * np.sin(2 * np.pi * 200 * t))[:, None], 16000)
-    screen = review.energy_screen({"path": str(path), "mapping": [[0, 100], [2, 102]]})
-    flags = screen({"no": 1, "start": 100.5, "end": 101.5})
-    assert len(flags) == 2 and flags[0].startswith("start:") and flags[1].startswith("end:")
-
-
-def test_review_marks_nested_overlaps_even_when_adjacent_short_cue_ends_earlier(tmp_path):
-    review = _review_helper()
-    original = tmp_path / "original.srt"
-    original.write_text("original")
-    cues = [{"no": n, "kind": "line", "start": a, "end": b, "text": "line", "raw": "line", "speakers": []}
-            for n, a, b in [(1, 1, 10), (2, 2, 3), (3, 4, 5)]]
-    report = review.scan({"cues": cues}, [original], "fine", "overlap screening")
-    assert {item["id"] for item in report["items"]} == {"cue:1", "cue:2", "cue:3"}
+        assert word in text and "flatten.estimate" in text and "flatten.submit" in text
 
 
 def test_common_options_preserve_actor_and_pretty_before_the_subcommand():

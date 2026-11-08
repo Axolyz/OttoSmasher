@@ -125,7 +125,6 @@
   "agentPanel.install": "Install otto command",
   "agentPanel.installed": "Installed as a command: {link}. Just type otto in a terminal.",
   "agentPanel.installHint": "The installed app sets this up at {link} when it starts; this button reinstalls it by hand. If the terminal still cannot find otto, add ~/.local/bin to your PATH.",
-  "agentPanel.pathConflict": "PATH resolves otto to {path}, shadowing this app. The agent prompt will use the full executable path.",
   "agentPanel.conflict": "{link} is already another file, so it was left alone. You can use the full path above.",
   "agentPanel.noInstall": "One-click install isn't available on this system yet. Use the full path above.",
   "agentPanel.copyPath": "Copy path",

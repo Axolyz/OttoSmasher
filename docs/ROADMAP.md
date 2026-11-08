@@ -55,4 +55,4 @@
 | L72 | MIDI 对象／导入及 program、音域等展示；当前交给外部解析库，避免把任务脚本变成应用新子系统 | 2026-11-08 评估保留，未排期 |
 | L73 | 导出名长度和 Exports 生命周期：考虑短名加稳定索引、可预览的清理范围；不得自动删用户已使用文件 | 2026-11-08 反馈，未实现 |
 | L74 | 语音不可用原因的统一解释：speech.sample blocked、samples.list analysis:none 与预览／任务失败的关系 | 2026-11-08 部分在 flatten.alignmentIssue 透出；其余未实现 |
-| L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PATH/PowerShell/IPC、缩放、实际按精度完成；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 复测场景见 history/agent-workflow-review-2026-11-08.md，不把本机合成回归当实机或模型遵循证明 |
+| L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PowerShell/IPC、缩放、实际按精度完成；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 复测场景见 history/agent-workflow-review-2026-11-08.md，不把本机合成回归当实机或模型遵循证明；用户可见的限制同步 README「已知问题」 |

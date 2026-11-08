@@ -22,14 +22,13 @@ export function AgentPanel() {
   };
   // 还没装成命令时开场白里写完整路径；路径可能带空格
   const path = info.path ?? "otto";
-  const command = info.linked && !info.pathConflict ? "otto" : path.includes(" ") ? `"${path}"` : path;
+  const command = info.linked ? "otto" : path.includes(" ") ? `"${path}"` : path;
   return (
     <div className={s.itemWide} data-testid="agent-panel">
       <div className={s.label}>{t("agentPanel.otto")}</div>
       {info.path ? <div className={`${s.hint} mono`} data-testid="agent-otto-path">{info.path}</div> : <Callout tone="bad">{t("agentPanel.ottoMissing")}</Callout>}
       {info.linked ? <div className={s.hint} data-testid="agent-otto-linked">{t("agentPanel.installed", { link: info.link ?? "" })}</div> : null}
       {info.conflict ? <Callout tone="bad">{t("agentPanel.conflict", { link: info.link ?? "" })}</Callout> : null}
-      {info.pathConflict ? <Callout tone="bad">{t("agentPanel.pathConflict", { path: info.pathConflict })}</Callout> : null}
       {!info.linked && info.path && info.link && !info.conflict ? <div className={s.hint}>{t("agentPanel.installHint", { link: info.link })}</div> : null}
       {info.path && !info.link ? <div className={s.hint}>{t("agentPanel.noInstall")}</div> : null}
       <div className={s.btnRow}>

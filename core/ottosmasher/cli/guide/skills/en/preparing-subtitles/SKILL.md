@@ -33,4 +33,4 @@ This route captures dependencies, not a mandated sequence of tool calls. Choose 
 
 ## Useful helpers
 
-Paths are relative to this skill. `scripts/speaker_embed.py` computes voiceprints; classification and naming remain your judgement. `scripts/audio_probe.py` is a portable audio-mcp client when the host has no MCP integration. `scripts/review.py` inventories parsed captions, screens optional audio, exports contextual packets, and checks evidence/completeness. It never modifies captions or the app, and it cannot certify subjective quality. See verification.md for usage and limits.
+Paths are relative to this skill. `scripts/speaker_embed.py` computes voiceprints; classification and naming remain your judgement. `scripts/audio_probe.py` is a portable audio-mcp client when the host has no MCP integration. No bundled script interprets caption conventions or certifies review completeness. Choose task-specific statistics and evidence after understanding the source; see references/verification.md.

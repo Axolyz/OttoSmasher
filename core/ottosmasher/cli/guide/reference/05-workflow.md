@@ -18,11 +18,12 @@ Use scripts for pagination, clocks, inventory and completeness. Follow the skill
 
 Read the task skill and relevant references before planning. Discover each source's conventions, including unlisted ones. Example numbers and measured performance belong to their experiment, not to every work. For sustained tasks keep a small report in your temporary task folder, rather than a new workflow database in the app.
 
+
 ## Checks and judgements
 
-The subtitle skill includes `scripts/review.py`. It consumes the app's `subtitles.parse` JSON, inventories raw annotation patterns and builds a candidate ledger. Optional waveform screening includes both starts and ends, even without silence between sentences. Screening produces questions, never boundary changes. The packet command exports whole-cue audio with context and its time mapping; inspect the actual curve and content with your audio tool. ASR, energy, alignment and CC timing can each be wrong. Select a boundary from the combined evidence and keep uncertain cases explicit.
+Input conventions are open-ended. Understand the raw material before choosing a method or writing a task script. Brackets, line count, short duration and energy are not universal rules for identities, turns or suspicious boundaries. Preserve unfamiliar cases; revise assumptions when new forms appear. The app parser describes the destination format, not every possible source.
 
-The ledger stores input fingerprints, candidates, decisions and evidence references. Its check catches pending items, changed inputs and missing evidence files; it cannot prove that a model actually listened or made a correct judgement. App readiness and content verification are distinct: `sources.prep` has no knowledge of these reviews.
+Scripts can check declared fields, pagination, clock conversion, counts and input changes. They cannot decide whether a caption means a speaker change, whether a sound belongs to the next line or whether the task has been adequately reviewed. Choose evidence and notes appropriate to the task. No fixed ledger or passing script certifies quality. `sources.prep` reports app readiness, not content verification.
 
 ## Completion
 

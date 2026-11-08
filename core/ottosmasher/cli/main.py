@@ -248,12 +248,7 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
         return {"job": final, "video": done}, done is not None
     if method in PRIMITIVE_RESULTS and (ok or (final.get("error") or {}).get("code") == "job-all-items-failed"):
         # 原始能力的任务：结果在任务目录里，跟着读出来（逐条；单条失败写在条目里，全部失败时也读出原因）
-        rows: list[Any] = []
-        while True:
-            page = client.call(PRIMITIVE_RESULTS[method], {"jobId": job["id"], "offset": len(rows), "limit": 100})
-            rows += page
-            if len(page) < 100:
-                break
+        rows = list(client.iter_results(PRIMITIVE_RESULTS[method], job["id"]))
         return {"job": final, "results": rows}, ok
     if isinstance(result, dict) and result is not job:
         return {**result, "job": final}, ok

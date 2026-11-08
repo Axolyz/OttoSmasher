@@ -217,6 +217,16 @@ But many advanced features depend on clean vocals and phoneme alignment, and the
 | No subtitles | Without lines, you cannot create samples from lines, search lines or filter by person, and speech analysis is not possible. That rules out beat-fit, rhythm search, REAPER stretch markers and flattening only the vowels. You can type lines by hand or have an agent generate subtitles with speech recognition. Machine transcripts contain errors and their timing can drift, so important lines need fixing by hand. |
 | Not in Japanese | Subtitles can be imported, searched by text and used to create samples in bulk. But speech analysis only supports Japanese for now, so beat-fit, rhythm search, REAPER stretch markers and flattening only the vowels are not available. Agents cannot use the app's alignment and reading analysis either. |
 
+## Known issues
+
+- **Windows agent sandboxes:** some restricted agent sandboxes deny access to OttoSmasher's local named pipe with Access denied even while the app is running. For LLM agents other than Codex on Windows, the current recommendation is for the user to enable **Full Access** in the agent host. This workaround comes from the reported environments; every host has not been tested. OttoSmasher continues to use named pipes.
+- **Subtitle and speaker quality needs review:** input formats, annotation conventions and release differences are open-ended. Successful alignment, green preparation status or a passing script does not establish correctness. Voiceprint methods remain experimental, especially for short lines, similar voices and simultaneous speech. Fine work should review every suspicious case; regexes, energy thresholds and ASR timestamps are not sufficient evidence.
+- **First-use audio-tool costs:** audio-mcp is an external agent tool and must be verified separately. First transcription may download a model (turbo is about 1.6 GB), network failures can interrupt it, and long CPU transcription is slow. Extract short clips first. A working visualizer does not verify transcription.
+- **Created objects cannot be undone by session:** new samples, tracks and exported files are outside edit undo. Inventory them by session and use the existing deletion flow, which requires in-app confirmation. Test a few products first, especially when the intended output is one note rather than a flattened sentence.
+- **Limited diagnostics for zero pitch hits:** rejection counts do not fully separate register, octave, tolerance and valid-window causes. Check index coverage and representative audio before changing the query. Analysis preview and job results are still needed to explain some samples with no usable analysis.
+- **Exports and MIDI workflows:** export names can be long and there is no dedicated Exports cleanup flow. MIDI has no built-in object/import; agents need an external parser.
+- **Some Windows DAW interactions remain limited:** release Alt before dropping into File Explorer. Some combinations of REAPER bulk drag/paste still need verification. See the [roadmap](docs/ROADMAP.md) for the remaining details.
+
 ## Feedback
 
 Please [open an issue](https://github.com/Axolyz/OttoSmasher/issues) for problems and suggestions, with your system version, steps to reproduce, and the relevant logs from `Data/Logs/` in your workspace.

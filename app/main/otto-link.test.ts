@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, readlinkSync, symlinkSync, write
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { OTTO_SHIM_MARK, ensureOttoLink, ottoShim, windowsPathConflict } from "./otto-link";
+import { OTTO_SHIM_MARK, ensureOttoLink, ottoShim } from "./otto-link";
 
 const dir = () => mkdtempSync(join(tmpdir(), "otto-link-"));
 
@@ -56,13 +56,4 @@ describe("ensureOttoLink：Windows 转发脚本", () => {
     expect(ensureOttoLink("C:\\应用\\otto.cmd", other, true)).toBe("conflict");
     expect(existsSync(other) && readFileSync(other, "utf8")).toBe("@echo other");
   });
-});
-
-it("Windows PATH：只看第一个结果，支持大小写和转发脚本，保留别的命令", () => {
-  const target = "C:/Apps/OttoSmasher/bin/otto.cmd";
-  const link = "C:/Users/a/WindowsApps/otto.cmd";
-  expect(windowsPathConflict("c:/APPS/ottosmasher/bin/otto.cmd\r\n", target, link)).toBeNull();
-  expect(windowsPathConflict(`${link}\r\n${target}`, target, link)).toBeNull();
-  expect(windowsPathConflict(`C:/old/otto.cmd\r\n${target}`, target, link)).toBe("C:/old/otto.cmd");
-  expect(windowsPathConflict("", target, null)).toBeNull();
 });

@@ -206,25 +206,3 @@ def test_session_inventory_reports_only_its_created_objects(app, tmp_path):
     assert result["created"]["assets"]["count"] == 1
     rc, assets, err = otto(root, "call", "assets.listForSession", '{"session":"inventory","limit":1}')
     assert rc == 0 and assets["total"] == 1 and assets["rows"][0]["id"] == aid, err
-
-
-def test_review_packet_exports_context_and_mapping_without_marking_reviewed(app, tmp_path):
-    from pathlib import Path
-    import numpy as np
-    from ottosmasher.cli.main import GUIDE
-    from ottosmasher.media import wavfile
-
-    c, root = app
-    path = tmp_path / "context.wav"
-    wavfile.save_wav24(path, np.zeros((48000, 1), dtype=np.float32), 16000)
-    aid = c.call("sources.add", paths=[str(path)])["r"][0]["assets"][0]["assetId"]
-    ledger = tmp_path / "task.json"
-    ledger.write_text(json.dumps({"items": [{"id": "cue:1", "start": 1.2, "end": 1.5}]}))
-    original = ledger.read_bytes()
-    script = GUIDE / "skills" / "common" / "preparing-subtitles" / "scripts" / "review.py"
-    rc, result, err = otto(root, "run", str(script), "packet", str(ledger), "cue:1", "--asset-id", aid, "--directory", str(tmp_path / "evidence"))
-    assert rc == 0, err
-    assert result["reviewed"] is False and Path(result["audio"]["path"]).is_file()
-    assert result["audio"]["mapping"][0] == pytest.approx([0, 0.2])
-    assert result["audio"]["mapping"][-1] == pytest.approx([2.3, 2.5])
-    assert ledger.read_bytes() == original

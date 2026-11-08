@@ -36,7 +36,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "dev-only": ((), "Command is only available in development mode."),
     # ---- 外部连接（命令行 / agent，阶段 A）
     "app-not-running": (("workspace",), "OttoSmasher is not running on this workspace; run otto open first (the command line only talks to a running app)."),
-    "agent-link-failed": (("reason",), "Could not connect to the running app (stale endpoint file, wrong key or the app is shutting down)."),
+    "agent-link-failed": (("reason",), "Could not connect to the running app; see reason for the underlying error."),
     "agent-command-forbidden": (("method", "effect"), "This command belongs to the app's own interface and cannot be called from the command line."),
     "agent-confirm-declined": (("method",), "The user declined this command in the app (it cannot be undone, so it needs their confirmation). Do not retry unless they ask."),
     "agent-confirm-timeout": (("method", "seconds"), "Nobody confirmed this command in the app in time; it was not run. Do not retry unless the user asks."),

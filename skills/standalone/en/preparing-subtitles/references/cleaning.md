@@ -4,7 +4,9 @@
 
 Sources label speakers differently, so measure this for each source before you trust it. Speaker changes usually start new lines, but line breaks need not be turns; audit each source.
 
-Count these per source:
+Read raw text and any style/track information first. The following are illustrative patterns, not an exhaustive schema. Derive any temporary statistics script from the current source and revise it for unfamiliar forms; an unparsed form is not evidence of absent labels.
+
+Examples to inspect per source:
 
 - both lines of a cue labelled (a possible turn change to verify)
 - first line only (often the same person)

@@ -2320,25 +2320,6 @@ class FlattenSubmitParams(TypedDict):
     sampleId: NotRequired[str | None]
 
 
-class FlattenPreview(TypedDict):
-    name: str
-    estimate: FlattenEstimate
-    creates: dict[str, int]
-    outputDuration: float
-    range: FlattenRange
-    normalizesLoudness: bool
-
-
-class FlattenManyItem(TypedDict):
-    id: str
-    options: FlattenOptions
-    name: NotRequired[str]
-
-
-class FlattenManyParams(TypedDict):
-    items: list[FlattenManyItem]
-
-
 class FlattenBatchParams(TypedDict):
     ids: list[str]
     options: FlattenOptions

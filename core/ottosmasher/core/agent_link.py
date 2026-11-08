@@ -92,10 +92,7 @@ def connect(info: dict[str, Any], actor: dict[str, Any]) -> tuple[Connection, di
     try:
         conn = Client(info["address"], family=info["family"], authkey=bytes.fromhex(info["key"]))
     except Exception as exc:  # noqa: BLE001 — 连接、认证失败都归到一个码
-        reason = repr(exc)
-        if isinstance(exc, PermissionError):
-            reason += "; endpoint or local IPC access denied; check sandbox/ACL permissions. Do not disable protections automatically."
-        raise CoreError("agent-link-failed", reason=reason) from None
+        raise CoreError("agent-link-failed", reason=repr(exc)) from None
     conn.send_bytes(_enc.encode({"t": "hello", "actor": actor}))
     reply = _dec.decode(conn.recv_bytes())
     if not reply.get("ok"):

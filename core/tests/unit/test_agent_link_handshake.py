@@ -50,5 +50,6 @@ def test_permission_denial_explains_local_ipc_without_claiming_app_is_stopped(mo
     with pytest.raises(CoreError) as caught:
         agent_link.connect({"address": "local-endpoint", "family": "AF_PIPE", "key": "00"}, {"kind": "agent", "session": "test"})
     assert caught.value.code == "agent-link-failed"
-    assert "sandbox/ACL" in caught.value.args_["reason"]
-    assert "PermissionError" in caught.value.args_["reason"]
+    assert caught.value.args_["reason"] == "PermissionError('access denied')"
+    from ottosmasher.cli.main import error_wire
+    assert "stale endpoint" not in error_wire(caught.value.code, caught.value.args_)["error"]["message"]

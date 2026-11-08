@@ -172,30 +172,9 @@ def test_pitch_tag_follows_the_bound_asset(core):
     assert loads(core.conn.execute("SELECT production FROM sound_asset WHERE id=?", (fid,)).fetchone()[0])["target"]["name"] == "G♯5"
 
 
-def test_missing_alignment_explains_reason_and_preview_does_not_write(core):
+
+def test_missing_alignment_explains_reason(core):
     s = sample(core, 1.0, 2.0)
     opened = core.flatten.open(core.aid, 1.0, 2.0, "single", s)
     assert opened["alignment"] is None
     assert opened["alignmentIssue"]["args"]["reason"] == "sample-analysis-unavailable"
-    before = {table: core.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in ("sample", "sound_asset", "job")}
-    plan = core.flatten.preview(opened["token"], {"range": "whole", "target": "manual", "manual": "C4"}, "preview", s)
-    assert plan["estimate"]["target"]["midi"] == 60
-    assert plan["outputDuration"] == 1 and plan["creates"] == {"samples": 1, "assetsMax": 1}
-    with pytest.raises(CoreError, match="flatten-needs-alignment"):
-        core.flatten.preview(opened["token"], {"range": "vowels", "target": "auto"}, "vowel", s)
-    assert {table: core.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in before} == before
-
-
-def test_submit_many_keeps_individual_targets_and_failed_retry_options(core, monkeypatch):
-    monkeypatch.setattr(core.flatten, "_versions", lambda: {})
-    sid = sample(core, 1, 2)
-    requests = [{"id": sid, "options": {"range": "whole", "target": "manual", "manual": note}} for note in ("C4", "F4")]
-    requests.append({"id": "missing", "options": {"range": "whole", "target": "manual", "manual": "A4"}})
-    job = core.flatten.submit_many(requests)
-    params = loads(core.conn.execute("SELECT params FROM job WHERE id=?", (job["id"],)).fetchone()[0])
-    assert [it["target"]["manual"] for it in params["items"][:2]] == ["C4", "F4"]
-    assert params["items"][2]["error"]["code"] == "sample-not-found"
-    core.conn.execute("UPDATE job_item SET status='failed' WHERE job_id=? AND idx=1", (job["id"],))
-    retry = core.flatten.rerun_failed(job["id"])
-    again = loads(core.conn.execute("SELECT params FROM job WHERE id=?", (retry["id"],)).fetchone()[0])
-    assert again["requests"] == [requests[1]] and len(again["items"]) == 1

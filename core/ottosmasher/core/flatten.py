@@ -291,13 +291,11 @@ class FlattenService:
             return str(r[0])
         return None
 
-    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool, requests: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool) -> dict[str, Any]:
         params = {
             "items": items, "versions": ver, "options": options, "batch": batch,
             "models_dir": str(self.ws.models), "support_dir": str(self.support_dir),
         }  # fmt: skip
-        if requests is not None:
-            params["requests"] = requests
         affects = {"sample": [it["sample"] for it in items if it.get("sample")], "asset": sorted({it["asset"] for it in items if it.get("asset")})}
         job = self.jobs.submit(JOB_KIND, params, affects)
         self.jobs.add_items(job["id"], [(it.get("sample") or it.get("asset") or "", "queued") for it in items])
@@ -314,15 +312,6 @@ class FlattenService:
         ver = self._versions()
         it = self._item(0, token, o, name, sample_id, ver)
         return self._submit([it], ver, o, False)
-
-    def preview(self, token: dict[str, Any], opts: dict[str, Any], name: str, sample_id: str | None = None) -> dict[str, Any]:
-        """验证冻结输入与选项，复用缓存预估；不创建任务、采样、资产或运行模型。"""
-        if not name.strip() or len(name.strip()) > 500:
-            raise CoreError("flatten-invalid", reason="name", field="name")
-        self._check_frozen(token)
-        estimate = self.estimate(token, opts, sample_id)
-        return {"name": name.strip(), "estimate": estimate, "creates": {"samples": 1, "assetsMax": 1},
-                "outputDuration": token["end"] - token["start"], "range": opts["range"], "normalizesLoudness": False}
 
     def _batch_items(self, sample_ids: list[str], o: dict[str, Any], ver: dict[str, Any]) -> list[dict[str, Any]]:
         items = []
@@ -347,29 +336,6 @@ class FlattenService:
         ver = self._versions()
         return self._submit(self._batch_items(sample_ids, o, ver), ver, o, True)
 
-    def submit_many(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
-        """逐项选项的单任务批量；复用单个入口的校验、冻结和 worker。"""
-        if not requests or len(requests) > 500:
-            raise CoreError("flatten-invalid", reason="size", field="items")
-        versions = self._versions()
-        items = []
-        for idx, request in enumerate(requests):
-            sid = request["id"]
-            row = self.conn.execute('SELECT asset_id, start, "end", name FROM sample WHERE id=?', (sid,)).fetchone()
-            try:
-                if row is None:
-                    raise CoreError("sample-not-found", id=sid)
-                name = str(request.get("name", row["name"])).strip()
-                if not name or len(name) > 500:
-                    raise CoreError("flatten-invalid", reason="name", field="name")
-                token = self._freeze(row["asset_id"], row["start"], row["end"])
-                token.pop("_snap")
-                options = self._options(request["options"], batch=False)
-                items.append(self._item(idx, token, options, name, sid, versions))
-            except CoreError as exc:
-                items.append({"idx": idx, "sample": sid, "name": row["name"] if row else sid, "error": exc.to_wire()})
-        return self._submit(items, versions, {}, True, requests)
-
     def rerun_failed(self, job_id: str) -> dict[str, Any]:
         """只重跑失败项（同一组选项，输入在现在重新冻结）。"""
         job = self.conn.execute("SELECT kind, params FROM job WHERE id=?", (job_id,)).fetchone()
@@ -380,8 +346,6 @@ class FlattenService:
         items = [it for it in params["items"] if it["idx"] in failed]
         if not items:
             raise CoreError("flatten-invalid", reason="nothing-failed", field="job")
-        if "requests" in params:
-            return self.submit_many([params["requests"][it["idx"]] for it in items])
         ver = self._versions()
         o = params["options"]
         if not params.get("batch"):

@@ -416,16 +416,12 @@ class Core:
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
           lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))
-        r("flatten.preview", "read", T.FlattenSubmitParams, T.FlattenPreview, "Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes.",
-          lambda p: self.flatten.preview(dict(p["token"]), dict(p["options"]), p["name"], p.get("sampleId")))
         r("flatten.estimate", "read", T.FlattenEstimateParams, T.FlattenEstimate, "Estimate the target from cached measurements only (no model run).",
           lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
         r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged).",
           lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId")))
         r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue a batch flatten: one job, each sample targets independently (auto only).",
           lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"])))
-        r("flatten.submitMany", "job", T.FlattenManyParams, T.JobSummary, "One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500).",
-          lambda p: self.flatten.submit_many([dict(it) for it in p["items"]]))
         r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
           lambda p: self.flatten.rerun_failed(p["jobId"]))
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",

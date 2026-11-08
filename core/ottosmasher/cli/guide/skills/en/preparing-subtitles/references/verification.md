@@ -1,31 +1,21 @@
 # Reviewing evidence and finishing
 
-## Build a ledger
+## Understand this source
 
-Save `subtitles.parse` output to parsed.json. Keep the original caption backup as an input; planned output is not a baseline. In your task directory:
+Read the original captions and relevant style/track information before choosing how to count annotations. Input formats and conventions are open-ended. The examples in cleaning.md are examples, not a recognized-format list. A parser's empty speakers or non-dialogue classification does not prove that the original has no speaker information or speech.
 
-```sh
-otto run /skill/scripts/review.py scan parsed.json task.json --input backup_original.srt --precision fine --goal "retime and identify every suspicious turn"
-```
+Form hypotheses from this source's actual writing and check representative audio/context. If scripting counts or candidate collection, derive that temporary script from the observations, preserve unknown cases and revise it when a new convention appears. Do not force an unfamiliar form into a known class or treat unflagged cues as correct. The app's parsing rules describe the destination format; they are not an interpretation of every possible input.
 
-The helper counts observed raw-line patterns, not an exhaustive list of conventions. Interpret them on examples from each source, including standalone names, dash turns, reading brackets and sound-only lines. It initially includes multi-line, withheld/multi-speaker, overlapping and very short cues. These are candidates, not verdicts. A single-line boundary may also be wrong.
+## Review at the agreed coverage
 
-For full start/end screening, first save a full vocal `exports.wav` response to audio.json and pass `--audio-export audio.json`. It decodes once and flags energy on both sides of a boundary even when no gap exists. Screening uses a per-file relative threshold, which can overflag music or miss quiet speech. Add cases from other evidence through --extra-cases cases.json (array of id, start, end, text, flags), and sample normal scenes. Energy screening alone is never a complete quality audit.
+Choose suitable evidence and screening for the material. Inspect both starts and ends, sequential turns and overlaps, including adjacent speech with no silence. Do not prescribe a universal energy threshold, short-cue duration or bracket pattern. In fine mode review every suspicious case identified across the agreed scope and sample normal scenes; explain what the screening can miss.
 
-## Review each selected case
+Use `exports.wav` to obtain full sentences and sufficient context, retaining the returned mapping. Use audio-mcp to view the actual curve and check content, expanding the context when needed. ASR word times, energy and forced alignment are clues, not ground truth or proof of sound ownership. Unknown identity does not cancel splitting a known sequential turn.
 
-Export the complete cue plus neighbouring context:
+For a long task, keep enough notes to resume: input version, actual coverage, observations, decisions, evidence and unresolved cases. Choose a useful format; no fixed ledger schema or script exit code certifies completion. Do not mark cases reviewed from threshold output or from generating audio files.
 
-```sh
-otto run /skill/scripts/review.py packet task.json cue:12 --asset-id TRACK_ID --directory /task/evidence
-```
+## Reconcile and write
 
-The packet contains WAV coordinates/mapping, not a new analysis claim. Inspect the actual waveform/energy curve and sentence content with audio-mcp. Expand context for a long trailing word, adjacent speech or ambiguous ownership. ASR on full sentences with more/less context can help confirm content; recognition differences and word times alone are not boundaries. Use alignment or voiceprints if helpful. Look at starts as well as ends and compare neighbouring content even where there is no silence.
+Only confirmed changes go into a versioned `edits.apply` batch or final captions before import. Use `subtitles.parse` to check the final output against the current app rules; successful parsing proves neither the interpretation of the input nor timing quality.
 
-Record status kept / changed / uncertain, a reason, evidence [{path, note}], and proposed new source start/end when changed. Unknown identity does not remove the need to split a known turn. Do not fill every status from a threshold script. Packet creation is not review. In standard/quick mode state how much was actually checked; fine mode requires every candidate reviewed.
-
-## Verify and write
-
-`otto run /skill/scripts/review.py check task.json` checks fingerprints, duplicate cases, existing evidence files and remaining cases. Fine with pending cases exits nonzero. A reviewed uncertain case remains explicit. File existence cannot prove listening or correct judgement.
-
-Only confirmed proposals should be included in a versioned `edits.apply` batch, or used to generate final captions before import. Recheck overlap, coverage, names and requested scope after revisions. Do not force overlaps away by midpoint, preserve only those actually simultaneous. Avoid expanding all intervals with fixed padding. Inspect per-item analysis outcomes and refresh affected results; readiness does not certify caption quality. New input versions require a new ledger revision, not overwriting old decisions.
+Recheck overlaps, coverage, names and requested scope after revisions. Do not remove every overlap by midpoint or extend every cue with fixed padding. Inspect per-item analysis failures and refresh affected results. App readiness is not content verification. Changed inputs invalidate affected conclusions; report what remains uncertain or unchecked rather than turning a sample check into a full-review claim.

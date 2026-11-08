@@ -33,4 +33,4 @@ description: "为 OttoSmasher 准备字幕，清洗文字、跨版本对轴、�
 
 ## 可复用助手
 
-路径相对本技能目录。scripts/speaker_embed.py 算声纹，分类与命名由你判断。scripts/audio_probe.py 在宿主未接 MCP 时调用 audio-mcp。scripts/review.py 统计解析结果、可选音频筛查、导出上下文包并检查证据与漏项，不修改字幕或应用，也不能证明主观质量。用法与限制见 verification.md。
+路径相对本技能目录。scripts/speaker_embed.py 算声纹，分类与命名由你判断。scripts/audio_probe.py 在宿主未接 MCP 时调用 audio-mcp。没有内置脚本解释字幕惯例或认证核验完成；先理解来源，再按任务选择统计和证据，见 references/verification.md。

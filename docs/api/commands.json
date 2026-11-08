@@ -490,18 +490,6 @@
    }
   },
   {
-   "name": "flatten.preview",
-   "effect": "read",
-   "layer": "library",
-   "summary": "Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes.",
-   "params": {
-    "$ref": "#/$defs/FlattenSubmitParams"
-   },
-   "result": {
-    "$ref": "#/$defs/FlattenPreview"
-   }
-  },
-  {
    "name": "flatten.rerunFailed",
    "effect": "job",
    "layer": "library",
@@ -547,18 +535,6 @@
    "summary": "Queue a batch flatten: one job, each sample targets independently (auto only).",
    "params": {
     "$ref": "#/$defs/FlattenBatchParams"
-   },
-   "result": {
-    "$ref": "#/$defs/JobSummary"
-   }
-  },
-  {
-   "name": "flatten.submitMany",
-   "effect": "job",
-   "layer": "library",
-   "summary": "One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500).",
-   "params": {
-    "$ref": "#/$defs/FlattenManyParams"
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
@@ -2570,7 +2546,7 @@
    "args": [
     "reason"
    ],
-   "summary": "Could not connect to the running app (stale endpoint file, wrong key or the app is shutting down)."
+   "summary": "Could not connect to the running app; see reason for the underlying error."
   },
   {
    "code": "align-ambiguous",
@@ -6528,40 +6504,6 @@
     "token"
    ]
   },
-  "FlattenManyItem": {
-   "title": "FlattenManyItem",
-   "type": "object",
-   "properties": {
-    "id": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "options": {
-     "$ref": "#/$defs/FlattenOptions"
-    }
-   },
-   "required": [
-    "id",
-    "options"
-   ]
-  },
-  "FlattenManyParams": {
-   "title": "FlattenManyParams",
-   "type": "object",
-   "properties": {
-    "items": {
-     "type": "array",
-     "items": {
-      "$ref": "#/$defs/FlattenManyItem"
-     }
-    }
-   },
-   "required": [
-    "items"
-   ]
-  },
   "FlattenOpenParams": {
    "title": "FlattenOpenParams",
    "type": "object",
@@ -6750,46 +6692,6 @@
     "end",
     "label",
     "start"
-   ]
-  },
-  "FlattenPreview": {
-   "title": "FlattenPreview",
-   "type": "object",
-   "properties": {
-    "creates": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "integer"
-     }
-    },
-    "estimate": {
-     "$ref": "#/$defs/FlattenEstimate"
-    },
-    "name": {
-     "type": "string"
-    },
-    "normalizesLoudness": {
-     "type": "boolean"
-    },
-    "outputDuration": {
-     "type": "number"
-    },
-    "range": {
-     "enum": [
-      "first",
-      "inner",
-      "vowels",
-      "whole"
-     ]
-    }
-   },
-   "required": [
-    "creates",
-    "estimate",
-    "name",
-    "normalizesLoudness",
-    "outputDuration",
-    "range"
    ]
   },
   "FlattenResultRow": {

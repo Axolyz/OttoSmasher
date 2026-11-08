@@ -125,7 +125,6 @@
   "agentPanel.install": "安装 otto 命令",
   "agentPanel.installed": "已装成命令：{link}。在终端里直接输入 otto 即可。",
   "agentPanel.installHint": "发布版启动时会自动在 {link} 装好；这个按钮用来手动重装。之后终端里还是找不到 otto，就把 ~/.local/bin 加进 PATH。",
-  "agentPanel.pathConflict": "PATH 中优先找到的是 {path}，会遮蔽当前 otto。给 agent 的开场白将使用完整路径。",
   "agentPanel.conflict": "{link} 已经有别的文件，没有改动它。可以直接用上面的完整路径。",
   "agentPanel.noInstall": "这个系统上还不能一键装成命令，请直接用上面的完整路径。",
   "agentPanel.copyPath": "复制路径",

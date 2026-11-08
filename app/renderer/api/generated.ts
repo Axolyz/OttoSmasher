@@ -602,16 +602,6 @@ export interface FlattenEstimateParams {
   token: FlattenToken;
 }
 
-export interface FlattenManyItem {
-  id: string;
-  name?: string;
-  options: FlattenOptions;
-}
-
-export interface FlattenManyParams {
-  items: FlattenManyItem[];
-}
-
 export interface FlattenOpenParams {
   assetId: string;
   end: number;
@@ -645,15 +635,6 @@ export interface FlattenPhone {
   end: number;
   label: string;
   start: number;
-}
-
-export interface FlattenPreview {
-  creates: Record<string, number>;
-  estimate: FlattenEstimate;
-  name: string;
-  normalizesLoudness: boolean;
-  outputDuration: number;
-  range: "first" | "inner" | "vowels" | "whole";
 }
 
 export interface FlattenResultRow {
@@ -3168,8 +3149,6 @@ export interface Commands {
   "flatten.estimate": { params: FlattenEstimateParams; result: FlattenEstimate; effect: "read" };
   /** Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name. */
   "flatten.open": { params: FlattenOpenParams; result: FlattenOpened; effect: "read" };
-  /** Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes. */
-  "flatten.preview": { params: FlattenSubmitParams; result: FlattenPreview; effect: "read" };
   /** Re-queue only the failed items of a flatten job with the same options. */
   "flatten.rerunFailed": { params: JobIdParams; result: JobSummary; effect: "job" };
   /** Per-item results of a flatten job (product sample and target). */
@@ -3178,8 +3157,6 @@ export interface Commands {
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
   /** Queue a batch flatten: one job, each sample targets independently (auto only). */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
-  /** One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500). */
-  "flatten.submitMany": { params: FlattenManyParams; result: JobSummary; effect: "job" };
   /** Add an sfx hint by hand (protected). */
   "hints.add": { params: HintAddParams; result: SegmentAdded; effect: "write" };
   /** Export a hit as WAV (original, or stretched with its evidence scheme). */

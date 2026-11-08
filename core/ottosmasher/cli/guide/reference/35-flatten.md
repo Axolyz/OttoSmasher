@@ -6,12 +6,12 @@ For an instrument source, establish monophonic note/vowel versus a whole spoken 
 
 Use `samples.metrics {"ids"}` to compare cached metrics (including rmsDb, pitchSpread and voicedDuration); missing/stale is not zero. `metrics.prepare` explicitly queues missing work. Compare representative candidates with audio tools; pitch and spectral numbers alone do not establish timbre suitability. Level-match temporary listening copies when useful, preserving original products. Start with a few end-to-end examples before creating a large set.
 
-## Open, preview and submit
+## Open, estimate and submit
 
 1. `flatten.open {"assetId", "start", "end", "entry": "single", "sampleId"}` freezes asset-local selection and returns token, defaults, alignment and alignmentIssue. Times in alignment, inner and processing intervals are input-local seconds (selection start = 0).
 2. `alignmentIssue` explains missing segments, unavailable analysis, incomplete windows, conflicts or a track lacking vocal role. With a sample, inspect `speech.sample`, then `speech.preview` and `speech.submit` if appropriate. Do not replace a requested vowel treatment with whole just to bypass missing evidence.
-3. `flatten.preview {"token", "options", "name", "sampleId"}` validates current input and returns cached estimate, outputDuration and maximum new-object counts. No model or job runs. Unknown target remains in-job; insufficient evidence remains insufficient. Preview creates nothing; it cannot guarantee sound quality.
-4. `flatten.submit` takes the same parameters and starts a job. `flatten.results {"jobId"}` returns per-item outcomes; `flatten.rerunFailed` only retries failed items with their original options.
+3. `flatten.estimate {"token", "options", "sampleId"}` returns processing intervals and a target from available cached measurements, without running a model or creating a product. Unknown target remains in-job; insufficient evidence remains insufficient. This is an estimate, not sound-quality verification or all submit-time validation.
+4. `flatten.submit {"token", "options", "name", "sampleId"}` checks the frozen input and starts the job. `flatten.results {"jobId"}` returns per-item outcomes; `flatten.rerunFailed` retries failed items. Validate a small end-to-end example before producing many samples.
 
 ## Options
 
@@ -25,6 +25,6 @@ Use `samples.metrics {"ids"}` to compare cached metrics (including rmsDb, pitchS
 | target edge | Determine from the chosen left/right edge; insufficient evidence does not switch sides |
 | target manual | Explicit A4, C#5, B♭3 or 445Hz; bare numbers are ambiguous and rejected |
 
-Read `otto describe flatten.open` and settings.list for entry-specific defaults (detail/single/batch); selecting another range does not change target automatically. `flatten.submitBatch {"ids", "options"}` retains shared auto/edge settings and cannot use manual or inner. `flatten.submitMany {"items": [{"id": "sampleId", "options": {"range": "whole", "target": "manual", "manual": "C4"}}]}` accepts per-item options (maximum 500), one job, with independent failures; rerunFailed retains each failed item's options. No global settings need changing.
+Read `otto describe flatten.open` and settings.list for entry-specific defaults (detail/single/batch); selecting another range does not change target automatically. `flatten.submitBatch {"ids", "options"}` takes shared auto/edge options and cannot use manual or inner. For different manual targets or inner ranges, use `otto run` with one connection and call the existing open / estimate / submit for each chosen item. Keep each job ID and inspect its result; a task script does not require a second batch API.
 
-A successful product registers a flattened track and one pitched sample, with a pitch tag. Identical audio may be reused, but each explicit save creates a sample. Creation cannot be undone; use createdBySession in samples.ids/list for inventory, then existing deletion previews and user confirmation. Preview small experiments first. Full return schemas are available through otto describe.
+A successful product registers a flattened track and one pitched sample, with a pitch tag. Identical audio may be reused, but each explicit save creates a sample. Creation cannot be undone; use createdBySession in samples.ids/list for inventory, then existing deletion previews and user confirmation. Start with small experiments. Full return schemas are available through otto describe.

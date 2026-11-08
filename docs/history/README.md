@@ -25,3 +25,5 @@
 | 规格 NN、P、R、S、A 编号 | 不在这里，见 [`../spec/`](../spec/README.md) |
 
 2026-11-08 的 agent 反馈、技能取舍、逐项处置和待验证范围见 [agent-workflow-review-2026-11-08.md](agent-workflow-review-2026-11-08.md)。
+
+同日按所有者补充完成的收紧复查见 [agent-workflow-simplification-2026-11-08.md](agent-workflow-simplification-2026-11-08.md)。
