@@ -53,6 +53,10 @@ For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The 
 
 Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
+The author currently recommends a coding agent with a model at least around the capability of DeepSeek v4 flash or GLM 5.3 Flash. On Windows, many agent hosts need Full Access to connect to Otto through the current local IPC setup.
+
+The recommended setup, used by the author, is macOS + Codex (sandbox) + GPT 6.1 Sol. DeepSeek Harness with Full Access works well for basic tasks on Windows; complex subtitle preparation and sample selection still vary in quality after this round of improvements.
+
 Send your agent one of these messages, followed by your task.
 
 To work with the app and its library:
@@ -96,7 +100,7 @@ Turns Japanese lines into phonemes and readings, then finds the time range of ea
 
 Beat-fit nudges the rhythm of the original speech onto a BPM grid, while keeping as much of its natural rhythm as possible and avoiding distortion. Roughly, it works like this:
 
-1. From the phoneme alignment, it measures the time from each block's onset (a block is one vowel or moraic nasal) to the next, then reduces those durations to suitably small integer ratios.
+1. From the phoneme alignment, it measures the time from each block's onset (a block is one vowel or moraic nasal) to the next, then normalizes those durations to small integer ratios (parameters can favor smaller ratios).
 2. When placing them on the BPM grid, it picks the density closest to the original speaking rate, to avoid heavy stretching that would change the overall speed of the source.
 3. Up to 8 ms around each onset is kept as it is, so articulation and attacks stay crisp. The audio between onsets is stretched with Rubber Band R3, preserving pitch.
 4. Pauses inside the line absorb the extra time first.
@@ -130,9 +134,11 @@ There are two modes:
 
 When you copy several samples, they are laid out one after another on the same track, with one bar between them.
 
-### Vocal separation
+### Vocal separation and other PyMSS model processing
 
-Uses PyMSS Studio, installed separately, to separate whole episodes or just a few passages. Models must be downloaded manually in Studio beforehand; we recommend HyperACE v2 (`bs_roformer_voc_hyperacev2`). The result is a new track on the source. Once it is the default vocal track, samples you create afterwards and speech analysis use it.
+Uses PyMSS Studio, installed separately, to separate whole episodes or selected passages. Download the models in Studio beforehand. For ordinary anime and video, the author recommends HyperACE v2 (`bs_roformer_voc_hyperacev2`), a stable, fast community baseline; for songs, Becruily deux (`becruily_deux`) retains more high-frequency vocals at the cost of some noise. Results become named tracks on the source. Set a vocal track as the default to use it for subsequent samples and speech analysis.
+
+This entry can also call other models installed in PyMSS to process audio and keep their outputs as named tracks.
 
 ### Flatten
 
@@ -148,7 +154,7 @@ Tags can be inherited automatically from the work, subtitle speakers and range t
 
 ### Sample packs and one-shots
 
-Sample packs and instrument one-shots can be turned into samples in bulk. Those with a definite pitch can be searched by note name, and percussion and sound effects can be filtered by attack time, brightness, noisiness and other measures (one-shot filtering is experimental, and results may be poor).
+Sample packs and instrument one-shots can be turned into samples in bulk. Those with a definite pitch can be searched by note name, and percussion and sound effects can be filtered by attack time, brightness, noisiness and other measures (one-shot filtering is experimental, and results may be poor; agent access is currently recommended).
 
 ### Independence
 
