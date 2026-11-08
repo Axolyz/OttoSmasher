@@ -15,6 +15,8 @@
   2. 手动下载人声模型 HyperACE v2。它在 Studio 里叫 `bs_roformer_voc_hyperacev2`，不要下载成名字相近的 `bs_roformer_inst_hyperacev2`。OttoSmasher 不会替你下载分离模型。
 - REAPER。没有的话，最后一步可以导出 WAV。
 
+本教程使用已整理好、与片源一致的字幕。如果字幕是刚下载或转写的，建议先看[预处理字幕](how-to.md#预处理字幕)，尤其是在批量建库之前。
+
 ## 1. 放好素材
 
 新建一个总文件夹，再在里面为这部作品建一个文件夹，把视频和字幕放进去：
