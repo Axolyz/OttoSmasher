@@ -61,6 +61,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 - CLI 参数、会话、工作区发现及返回结构：`core/tests/integration/test_cli.py`、`core/tests/unit/test_cli_instances.py`、`core/tests/unit/test_cli_guide.py`。
 - 模型列表缓存、拉平和缓存读取：`core/tests/unit/test_separation.py`、`core/tests/unit/test_flatten_service.py`、`core/tests/unit/test_acoustic.py`；继续使用 fake_studio 和合成音频。
 - 外部 audio-mcp：用短音频分别试 view、analyze 和任务需要的 transcribe，保存输出及时间映射；调用失败时保留逐项错误。此前合成短 WAV 的 view／analyze 和错误传递已通过，转写及真实字幕完整流程另做内容验证。
+- 下次 Windows 回归继续用现有 pytest／fake_studio／Playwright：覆盖 CP1252 与 GBK 环境的 CLI UTF-8 输入输出、中文和日文路径，以及系统区域名称的 skill 语言选择。中文 Windows 还需实机检查启动、导入、分离、导出和 REAPER；更改应用语言或 chcp 不等于中文系统实测。
 - Windows 实机复测：在原 agent 宿主确认 JSON 参数、命名管道权限、缩放和实际声音；第三方宿主的 Full Access 接法按各自环境验证。较低能力模型的流程遵循也需通过实际任务观察。
 
 ## 发布
