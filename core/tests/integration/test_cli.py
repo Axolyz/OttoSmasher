@@ -165,7 +165,7 @@ def test_global_arguments_survive_subcommands_and_quiet_wait(app, monkeypatch):
     env = {k: v for k, v in os.environ.items() if k not in ("OTTO_WORKSPACE", "OTTO_AGENT_SESSION")}
     for args in (["--workspace", str(root), "--session", "before", "status"],
                  ["status", "--workspace", str(root), "--session", "after"]):
-        p = subprocess.run([sys.executable, "-m", "ottosmasher.cli", *args], capture_output=True, text=True, env=env)
+        p = subprocess.run([sys.executable, "-m", "ottosmasher.cli", *args], capture_output=True, encoding="utf-8", env=env)
         assert p.returncode == 0, p.stdout + p.stderr
         st = json.loads(p.stdout)
         assert st["session"] in ("before", "after") and st["workspace"] == str(root)
