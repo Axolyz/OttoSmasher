@@ -1,13 +1,17 @@
-# Retiming lines
+# Retiming
 
-The aligner fits the whole line into the window it receives and does not look for where the line is. Numbers are in `otto guide primitives`. If a fansub's rough timing exists, start from it; fine-tuning it has worked better than the automatic tools tried so far.
+The aligner fits text into its supplied window without checking whether that sentence is there. Start from existing rough captions, verify version differences in real audio, and establish global or piecewise offsets. Lyric markers do not establish the musical start of OP/ED.
 
-## Retime a line
+## Refine one boundary
 
-1. Get boundaries within 0.1–0.2 s from a transcript with word times (such as audio-mcp's `audio_transcribe`) or from loudness on/offsets. Times from an exported file map back through its `mapping` (`otto guide export`).
-2. Refine with the first and last phoneme times from `speech.align`, which stores nothing. Leave 0.1–0.2 s of margin on each side and use separated vocals, which are steadier than the original mix.
-3. Write the segments back with `edits.apply` (see `otto describe edits.apply`). Put many updates in one batch, so they make one undo.
+1. Prepare the full sentence and adjacent speech, inspect the actual waveform/energy curve, and use original captions plus contextual transcription when needed to check contents. ASR word times are only location clues.
+2. Establish whether edge audio belongs to this sentence or its neighbour, including continuous speech without a gap. Use speech.align, lines or voiceprints when helpful. Phonemes can refine an already suitable window, but their edges are not automatic ground truth.
+3. Write only confirmed changes and retain evidence/reasons. For existing segments use edits.apply, preferring small versioned batches, then reconcile coverage, order and actual overlap.
 
-## Signs the window is wrong
+## Suspicious signals
 
-In the alignment result, `edges` near 0 or an absurdly long phoneme, such as a 0.8 s 「ン」, usually mean the window is off or overlaps another line.
+Energy before/after an edge, abrupt cuts, unclear neighbouring contents, near-zero edges or absurd phoneme lengths flag cases. Screening must not modify boundaries or select only cases with silence gaps. Fine reviews every suspicious item, sampling normal scenes; see verification.md.
+
+## Choosing methods
+
+A/B windows with more/less context can help establish content completeness. ASR omission, hallucination and changed context alter recognition, so output differences alone are not conclusions. Do not pad every sentence or midpoint away every overlap, and do not assume professional CC is exact. Simultaneous speech may overlap; sequential speech should not absorb the neighbouring sentence.

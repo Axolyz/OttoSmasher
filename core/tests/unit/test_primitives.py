@@ -118,3 +118,16 @@ def test_agent_skills_command_seeds_the_workspace_folder(core):
 def test_user_guide_tag_examples_parse(core, expr):
     r = call(core, "tags.checkExpr", expr=expr)
     assert r["ok"] and r["r"]["ok"], r
+
+
+def test_follow_reads_all_pages_and_retains_failed_items():
+    from ottosmasher.cli.main import follow
+
+    job = {"id": "batch", "kind": "speech.align", "channel": "model", "status": "succeeded"}
+    rows = [{"idx": i, "status": "failed" if i == 120 else "ok"} for i in range(205)]
+    class Client:
+        def call(self, method, params):
+            assert method == "speech.alignResults"
+            return rows[params["offset"]:params["offset"] + params["limit"]]
+    result, ok = follow(Client(), "speech.align", job, None, False)
+    assert ok and result["results"] == rows

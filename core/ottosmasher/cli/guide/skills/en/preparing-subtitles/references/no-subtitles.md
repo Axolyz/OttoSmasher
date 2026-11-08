@@ -10,15 +10,15 @@ These are the author's conclusions after trying several methods, without a quant
 - **Forced alignment in a time window:** it is accurate when the window holds exactly this line. With 0.5 s extra or missing, results get poor.
 - **ASR, then forced alignment:** this fixes some drift, but sentence breaks are poor. A sentence may be split across two cues, and it needs manual polishing.
 
-So VAD secures the timing, sentence breaks go to the agent, and manual review goes to the uncertain parts.
+VAD proposes timing; it does not certify boundaries. The agent decides sentence breaks and verifies content and uncertain starts/ends at the agreed precision. Neither ASR word timestamps nor low energy alone proves who owns a sound.
 
 ## Steps
 
 1. **Prepare the sound.** Use separated vocals; material that is already dry can be used as is.
-2. **Run low-threshold VAD.** Accept many small pieces in exchange for accurate starts and ends.
-3. **Run ASR per piece.** Each piece's timing comes from the VAD boundaries.
+2. **Run low-threshold VAD.** Keep weak/short speech as candidates. Low thresholds can include noise and still miss word edges.
+3. **Run ASR per piece.** Use VAD boundaries as initial windows, with context; verify rather than treating them as final timestamps.
 4. **Merge into sentences.** Join pieces into complete sentences, one person's continuous speech per cue. Merging changes only boundaries and grouping; do not rewrite the recognized words along the way.
-5. **Flag low-confidence parts.** For example, words the tool marks as uncertain, very short pieces, places where the meaning does not connect, and places where people may overlap. List them for the user with times and reasons. The user reviews only these.
+5. **Flag low-confidence parts.** For example, words the tool marks as uncertain, very short pieces, places where the meaning does not connect, and places where people may overlap. List them for the user with times and reasons. Review these at the agreed coverage; ask the user only for identities or decisions the available evidence cannot resolve.
 6. **Write back.** Write a UTF-8 `.srt` with the same name as the video, then bring it into the app as the last section of `references/cleaning.md` describes.
 
 For the limits of transcripts, see `otto guide combine`: high-pitched exclamations and crowd chanting are easily missed, and a prompt can produce text nobody said.

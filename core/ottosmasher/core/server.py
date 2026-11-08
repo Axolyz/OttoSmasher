@@ -146,6 +146,9 @@ class Core:
           lambda p: self.edits.undo_one(p["editId"]))
         r("edits.peekUndo", "read", T.NoParams, T.UndoPeek | None, "What undo would revert next.", lambda p: self.edits.peek_undo())
         r("jobs.list", "read", T.JobsListParams, list[T.JobSummary], "Recent jobs, newest first.", lambda p: self.jobs.list(int(p.get("limit", 200))))
+        r("jobs.get", "read", T.IdParams, T.JobSummary, "One job, including its full result and affected objects.", lambda p: self.jobs.summary(p["id"]))
+        r("jobs.summaries", "read", T.JobsBriefParams, list[T.JobBrief], "Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time.",
+          lambda p: self.jobs.brief(max(1, min(500, int(p.get("limit", 50)))), p.get("session"), max(0, int(p.get("offset", 0)))))
         r("jobs.submit", "job", T.JobSubmitParams, T.JobSummary, "Submit a job of a registered kind (low-level; prefer the specific commands).",
           lambda p: self.jobs.submit(p["kind"], p.get("params", {}), p.get("affects")))
         r("jobs.cancel", "job", T.IdParams, T.JobSummary, "Cancel a queued or running job (kills its whole process tree).", lambda p: self.jobs.cancel(p["id"]))
@@ -196,6 +199,7 @@ class Core:
         # ---- 资产、播放、波形、缩略图
         r("assets.listForSource", "read", T.SourceIdParams, list[T.AssetInfo], "All sound assets of a source, full tracks first.",
           lambda p: assets_mod.list_for_source(self.conn, p["sourceId"]))
+        r("assets.listForSession", "read", T.SessionAssetsParams, T.SessionAssetsPage, "Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete.", self._session_assets)
         r("assets.get", "read", T.IdParams, T.AssetRecord, "One sound asset.", lambda p: assets_mod.get(self.conn, p["id"]))
         r("assets.deletePreview", "read", T.IdParams, T.AssetDeletePreview, "What deleting a track would do: whether it can be deleted, samples on it, default roles, analyses, size.",
           lambda p: self.sources.asset_delete_preview(p["id"]))
@@ -391,7 +395,7 @@ class Core:
         r("speech.align", "job", T.SpeechAlignParams, T.JobSummary,
           "Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times; `lines` instead of `text` also gives each line's span. The window must tightly bracket the speech.",
           lambda p: self.primitives.align(list(p["items"])), layer="primitive")
-        r("speech.alignResults", "read", T.PrimitiveResultsParams, list[T.AlignRow], "Per-item results of a speech.align job.",
+        r("speech.alignResults", "read", T.PrimitiveResultsParams, list[T.AlignRow], "Per-item results of a speech.align job; paginated by offset/limit (default 100; continue until an empty page).",
           lambda p: self.primitives.results(p["jobId"], "speech.align", int(p.get("offset", 0)), int(p.get("limit", 100))), layer="primitive")
         r("text.analyze", "job", T.TextAnalyzeParams, T.JobSummary,
           "Japanese frontend on texts (same as speech analysis, with the user dictionary): phonemes, morae, words and readings.",
@@ -405,19 +409,23 @@ class Core:
         r("subtitles.parse", "read", T.SubtitleParseParams, T.SubtitleParsed,
           "How the app reads a subtitle file with the current rules (lines, sounds, speakers, OP/ED pairs, cues too long to import in problems), without registering or importing.",
           lambda p: self.primitives.parse_subtitles(p["path"], p.get("duration")), layer="primitive")
-        r("studio.status", "read", T.NoParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
-          lambda p: self.separation.status())
+        r("studio.status", "read", T.StudioStatusParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
+          lambda p: self.separation.status(bool(p.get("refresh", False))))
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem.",
           lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges")))
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
           lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))
+        r("flatten.preview", "read", T.FlattenSubmitParams, T.FlattenPreview, "Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes.",
+          lambda p: self.flatten.preview(dict(p["token"]), dict(p["options"]), p["name"], p.get("sampleId")))
         r("flatten.estimate", "read", T.FlattenEstimateParams, T.FlattenEstimate, "Estimate the target from cached measurements only (no model run).",
           lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
         r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged).",
           lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId")))
         r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue a batch flatten: one job, each sample targets independently (auto only).",
           lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"])))
+        r("flatten.submitMany", "job", T.FlattenManyParams, T.JobSummary, "One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500).",
+          lambda p: self.flatten.submit_many([dict(it) for it in p["items"]]))
         r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
           lambda p: self.flatten.rerun_failed(p["jobId"]))
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
@@ -430,6 +438,7 @@ class Core:
         r("search.prepare", "job", T.SearchCoverageParams, T.JobSummary,
           "Queue a job that prepares the search index for a scope (speech: rhythm index; pitch: F0). Does not search.",
           lambda p: self.search.prepare(p["mode"], p.get("scope")))
+        r("samples.metrics", "read", T.IdsParams, list[T.SampleMetricsRow], "Cached acoustic metrics per sample; ready/stale/missing, never starts inference.", lambda p: self.acoustic.read(list(p["ids"])))
         r("metrics.status", "read", T.MetricsStatusParams, T.MetricsStatus,
           "Single-sound metrics in a scope: prepared count and, per chosen metric, how many samples lack it (they never match).",
           lambda p: self.acoustic.status(p.get("scope"), list(p.get("metrics") or [])))
@@ -1102,6 +1111,14 @@ class Core:
             rules = naming.validate_rules(rules)
         r = naming.infer_work_episode(str(p["filename"]), rules)
         return {"work": r.work, "episode": r.episode, "rule": r.rule, "timedOut": list(r.timed_out)}
+
+    def _session_assets(self, p: dict[str, Any]) -> dict[str, Any]:
+        offset = max(0, int(p.get("offset", 0)))
+        limit = max(1, min(500, int(p.get("limit", 100))))
+        total = self.conn.execute("SELECT COUNT(*) FROM sound_asset WHERE actor_session=?", (p["session"],)).fetchone()[0]
+        ids = [r[0] for r in self.conn.execute(
+            "SELECT id FROM sound_asset WHERE actor_session=? ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?", (p["session"], limit, offset))]
+        return {"total": total, "offset": offset, "rows": [assets_mod.get(self.conn, sid) for sid in ids]}
 
     def _sources_list(self, p: dict[str, Any]) -> list[dict[str, Any]]:
         """原片列表 + 每个原片的统计（05 §5.8：句数、OP/ED、派生采样数；阶段 4：语音采样数与已分析数）。"""

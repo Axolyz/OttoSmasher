@@ -23,4 +23,4 @@ Try these in order:
 3. Run `otto guide playbook`: the user's own conventions.
 4. Read a skill only when your task matches its description in that list. Those skills are files in the workspace, and the user may have edited them.
 
-Unless your task only follows fixed steps, check your audio tool as the overview describes before you start.
+For judgement tasks, read `otto guide workflow` to agree on scope, precision and completion, then read the matching skill and its relevant references. Verify the required audio capabilities with a real short clip as described in `otto guide audio`. A ready aligner is not an audio-tool check.

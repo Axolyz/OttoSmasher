@@ -1,38 +1,36 @@
 ---
 name: preparing-subtitles
-description: "为 OttoSmasher 准备字幕：清洗文字、修正时间、拆开两人条目、用声纹标说话人，或者在没有字幕时生成带时间的字幕。用于字幕杂乱、中日双语、CC 字幕、段的时间不准、要标说话人，或素材没有字幕时。字幕已经干净就不需要。"
+description: "为 OttoSmasher 准备字幕，清洗文字、跨版本对轴、拆说话轮次、识别说话人，或为无字幕素材打轴。用于 CC、双语、杂乱字幕及时间／说话人处理；字幕已符合任务要求时不用。"
 ---
 
 # 准备字幕
 
-目标：每个视频一个完全同名的 UTF-8 `.srt`，每条只写一个人说出口的话，时间准确。应用怎么读字幕见 `otto guide prepare`。下面的路径都相对于这个 skill 的文件夹。
+每个指定视频交付完全同名的 UTF-8 SRT，文字为实际说出口的内容，时间用原片秒，一条对应一个连续说话轮次。同时发言允许重叠。即使不知道名字，明确换人仍要拆开。应用解析及导入行为见 otto guide prepare。
 
-## 推荐顺序
+## 先明确任务约定
 
-做完整流程时，放在同一轮做完，最后只产出一份字幕，因为后面的步骤依赖前面的结果：
+按 otto guide workflow 确认一次范围、精度和完成条件，沿用用户明确要求。发现并真实验证任务需要的音频能力，见 otto guide audio。通过 `tracks.separatedVocals` / `tracks.defaultFromSeparation` 复用已有人声，缺失时按需分离。改前备份字幕。计划前读对应引用，示例不穷举 CC 写法。
 
-1. 分离人声。
-2. 核对这个版本的时间轴，修掉整体偏移，因为对齐要求窗口离语音足够近。读 `references/retiming.md`。
-3. 把文字洗到只剩说出口的话，因为它就是对齐用的文字。读 `references/cleaning.md`。
-4. 给说话人标注做体检。读 `references/cleaning.md`。
-5. 拆开两人条目，因为声纹要求每段只有一个人。读 `references/cleaning.md`。
-6. 对拆好的句子算声纹，标上说话人。读 `references/speakers.md`。
-7. 写成一份最终字幕，检查后只导入一次。之后重新导入不会更新没变的段的说话人。
+## 参考路线与必要依赖
 
-## 如果只要其中一部分
+1. 用开头、中间、结尾代表音频核对版本偏移和剪辑差异，读 references/retiming.md。
+2. 清洗对齐文字，统计本来源实际 CC 标注写法，读 references/cleaning.md，保留数量与解释。
+3. 先解决先后换人，再建立声纹参考；身份命名与轮次边界独立判断。需要补名字时读 references/speakers.md。
+4. 筛查首端、尾端、换人不明和重叠，结合完整上下文按约定范围核验，读 references/verification.md。精细档每个可疑项都要有保留／修正／仍待定的结论。
+5. 检查最终文件解析后导入，按请求补采样。复用已有采样和分析，核对逐项结果与搜索覆盖。导入后修正优先改已有对象，不把全部删除重建当日常修复方法。
 
-只读任务需要的部分：
+路线描述必要依赖，不规定固定工具调用序列。材料需要时选更好的方法，保留它满足约定的依据。名字可待定，明确轮次仍应拆开。实验阈值不升级为硬规则，可疑信号不自动改边界。
 
-| 任务 | 读 |
+## 部分任务
+
+| 任务 | 引用 |
 |---|---|
-| 清理杂乱或双语字幕 | `references/cleaning.md` |
-| 修正段或字幕的时间 | `references/retiming.md` |
-| 字幕来自别的版本 | `references/cleaning.md`（“核对这个版本的时间轴”） |
-| 标每句是谁说的 | `references/cleaning.md`（标注体检），再读 `references/speakers.md` |
-| 给没有字幕的素材做字幕 | `references/no-subtitles.md` |
+| 清字／解释 CC 标注 | cleaning.md |
+| 对轴／其他版本字幕 | retiming.md 和 cleaning.md |
+| 识别说话人 | cleaning.md 标注体检，再 speakers.md |
+| 没有字幕 | no-subtitles.md |
+| 可疑边界核验与批量收尾 | verification.md |
 
-## 开工前
+## 可复用助手
 
-1. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离，因为拆字幕要听得清。
-2. 按总览的要求检查音频工具。
-3. 改字幕前都留一份 `backup_` 原件。同名的 `.ass` 可以留着。
+路径相对本技能目录。scripts/speaker_embed.py 算声纹，分类与命名由你判断。scripts/audio_probe.py 在宿主未接 MCP 时调用 audio-mcp。scripts/review.py 统计解析结果、可选音频筛查、导出上下文包并检查证据与漏项，不修改字幕或应用，也不能证明主观质量。用法与限制见 verification.md。

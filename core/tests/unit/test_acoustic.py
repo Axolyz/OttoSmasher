@@ -116,3 +116,17 @@ def test_prepare_filter_and_invalidation(core, tmp_path):
     assert core.acoustic.status({}, ["pitch"])["stale"] == 1
     with pytest.raises(Exception):
         core.samples.list(metrics={"mode": "timbre", "conditions": [{"metric": "bogus", "min": 1}]})
+
+
+def test_read_metrics_distinguishes_absent_valid_and_stale_without_work(core, tmp_path):
+    s = sample(core, 1, 2)
+    sid = s["id"] if isinstance(s, dict) else s
+    assert core.acoustic.read([sid])[0] == {"id": sid, "state": "missing", "metrics": None}
+    _put_f0(core, midi=55.0)
+    _prepare_and_adopt(core, tmp_path)
+    before = core.conn.execute("SELECT COUNT(*) FROM job").fetchone()[0]
+    row, = core.acoustic.read([sid, sid])
+    assert row["state"] == "ready" and row["metrics"]["rmsDb"] is not None
+    core.conn.execute('UPDATE sample SET "end"="end"+0.01 WHERE id=?', (sid,))
+    assert core.acoustic.read([sid])[0]["state"] == "stale"
+    assert core.conn.execute("SELECT COUNT(*) FROM job").fetchone()[0] == before

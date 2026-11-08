@@ -80,6 +80,21 @@ class AcousticService:
         missing = {k: sum(1 for sid in ids if (ready.get(sid) or {}).get(k) is None) for k in metrics}
         return {"total": len(ids), "ready": len(ready), "stale": len(ids) - len(ready), "missing": missing}
 
+    def read(self, ids: list[str]) -> list[dict[str, Any]]:
+        from .edits import loads
+
+        out = []
+        tag = algo_tag()
+        for sid in dict.fromkeys(ids):
+            if self.conn.execute("SELECT 1 FROM sample WHERE id=?", (sid,)).fetchone() is None:
+                raise CoreError("sample-not-found", id=sid)
+            row = self.conn.execute(
+                f"SELECT m.metrics FROM sample s JOIN acoustic_metric m ON {valid_clause('s')} WHERE s.id=?", (tag, sid)
+            ).fetchone()
+            exists = self.conn.execute("SELECT 1 FROM acoustic_metric WHERE sample_id=?", (sid,)).fetchone()
+            out.append({"id": sid, "state": "ready" if row else "stale" if exists else "missing", "metrics": loads(row[0]) if row else None})
+        return out
+
     def prepare(self, scope: dict[str, Any] | None) -> dict[str, Any]:
         ids = self.search.scope_ids(scope)
         tag = algo_tag()

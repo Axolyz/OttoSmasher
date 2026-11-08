@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import base64
+import json
 import os
 import subprocess
 import sys
 
 import pytest
 from test_core_process import CoreProc
-
 
 
 @pytest.fixture
@@ -55,7 +54,7 @@ def test_status_call_and_exit_codes(app):
 
 def test_wait_follows_a_job(app):
     c, root = app
-    rc, j, err = otto(root, "call", "jobs.submit", '{"kind": "selftest.sleep", "params": {"seconds": 0.5}}', "--wait")
+    rc, j, err = otto(root, "call", "jobs.submit", '{"kind": "selftest.sleep", "params": {"seconds": 0.5}}', "--wait", "--progress")
     assert rc == 0 and j["status"] == "succeeded", (j, err)
     assert any(json.loads(line).get("event") == "job.updated" for line in err.splitlines() if line.startswith("{"))
     rc, j2, _ = otto(root, "wait", "job", j["id"])
@@ -81,6 +80,10 @@ def test_binary_measurements_and_spectrum_are_base64_json(app, tmp_path):
             assert rc == 0, err
             for field in fields:
                 assert base64.b64decode(actual[field], validate=True) == expected[field]
+            if method == "spectrum.get":
+                assert actual["frequencies"] == expected["frequencies"]
+                assert len(actual["frequencies"]) == actual["rows"]
+                assert all(a < b for a, b in zip(actual["frequencies"], actual["frequencies"][1:]))
 
 
 def test_dangerous_call_waits_for_the_owner(app):
@@ -154,3 +157,74 @@ def test_session_and_status_environment(app):
     env = st["environment"]
     assert rc == 0 and env["otto"] and "models" in env and env["playbook"] is None
     assert "preparing-subtitles" in env["skills"]["names"] and env["skills"]["updates"] == []  # status 把内置 skill 放进工作区并报告
+
+
+def test_global_arguments_survive_subcommands_and_quiet_wait(app, monkeypatch):
+    c, root = app
+    monkeypatch.delenv("OTTO_AGENT_SESSION", raising=False)
+    env = {k: v for k, v in os.environ.items() if k not in ("OTTO_WORKSPACE", "OTTO_AGENT_SESSION")}
+    for args in (["--workspace", str(root), "--session", "before", "status"],
+                 ["status", "--workspace", str(root), "--session", "after"]):
+        p = subprocess.run([sys.executable, "-m", "ottosmasher.cli", *args], capture_output=True, text=True, env=env)
+        assert p.returncode == 0, p.stdout + p.stderr
+        st = json.loads(p.stdout)
+        assert st["session"] in ("before", "after") and st["workspace"] == str(root)
+    rc, job, err = otto(root, "call", "jobs.submit", '{"kind":"selftest.sleep","params":{"seconds":0.1}}', "--wait")
+    assert rc == 0 and job["status"] == "succeeded" and "job.updated" not in err
+    rc, detail, _ = otto(root, "call", "jobs.get", json.dumps({"id": job["id"]}))
+    assert rc == 0 and detail == job
+    rc, brief, _ = otto(root, "call", "jobs.summaries", '{"session":"t-1"}')
+    assert rc == 0 and brief[0]["id"] == job["id"] and "result" not in brief[0] and "affects" not in brief[0]
+
+
+def test_utf8_bom_file_and_invalid_json_hint(app, tmp_path):
+    _, root = app
+    params = tmp_path / "参数 file.json"
+    params.write_text('{"text":"あかり"}', encoding="utf-8-sig")
+    rc, rows, _ = otto(root, "call", "samples.list", "@" + str(params))
+    assert rc == 0 and rows["rows"] == []
+    rc, err, _ = otto(root, "call", "samples.list", '{text:あかり}')
+    assert rc == 2 and "@params.json" in err["error"]["args"]["reason"]
+
+
+def test_session_inventory_reports_only_its_created_objects(app, tmp_path):
+    import numpy as np
+    from ottosmasher.media import wavfile
+
+    c, root = app
+    path = tmp_path / "inventory.wav"
+    wavfile.save_wav24(path, np.zeros((16000, 1), dtype=np.float32), 16000)
+    rc, sources, err = otto(root, "call", "sources.add", json.dumps({"paths": [str(path)]}), session="inventory")
+    assert rc == 0, err
+    aid = sources[0]["assets"][0]["assetId"]
+    for session in ("inventory", "other"):
+        rc, row, err = otto(root, "call", "samples.create", json.dumps({"assetId": aid, "start": 0, "end": 0.5, "name": session}), session=session)
+        assert rc == 0, err
+    rc, result, err = otto(root, "session", session="inventory")
+    assert rc == 0, err
+    assert result["created"]["samples"]["count"] == 1
+    assert result["created"]["assets"]["count"] == 1
+    rc, assets, err = otto(root, "call", "assets.listForSession", '{"session":"inventory","limit":1}')
+    assert rc == 0 and assets["total"] == 1 and assets["rows"][0]["id"] == aid, err
+
+
+def test_review_packet_exports_context_and_mapping_without_marking_reviewed(app, tmp_path):
+    from pathlib import Path
+    import numpy as np
+    from ottosmasher.cli.main import GUIDE
+    from ottosmasher.media import wavfile
+
+    c, root = app
+    path = tmp_path / "context.wav"
+    wavfile.save_wav24(path, np.zeros((48000, 1), dtype=np.float32), 16000)
+    aid = c.call("sources.add", paths=[str(path)])["r"][0]["assets"][0]["assetId"]
+    ledger = tmp_path / "task.json"
+    ledger.write_text(json.dumps({"items": [{"id": "cue:1", "start": 1.2, "end": 1.5}]}))
+    original = ledger.read_bytes()
+    script = GUIDE / "skills" / "common" / "preparing-subtitles" / "scripts" / "review.py"
+    rc, result, err = otto(root, "run", str(script), "packet", str(ledger), "cue:1", "--asset-id", aid, "--directory", str(tmp_path / "evidence"))
+    assert rc == 0, err
+    assert result["reviewed"] is False and Path(result["audio"]["path"]).is_file()
+    assert result["audio"]["mapping"][0] == pytest.approx([0, 0.2])
+    assert result["audio"]["mapping"][-1] == pytest.approx([2.3, 2.5])
+    assert ledger.read_bytes() == original

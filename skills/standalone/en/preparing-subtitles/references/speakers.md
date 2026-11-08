@@ -8,7 +8,7 @@ Users usually care only about named main characters. Minor characters may stay p
 Audit the labels first (`references/cleaning.md`). Reading brackets are not names, and 人, たち, 一同 and the like mean several people.
 
 1. Use separated vocals, not the original mix.
-2. Split two-line cues by aligning the lines one after another with a forced aligner, using the cue time ± 0.2 s as the window. Cut at the middle of the gap. If one line aligns to under 0.1 s, it was probably not found; leave that cue unsplit. Diarization models could not tell anime female voices apart in the trial.
+2. Split two-line cues by aligning the lines one after another with a forced aligner, using the cue time ± 0.2 s as the window. A gap midpoint is usable only after confirming a real silence. Missing/short alignment needs contextual review; split known sequential turns independently of uncertain identity. Diarization models could not tell anime female voices apart in the trial.
 3. Compute voiceprints: `uv run scripts/speaker_embed.py vocals ranges.json out-prefix`. It needs uv and ffmpeg, and the first run downloads PyTorch and the model, a few hundred MB. Usage is at the top of the script.
 
 Low similarities are normal: same person about 0.3–0.4, different people about 0.2. Compare relatively, and do not apply a fixed threshold such as 0.7.
@@ -27,7 +27,7 @@ Use labels directly as voice samples.
 
 1. Split a two-line cue when its halves' voiceprints differ (0.36 in the trial, the middle of the two-peaked distribution), and forbid the halves from going to the same person. Also forbid lines that overlap in time.
 2. Group lines of at least 1.5 s. First chain neighbours with a gap of at most 1 s and similarity of at least 0.45, then cluster the whole season with constrained average-linkage hierarchical clustering.
-3. Take the top 20 groups by total duration and export a few representative lines of each for the user to name. A character may have several groups. Unnamed groups count as "other".
+3. Take the top 20 groups by total duration and export a few representative lines of each for the user to name. A character may have several groups. Keep unnamed groups pending; a background "other" class is not an output identity.
 4. For each line, assign the most similar main-character group only if the similarity is high enough and beats other characters and "other" by a margin. Relax the margin by 0.05 for characters already confirmed within 60 s.
 5. Recompute the groups from the long lines assigned to them, then decide once more.
 
@@ -41,5 +41,7 @@ Two rules matter here:
 Write speakers in the form the user wants, for example a leading `（name）` on each line. Keep a backup of the subtitle file.
 
 - Do not overwrite lines the subtitles already label. List predictions that contradict a label for the user.
-- Leave pending lines unlabelled. If one line of a cue is pending, write nothing for that cue. Report how many are pending and in which episodes.
+- Leave unknown identities unlabelled. Split a known sequential turn and preserve the known identity on its own turn. Report how many are pending and in which episodes.
 - Spot-check similar-sounding main characters first, where mistakes concentrate.
+
+Known sequential turns must be split even when a name is unknown. Keep known names on their turns; multiple names are for simultaneous speech. Background other is not an output identity. Calibrate on independent scenes, keep near-duplicates in one fold and report coverage/uncertainty; experiment numbers are not universal thresholds.

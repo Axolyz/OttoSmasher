@@ -38,3 +38,7 @@ Do these in one pass and produce one final subtitle file, because later steps de
 ## Use transcripts to check, not to replace
 
 Whisper misses high-pitched exclamations and crowd chanting, and a prompt with character names can produce text nobody said. When a transcript disagrees with the subtitle, use the waveform and the original subtitle to decide.
+
+## Precision and completion
+
+When not specified, ask once for quick / standard / fine, explaining this task's actual tradeoff. Reuse explicit requirements. Fine means screen the whole scope and review every suspicious boundary/turn, sampling normal scenes. Every-line verification can be requested. Screening proposes cases, not automatic edits; preserve evidence and pending counts. Mechanical helpers can prepare data while the agent chooses suitable judgement methods.

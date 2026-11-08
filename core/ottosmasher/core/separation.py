@@ -66,9 +66,10 @@ class SeparationService:
             except OSError:
                 return [None, None]
 
-        return [env.worker, stat(env.worker), env.runtime_file, stat(env.runtime_file), env.model_dir, stat(env.model_dir), env.version]
+        return [env.worker, stat(env.worker), env.runtime_file, stat(env.runtime_file), env.model_dir, stat(env.model_dir), env.version,
+                sorted([str(p.relative_to(env.model_dir)), *stat(str(p))] for p in Path(env.model_dir).rglob("*") if p.is_file())]
 
-    def status(self) -> dict[str, Any]:
+    def status(self, refresh: bool = False) -> dict[str, Any]:
         """设置页与分离确认框用：Studio 在不在、环境、模型列表（缓存；没有或过期就提交一次列模型任务）。"""
         try:
             env = self.env()
@@ -77,7 +78,7 @@ class SeparationService:
         models = None
         try:
             cached = json.loads(self._cache.read_text(encoding="utf-8"))
-            if cached.get("key") == self._key(env):
+            if not refresh and cached.get("key") == self._key(env):
                 models = cached["models"]
         except (OSError, ValueError, KeyError):
             pass

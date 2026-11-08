@@ -112,7 +112,8 @@ def session_of(args: argparse.Namespace) -> str:
     if s:
         return s
     s = "cli-" + secrets.token_hex(4)
-    note({"note": "no session given (--session or OTTO_AGENT_SESSION); this call is recorded under a one-off session", "session": s})
+    if sys.stderr.isatty():
+        note({"note": "no session given (--session or OTTO_AGENT_SESSION); this call is recorded under a one-off session", "session": s})
     return s
 
 
@@ -146,8 +147,11 @@ def read_params(raw: str | None) -> dict[str, Any]:
     if raw == "-":
         raw = sys.stdin.read()
     elif raw.startswith("@"):
-        raw = Path(raw[1:]).expanduser().read_text(encoding="utf-8")
-    value = json.loads(raw)
+        raw = Path(raw[1:]).expanduser().read_text(encoding="utf-8-sig")
+    try:
+        value = json.loads(raw.lstrip("\ufeff"))
+    except json.JSONDecodeError as exc:
+        raise ValueError("invalid JSON; shell quoting may have removed quotes. Use @params.json (UTF-8), stdin (-), or otto run script.py") from exc
     if not isinstance(value, dict):
         raise ValueError("params must be a JSON object")
     return value
@@ -166,7 +170,7 @@ def _job_of(result: Any) -> dict[str, Any] | None:
     return None
 
 
-def wait_job(client, job: dict[str, Any], timeout: float | None, pretty: bool) -> dict[str, Any]:  # noqa: ANN001
+def wait_job(client, job: dict[str, Any], timeout: float | None, pretty: bool, progress: bool = False) -> dict[str, Any]:  # noqa: ANN001
     jid = job["id"]
     end = None if timeout is None else time.monotonic() + timeout
     last = job
@@ -180,7 +184,8 @@ def wait_job(client, job: dict[str, Any], timeout: float | None, pretty: bool) -
             continue
         if ev["e"] == "job.updated" and ev["d"]["id"] == jid:
             last = ev["d"]
-            note({"event": "job.updated", "id": jid, "status": last["status"], "progress": last.get("progress")})
+            if progress:
+                note({"event": "job.updated", "id": jid, "status": last["status"], "progress": last.get("progress")})
         elif ev["e"] == "exports.videoDone":
             client.video_done[ev["d"].get("jobId")] = ev["d"]  # 别的事件丢掉（等待期间只关心这个任务）
     return last
@@ -212,7 +217,7 @@ def wait_search(client, search_id: str, timeout: float | None, pretty: bool) -> 
     return st
 
 
-def follow(client, method: str, result: Any, timeout: float | None, pretty: bool) -> tuple[Any, bool]:  # noqa: ANN001
+def follow(client, method: str, result: Any, timeout: float | None, pretty: bool, progress: bool = False) -> tuple[Any, bool]:  # noqa: ANN001
     """--wait：结果是任务 / 检索 / 视频导出时跟到结束。返回 (输出, 是否成功)。"""
     if isinstance(result, dict) and isinstance(result.get("searchId"), str) and set(result) <= {"searchId"}:
         st = wait_search(client, result["searchId"], timeout, pretty)
@@ -226,10 +231,10 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
         elif method == "sources.rescan" and set(result) == {"id"}:
             ref = result["id"]
     if ref is not None:
-        job = next((j for j in client.call("jobs.list", {"limit": 500}) if j["id"] == ref), None)
+        job = client.call("jobs.get", {"id": ref})
     if job is None:
         return result, True
-    final = wait_job(client, job, timeout, pretty)
+    final = wait_job(client, job, timeout, pretty, progress)
     ok = final["status"] == "succeeded"
     if ok and method in ("exports.video", "hits.video", "exports.videoRange"):
         # 视频片段：成品路径在任务结果里（登记后才写入任务状态）；旧任务没有时再等完成事件，最多 10 秒
@@ -245,9 +250,9 @@ def follow(client, method: str, result: Any, timeout: float | None, pretty: bool
         # 原始能力的任务：结果在任务目录里，跟着读出来（逐条；单条失败写在条目里，全部失败时也读出原因）
         rows: list[Any] = []
         while True:
-            page = client.call(PRIMITIVE_RESULTS[method], {"jobId": job["id"], "offset": len(rows), "limit": 200})
+            page = client.call(PRIMITIVE_RESULTS[method], {"jobId": job["id"], "offset": len(rows), "limit": 100})
             rows += page
-            if len(page) < 200:
+            if len(page) < 100:
                 break
         return {"job": final, "results": rows}, ok
     if isinstance(result, dict) and result is not job:
@@ -405,7 +410,7 @@ def cmd_call(args: argparse.Namespace) -> None:
             fail(res.get("e") or {}, args.pretty)
         result = res.get("r")
         if args.wait:
-            result, ok = follow(c, args.method, result, args.timeout, args.pretty)
+            result, ok = follow(c, args.method, result, args.timeout, args.pretty, args.progress)
             if not ok:
                 out({**ended_error(result), "result": result}, args.pretty)
                 raise Exit(1)
@@ -421,10 +426,8 @@ def cmd_wait(args: argparse.Namespace) -> None:
                 raise Exit(1)
             out(st, args.pretty)
             return
-        job = next((j for j in c.call("jobs.list", {"limit": 500}) if j["id"] == args.id), None)
-        if job is None:
-            fail(CoreError("job-not-found", id=args.id), args.pretty)
-        final = wait_job(c, job, args.timeout, args.pretty)
+        job = c.call("jobs.get", {"id": args.id})
+        final = wait_job(c, job, args.timeout, args.pretty, args.progress)
         if final["status"] != "succeeded":
             out({**ended_error(final), "result": final}, args.pretty)
             raise Exit(1)
@@ -450,9 +453,10 @@ def cmd_events(args: argparse.Namespace) -> None:
             n += 1
 
 
-def guide_topics() -> list[Path]:
-    """说明书：只有英文一份（给 agent 看；所有者 2026-11-04）。"""
-    return sorted((GUIDE / "reference").glob("*.md"))
+def guide_topics(lang: str = "en") -> list[Path]:
+    """英文主题路径保持兼容；中文主题与之逐节对应。"""
+    root = GUIDE / "reference"
+    return sorted((root / "zh-CN" if lang == "zh-CN" else root).glob("*.md"))
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -511,7 +515,7 @@ def print_skills(args: argparse.Namespace) -> None:
 
 def cmd_guide(args: argparse.Namespace) -> None:
     lang = lang_of(args)
-    topics = guide_topics()
+    topics = guide_topics(lang)
     names = [p.stem.split("-", 1)[-1] for p in topics]
     if args.topic in ("skills", "notes"):  # notes = 旧版的第二层，已经装好的入口 skill 还可能这么叫
         print_skills(args)
@@ -581,7 +585,8 @@ def cmd_setup(args: argparse.Namespace) -> None:
     }
     which = args.for_ or "other"
     out({"tool": "audio-mcp", "needs": "uv (uvx) on PATH; the first use downloads the package and the Whisper model (about 1.6 GB, CPU only)",
-         "for": which, **plans[which]}, args.pretty)
+         "for": which, "guide": "otto guide audio",
+         "capabilities": {"cli": ["view", "analyze", "timeline", "melody"], "transcription": "MCP required; preparing-subtitles/scripts/audio_probe.py is a portable client", "verified": False}, **plans[which]}, args.pretty)
 
 
 def cmd_session(args: argparse.Namespace) -> None:
@@ -591,13 +596,24 @@ def cmd_session(args: argparse.Namespace) -> None:
         out(error_wire("bad-request", {"method": "session", "reason": "set OTTO_AGENT_SESSION or --session"}), args.pretty)
         raise Exit(2)
     with connect(args) as c:
-        jobs = [j for j in c.call("jobs.list", {"limit": 500}) if (j.get("actor") or {}).get("session") == s]
+        jobs = []
+        while True:
+            page = c.call("jobs.summaries", {"limit": 500, "offset": len(jobs), "session": s})
+            jobs.extend(page)
+            if len(page) < 500:
+                break
+        if args.details:
+            jobs = [c.call("jobs.get", {"id": j["id"]}) for j in jobs]
+        created = c.call("samples.list", {"createdBySession": s, "limit": 20})
+        assets = c.call("assets.listForSession", {"session": s, "limit": 20})
         edits = c.call("edits.history", {"session": s, "limit": 200})
-    keep = ("id", "kind", "status", "progress", "error", "items", "result", "created_at", "finished_at")  # result：视频路径、检索结果等
+    keep = ("id", "kind", "status", "progress", "error", "items", "result", "created_at", "finished_at", "queuedAhead")  # result：视频路径、检索结果等
     out({"session": s,
          "jobs": [{k: j[k] for k in keep if k in j} for j in jobs],
          "running": sum(1 for j in jobs if j["status"] in ("queued", "running")),
-         "edits": {"count": len(edits), "latest": edits[:10]}}, args.pretty)
+         "edits": {"count": len(edits), "limit": 200, "latest": edits[:10]},
+         "created": {"samples": {"count": created["total"], "latest": [r["id"] for r in created["rows"]]},
+                     "assets": {"count": assets["total"], "latest": [r["id"] for r in assets["rows"]]}}}, args.pretty)
 
 
 # ---------------------------------------------------------------- 入口
@@ -605,10 +621,10 @@ def cmd_session(args: argparse.Namespace) -> None:
 
 def parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--workspace", help="workspace folder (default: OTTO_WORKSPACE, else the one the running app uses, else the default)")
-    common.add_argument("--session", help="session id recorded on every change (default: OTTO_AGENT_SESSION)")
-    common.add_argument("--as", dest="as_", choices=("agent", "script"), default="agent", help="who is calling (recorded as the actor)")
-    common.add_argument("--pretty", action="store_true", help="indent JSON output")
+    common.add_argument("--workspace", default=argparse.SUPPRESS, help="workspace folder (default: OTTO_WORKSPACE, else the one the running app uses, else the default)")
+    common.add_argument("--session", default=argparse.SUPPRESS, help="session id recorded on every change (default: OTTO_AGENT_SESSION)")
+    common.add_argument("--as", dest="as_", choices=("agent", "script"), default=argparse.SUPPRESS, help="who is calling (recorded as the actor)")
+    common.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="indent JSON output")
     ap = argparse.ArgumentParser(prog="otto", description="Call the running OttoSmasher app. Start with: otto guide", parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status", parents=[common], help="is the app running; Core version; attached sessions").set_defaults(fn=cmd_status)
@@ -632,6 +648,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("method")
     p.add_argument("params", nargs="?", help="JSON object, @file.json, or - for stdin")
     p.add_argument("--wait", action="store_true", help="follow a returned job / search / video export to its end")
+    p.add_argument("--progress", action="store_true", help="write job progress events to stderr while waiting")
     p.add_argument("--timeout", type=float, default=None, help="seconds to wait at most")
     p.add_argument("--lang", choices=LANGS, help="language of fixed words in exported file names")
     p.set_defaults(fn=cmd_call)
@@ -639,6 +656,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("what", choices=("job", "search"))
     p.add_argument("id")
     p.add_argument("--timeout", type=float, default=None)
+    p.add_argument("--progress", action="store_true", help="write job progress events to stderr")
     p.set_defaults(fn=cmd_wait)
     p = sub.add_parser("events", parents=[common], help="print events as JSON lines")
     p.add_argument("--name", action="append", help="event name or prefix* (repeatable)")
@@ -651,7 +669,7 @@ def parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser("guide", parents=[common], help="the reference for agents (concepts, commands, rules); `otto guide skills` lists the editable procedures, `otto guide <skill>` prints one, `otto guide playbook` prints the user's conventions")
     p.add_argument("topic", nargs="?")
-    p.add_argument("--lang", choices=LANGS, help="language of the skills copied into a new workspace and of the playbook template; the reference is English only")
+    p.add_argument("--lang", choices=LANGS, help="reference language; also selects the initial workspace skill language")
     p.add_argument("--all", action="store_true", help="print every reference topic")
     p.set_defaults(fn=cmd_guide)
     p = sub.add_parser("setup", parents=[common], help="helpers: the user's playbook template, check the skills folder, how to connect an audio tool")
@@ -660,6 +678,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--lang", choices=LANGS)
     p.set_defaults(fn=cmd_setup)
     p = sub.add_parser("session", parents=[common], help="this session's jobs and changes (to pick up after a long job)")
+    p.add_argument("--details", action="store_true", help="include full job results; default is compact")
     p.set_defaults(fn=cmd_session)
     return ap
 
@@ -669,6 +688,9 @@ def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser().parse_args(argv)
+    for key, default in {"workspace": None, "session": None, "as_": "agent", "pretty": False}.items():
+        if not hasattr(args, key):
+            setattr(args, key, default)
     try:
         args.fn(args)
     except Exit as e:

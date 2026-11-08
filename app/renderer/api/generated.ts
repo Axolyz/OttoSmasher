@@ -602,6 +602,16 @@ export interface FlattenEstimateParams {
   token: FlattenToken;
 }
 
+export interface FlattenManyItem {
+  id: string;
+  name?: string;
+  options: FlattenOptions;
+}
+
+export interface FlattenManyParams {
+  items: FlattenManyItem[];
+}
+
 export interface FlattenOpenParams {
   assetId: string;
   end: number;
@@ -612,6 +622,7 @@ export interface FlattenOpenParams {
 
 export interface FlattenOpened {
   alignment: FlattenAlignment | null;
+  alignmentIssue: ErrorWire | null;
   defaults: FlattenDefaults;
   duration: number;
   inner: number[];
@@ -634,6 +645,15 @@ export interface FlattenPhone {
   end: number;
   label: string;
   start: number;
+}
+
+export interface FlattenPreview {
+  creates: Record<string, number>;
+  estimate: FlattenEstimate;
+  name: string;
+  normalizesLoudness: boolean;
+  outputDuration: number;
+  range: "first" | "inner" | "vowels" | "whole";
 }
 
 export interface FlattenResultRow {
@@ -848,6 +868,19 @@ export interface InferTestParams {
   rules?: string[] | null;
 }
 
+export interface JobBrief {
+  actor: Actor;
+  channel: string;
+  created_at: string;
+  error: ErrorWire | null;
+  finished_at: string | null;
+  id: string;
+  items: JobItems | null;
+  kind: string;
+  queuedAhead: number | null;
+  status: string;
+}
+
 /** 提交时冻结的设备设置（13 §13.1.2）。 */
 export interface JobDevice {
   accelerate: boolean;
@@ -902,6 +935,12 @@ export interface JobSummary {
   separationDevice?: SeparationDevice;
   started_at: string | null;
   status: "cancelled" | "failed" | "interrupted" | "queued" | "running" | "succeeded";
+}
+
+export interface JobsBriefParams {
+  limit?: number;
+  offset?: number;
+  session?: string;
 }
 
 export interface JobsListParams {
@@ -1650,6 +1689,7 @@ export interface SampleDetail {
 }
 
 export interface SampleFilter {
+  createdBySession?: string;
   expr?: string;
   languages?: string[] | null;
   metrics?: MetricFilter | null;
@@ -1667,6 +1707,12 @@ export interface SampleGlyph {
   curve?: (number | null)[];
   envelope?: (number | null)[];
   note?: string;
+}
+
+export interface SampleMetricsRow {
+  id: string;
+  metrics: Record<string, number | null> | null;
+  state: "missing" | "ready" | "stale";
 }
 
 export interface SampleOverride {
@@ -1801,6 +1847,7 @@ export interface SamplesCreated {
 }
 
 export interface SamplesListParams {
+  createdBySession?: string;
   expr?: string;
   languages?: string[] | null;
   limit?: number;
@@ -1978,6 +2025,18 @@ export interface SeparationSubmitted {
   job: JobSummary;
 }
 
+export interface SessionAssetsPage {
+  offset: number;
+  rows: AssetRecord[];
+  total: number;
+}
+
+export interface SessionAssetsParams {
+  limit?: number;
+  offset?: number;
+  session: string;
+}
+
 export interface SessionParams {
   session: string;
 }
@@ -2137,6 +2196,7 @@ export interface Spectrum {
   cols: number;
   data: Uint8Array;
   end: number;
+  frequencies: number[];
   nyquist: number;
   rows: number;
   scale: string;
@@ -2449,6 +2509,10 @@ export interface StudioStatus {
   listingJob?: string | null;
   models?: StudioModel[] | null;
   ok: boolean;
+}
+
+export interface StudioStatusParams {
+  refresh?: boolean;
 }
 
 /** 批量预览的一行：没关联字幕（skipped）、出错（error）或可导入（其余键，默认选项）。 */
@@ -3050,6 +3114,8 @@ export interface Commands {
   "assets.deletePreview": { params: IdParams; result: AssetDeletePreview; effect: "read" };
   /** One sound asset. */
   "assets.get": { params: IdParams; result: AssetRecord; effect: "read" };
+  /** Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete. */
+  "assets.listForSession": { params: SessionAssetsParams; result: SessionAssetsPage; effect: "read" };
   /** All sound assets of a source, full tracks first. */
   "assets.listForSource": { params: SourceIdParams; result: AssetInfo[]; effect: "read" };
   /** Tracks that can be default tracks, with roles and current defaults. */
@@ -3102,6 +3168,8 @@ export interface Commands {
   "flatten.estimate": { params: FlattenEstimateParams; result: FlattenEstimate; effect: "read" };
   /** Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name. */
   "flatten.open": { params: FlattenOpenParams; result: FlattenOpened; effect: "read" };
+  /** Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes. */
+  "flatten.preview": { params: FlattenSubmitParams; result: FlattenPreview; effect: "read" };
   /** Re-queue only the failed items of a flatten job with the same options. */
   "flatten.rerunFailed": { params: JobIdParams; result: JobSummary; effect: "job" };
   /** Per-item results of a flatten job (product sample and target). */
@@ -3110,6 +3178,8 @@ export interface Commands {
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
   /** Queue a batch flatten: one job, each sample targets independently (auto only). */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
+  /** One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500). */
+  "flatten.submitMany": { params: FlattenManyParams; result: JobSummary; effect: "job" };
   /** Add an sfx hint by hand (protected). */
   "hints.add": { params: HintAddParams; result: SegmentAdded; effect: "write" };
   /** Export a hit as WAV (original, or stretched with its evidence scheme). */
@@ -3128,6 +3198,8 @@ export interface Commands {
   "imports.scan": { params: PathsParams; result: JobSummary; effect: "job" };
   /** Cancel a queued or running job (kills its whole process tree). */
   "jobs.cancel": { params: IdParams; result: JobSummary; effect: "job" };
+  /** One job, including its full result and affected objects. */
+  "jobs.get": { params: IdParams; result: JobSummary; effect: "read" };
   /** Recent jobs, newest first. */
   "jobs.list": { params: JobsListParams; result: JobSummary[]; effect: "read" };
   /** Move a queued job to the front of its channel's queue (running jobs are not interrupted). */
@@ -3136,6 +3208,8 @@ export interface Commands {
   "jobs.retry": { params: IdParams; result: JobSummary; effect: "job" };
   /** Submit a job of a registered kind (low-level; prefer the specific commands). */
   "jobs.submit": { params: JobSubmitParams; result: JobSummary; effect: "job" };
+  /** Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time. */
+  "jobs.summaries": { params: JobsBriefParams; result: JobBrief[]; effect: "read" };
   /** FCPE pitch/confidence/energy frames of an asset range (unmeasured frames are NaN). */
   "measure.f0": { params: AssetRangeParams; result: F0Frames; effect: "read" };
   /** Queue a job that measures missing F0 and computes the single-sound metrics for a scope. */
@@ -3226,6 +3300,8 @@ export interface Commands {
   "samples.independPlan": { params: IdsParams; result: IndependItem[]; effect: "read" };
   /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
+  /** Cached acoustic metrics per sample; ready/stale/missing, never starts inference. */
+  "samples.metrics": { params: IdsParams; result: SampleMetricsRow[]; effect: "read" };
   /** Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch. */
   "samples.plan": { params: SamplePlanParams; result: SamplePlan; effect: "read" };
   /** Related samples: other samples on the same source whose source-time range overlaps this one (any track), longest overlap first. */
@@ -3294,7 +3370,7 @@ export interface Commands {
   "spectrum.get": { params: SpectrumParams; result: Spectrum; effect: "read" };
   /** Align Japanese text to audio (asset range or any file) without storing anything: phoneme / mora / word times; `lines` instead of `text` also gives each line's span. The window must tightly bracket the speech. */
   "speech.align": { params: SpeechAlignParams; result: JobSummary; effect: "job" };
-  /** Per-item results of a speech.align job. */
+  /** Per-item results of a speech.align job; paginated by offset/limit (default 100; continue until an empty page). */
   "speech.alignResults": { params: PrimitiveResultsParams; result: AlignRow[]; effect: "read" };
   /** Usable phonemes of all segments on an asset range, in that track's time (none on tracks without voice). */
   "speech.forAsset": { params: AssetRangeParams; result: AssetAlignment[]; effect: "read" };
@@ -3317,7 +3393,7 @@ export interface Commands {
   /** Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source. */
   "storage.report": { params: NoParams; result: StorageReport; effect: "read" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
-  "studio.status": { params: NoParams; result: StudioStatus; effect: "read" };
+  "studio.status": { params: StudioStatusParams; result: StudioStatus; effect: "read" };
   /** Delete the markers imported from subtitles (segments, sfx hints, rule OP/ED) of these sources in one undoable edit; protected ones stay unless protected=true. */
   "subtitles.clear": { params: SubtitleClearParams; result: SubtitleCleared; effect: "write" };
   /** What deleting the subtitle-imported markers of these sources would remove. */

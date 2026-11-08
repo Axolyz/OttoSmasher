@@ -93,32 +93,37 @@ class FlattenService:
 
     # ------------------------------------------------------------ 对齐（音素属于原素材时间线）
 
-    def _alignment(self, asset_id: str, start: float, end: float, snap: dict[str, Any], sample_id: str | None) -> dict[str, Any] | None:
+    def _alignment(self, asset_id: str, start: float, end: float, snap: dict[str, Any], sample_id: str | None, issues: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         """选区上的音素（所有者 2026-10-12：音素属于原素材时间线，拉平成品、局部声部也读得到）。从采样打开、选区就是这个采样 → 采样读到的结果；
         否则 → 与选区（换算成原片秒）正长度交叠的段的音素，换到这条轨上。读到的段的对齐窗口要连起来覆盖整个选区
         （覆盖不全 = 不可用，不静默少算元音）；这条轨不含人声、任何一段不可用或两段音素冲突 → 不可用。``snap`` 不再参与（音素不按文件指纹拦）。"""
+        def unavailable(reason: str, **args: Any) -> None:
+            if issues is not None:
+                issues.append(CoreError("flatten-needs-alignment", reason=reason, **args).to_wire())
+            return None
+
         asset = assets_mod.get(self.conn, asset_id)
         if not units.voiced(asset):
-            return None
+            return unavailable("track-without-vocal-role")
         try:
             m = Mapping.of(asset["mapping"])
             a, b = m.to_source(start), m.to_source(end)
         except CoreError:
-            return None
+            return unavailable("mapping-unavailable")
         if sample_id:
             s = self.conn.execute(f"SELECT {self.speech._SAMPLE_COLS} FROM sample WHERE id=?", (sample_id,)).fetchone()
             if s is not None and s["asset_id"] == asset_id and abs(s["start"] - start) < 1e-6 and abs(s["end"] - end) < 1e-6:
                 rd = self.speech.reading(s)
                 head = rd["head"]
                 if head is None:
-                    return None
+                    return unavailable("sample-analysis-unavailable", sampleId=sample_id, blocked=rd.get("blocked"), conflict=rd.get("conflict"))
                 if not self._covers([v.get("windowSource") for v in rd["units"] if v["head"]], a, b):
-                    return None
+                    return unavailable("analysis-window-incomplete")
                 phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in head["result"]["phones"]]
                 return {"runId": head["runId"], "manual": bool(head["manual"]), "owner": ",".join(head.get("units") or []), "phones": phones}
         segs = self.speech.read_segments(asset["source_id"], a, b)
         if not segs:
-            return None
+            return unavailable("no-segments")
         ords = self.speech.ordinals(asset["source_id"], [t["id"] for t in segs])
         base = units.base_of(asset)
         parts = []
@@ -126,13 +131,13 @@ class FlattenService:
             uid = units.unit_id(t["id"], base)
             r = self.speech.usable_run(uid, t)
             if r is None:
-                return None
+                return unavailable("segment-analysis-unavailable", segmentId=t["id"])
             parts.append((uid, t["id"], r, loads(r["result"])))
         if not self._covers([res.get("window") or [r["range_start"], r["range_end"]] for _, _, r, res in parts], a, b):
-            return None
+            return unavailable("analysis-window-incomplete")
         merged = units.merge([{"unitId": uid, "ordinal": ords.get(sid, 0), "result": self.speech._local_result(res, m)} for uid, sid, _, res in parts], start, end)
         if "conflict" in merged:
-            return None
+            return unavailable("phoneme-conflict", conflict=merged["conflict"])
         phones = [{"label": p.get("orig", p["label"]), "start": p["start"], "end": p["end"], "eff": p.get("eff")} for p in merged["phones"]]
         return {"runId": "+".join(r["id"] for _, _, r, _ in parts), "manual": any(bool(r["manual"]) for _, _, r, _ in parts), "owner": ",".join(u for u, _, _, _ in parts),
                 "phones": phones}
@@ -158,7 +163,8 @@ class FlattenService:
         token = self._freeze(asset_id, start, end)
         snap = token.pop("_snap")
         a, b = token["start"], token["end"]
-        al = self._alignment(asset_id, a, b, snap, sample_id)
+        issues: list[dict[str, Any]] = []
+        al = self._alignment(asset_id, a, b, snap, sample_id, issues)
         name = None
         if sample_id:
             s = self.conn.execute('SELECT name, asset_id, start, "end" FROM sample WHERE id=?', (sample_id,)).fetchone()
@@ -173,6 +179,7 @@ class FlattenService:
             "defaults": defaults_for(values, entry),
             "alignment": None if al is None else {"manual": al["manual"], "runId": al["runId"], "phones": [
                 {"label": p["label"], "start": max(0.0, p["start"] - a), "end": min(d, p["end"] - a)} for p in al["phones"]]},
+            "alignmentIssue": issues[0] if issues else None,
             "name": name,
             "inner": list(fl.default_inner(d)),
             "transition": fl.TRANSITION,
@@ -284,11 +291,13 @@ class FlattenService:
             return str(r[0])
         return None
 
-    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool) -> dict[str, Any]:
+    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool, requests: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         params = {
             "items": items, "versions": ver, "options": options, "batch": batch,
             "models_dir": str(self.ws.models), "support_dir": str(self.support_dir),
         }  # fmt: skip
+        if requests is not None:
+            params["requests"] = requests
         affects = {"sample": [it["sample"] for it in items if it.get("sample")], "asset": sorted({it["asset"] for it in items if it.get("asset")})}
         job = self.jobs.submit(JOB_KIND, params, affects)
         self.jobs.add_items(job["id"], [(it.get("sample") or it.get("asset") or "", "queued") for it in items])
@@ -305,6 +314,15 @@ class FlattenService:
         ver = self._versions()
         it = self._item(0, token, o, name, sample_id, ver)
         return self._submit([it], ver, o, False)
+
+    def preview(self, token: dict[str, Any], opts: dict[str, Any], name: str, sample_id: str | None = None) -> dict[str, Any]:
+        """验证冻结输入与选项，复用缓存预估；不创建任务、采样、资产或运行模型。"""
+        if not name.strip() or len(name.strip()) > 500:
+            raise CoreError("flatten-invalid", reason="name", field="name")
+        self._check_frozen(token)
+        estimate = self.estimate(token, opts, sample_id)
+        return {"name": name.strip(), "estimate": estimate, "creates": {"samples": 1, "assetsMax": 1},
+                "outputDuration": token["end"] - token["start"], "range": opts["range"], "normalizesLoudness": False}
 
     def _batch_items(self, sample_ids: list[str], o: dict[str, Any], ver: dict[str, Any]) -> list[dict[str, Any]]:
         items = []
@@ -329,6 +347,29 @@ class FlattenService:
         ver = self._versions()
         return self._submit(self._batch_items(sample_ids, o, ver), ver, o, True)
 
+    def submit_many(self, requests: list[dict[str, Any]]) -> dict[str, Any]:
+        """逐项选项的单任务批量；复用单个入口的校验、冻结和 worker。"""
+        if not requests or len(requests) > 500:
+            raise CoreError("flatten-invalid", reason="size", field="items")
+        versions = self._versions()
+        items = []
+        for idx, request in enumerate(requests):
+            sid = request["id"]
+            row = self.conn.execute('SELECT asset_id, start, "end", name FROM sample WHERE id=?', (sid,)).fetchone()
+            try:
+                if row is None:
+                    raise CoreError("sample-not-found", id=sid)
+                name = str(request.get("name", row["name"])).strip()
+                if not name or len(name) > 500:
+                    raise CoreError("flatten-invalid", reason="name", field="name")
+                token = self._freeze(row["asset_id"], row["start"], row["end"])
+                token.pop("_snap")
+                options = self._options(request["options"], batch=False)
+                items.append(self._item(idx, token, options, name, sid, versions))
+            except CoreError as exc:
+                items.append({"idx": idx, "sample": sid, "name": row["name"] if row else sid, "error": exc.to_wire()})
+        return self._submit(items, versions, {}, True, requests)
+
     def rerun_failed(self, job_id: str) -> dict[str, Any]:
         """只重跑失败项（同一组选项，输入在现在重新冻结）。"""
         job = self.conn.execute("SELECT kind, params FROM job WHERE id=?", (job_id,)).fetchone()
@@ -339,6 +380,8 @@ class FlattenService:
         items = [it for it in params["items"] if it["idx"] in failed]
         if not items:
             raise CoreError("flatten-invalid", reason="nothing-failed", field="job")
+        if "requests" in params:
+            return self.submit_many([params["requests"][it["idx"]] for it in items])
         ver = self._versions()
         o = params["options"]
         if not params.get("batch"):

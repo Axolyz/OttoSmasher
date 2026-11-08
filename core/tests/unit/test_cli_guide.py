@@ -1,4 +1,4 @@
-"""agent 说明：说明书（只有英文，随版本）提到的命令都存在、示例参数合法；skill（中英各一份）符合 Agent Skills 规范、同步到工作区时不覆盖用户的修改。"""
+"""agent 说明：说明书（中英双语，随版本）提到的命令都存在、示例参数合法；skill（中英各一份）符合 Agent Skills 规范、同步到工作区时不覆盖用户的修改。"""
 
 from __future__ import annotations
 
@@ -25,15 +25,15 @@ def _skill_docs(lang):
 
 
 def _reference():
-    return sorted((GUIDE / "reference").glob("*.md"))
+    return sorted((GUIDE / "reference").rglob("*.md"))
 
 
 def _front(text):
     return yaml.safe_load(text.split("---\n")[1])
 
 
-def test_reference_is_english_with_no_owner_wording():
-    assert len(_reference()) >= 8
+def test_reference_is_bilingual_with_no_owner_wording():
+    assert {p.name for p in (GUIDE / "reference").glob("*.md")} == {p.name for p in (GUIDE / "reference" / "zh-CN").glob("*.md")}
     for p in _reference():
         text = p.read_text(encoding="utf-8")
         assert not re.search(r"\bowner\b", text, re.I), p.name
@@ -86,11 +86,11 @@ def test_guide_command_prints_reference_and_skills(tmp_path, capsys, monkeypatch
     monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
     assert main(["guide", "--lang", "zh-CN"]) == 0
     text = capsys.readouterr().out
-    assert "Ground rules" in text and "preparing-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
+    assert "可以接触的文件" in text and "preparing-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
     assert "为 OttoSmasher 准备字幕" in text  # skill 的说明用工作区的语言
-    assert main(["guide", "undo"]) == 0
+    assert main(["guide", "undo", "--lang", "en"]) == 0
     assert "edits.undoSession" in capsys.readouterr().out
-    assert main(["guide", "--all"]) == 0
+    assert main(["guide", "--all", "--lang", "en"]) == 0
     assert "primitives" in capsys.readouterr().out
     assert main(["guide", "preparing-subtitles"]) == 0
     assert "references/retiming.md" in capsys.readouterr().out
@@ -264,3 +264,79 @@ def test_skill_references_point_to_real_files():
             for ref in re.findall(r"`(references/[\w.-]+)`", f.read_text(encoding="utf-8")):
                 assert (root / ref).is_file(), (f, ref)
             assert "skill `cleaning" not in f.read_text(encoding="utf-8")
+
+
+def test_reference_languages_have_the_same_topics(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
+    root = GUIDE / "reference"
+    assert {p.name for p in root.glob("*.md")} == {p.name for p in (root / "zh-CN").glob("*.md")}
+    for lang, word in (("en", "normalizes"), ("zh-CN", "响度")):
+        assert main(["guide", "flatten", "--lang", lang]) == 0
+        text = capsys.readouterr().out
+        assert word in text and "flatten.preview" in text and "flatten.submitMany" in text
+
+
+def _review_helper():
+    import importlib.util
+    path = SKILLS / "common" / "preparing-subtitles" / "scripts" / "review.py"
+    spec = importlib.util.spec_from_file_location("otto_review", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_review_ledger_requires_evidence_and_detects_changed_inputs(tmp_path):
+    review = _review_helper()
+    original = tmp_path / "original.srt"
+    original.write_text("original", encoding="utf-8")
+    cues = [{"no": 1, "kind": "line", "start": 1, "end": 2, "text": "hi", "raw": "（A）hi\nthere", "speakers": [], "withheld": True},
+            {"no": 2, "kind": "line", "start": 1.9, "end": 2.5, "text": "bye", "raw": "bye", "speakers": []}]
+    report = review.scan({"cues": cues}, [original], "fine", "all suspicious cases")
+    assert len(report["items"]) == 2 and not review.check(report, tmp_path)["ok"]
+    evidence = tmp_path / "curve.json"
+    evidence.write_text("{}")
+    for item in report["items"]:
+        item.update(status="uncertain", reason="cannot resolve ownership", evidence=[{"path": "curve.json", "note": "actual curve inspected"}])
+    assert review.check(report, tmp_path)["ok"]
+    evidence.unlink()
+    assert not review.check(report, tmp_path)["ok"]
+    evidence.write_text("{}")
+    original.write_text("changed")
+    assert "input changed" in review.check(report, tmp_path)["errors"][0]
+
+
+def test_review_screens_start_and_end_without_a_silence_gap(tmp_path):
+    import numpy as np
+    from ottosmasher.media import wavfile
+    review = _review_helper()
+    path = tmp_path / "continuous.wav"
+    t = np.arange(32000) / 16000
+    wavfile.save_wav24(path, (.2 * np.sin(2 * np.pi * 200 * t))[:, None], 16000)
+    screen = review.energy_screen({"path": str(path), "mapping": [[0, 100], [2, 102]]})
+    flags = screen({"no": 1, "start": 100.5, "end": 101.5})
+    assert len(flags) == 2 and flags[0].startswith("start:") and flags[1].startswith("end:")
+
+
+def test_review_marks_nested_overlaps_even_when_adjacent_short_cue_ends_earlier(tmp_path):
+    review = _review_helper()
+    original = tmp_path / "original.srt"
+    original.write_text("original")
+    cues = [{"no": n, "kind": "line", "start": a, "end": b, "text": "line", "raw": "line", "speakers": []}
+            for n, a, b in [(1, 1, 10), (2, 2, 3), (3, 4, 5)]]
+    report = review.scan({"cues": cues}, [original], "fine", "overlap screening")
+    assert {item["id"] for item in report["items"]} == {"cue:1", "cue:2", "cue:3"}
+
+
+def test_common_options_preserve_actor_and_pretty_before_the_subcommand():
+    from ottosmasher.cli.main import parser
+    for argv in (["--as", "script", "--pretty", "status"], ["status", "--as", "script", "--pretty"]):
+        args = parser().parse_args(argv)
+        assert args.as_ == "script" and args.pretty is True
+
+
+def test_one_off_session_note_is_quiet_in_redirected_output(monkeypatch, capsys):
+    import argparse
+    from ottosmasher.cli.main import session_of
+    monkeypatch.delenv("OTTO_AGENT_SESSION", raising=False)
+    assert session_of(argparse.Namespace(session=None)).startswith("cli-")
+    assert capsys.readouterr().err == ""

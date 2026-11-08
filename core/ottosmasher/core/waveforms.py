@@ -126,7 +126,7 @@ class WaveformService:
         cols, rows = max(8, min(int(cols), 2400)), max(16, min(int(rows), 512))
         db = spectrogram(pcm, sr, cols, rows, scale)
         q = np.round((db - DB_FLOOR) / -DB_FLOOR * 255.0).astype(np.uint8)  # 0 = −90 dB，255 = 0 dB
-        return {"start": start, "end": end, "cols": cols, "rows": rows, "scale": scale, "nyquist": sr / 2.0, "data": q.tobytes()}
+        return {"start": start, "end": end, "cols": cols, "rows": rows, "scale": scale, "nyquist": sr / 2.0, "frequencies": row_freqs(scale, rows, sr / 2.0).tolist(), "data": q.tobytes()}
 
     def _schedule(self, asset_id: str, ref: Any) -> None:
         key = str(peaks_mod.cache_path(self.cache, ref))

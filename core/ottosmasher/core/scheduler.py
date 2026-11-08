@@ -173,6 +173,29 @@ class Scheduler:
         rows = self.conn.execute("SELECT * FROM job ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [_summary(r) for r in rows]
 
+    def brief(self, limit: int = 50, session: str | None = None, offset: int = 0) -> list[dict[str, Any]]:
+        columns = "id, kind, status, channel, created_at, finished_at, error, actor_kind, actor_session, items_total, items_ok, items_failed"
+        where = " WHERE actor_session=?" if session is not None else ""
+        args = [session, limit, offset] if session is not None else [limit, offset]
+        queued = self.conn.execute(
+            "SELECT id, channel FROM job WHERE status='queued' ORDER BY promote_seq IS NULL, promote_seq DESC, background, created_at, rowid"
+        ).fetchall()
+        ahead: dict[str, int] = {}
+        channels: dict[str, int] = {}
+        for row in queued:
+            ahead[row["id"]] = channels.get(row["channel"], 0)
+            channels[row["channel"]] = ahead[row["id"]] + 1
+        out = []
+        for row in self.conn.execute(f"SELECT {columns} FROM job{where} ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?", args):
+            out.append({
+                **{k: row[k] for k in ("id", "kind", "status", "channel", "created_at", "finished_at")},
+                "error": loads(row["error"]),
+                "items": {"total": row["items_total"], "ok": row["items_ok"], "failed": row["items_failed"]} if row["items_total"] is not None else None,
+                "actor": {"kind": row["actor_kind"], "session": row["actor_session"]},
+                "queuedAhead": ahead.get(row["id"]),
+            })
+        return out
+
     def running_count(self, channel: str | None = None) -> int:
         q = "SELECT COUNT(*) FROM job WHERE status='running'" + (" AND channel=?" if channel else "")
         return self.conn.execute(q, (channel,) if channel else ()).fetchone()[0]

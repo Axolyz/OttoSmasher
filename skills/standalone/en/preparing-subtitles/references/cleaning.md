@@ -2,11 +2,11 @@
 
 ## Audit the labels
 
-Sources label speakers differently, so measure this for each source before you trust it. The only certainty is that a speaker change starts a new text line.
+Sources label speakers differently, so measure this for each source before you trust it. Speaker changes usually start new lines, but line breaks need not be turns; audit each source.
 
 Count these per source:
 
-- both lines of a cue labelled (a change of speaker)
+- both lines of a cue labelled (a possible turn change to verify)
 - first line only (often the same person)
 - second line only
 - a label alone on its own line
@@ -28,8 +28,8 @@ Fansub subtitles usually have no labels. Closed captions label a line only when 
 To split a two-person cue:
 
 1. Align both lines one after another with a forced aligner, using the cue time ± 0.2 s as the window.
-2. Cut at the middle of the gap between the two lines. The two cues may extend to the speech the alignment found.
-3. If one line aligns to under 0.1 s, it was probably not found in the vocals. Leave that cue unsplit and unlabelled.
+2. Confirm sequential speech and locate the actual turn. Use a midpoint only inside a verified silent gap; inspect overlap or contradictory alignment separately.
+3. A missing or implausibly short alignment is a suspicious case, not permission to keep known sequential turns merged. Inspect contextual audio to locate the change; keep unresolved boundaries/identities explicit.
 
 To fill in unlabelled cues from voices, see `references/speakers.md`.
 

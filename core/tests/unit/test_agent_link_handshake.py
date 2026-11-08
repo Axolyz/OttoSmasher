@@ -36,3 +36,19 @@ def test_broadcast_during_hello_cannot_overtake_handshake(tmp_path):
     assert [m["t"] for m in conn.sent] == ["hello", "evt"]
     assert conn.sent[0]["ok"] and conn.sent[0]["r"]["version"] == "test"
     assert conn.closed and not link.sessions()
+
+
+def test_permission_denial_explains_local_ipc_without_claiming_app_is_stopped(monkeypatch):
+    from ottosmasher.core import agent_link
+    from ottosmasher.core.errors import CoreError
+    import pytest
+
+    def denied(*args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(agent_link, "Client", denied)
+    with pytest.raises(CoreError) as caught:
+        agent_link.connect({"address": "local-endpoint", "family": "AF_PIPE", "key": "00"}, {"kind": "agent", "session": "test"})
+    assert caught.value.code == "agent-link-failed"
+    assert "sandbox/ACL" in caught.value.args_["reason"]
+    assert "PermissionError" in caught.value.args_["reason"]

@@ -454,8 +454,30 @@ class JobSummary(TypedDict):
     actor: NotRequired[Actor]
 
 
+class StudioStatusParams(TypedDict):
+    refresh: NotRequired[bool]
+
+
 class JobsListParams(TypedDict):
     limit: NotRequired[int]
+
+
+class JobsBriefParams(JobsListParams):
+    offset: NotRequired[int]
+    session: NotRequired[str]
+
+
+class JobBrief(TypedDict):
+    id: str
+    kind: str
+    status: str
+    channel: str
+    created_at: str
+    finished_at: str | None
+    error: ErrorWire | None
+    items: JobItems | None
+    actor: Actor
+    queuedAhead: int | None
 
 
 class JobSubmitParams(TypedDict):
@@ -985,6 +1007,8 @@ class SpectrumParams(TypedDict):
 
 
 class Spectrum(TypedDict):
+    # Center Hz for each row, low to high.
+    frequencies: list[float]
     start: float
     end: float
     cols: int
@@ -1134,6 +1158,7 @@ class SampleFilter(TypedDict):
     starred: NotRequired[bool | None]
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
+    createdBySession: NotRequired[str]
     metrics: NotRequired[MetricFilter | None]
     # 范围行（标签条件）与查找栏的主标签表达式（07 §7.2–§7.3；UI_PLAN §2.3）
     tags: NotRequired[TagScope | None]
@@ -2246,6 +2271,7 @@ class FlattenOpened(TypedDict):
     duration: float
     defaults: FlattenDefaults
     alignment: FlattenAlignment | None
+    alignmentIssue: ErrorWire | None
     name: str
     # 内部拉平的初始内区（输入局部秒）与默认过渡
     inner: list[float]
@@ -2292,6 +2318,25 @@ class FlattenSubmitParams(TypedDict):
     options: FlattenOptions
     name: str
     sampleId: NotRequired[str | None]
+
+
+class FlattenPreview(TypedDict):
+    name: str
+    estimate: FlattenEstimate
+    creates: dict[str, int]
+    outputDuration: float
+    range: FlattenRange
+    normalizesLoudness: bool
+
+
+class FlattenManyItem(TypedDict):
+    id: str
+    options: FlattenOptions
+    name: NotRequired[str]
+
+
+class FlattenManyParams(TypedDict):
+    items: list[FlattenManyItem]
 
 
 class FlattenBatchParams(TypedDict):
@@ -2800,6 +2845,24 @@ class MetricsStatus(TypedDict):
     ready: int  # 已准备（有有效指标）
     stale: int  # 未准备（「后台准备当前范围指标」）
     missing: dict[str, int]  # 每个指标：缺失（未准备或未知）的采样数
+
+
+class SessionAssetsParams(TypedDict):
+    session: str
+    offset: NotRequired[int]
+    limit: NotRequired[int]
+
+
+class SessionAssetsPage(TypedDict):
+    total: int
+    offset: int
+    rows: list[AssetRecord]
+
+
+class SampleMetricsRow(TypedDict):
+    id: str
+    state: Literal["ready", "stale", "missing"]
+    metrics: dict[str, float | None] | None
 
 
 class MetricsPrepareParams(TypedDict):

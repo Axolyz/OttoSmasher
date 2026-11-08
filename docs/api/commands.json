@@ -141,6 +141,18 @@
    }
   },
   {
+   "name": "assets.listForSession",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Live sound assets created by a session (paged); does not delete or infer whether they are safe to delete.",
+   "params": {
+    "$ref": "#/$defs/SessionAssetsParams"
+   },
+   "result": {
+    "$ref": "#/$defs/SessionAssetsPage"
+   }
+  },
+  {
    "name": "assets.listForSource",
    "effect": "read",
    "layer": "library",
@@ -478,6 +490,18 @@
    }
   },
   {
+   "name": "flatten.preview",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Validate a flatten and preview intervals, cached target and created objects; no job, inference or library writes.",
+   "params": {
+    "$ref": "#/$defs/FlattenSubmitParams"
+   },
+   "result": {
+    "$ref": "#/$defs/FlattenPreview"
+   }
+  },
+  {
    "name": "flatten.rerunFailed",
    "effect": "job",
    "layer": "library",
@@ -523,6 +547,18 @@
    "summary": "Queue a batch flatten: one job, each sample targets independently (auto only).",
    "params": {
     "$ref": "#/$defs/FlattenBatchParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "flatten.submitMany",
+   "effect": "job",
+   "layer": "library",
+   "summary": "One job with per-sample options, including manual targets and inner ranges; each item validates independently (maximum 500).",
+   "params": {
+    "$ref": "#/$defs/FlattenManyParams"
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
@@ -637,6 +673,18 @@
    }
   },
   {
+   "name": "jobs.get",
+   "effect": "read",
+   "layer": "library",
+   "summary": "One job, including its full result and affected objects.",
+   "params": {
+    "$ref": "#/$defs/IdParams"
+   },
+   "result": {
+    "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
    "name": "jobs.list",
    "effect": "read",
    "layer": "library",
@@ -685,6 +733,21 @@
    },
    "result": {
     "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "jobs.summaries",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Recent jobs without large results or affected-id lists; queuedAhead counts earlier queued jobs in the same channel, not running jobs or time.",
+   "params": {
+    "$ref": "#/$defs/JobsBriefParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/JobBrief"
+    }
    }
   },
   {
@@ -1257,6 +1320,21 @@
    }
   },
   {
+   "name": "samples.metrics",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Cached acoustic metrics per sample; ready/stale/missing, never starts inference.",
+   "params": {
+    "$ref": "#/$defs/IdsParams"
+   },
+   "result": {
+    "type": "array",
+    "items": {
+     "$ref": "#/$defs/SampleMetricsRow"
+    }
+   }
+  },
+  {
    "name": "samples.plan",
    "effect": "read",
    "layer": "library",
@@ -1697,7 +1775,7 @@
    "name": "speech.alignResults",
    "effect": "read",
    "layer": "primitive",
-   "summary": "Per-item results of a speech.align job.",
+   "summary": "Per-item results of a speech.align job; paginated by offset/limit (default 100; continue until an empty page).",
    "params": {
     "$ref": "#/$defs/PrimitiveResultsParams"
    },
@@ -1842,7 +1920,7 @@
    "layer": "library",
    "summary": "PyMSS Studio installation and model list (submits a listing job when unknown).",
    "params": {
-    "$ref": "#/$defs/NoParams"
+    "$ref": "#/$defs/StudioStatusParams"
    },
    "result": {
     "$ref": "#/$defs/StudioStatus"
@@ -6450,6 +6528,40 @@
     "token"
    ]
   },
+  "FlattenManyItem": {
+   "title": "FlattenManyItem",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "options": {
+     "$ref": "#/$defs/FlattenOptions"
+    }
+   },
+   "required": [
+    "id",
+    "options"
+   ]
+  },
+  "FlattenManyParams": {
+   "title": "FlattenManyParams",
+   "type": "object",
+   "properties": {
+    "items": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/FlattenManyItem"
+     }
+    }
+   },
+   "required": [
+    "items"
+   ]
+  },
   "FlattenOpenParams": {
    "title": "FlattenOpenParams",
    "type": "object",
@@ -6502,6 +6614,16 @@
       }
      ]
     },
+    "alignmentIssue": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
     "defaults": {
      "$ref": "#/$defs/FlattenDefaults"
     },
@@ -6526,6 +6648,7 @@
    },
    "required": [
     "alignment",
+    "alignmentIssue",
     "defaults",
     "duration",
     "inner",
@@ -6627,6 +6750,46 @@
     "end",
     "label",
     "start"
+   ]
+  },
+  "FlattenPreview": {
+   "title": "FlattenPreview",
+   "type": "object",
+   "properties": {
+    "creates": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer"
+     }
+    },
+    "estimate": {
+     "$ref": "#/$defs/FlattenEstimate"
+    },
+    "name": {
+     "type": "string"
+    },
+    "normalizesLoudness": {
+     "type": "boolean"
+    },
+    "outputDuration": {
+     "type": "number"
+    },
+    "range": {
+     "enum": [
+      "first",
+      "inner",
+      "vowels",
+      "whole"
+     ]
+    }
+   },
+   "required": [
+    "creates",
+    "estimate",
+    "name",
+    "normalizesLoudness",
+    "outputDuration",
+    "range"
    ]
   },
   "FlattenResultRow": {
@@ -7604,6 +7767,82 @@
     "filename"
    ]
   },
+  "JobBrief": {
+   "title": "JobBrief",
+   "type": "object",
+   "properties": {
+    "actor": {
+     "$ref": "#/$defs/Actor"
+    },
+    "channel": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ErrorWire"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "finished_at": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "items": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/JobItems"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "queuedAhead": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "status": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "actor",
+    "channel",
+    "created_at",
+    "error",
+    "finished_at",
+    "id",
+    "items",
+    "kind",
+    "queuedAhead",
+    "status"
+   ]
+  },
   "JobDevice": {
    "title": "JobDevice",
    "description": "提交时冻结的设备设置（13 §13.1.2）。",
@@ -7915,6 +8154,22 @@
     "started_at",
     "status"
    ]
+  },
+  "JobsBriefParams": {
+   "title": "JobsBriefParams",
+   "type": "object",
+   "properties": {
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": []
   },
   "JobsListParams": {
    "title": "JobsListParams",
@@ -11470,6 +11725,9 @@
    "title": "SampleFilter",
    "type": "object",
    "properties": {
+    "createdBySession": {
+     "type": "string"
+    },
     "expr": {
      "type": "string"
     },
@@ -11593,6 +11851,47 @@
     }
    },
    "required": []
+  },
+  "SampleMetricsRow": {
+   "title": "SampleMetricsRow",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "metrics": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "state": {
+     "enum": [
+      "missing",
+      "ready",
+      "stale"
+     ]
+    }
+   },
+   "required": [
+    "id",
+    "metrics",
+    "state"
+   ]
   },
   "SampleOverride": {
    "title": "SampleOverride",
@@ -12258,6 +12557,9 @@
    "title": "SamplesListParams",
    "type": "object",
    "properties": {
+    "createdBySession": {
+     "type": "string"
+    },
     "expr": {
      "type": "string"
     },
@@ -13063,6 +13365,47 @@
     "job"
    ]
   },
+  "SessionAssetsPage": {
+   "title": "SessionAssetsPage",
+   "type": "object",
+   "properties": {
+    "offset": {
+     "type": "integer"
+    },
+    "rows": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/AssetRecord"
+     }
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "offset",
+    "rows",
+    "total"
+   ]
+  },
+  "SessionAssetsParams": {
+   "title": "SessionAssetsParams",
+   "type": "object",
+   "properties": {
+    "limit": {
+     "type": "integer"
+    },
+    "offset": {
+     "type": "integer"
+    },
+    "session": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "session"
+   ]
+  },
   "SessionParams": {
    "title": "SessionParams",
    "type": "object",
@@ -13857,6 +14200,12 @@
     "end": {
      "type": "number"
     },
+    "frequencies": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     }
+    },
     "nyquist": {
      "type": "number"
     },
@@ -13874,6 +14223,7 @@
     "cols",
     "data",
     "end",
+    "frequencies",
     "nyquist",
     "rows",
     "scale",
@@ -15608,6 +15958,16 @@
    "required": [
     "ok"
    ]
+  },
+  "StudioStatusParams": {
+   "title": "StudioStatusParams",
+   "type": "object",
+   "properties": {
+    "refresh": {
+     "type": "boolean"
+    }
+   },
+   "required": []
   },
   "SubtitleBatchRow": {
    "title": "SubtitleBatchRow",

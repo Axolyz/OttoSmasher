@@ -270,3 +270,17 @@ def test_separation_device_uses_frozen_studio_settings_and_retry_refreshes_them(
     non_sep = h.s.submit('selftest.sleep', {'seconds': 0})
     assert 'separationDevice' not in non_sep
     h.s.cancel(non_sep['id'])
+
+
+def test_brief_is_session_filtered_paged_and_has_actual_queue_order(h):
+    a = h.s.submit("selftest.sleep_model", {"seconds": 30})
+    b = h.s.submit("selftest.sleep_model", {"seconds": 30})
+    c = h.s.submit("selftest.sleep", {"seconds": 30})
+    h.db.execute("UPDATE job SET actor_session='chosen', result=? WHERE id IN (?, ?)", ('{"large": [1, 2, 3]}', a["id"], b["id"]))
+    h.s.promote(b["id"])
+    rows = h.s.brief(50, "chosen")
+    assert {row["id"] for row in rows} == {a["id"], b["id"]}
+    by_id = {row["id"]: row for row in h.s.brief()}
+    assert [by_id[j["id"]]["queuedAhead"] for j in (a, b, c)] == [1, 0, 0]
+    assert all("result" not in row and "affects" not in row for row in rows)
+    assert h.s.brief(1, "chosen", 1) == rows[1:2]

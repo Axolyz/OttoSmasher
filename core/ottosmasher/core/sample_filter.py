@@ -88,6 +88,9 @@ def where(conn: sqlite3.Connection, f: dict[str, Any] | None, reader: text_searc
     if f.get("sourceId"):
         clauses.append("a.source_id = ?")
         args.append(f["sourceId"])
+    if f.get("createdBySession") is not None:
+        clauses.append("s.actor_session = ?")
+        args.append(f["createdBySession"])
     text = str(f.get("text") or "").strip()
     if text:
         c, a = _text_clause(conn, reader, text)

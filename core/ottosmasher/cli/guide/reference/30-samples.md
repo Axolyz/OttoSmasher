@@ -48,3 +48,9 @@ Rename or remove a tag everywhere: `tags.globalPlan` → `edits.apply`.
 `samples.ids` (all matching ids) and `samples.list` (pages, `limit`/`offset`, `sort`) take the same filter:
 `natures`, `starred`, `text`, `sourceId`, `expr` (main expression), `tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`.
 Example: `otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`.
+
+## Cached acoustic metrics
+
+`samples.metrics {"ids": [...]}` reads existing metrics, with state ready/stale/missing per sample. It does not compute or refresh. Use `metrics.prepare` when needed; a successful analysis job does not imply every acoustic field exists. For pitch curves use measure.f0 on the selected sample asset range; glyphs in list rows are not a saved F0 curve. `spectrum.get` returns frequencies (Hz for each row center), scale, nyquist and byte data; decode bytes by the API clock and shape rather than assuming uniform frequency bins on log/mel scales.
+
+List sorting accepts created / name / source / duration. `createdBySession` filters live samples by their creation session and also works in samples.ids. Stable IDs identify tracks and samples even if names repeat.

@@ -22,8 +22,9 @@ class LinkClient:
     def from_env(cls) -> LinkClient:
         """给 agent 自己的脚本用（``otto run script.py``）：工作区、会话、来源都取 otto 设好的环境变量。"""
         from .. import resources
+        from . import instances
 
-        ws = os.environ.get("OTTO_WORKSPACE") or str(resources.default_workspace())
+        ws = os.environ.get("OTTO_WORKSPACE") or str(instances.workspace_of_running() or resources.default_workspace())
         return cls(Path(ws).expanduser(), kind=os.environ.get("OTTO_AGENT_KIND", "agent"), session=os.environ.get("OTTO_AGENT_SESSION"))
 
     def __init__(self, workspace: Path, *, kind: str = "agent", session: str | None = None) -> None:
@@ -87,6 +88,20 @@ class LinkClient:
             return res.get("r")
         e = res.get("e") or {}
         raise CoreError(e.get("code", "internal-error"), **(e.get("args") or {}))
+
+    def iter_results(self, method: str, job_id: str, page_size: int = 100):
+        """Read every page of a primitive result, including per-item failures; binary fields stay bytes."""
+        if method not in ("speech.alignResults", "text.analyzeResults", "f0.trackResults"):
+            raise ValueError("expected a paginated primitive result command")
+        if page_size < 1:
+            raise ValueError("page_size must be positive")
+        offset = 0
+        while True:
+            page = self.call(method, {"jobId": job_id, "offset": offset, "limit": page_size})
+            if not page:
+                return
+            yield from page
+            offset += len(page)
 
     def next_event(self, timeout: float | None = None) -> dict[str, Any] | None:
         """下一个事件（``{"e": 名称, "d": 数据}``）；timeout 秒内没有 → None。"""

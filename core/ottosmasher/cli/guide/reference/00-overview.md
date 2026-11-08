@@ -39,7 +39,7 @@ The installed `otto` talks to the installed app and `tools/otto` to the developm
 
 ### Set a session id once per task
 
-`export OTTO_AGENT_SESSION=<short-task-name>`. Your changes are recorded under it, and the whole session can be undone later (topic `undo`).
+`export OTTO_AGENT_SESSION=my-task` (bash), `$env:OTTO_AGENT_SESSION='my-task'` (PowerShell), or `--session my-task` before or after the subcommand. Your changes are recorded under it, and the whole session can be undone later (topic `undo`).
 
 ### Files you may touch
 
@@ -54,12 +54,15 @@ The installed `otto` talks to the installed app and `tools/otto` to the developm
 Only tasks that follow fixed steps can skip this, such as registering files or exporting samples the user named.
 Every other task needs you to hear the material: arranging an otomad rap, choosing a timbre, picking lines, cleaning subtitles, checking an alignment.
 
-Before such a task, call your audio tool on a short real clip, for example one spectrogram and one transcript. A listed tool is not a working tool. Report it as verified, unavailable or not yet tested.
-If it is unavailable, ask the user to run `otto setup audio --for <your tool>`. Do not judge sound from text.
+Before judging sound, make a real call on a short clip. An installed aligner, a tool listing, or an MCP configuration is not proof of working audio tools. Read `otto guide audio` for discovery, CLI/MCP setup, capability checks and failure handling. Do independent work while blocked, but report the missing evidence and do not present audio-dependent decisions as verified.
+
+### Agree on scope, precision and completion
+
+Read `otto guide workflow` for judgement tasks. If no explicit precision or applicable standing preference exists, ask once for quick / standard / fine, explaining the actual task-specific cost and checks. Follow explicit requirements without asking again. Read the matching skill and relevant references before planning its steps. Keep evidence and remaining work visible; `sources.prep` describes app readiness, not content quality.
 
 ### Output and exit codes
 
-Output is JSON on stdout; progress lines go to stderr.
+Output is UTF-8 JSON on stdout. Progress goes to stderr only with `--progress`; non-interactive calls omit the one-off session note. Check the exit code, not whether stderr is nonempty.
 
 | Exit code | Meaning |
 |---|---|
@@ -79,6 +82,7 @@ Binary fields such as pitch frames and spectrograms are base64 strings (`content
 ### Long jobs
 
 Add `--wait` to follow a returned job, search or video export to its end: `otto call speech.submit '{...}' --wait`.
+Use `jobs.summaries` for compact status (queuedAhead counts earlier queued work, not an ETA), `jobs.get` for a full job by id. Waiting prints the full final JSON for compatibility.
 A `succeeded` batch job does not mean every item worked; check per-item failures in the result (topic `concepts`).
 
 Separating an episode takes ten to several tens of minutes and batch analysis a few minutes. Do not poll the status over and over:
@@ -102,14 +106,17 @@ The user can turn this confirmation off in Settings › Command line & agent; th
 ```sh
 otto call samples.list '{"limit": 5}'
 otto call samples.list @query.json        # params from a file
-echo '{"text": "ゲーム"}' | otto call samples.list -
+echo '{"text": "ゲーム"}' | otto call samples.list -   # bash; PowerShell: see scripts
 otto run my_script.py                     # many calls at once: write a Python script (topic scripts)
 ```
+
+PowerShell/.cmd may lose JSON quotes. Prefer a UTF-8 `@params.json` or stdin, and see topic `scripts` for examples.
 
 Undeclared parameters are rejected (`bad-request` with the offending key). All ids are strings.
 
 ## More
 
+- `otto guide --lang en|zh-CN` selects the reference language; Chinese and English have the same topics.
 - `otto guide <topic>` prints a topic; `--all` prints the whole reference without skills or playbook.
 - `otto guide <skill>` prints a skill; `otto guide playbook` prints the playbook.
 - `otto setup playbook` creates the playbook from a template.

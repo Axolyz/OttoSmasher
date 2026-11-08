@@ -207,3 +207,20 @@ def test_delete_track_removes_library_file_and_keeps_derived(db, ws, env):
     assert not (ws.root / rel).exists()
     assert db.execute("SELECT input_asset_id FROM sound_asset WHERE id=?", (derived["id"],)).fetchone()[0] is None
     assert db.execute("SELECT COUNT(*) FROM media_file WHERE id=?", (first["media_file_id"],)).fetchone()[0] == 0
+
+
+def test_model_cache_changes_on_nested_files_and_can_refresh(env):
+    from pathlib import Path
+    h, svc, *_ = env
+    list_models(h, svc)
+    key = svc._key(svc.env())
+    nested = Path(svc.env().model_dir) / "new" / "deep"
+    nested.mkdir(parents=True)
+    (nested / "added.ckpt").write_bytes(b"model")
+    assert svc._key(svc.env()) != key
+    job = svc.status()["listingJob"]
+    h.wait_status(job, "succeeded")
+    assert svc.status()["listingJob"] is None
+    job2 = svc.status(refresh=True)["listingJob"]
+    assert job2 and job2 != job
+    h.wait_status(job2, "succeeded")
