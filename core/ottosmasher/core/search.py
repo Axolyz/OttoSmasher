@@ -497,7 +497,7 @@ class SearchService:
             (result_id, offset, limit),
         ).fetchall()
         sids = [m["sample_id"] for m in rows if m["sample_id"]]
-        cur = self.samples.rows(sids)
+        cur = self.samples.rows_by_id(sids)
         now = self._speech_snapshots(sids) if r["kind"] == "speech" else self._pitch_snapshots([s for s in sids if s in cur])
         out = []
         for m in rows:

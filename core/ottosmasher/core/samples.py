@@ -250,7 +250,7 @@ class SampleService:
             x["sample"]["people"] = ppl.get(x["sample"]["id"], [])
         return {"total": int(total), "rows": out}
 
-    def rows(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+    def rows_by_id(self, ids: list[str]) -> dict[str, dict[str, Any]]:
         """现有采样的列表行（固定结果翻页用；已删除的不在里面）。"""
         self._memo = {}
         out: dict[str, dict[str, Any]] = {}
@@ -287,16 +287,7 @@ class SampleService:
 
     def rows(self, ids: list[str]) -> list[dict[str, Any]]:
         """这些采样的列表摘要（与 ``list`` 的行相同）：浏览列表就地更新状态用（P8：不插入、不重排）。找不到的（已删除）不返回。"""
-        self._memo = {}
-        ids = list(dict.fromkeys(ids))[:500]
-        if not ids:
-            return []
-        marks = ",".join("?" * len(ids))
-        out = [self._row(r) for r in self.conn.execute(f"SELECT {self._COLUMNS}{self._FROM} WHERE s.id IN ({marks})", ids)]
-        ppl = effective_tags.people(self.conn, [r["id"] for r in out])
-        for r in out:
-            r["people"] = ppl.get(r["id"], [])
-        return out
+        return list(self.rows_by_id(list(dict.fromkeys(ids))[:500]).values())
 
     def ids(self, **f: Any) -> list[str]:
         """“全选全部匹配”（跨页）与检索范围：返回全部 ID（R8.9），与页偏移无关。"""
