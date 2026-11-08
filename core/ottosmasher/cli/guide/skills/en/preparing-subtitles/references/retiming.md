@@ -2,6 +2,8 @@
 
 The aligner fits the whole line into the window it receives and does not look for where the line is. Numbers are in `otto guide primitives`. If a fansub's rough timing exists, start from it; fine-tuning it has worked better than the automatic tools tried so far.
 
+Higher accuracy requires the text to match the speech in the selected window completely. Extra text that was not spoken can make alignment very inaccurate even when the time window is correct.
+
 ## Retime a line
 
 1. Roughly locate the speech with a transcript with word times (such as audio-mcp's `audio_transcribe`) or loudness on/offsets, then check boundaries against the full sentence and neighbouring dialogue. Times from an exported file map back through its `mapping` (`otto guide export`).

@@ -38,6 +38,8 @@ The first three are jobs: with `--wait` the call waits for the end and prints th
 
 ## When alignment works
 
+Higher accuracy requires the text to match the speech in the selected window completely. Extra text that was not spoken can make alignment very inaccurate even when the time window is correct.
+
 The aligner only fits the whole line **into the window you give**; it does not look for where the line is and never reports "no match". The window must hug the actual speech: 0.1–0.2 s of margin on each side.
 Tested on 2026-10-29 / 30 with 60 lines: widening the window to 0.5 s on each side moved the start or end by more than 0.3 s for about half of them; shifting the time by 0.5 s or more almost never aligned well.
 `edges` (blank time between the window ends and the first / last phoneme) and `longestPhone` in the result are facts, not verdicts: an edge near 0 may mean the speech is cut by the window; an absurdly long phoneme usually means the window is too wide.
