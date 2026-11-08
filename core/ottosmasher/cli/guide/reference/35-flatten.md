@@ -2,7 +2,9 @@
 
 ## Choose a useful piece of sound
 
-For instrument material, first establish whether the user wants one note or vowel, or a whole phrase. Consider register, attack, sustain and candidate count per track. Flattening changes pitch and retains the words and duration. For one note, locate a suitable vowel and select its usable range first. Song material in OP/ED can be sampled through an explicit asset selection.
+For an instrument sample to play from a keyboard, usually select a single vocal unit or a suitable vowel segment from speech before flattening. Keep the attack and sustain that suit the intended timbre, choosing boundaries from the actual sound. A whole phrase can help locate candidates; select the playable part for the finished sample. Song material in OP/ED can be sampled through an explicit asset selection.
+
+Flattening changes pitch while retaining words and duration: a whole phrase at one pitch still contains changing syllables, consonants and pauses. Flatten the whole phrase when the user wants that phrase effect. For instrument one-shots, first check that the selection contains the intended vocal unit, then consider register and candidate count per track.
 
 `samples.metrics {"ids"}` reads cached measures such as rmsDb, pitchSpread and voicedDuration; `metrics.prepare` computes missing ones. Compare representative candidates with audio tools. Temporary level-matched copies help when loudness differences get in the way. Try a few finished samples before processing a large set.
 
