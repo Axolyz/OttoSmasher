@@ -50,18 +50,28 @@ test("原素材列表：1500 个短音频的组只渲染看得见的行", async 
   expect(rendered).toBeLessThan(200);
   // 滚到底：最后一行可见、可以打开
   await page.getByTestId("source-row").first().hover();
-  const scrollState = () => page.getByTestId("source-list").getByRole("grid").evaluate((el) => ({
+  const grid = page.getByTestId("source-list").getByRole("grid");
+  const scrollState = () => grid.evaluate((el) => ({
     top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight,
-    rows: [...el.querySelectorAll('[data-testid="source-row"]')].map((r) => ({ text: r.textContent, height: r.getBoundingClientRect().height })),
+    rows: [...el.querySelectorAll('[data-testid="source-row"]')].map((r) => r.textContent),
   }));
-  console.log("before wheel", JSON.stringify(await scrollState()));
-  await page.mouse.wheel(0, 200000);
-  await expect.poll(async () => (await scrollState()).top).toBeGreaterThan(0);
-  console.log("after wheel", JSON.stringify(await scrollState()));
+  const last = page.getByTestId("source-row").filter({ hasText: "se_0000" });
+  const scrolls: unknown[] = [];
   try {
-    await expect(page.getByTestId("source-row").filter({ hasText: "se_0000" })).toBeVisible({ timeout: 10000 });
+    // wheel 返回时滚动和虚拟行测量未必完成；分段滚动，按实际可见结果判断。
+    await expect.poll(async () => {
+      if (await last.isVisible()) return true;
+      const state = await scrollState();
+      scrolls.push(state);
+      await page.mouse.wheel(0, state.viewport * 3);
+      return false;
+    }, { timeout: 15000, intervals: [100] }).toBe(true);
+    await last.click();
+    await expect(page.getByTestId("top-sources")).toContainText("se_0000");
+    expect(await page.getByTestId("source-row").count()).toBeLessThan(200);
   } finally {
-    console.log("final scroll", JSON.stringify(await scrollState()));
+    console.log("scroll result", JSON.stringify({ steps: scrolls.length, final: await scrollState() }));
+    await test.info().attach("scroll-state", { body: JSON.stringify(scrolls), contentType: "application/json" });
     await app.close();
   }
 });
