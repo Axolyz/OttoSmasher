@@ -7,6 +7,8 @@
 
 **0.1.4**（2026-11-04，macOS arm64 本地构建，Windows x64 预览版云端构建；已在 GitHub 发布；所有者日用这个版本）。发布方式见 [DEVELOPMENT.md](DEVELOPMENT.md)「发布」，版本号与发布说明的规矩见 DECISIONS §14。
 
+0.1.8 候选已推送（2026-11-08），两平台云端验证进行中，完成后提交发布草稿给所有者过目；0.1.5–0.1.7 未公开发布。
+
 ## 2. 接下来
 
 按所有者近期的方向，没有排定先后；开工前和所有者确认。
@@ -53,3 +55,5 @@
 | L71 | 音高零命中的分阶段诊断：音域／八度、容差、有效窗口与未准备的分别计数，帮助选择查询范围和参数 | 2026-11-08 agent 反馈，未实现 |
 | L74 | 语音不可用原因的统一解释：speech.sample blocked、samples.list analysis:none 与预览／任务失败的关系 | 2026-11-08 部分在 flatten.alignmentIssue 透出；其余未实现 |
 | L75 | 本轮 agent 工作流改动的 Windows 实机与较低能力模型复测：PowerShell/IPC、缩放、实际按精度完成；audio-mcp 转写和真实字幕完整流程质量仍未验证 | 接入回归见 DEVELOPMENT「测试」，内容方法见 history/retiming-and-speakers-research.md；使用限制同步 README「已知问题」 |
+
+| L76 | GitHub 已停用 macOS 14 runner，生成 macOS 媒体工具的辅助工作流无法运行；本次发布沿用固定并校验的现有媒体工具，不受影响。下次更新依赖前需要解决在支持的构建机上生成兼容 macOS 14 的二进制；两个辅助工作流在版本标签上也会被触发（GitHub 对标签不应用 paths 筛选） | 后续调整生成方式与触发范围；不直接在 macOS 15 上取 Homebrew 成品来替换现有包 |
