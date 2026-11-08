@@ -1,7 +1,7 @@
 # AGENTS.md — OttoSmasher 开发规则
 
 > 在本仓库工作的开发者（人或 AI 代理）都遵守本文件；`CLAUDE.md` 只是指向这里。
-> OttoSmasher 是做音MAD 的素材工作台：Electron 界面 + Python Core + 命令行 `otto`。0.1.x 已发布（macOS；Windows 从 0.1.4 起发预览版），所有者在日常使用发布版。
+> OttoSmasher 是做音MAD 的素材工作台：Electron 界面 + Python Core + 命令行 `otto`。0.1.x 已发布（macOS；Windows 从 0.1.4 起发布，现为正式版），所有者在日常使用发布版。
 > 本机私有的位置（素材、日常工作区、不要打开的旧目录）写在本地的 `AGENTS.local.md`（不进 Git）。
 
 ## 1. 文档地图

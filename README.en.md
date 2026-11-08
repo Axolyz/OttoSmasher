@@ -17,7 +17,7 @@ OttoSmasher is a workstation for otoMAD material. It keeps lines, samples and so
 
 OttoSmasher does not generate music or create on your behalf. It cuts the repetitive work in processing and managing material; what to choose, how to arrange it and what to express stay with you.
 
-**The project is at an early stage and the Windows version is a preview, so expect bugs and rough edges.**
+**The project is at an early stage, so expect bugs and rough edges.**
 
 Download: [Releases](https://github.com/Axolyz/OttoSmasher/releases) (macOS on Apple silicon, Windows 10 / 11 x64). See [Installation](#installation) for the steps.
 
@@ -195,7 +195,7 @@ The project is mature enough that cutting and assembling phonemes in bulk, and e
    ```
    The app is not notarized by Apple, so macOS blocks it unless you run this command. Run it again after each new download. You can also go to System Settings → Privacy & Security after it is blocked and click Open Anyway.
 
-### Windows (preview)
+### Windows
 
 1. Download `OttoSmasher-<version>-windows-x64.zip` from [Releases](https://github.com/Axolyz/OttoSmasher/releases) and check the SHA-256 with `Get-FileHash OttoSmasher-*.zip`.
 2. Unzip it to any folder and run `OttoSmasher.exe`. The package is not signed, so when SmartScreen blocks it, click More info → Run anyway.

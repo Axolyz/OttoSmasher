@@ -8,7 +8,7 @@
 | 系统 | 文件 | SHA-256 |
 |---|---|---|
 | macOS 15 或更新（Apple 芯片） | `{zip}` | `{sha256}` |
-| Windows 10 / 11 x64（预览版） | `{windows_zip}` | `{windows_sha256}` |
+| Windows 10 / 11 x64 | `{windows_zip}` | `{windows_sha256}` |
 
 ## 这一版的改动
 
@@ -21,7 +21,7 @@
 1. 解压，把 `OttoSmasher.app` 拖进“应用程序”。
 2. 第一次打开前在终端运行 `xattr -dr com.apple.quarantine /Applications/OttoSmasher.app`，再双击打开。应用没有经过 Apple 公证，不运行这条命令会被 macOS 拦下；每次替换新版本后都要再运行一次。
 
-**Windows（预览版）**
+**Windows**
 
 1. 解压到任意文件夹，运行 `OttoSmasher.exe`。
 2. 安装包没有签名，SmartScreen 拦下时点“更多信息 → 仍要运行”。
@@ -36,7 +36,7 @@ OttoSmasher 是 GPL-3.0-or-later。随包的拉平声码器 PC-NSF-HiFiGAN 是�
 
 ## 已知限制
 
-- Windows 是预览版。这个包通过了云端的自动测试，但没有在实机上重新测过；启动时自动安装 `otto`、`otto open` 和粘贴到 REAPER 在 Windows 实机上还没有验证。
+- Windows 基础功能已有所有者实机验证，按正式版发布。本轮新增改动通过云端验证，尚未重新实机测试；命令行自动安装、`otto open` 和 REAPER 新交接方式的实机复测见路线图。
 - Windows 上按着 Alt 拖出采样，放到资源管理器不行，松开 Alt 再放可以。
 - 语音分析目前只支持日语。
 - 用户说明目前只有中文。

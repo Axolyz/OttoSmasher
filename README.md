@@ -17,7 +17,7 @@ OttoSmasher 是一个音 MAD 素材工作站。它可以从番剧、视频、游
 
 OttoSmasher 不生成音乐，也不替你创作。它负责让素材处理和素材管理少一些重复劳动，选什么、怎么编、想表达什么，仍然由你决定。
 
-**当前项目仍处于早期版本，Windows 版为预览版，可能存在 BUG 或不稳定的问题。**
+**当前项目仍处于早期版本，可能存在 BUG 或不稳定的问题。**
 
 下载：[发布页](https://github.com/Axolyz/OttoSmasher/releases)（macOS Apple 芯片、Windows 10 / 11 x64）。安装步骤见[安装](#安装)。
 
@@ -193,7 +193,7 @@ Codex(沙箱) + GPT 6.1 Sol 是本项目推荐的最优 Agent 配置，也是作
    ```
    应用没有经过 Apple 公证，不运行这条命令会被 macOS 拦下。每次下载新版本后都需要重新运行。也可以在被拦下后，到“系统设置 → 隐私与安全性”点击“仍要打开”。
 
-### Windows（预览版）
+### Windows
 
 1. 从[发布页](https://github.com/Axolyz/OttoSmasher/releases)下载 `OttoSmasher-<版本>-windows-x64.zip`，用 `Get-FileHash OttoSmasher-*.zip` 核对 SHA-256。
 2. 解压到任意文件夹，运行 `OttoSmasher.exe`。安装包没有签名，SmartScreen 拦下时点击“更多信息 → 仍要运行”。

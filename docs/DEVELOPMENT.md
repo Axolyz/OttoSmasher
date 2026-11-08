@@ -66,7 +66,7 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 
 ## 发布
 
-两个平台的发布包都由云端构建（macOS 在 macOS 15 上，Windows x64 是预览版），传到同一个 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
+两个平台的发布包都由云端构建（macOS 在 macOS 15 上，Windows x64 为正式版），传到同一个 GitHub Release（所有者说要发才发）；除 PyMSS Studio 外模型随包。
 
 GitHub 已于 2026-11-02 停用 macOS 14 runner，现用 macOS 15。打包仍检查二进制的最低系统版本；本轮冒烟不代表在 macOS 14 上实测通过。固定媒体工具沿用此前在 macOS 14 上生成并校验的版本。
 
