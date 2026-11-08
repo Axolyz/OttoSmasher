@@ -8,4 +8,4 @@ import os
 # 只认 import onnxruntime 之前的环境变量（disable_telemetry_events() 拦不住），所以放在包入口；任务进程继承。
 os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"

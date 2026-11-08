@@ -1,7 +1,7 @@
 {
   "name": "ottosmasher",
   "productName": "OttoSmasher",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "音MAD 素材工作站",
   "main": "out/main/main.cjs",
