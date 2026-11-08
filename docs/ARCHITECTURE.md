@@ -625,6 +625,9 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
 - `docs/api/commands.json`（目录版本 3：每条带 `layer`）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
 - 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包里是 `Contents/Resources/bin/otto`）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
   `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `skills` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
+- agent 有两条独立调用路径：`otto`／`LinkClient` 经本地端点调用 Otto Core；`audio_probe.py` 则启动外部 audio-mcp 子进程，通过 stdin/stdout 调用它分析音频文件。后者是音频工具客户端，Otto 的控制接口仍为命令行。
+- `LinkClient.from_env()` 优先用 OTTO_WORKSPACE，未设置时复用 CLI 的同种运行实例发现规则；工作区名称和路径由运行实例提供。
+- 返回形状沿用命令目录：speech.align 直接返回 JobSummary，separation.submit 的摘要位于 job 字段，sources.prep 是七个各含 ok 的顶层项。CLI JSON 中的二进制为 base64，Python 客户端为 bytes。
 - 轻量读取：`jobs.summaries` 分页返回无大结果的任务与同通道排队数，`jobs.get` 取完整单项；`samples.metrics` 只读带有效性状态的声学缓存；创建物按已有 actor_session 查询。拉平沿用原 open / estimate / submit / submitBatch，任务脚本可组合这些命令。
 - 为外部调用挪进 Core 的业务（原来在界面里拼）：`tracks.setDefault`、`tracks.setRole`、`visuals.bind`。语音检索查询的默认值 Core 本来就有（`parse_query`），没有挪。
 

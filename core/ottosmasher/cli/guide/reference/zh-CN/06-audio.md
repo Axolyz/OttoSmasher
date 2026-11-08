@@ -4,7 +4,7 @@
 
 先找宿主已有的 audio-mcp 工具。没有时，`otto setup audio --for other` 会给出接法。audio-mcp 0.4.0 的 view/analyze/timeline/melody 也能通过 CLI 调用，转写走 MCP。
 
-字幕 skill 附带 scripts/audio_probe.py，是供未接 MCP 的宿主使用的通用 stdio 客户端。用 otto guide preparing-subtitles 找到它的路径：
+字幕 skill 附带 scripts/audio_probe.py，会启动外部 audio-mcp 子进程，通过标准输入输出调用它，适合宿主没有现成 MCP 连接时使用。Otto 本身仍由命令行控制。用 otto guide preparing-subtitles 找到它的路径：
 
 ```sh
 uv run /path/to/scripts/audio_probe.py requests.json results.json

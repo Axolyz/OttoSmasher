@@ -4,7 +4,7 @@
 
 Start with the audio-mcp tools exposed by your agent host. If they are absent, `otto setup audio --for other` shows the available connection methods. In audio-mcp 0.4.0, view/analyze/timeline/melody also have CLI commands; transcription uses MCP.
 
-The subtitle skill includes `scripts/audio_probe.py`, a portable stdio client for hosts without an MCP connection. Find its path with `otto guide preparing-subtitles`:
+The subtitle skill includes `scripts/audio_probe.py`. It starts an external audio-mcp process and calls it through stdin/stdout, useful for hosts without their own MCP connection. Otto itself is still controlled through the CLI. Find its path with `otto guide preparing-subtitles`:
 
 ```sh
 uv run /path/to/scripts/audio_probe.py requests.json results.json

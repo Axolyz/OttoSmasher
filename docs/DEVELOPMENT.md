@@ -6,6 +6,8 @@
 - 架构：[ARCHITECTURE.md](ARCHITECTURE.md)；现行决定（含界面规则）：[DECISIONS.md](DECISIONS.md)；路线图与未结事项：[ROADMAP.md](ROADMAP.md)
 - 原始需求规格：[spec/](spec/README.md)（文档与代码里“规格 xx §y”“R4.4”“S11.3”指它）；过程记录：[history/](history/README.md)
 
+日常改动和验证结果记在提交说明里。需要长期维护的决定更新 DECISIONS，接口和进程关系更新 ARCHITECTURE，未结事项更新 ROADMAP；字幕与说话人方法的经验追加到现有 [研究记录](history/retiming-and-speakers-research.md)。
+
 ## 准备环境（macOS arm64）
 
 全部装在仓库内（AGENTS.md §4）：不用系统的 `uv` / `npm`，用 `tools/uv`、`tools/npm`，它们把缓存和安装目录设到仓库里。
@@ -53,6 +55,13 @@ tools/npm run e2e                                     # Playwright 驱动真实 
 - `OTTO_STRICT_API=1`：Core 核对每个命令的返回值与命令目录一致。
 - Core 命令改了之后：`.venv/bin/python -m ottosmasher.api.catalog` 重新生成 `docs/api/commands.json` 与 `app/renderer/api/generated.ts`。
 - 3 万条合成库的性能测试：`OTTO_PERF_WS=.cache/perf/ws .venv/bin/python -m pytest core/tests/perf -s`。
+
+### Agent 接入相关回归
+
+- CLI 参数、会话、工作区发现及返回结构：`core/tests/integration/test_cli.py`、`core/tests/unit/test_cli_instances.py`、`core/tests/unit/test_cli_guide.py`。
+- 模型列表缓存、拉平和缓存读取：`core/tests/unit/test_separation.py`、`core/tests/unit/test_flatten_service.py`、`core/tests/unit/test_acoustic.py`；继续使用 fake_studio 和合成音频。
+- 外部 audio-mcp：用短音频分别试 view、analyze 和任务需要的 transcribe，保存输出及时间映射；调用失败时保留逐项错误。此前合成短 WAV 的 view／analyze 和错误传递已通过，转写及真实字幕完整流程另做内容验证。
+- Windows 实机复测：在原 agent 宿主确认 JSON 参数、命名管道权限、缩放和实际声音；第三方宿主的 Full Access 接法按各自环境验证。较低能力模型的流程遵循也需通过实际任务观察。
 
 ## 发布
 
