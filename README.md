@@ -173,7 +173,7 @@ Codex(沙箱) + GPT 6.1 Sol 是本项目推荐的最优 Agent 配置，也是作
 
 | | |
 |---|---|
-| 系统 | macOS 14 或更新（Apple 芯片）；Windows 10 / 11 x64（预览版，支持 DirectML 显卡加速，没有独显时使用 CPU） |
+| 系统 | macOS 15 或更新（Apple 芯片）；Windows 10 / 11 x64（支持 DirectML 显卡加速，没有独显时使用 CPU） |
 | 磁盘 | 应用约 1.2 GB（含模型）；约 4000 个采样时工作区附带数据约 4 GB，不含原素材 |
 | 语言 | 界面支持简体中文和英文；语音分析目前只支持日语 |
 | 人声分离 | 需要 [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases) |

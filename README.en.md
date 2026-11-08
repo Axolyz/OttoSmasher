@@ -175,7 +175,7 @@ The project is mature enough that cutting and assembling phonemes in bulk, and e
 
 | | |
 |---|---|
-| System | macOS 14 or later (Apple silicon); Windows 10 / 11 x64 (preview, with DirectML GPU acceleration, or CPU without a discrete GPU) |
+| System | macOS 15 or later (Apple silicon); Windows 10 / 11 x64 (with DirectML GPU acceleration, or CPU without a discrete GPU) |
 | Disk | About 1.2 GB for the app, including models; about 4 GB of workspace data at around 4000 samples, not counting the sources |
 | Language | The interface is in Simplified Chinese and English; speech analysis supports Japanese only for now |
 | Vocal separation | Requires [PyMSS Studio](https://github.com/pymss-project/pymss-studio/releases) |
