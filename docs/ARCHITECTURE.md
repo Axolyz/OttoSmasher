@@ -625,7 +625,7 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
 - `docs/api/commands.json`（目录版本 3：每条带 `layer`）：命令（作用类别、danger、参数与返回 Schema）、**事件**（`api/events.py`：名称 + 负载 Schema；测试扫描源码里的 `emit` 检查登记齐全）、错误码表。
 - 命令行 `otto`（`core/ottosmasher/cli/`；开发期 `tools/otto` / `tools/otto.cmd`；发布包里是 `Contents/Resources/bin/otto`）：`status`、`commands`、`describe`、`errors`、`call`（`--wait` 跟到任务 / 检索 / 视频导出结束）、
   `wait`、`events`、`run`（用应用的 Python 跑 agent 自己的脚本，`LinkClient.from_env()` 取工作区与会话）、`guide`、`session`、`setup`（`playbook` / `skills` / `audio`）。stdout 只写 JSON；退出码 0 成功 / 1 业务错误 / 2 用法、连接、参数 / 3 所有者拒绝或超时。导出文件名的固定词取界面同一组文案。
-- agent 有两条独立调用路径：`otto`／`LinkClient` 经本地端点调用 Otto Core；`audio_probe.py` 则启动外部 audio-mcp 子进程，通过 stdin/stdout 调用它分析音频文件。后者是音频工具客户端，Otto 的控制接口仍为命令行。
+- agent 通过 `otto`／`LinkClient` 经本地端点调用 Otto Core；外部音频工具通过 agent 宿主的 MCP 功能接入。Otto 提供音频导出及时间映射，宿主管理音频工具的连接和依赖。
 - `LinkClient.from_env()` 优先用 OTTO_WORKSPACE，未设置时复用 CLI 的同种运行实例发现规则；工作区名称和路径由运行实例提供。
 - 返回形状沿用命令目录：speech.align 直接返回 JobSummary，separation.submit 的摘要位于 job 字段，sources.prep 是七个各含 ok 的顶层项。CLI JSON 中的二进制为 base64，Python 客户端为 bytes。
 - 轻量读取：`jobs.summaries` 分页返回无大结果的任务与同通道排队数，`jobs.get` 取完整单项；`samples.metrics` 只读带有效性状态的声学缓存；创建物按已有 actor_session 查询。拉平沿用原 open / estimate / submit / submitBatch，任务脚本可组合这些命令。
@@ -636,7 +636,7 @@ Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建�
 - **说明书** `core/ottosmasher/cli/guide/reference/`（`otto guide --lang en|zh-CN`，中英双语；中文在 `zh-CN/`）：只讲怎么正确操作应用——对象、命令、应用会怎样、硬规定。随版本走，测试核对提到的命令存在、示例参数合法。
 - **skill** `guide/skills/{en,zh-CN}/<名字>/` 加 `guide/skills/common/<名字>/`（语言无关的文件，如 `scripts/speaker_embed.py`）：不确定的流程，格式是 Agent Skills。`cli/skills.py` 把它们同步到 `<工作区>/Agent/skills/`，清单是其中的 `.otto-skills.json`（语言、每个文件装入时和提示过的哈希）。更新规则见 DECISIONS §12。
   `otto status`、`otto guide`、设置 › 命令行与 agent（`agent.skills`）都会同步。`otto guide` 末尾列出每个 skill 的名字、用途和路径，agent 用到时才读全文。`otto setup skills` 同步并列出 skill 里提到、应用已没有的命令。`otto guide notes` 是旧名字的别名。
-  带外部模型依赖的脚本由 agent 用自己的环境跑（PEP 723 内联依赖，`uv run`）；依赖应用包的机械助手用 `otto run` 的 Python 客户端连接 Core，不在 Core 或界面主进程中执行。字幕统计和核验方法由 agent 根据当前来源选择。audio_probe.py 是外部 audio-mcp 的便携 stdio 客户端，传递请求、响应、错误和图片，模型由环境或调用参数指定。测试核对两种语言逐节对应、符合规范、提到的命令存在，以及不需要模型的那部分脚本。
+  带外部模型依赖的脚本由 agent 用自己的环境跑（PEP 723 内联依赖，`uv run`）；依赖应用包的机械助手用 `otto run` 的 Python 客户端连接 Core，不在 Core 或界面主进程中执行。字幕统计和核验方法由 agent 根据当前来源选择。测试核对两种语言逐节对应、符合规范、提到的命令存在，以及不需要模型的那部分脚本。
 - **用户的约定** `<工作区>/Agent/playbook.md`（`otto guide playbook`；`otto setup playbook` 从 `guide/playbook/<lang>.md` 模板生成）：优先于 skill，改不了说明书的硬规定。
 - 交付（所有者 2026-10-30）：仓库托管 `skills/ottosmasher/SKILL.md`——只是入口（怎么找到 otto、先看 `otto guide`），不抄说明书正文，所以不会过期；
   可选，想装时 agent 按自己工具的方式装到**项目级**（不装全局，避免污染别的项目的 skill 列表）。设置 › 命令行与 agent 显示 otto 的位置、手动重装 otto 和「复制给 agent 的开场白」（让 agent 先跑 `otto status`、`otto guide`，不用下载）。

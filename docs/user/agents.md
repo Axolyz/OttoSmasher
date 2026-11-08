@@ -86,7 +86,7 @@ agent 也可以出编排方案，但目前更推荐它做上游的素材处理�
 
 很多 agent 听不到声音。除了登记文件、导出指定采样这类按固定步骤做的事，agent 做需要判断的任务都要先接上音频工具，比如编排音 MAD rap、挑音色、挑台词、洗字幕。
 
-运行 `otto setup audio --for claude-code|codex|other`，它会给出接上 [audio-mcp](https://pypi.org/project/audio-mcp/) 的命令或配置。接上后，agent 能看频谱图、量响度、做带时间的转写。先用一段短音频试好任务需要的能力；宿主没有 MCP 连接时，也可以用指南里的 CLI 或通用 stdio 客户端接入。
+运行 `otto setup audio --for claude-code|codex|other`，它会给出接上 [audio-mcp](https://pypi.org/project/audio-mcp/) 的命令或配置。接上后，agent 能看频谱图、量响度、做带时间的转写。通过 agent 宿主配置所选音频工具，再用短片段试好任务需要的能力。audio-mcp 是当前示例，也可以换成其他工具；部分能力还能通过工具自己的 CLI 调用。
 
 这需要先装好 `uv`。第一次使用会下载程序和 Whisper 模型，约 1.6 GB。它只用 CPU，所以长音频转写较慢。
 

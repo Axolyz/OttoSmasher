@@ -4,11 +4,7 @@
 
 先找宿主已有的 audio-mcp 工具。没有时，`otto setup audio --for other` 会给出接法。audio-mcp 0.4.0 的 view/analyze/timeline/melody 也能通过 CLI 调用，转写走 MCP。
 
-字幕 skill 附带 scripts/audio_probe.py，会启动外部 audio-mcp 子进程，通过标准输入输出调用它，适合宿主没有现成 MCP 连接时使用。Otto 本身仍由命令行控制。用 otto guide preparing-subtitles 找到它的路径：
-
-```sh
-uv run /path/to/scripts/audio_probe.py requests.json results.json
-```
+通过 agent 宿主的 MCP 接入功能连接所选音频工具。audio-mcp 是当前示例，也可换成能提供任务所需波形、测量或转写的工具，连接和依赖由宿主管理。Otto 继续通过命令行提供素材、音频导出和时间映射。
 
 CLI 语法可以先查帮助：
 
@@ -17,7 +13,7 @@ uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp view --help
 uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp analyze --help
 ```
 
-对一个真实短片段跑 view，打开返回的图片。客户端会把图片存到 JSON 输出旁边，并打印路径。再试任务需要的其他能力，例如洗字幕时的 transcribe，记下哪些调用成功、哪些还需配置。转写为空时，可以扩大窗口或对照原音核实。
+对一个真实短片段试用可视化工具，打开返回的图片。再试任务需要的其他能力，例如洗字幕时的 transcribe，记下哪些调用成功、哪些还需配置。转写为空时，可以扩大窗口或对照原音核实。
 
 ## 准备输入
 

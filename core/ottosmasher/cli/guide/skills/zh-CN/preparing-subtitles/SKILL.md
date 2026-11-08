@@ -11,6 +11,10 @@ description: "为 OttoSmasher 准备字幕：清洗文字、修正时间、拆�
 
 沿用用户要求和适用偏好；精度还没定时，按 `otto guide workflow` 问一次快速／标准／精细。这会决定核验范围和投入，细节见 `references/verification.md`。
 
+- **快速**：清格式、查明显偏移，核对代表片段。
+- **标准**：全范围筛查，核重点疑点，再抽查其他场景。
+- **精细**：逐项核完全部可疑起止、换人和重叠，抽查正常场景；也可追加逐句全检。
+
 ## 推荐顺序
 
 做完整流程时，放在同一轮做完，最后只产出一份字幕，因为后面的步骤依赖前面的结果。下面是参考路线，工具和顺序可按素材调整：
@@ -38,5 +42,5 @@ description: "为 OttoSmasher 准备字幕：清洗文字、修正时间、拆�
 ## 开工前
 
 1. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离，因为拆字幕要听得清。
-2. 按总览的要求检查音频工具，接法见 `otto guide audio`；宿主未接 MCP 时，可用 `scripts/audio_probe.py`。
+2. 按总览的要求检查音频工具，接法见 `otto guide audio`。
 3. 改字幕前都留一份 `backup_` 原件。同名的 `.ass` 可以留着。

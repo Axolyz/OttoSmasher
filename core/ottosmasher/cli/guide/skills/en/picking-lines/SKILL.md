@@ -7,6 +7,10 @@ description: "Find dialogue by meaning, character, delivery or emotion across an
 
 Choose scope and precision with otto guide workflow and try the audio tools with otto guide audio. Follow the user's requirements: who says each part, the desired emotion, whether lines may be recontextualized and which tags to add. Search each side of a dialogue separately: someone praising a character and the character introducing herself are different candidates.
 
+## Scope and precision
+
+If there is no explicit precision or applicable preference, ask once: **quick** gives a small initial selection, **standard** broadens the search and compares representative candidates, and **fine** repeats the search and reviews all agreed candidates. Explain the added effort and let the user choose the scope.
+
 ## Find candidates
 
 textLayer.search suits known phrases; textLayer.list with a local script helps collect broader semantic candidates. Use keywords to narrow the range, then expand to synonyms, reactions and paraphrases. When results cluster in a few scenes, explore other episodes and situations. If the exact line is absent, offer alternatives with a similar meaning.

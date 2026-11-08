@@ -11,6 +11,10 @@ Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue hold
 
 Follow the user's requirements and applicable preferences. If precision is open, use `otto guide workflow` to ask once for quick / standard / fine. This sets the review coverage and effort; see `references/verification.md`.
 
+- **Quick**: clean formatting, check obvious offsets and review representative clips.
+- **Standard**: screen the full scope, review high-risk cases and sample other scenes.
+- **Fine**: review every suspicious boundary, turn and overlap, sampling normal scenes; every-line review can be added.
+
 ## Recommended order
 
 For a full job, do these in one pass and produce one final subtitle file, because later steps depend on earlier ones. This is a suggested route; adapt the tools and order to the material:
@@ -38,5 +42,5 @@ Read only what the task needs:
 ## Before you start
 
 1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none, because splitting cues needs a clear voice.
-2. Check your audio tool as the overview describes; connection methods are in `otto guide audio`. scripts/audio_probe.py also works for hosts without MCP access.
+2. Check your audio tool as the overview describes; connection methods are in `otto guide audio`.
 3. Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.

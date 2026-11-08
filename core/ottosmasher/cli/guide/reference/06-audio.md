@@ -4,11 +4,7 @@
 
 Start with the audio-mcp tools exposed by your agent host. If they are absent, `otto setup audio --for other` shows the available connection methods. In audio-mcp 0.4.0, view/analyze/timeline/melody also have CLI commands; transcription uses MCP.
 
-The subtitle skill includes `scripts/audio_probe.py`. It starts an external audio-mcp process and calls it through stdin/stdout, useful for hosts without their own MCP connection. Otto itself is still controlled through the CLI. Find its path with `otto guide preparing-subtitles`:
-
-```sh
-uv run /path/to/scripts/audio_probe.py requests.json results.json
-```
+Connect the chosen audio tool through the agent host's MCP support. audio-mcp is the current example; another tool can provide the waveform, measurements or transcription needed by the task. The host manages its connection and dependencies. Otto continues to provide the library, audio exports and time mapping through its CLI.
 
 Check the CLI syntax with:
 
@@ -17,7 +13,7 @@ uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp view --help
 uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp analyze --help
 ```
 
-Try view on a real short clip and open the returned image. The client saves images beside its JSON output and prints their paths. Also try the capabilities the task needs, such as transcribe for subtitle content checks. Note which calls worked and which still need setup. An empty transcript may need a wider window or a check against the original audio.
+Try the visualization tool on a real short clip and open the returned image. Also try the capabilities the task needs, such as transcribe for subtitle content checks. Note which calls worked and which still need setup. An empty transcript may need a wider window or a check against the original audio.
 
 ## Prepare the input
 

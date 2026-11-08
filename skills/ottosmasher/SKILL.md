@@ -24,3 +24,7 @@ Try these in order:
 4. Read a skill only when your task matches its description in that list. Those skills are files in the workspace, and the user may have edited them.
 
 For judgement tasks, use `otto guide workflow` to choose scope and precision, then read the relevant skill and references. Try the needed audio tools on a short real clip as described in `otto guide audio`.
+
+## Precision for judgement tasks
+
+If the user has not specified precision and no applicable preference exists, ask once for **quick / standard / fine** (快速／标准／精细): a usable first pass, broader screening with focused review, or review of every suspicious case/candidate with samples of the rest. Explain the difference for the task; details are in `otto guide workflow`.
