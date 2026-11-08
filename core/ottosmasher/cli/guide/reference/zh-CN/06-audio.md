@@ -13,6 +13,8 @@ uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp view --help
 uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp analyze --help
 ```
 
+优先复用宿主已有的连接；需要 CLI 时，沿用它的包版本、extras、Python 和缓存配置。`uvx` 是 `uv tool run` 的别名，会在隔离的缓存环境里运行工具，同一配置后续通常直接复用，不必另建环境或重复安装。`audio-mcp` 不在 PATH、`uv tool list` 没列出它，都不能说明 uvx 没有可用缓存；直接用原来的 uvx 命令检查即可。缓存由 uv 管理，使用正常时沿用现状；升级或排错时再按需要刷新。
+
 对一个真实短片段试用可视化工具，打开返回的图片。再试任务需要的其他能力，例如洗字幕时的 transcribe，记下哪些调用成功、哪些还需配置。转写为空时，可以扩大窗口或对照原音核实。
 
 ## 准备输入

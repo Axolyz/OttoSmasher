@@ -13,6 +13,8 @@ uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp view --help
 uvx --from 'audio-mcp[speech]==0.4.0' audio-mcp analyze --help
 ```
 
+Reuse the host connection first. For CLI calls, keep its package version, extras, Python and cache configuration. `uvx` aliases `uv tool run` and reuses isolated cached environments. A missing executable on PATH or an empty `uv tool list` does not establish that a uvx cache is missing: try the existing launch command. Let uv manage the environment; refresh it when upgrading or troubleshooting.
+
 Try the visualization tool on a real short clip and open the returned image. Also try the capabilities the task needs, such as transcribe for subtitle content checks. Note which calls worked and which still need setup. An empty transcript may need a wider window or a check against the original audio.
 
 ## Prepare the input
