@@ -45,6 +45,8 @@ Importing: pass the preview's `token` to `subtitles.import` / `subtitles.importM
 A segment whose time and text did not change is `unchanged` and **its speakers and original text are not updated**; to start over from a new subtitle file, first delete the imported markers with `subtitles.clear {"sourceIds"}`
 (`subtitles.clearPlan` shows what would go; typed segments stay, protected ones stay unless `protected: true`; one undoable edit), then import.
 
+Set an OP/ED kind explicitly through `options`: `{"opedConfirm": [{"index": 0, "kind": "OP"}]}`. The index is the zero-based pair index from preview `oped` / `pairs`, not a cue number; kind is OP or ED. Preview again and import using the same options, including for standalone OP/ED clips or to correct an inferred kind.
+
 ## The prep checklist
 
 `sources.prep {"id"}` returns seven status items (each with `ok`). It is a status summary: no fixed order, and no item is mandatory (sources without subtitles are normal):

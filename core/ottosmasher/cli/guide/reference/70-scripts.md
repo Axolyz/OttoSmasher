@@ -30,6 +30,8 @@ with LinkClient.from_env() as c:
 
 ## Shells, pagination and binary results
 
+Otto emits UTF-8. If the host decodes native output differently, set `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`. Save JSON with `otto call sources.list | Set-Content -Encoding utf8 sources.json`. Windows PowerShell 5.1 writes UTF-16LE with `>`; PowerShell 7.4+ preserves native stdout bytes when redirecting. These are different cases.
+
 For complex JSON, especially in PowerShell, use a UTF-8 JSON file:
 
 ```powershell

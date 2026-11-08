@@ -8683,6 +8683,26 @@
     "id"
    ]
   },
+  "OpedConfirmation": {
+   "title": "OpedConfirmation",
+   "description": "Explicit kind for a pair returned by subtitles.preview (zero-based index).",
+   "type": "object",
+   "properties": {
+    "index": {
+     "type": "integer"
+    },
+    "kind": {
+     "enum": [
+      "ED",
+      "OP"
+     ]
+    }
+   },
+   "required": [
+    "index",
+    "kind"
+   ]
+  },
   "OpedPair": {
    "title": "OpedPair",
    "type": "object",
@@ -16234,7 +16254,7 @@
     "opedConfirm": {
      "type": "array",
      "items": {
-      "type": "object"
+      "$ref": "#/$defs/OpedConfirmation"
      }
     },
     "opedForce": {

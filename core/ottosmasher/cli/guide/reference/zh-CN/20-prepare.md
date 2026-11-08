@@ -42,6 +42,8 @@ otto call sources.rescan --wait                            # 改过、新加过�
 时间和文字都没变的段算“无变化”（`unchanged`），**不更新它的说话人和原文**；要按新字幕从头来，先 `subtitles.clear {"sourceIds"}` 删掉导入的标记
 （`subtitles.clearPlan` 先看会删多少；手输的段不删，受保护的默认留下，`protected: true` 才删；一个编辑批次，能撤销），再导入。
 
+OP/ED 类型可在 `options` 中显式指定：`{"opedConfirm": [{"index": 0, "kind": "OP"}]}`。index 是预览 `oped` / `pairs` 的配对序号（从 0 起），不是字幕行号；kind 为 OP 或 ED。用同一份 options 重新预览并导入，适用于独立 OP/ED 片段或需要修正类型推断时。
+
 ## 准备清单
 
 `sources.prep {"id"}` 返回七项状态（各带 `ok`）。这是状态摘要，没有固定顺序，也不要求每项都完成（没有字幕本来就是正常的）：

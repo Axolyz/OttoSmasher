@@ -40,6 +40,8 @@ with LinkClient.from_env() as c:
 
 ## PowerShell 与任务摘要
 
+Otto 输出 UTF-8。宿主若按其他编码读取原生命令，可先设置 `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`。保存 JSON 用 `otto call sources.list | Set-Content -Encoding utf8 sources.json`；Windows PowerShell 5.1 的 `>` 默认写 UTF-16LE，PowerShell 7.4 起原生命令的 stdout 重定向会保留原始字节，不应把两者混为一谈。
+
 复杂 JSON 优先写 UTF-8 文件，CLI 支持 BOM：
 
 ```powershell

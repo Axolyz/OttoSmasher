@@ -7,6 +7,8 @@ description: "Prepares subtitles for OttoSmasher: cleans the text, fixes timing,
 
 Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue holds one person's continuous speech with accurate timing; simultaneous speech may overlap and unknown names stay blank. Reading rules are in `otto guide prepare`. Paths below are relative to this skill's folder.
 
+Distinguish speaker labels not yet processed from identities still uncertain after review; the former is unfinished work.
+
 ## Scope and precision
 
 Follow the user's requirements and applicable preferences. If precision is open, use `otto guide workflow` to ask once for quick / standard / fine. This sets the review coverage and effort; see `references/verification.md`.

@@ -175,3 +175,12 @@ def test_registry_rejects_bad_definitions():
         cs.add("a.c", "delete", _P, None, "X.", lambda p: None)
     with pytest.raises(TypeError):
         cs.add("a.d", "read", dict, None, "X.", lambda p: None)
+
+
+def test_oped_confirmation_has_explicit_fields():
+    cmd = catalog.default_commands().get("subtitles.preview")
+    params = {"sourceId": "source", "options": {"opedConfirm": [{"index": 0, "kind": "OP"}]}}
+    assert cmd.parse(params) == params
+    for bad in [{"index": 0}, {"index": 0, "kind": "music"}, {"index": "first", "kind": "OP"}]:
+        with pytest.raises(CoreError):
+            cmd.parse({"sourceId": "source", "options": {"opedConfirm": [bad]}})

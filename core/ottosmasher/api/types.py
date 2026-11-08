@@ -1479,6 +1479,13 @@ class RuleTestParams(TypedDict):
     rules: NotRequired[dict[str, Any] | None]
 
 
+class OpedConfirmation(TypedDict):
+    """Explicit kind for a pair returned by subtitles.preview (zero-based index)."""
+
+    index: int
+    kind: Literal["OP", "ED"]
+
+
 class SubtitleImportOptions(TypedDict):
     """导入选项：四类开关（默认全开）、全局替换或保留（默认替换）、逐行不勾 / 强制替换、OP/ED 逐对确认（规则有错时）。"""
 
@@ -1490,7 +1497,7 @@ class SubtitleImportOptions(TypedDict):
     exclude: NotRequired[list[int]]
     force: NotRequired[list[int]]
     opedForce: NotRequired[list[int]]
-    opedConfirm: NotRequired[list[dict[str, Any]]]
+    opedConfirm: NotRequired[list[OpedConfirmation]]
 
 
 class SubtitleConflict(TypedDict):

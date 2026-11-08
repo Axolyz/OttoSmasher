@@ -1066,6 +1066,12 @@ export interface OpedAdded {
   id: string;
 }
 
+/** Explicit kind for a pair returned by subtitles.preview (zero-based index). */
+export interface OpedConfirmation {
+  index: number;
+  kind: "ED" | "OP";
+}
+
 export interface OpedPair {
   end: number;
   overlaps: string | null;
@@ -2597,7 +2603,7 @@ export interface SubtitleImportOptions {
   force?: number[];
   hints?: boolean;
   oped?: boolean;
-  opedConfirm?: Record<string, unknown>[];
+  opedConfirm?: OpedConfirmation[];
   opedForce?: number[];
   replace?: boolean;
   segments?: boolean;

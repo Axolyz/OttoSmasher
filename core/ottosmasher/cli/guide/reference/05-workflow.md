@@ -24,6 +24,8 @@ For a long task, keep a short record in your task folder: input versions, proces
 
 ## Finish the task
 
+A clean import preview and ready sources.prep checks describe format and application state; content work is complete according to the requested deliverables and the review actually performed.
+
 Check the requested scope against the saved files, app state and per-item results. At fine precision, each suspicious case should have an outcome: kept, corrected or still uncertain. Summarize the actual review coverage and anything that needs further attention.
 
 After revisions, recheck overlaps and coverage and refresh affected analysis. When an arrangement changes, update its dependent timing rows together, or mark the rows that still refer to an earlier version. If a required tool or external limit interrupts the task, save the progress and explain what is needed to continue.
