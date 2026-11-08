@@ -66,13 +66,11 @@ Please operate OttoSmasher on my computer with its command line otto: first run 
 Task: ...
 ```
 
-To prepare subtitles with the built-in methodology, follow that opening with this task (replace the paths and precision):
+For subtitle preparation, follow the opening with:
 
 ```
-Task: Follow the preparing-subtitles skill and its relevant references to prepare subtitles for [video folder]. The correct subtitle source is [subtitle path]; use [video edition] as the timing reference. Work at [quick / standard / fine] precision: clean the text, retime it, split speaker changes where needed, and label speakers. Reuse existing separated vocals. Connect and try the audio tools needed for the task first. Back up the original subtitles, save a same-name UTF-8 SRT beside each video, then import it into Otto. Report any remaining uncertainties.
+Please follow the preparing-subtitles skill for [material folder]. Use [subtitle path] as the correct subtitle source, align it to [target video], and work at [quick / standard / fine] precision.
 ```
-
-See [subtitle preparation in the user manual](docs/user/agents.md#按方法论预处理字幕) (Chinese) for precision levels and optional details.
 
 For audio computation only, without touching the library:
 
