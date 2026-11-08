@@ -71,6 +71,7 @@ export interface OttoInfo {
   link: string | null;
   linked: boolean;
   conflict: boolean;
+  pathConflict?: string | null;
 }
 
 export interface OttoApi {

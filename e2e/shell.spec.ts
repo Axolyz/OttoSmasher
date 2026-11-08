@@ -136,3 +136,24 @@ test("界面渲染出错：显示兜底画面、写日志、重新加载后恢�
   await expect.poll(() => page.evaluate(async () => (await window.otto.core.status()).state), { timeout: 20000 }).toBe("ready");
   await app.close();
 });
+
+test("窗口缩放快捷键：缩小、放大、恢复", async () => {
+  const { app, page } = await launch();
+  try {
+    const zoom = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.getZoomLevel());
+    const key = (keyCode: string) => app.evaluate(({ BrowserWindow }, { keyCode, modifier }) => {
+      const contents = BrowserWindow.getAllWindows()[0]!.webContents;
+      contents.sendInputEvent({ type: "keyDown", keyCode, modifiers: [modifier] });
+      contents.sendInputEvent({ type: "keyUp", keyCode, modifiers: [modifier] });
+    }, { keyCode, modifier: process.platform === "darwin" ? "meta" : "control" });
+    await key("-");
+    await expect.poll(zoom).toBe(-1);
+    await key("=");
+    await expect.poll(zoom).toBe(0);
+    await key("-");
+    await key("0");
+    await expect.poll(zoom).toBe(0);
+  } finally {
+    await app.close();
+  }
+});

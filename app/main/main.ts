@@ -1,5 +1,6 @@
 // Electron 主进程：窗口、Core 进程管理、IPC 转发、退出流程（ARCHITECTURE §2）。
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
@@ -9,7 +10,7 @@ import { PSEUDO, createT, englishPlurals } from "../shared/i18n";
 import type { CoreEvent, CoreStatus, OttoInfo } from "../shared/protocol";
 import { type PickKind, type PickMode, needsChoice, pickProperties } from "./file-pick";
 import { CoreClient } from "./core-client";
-import { OTTO_SHIM_MARK, ensureOttoLink, ottoShim } from "./otto-link";
+import { OTTO_SHIM_MARK, ensureOttoLink, ottoShim, windowsPathConflict } from "./otto-link";
 import { resolvePaths } from "./paths";
 
 const paths = resolvePaths();
@@ -126,6 +127,15 @@ function createWindow(): BrowserWindow {
       win.showInactive();
     } else win.show();
   });
+  // Windows has no application menu, so native zoom accelerators need an explicit handler.
+  win.webContents.on("before-input-event", (event, input) => {
+    const modifier = process.platform === "darwin" ? input.meta : input.control;
+    if (input.type !== "keyDown" || !modifier || input.alt) return;
+    if (!["-", "=", "+", "0"].includes(input.key)) return;
+    event.preventDefault();
+    const step = input.key === "-" ? -1 : 1;
+    win.webContents.setZoomLevel(input.key === "0" ? 0 : Math.max(-4, Math.min(4, win.webContents.getZoomLevel() + step)));
+  });
   win.webContents.on("render-process-gone", (_e, details) => {
     logDesktopEvent("render-process-gone", { ...details });
     if (details.reason !== "clean-exit") win.reload();
@@ -230,7 +240,15 @@ function ottoInfo(): OttoInfo {
     if (st.isSymbolicLink()) linked = readlinkSync(link) === path;
     else conflict = true;
   }
-  return { path: existsSync(path) ? path : null, link, linked, conflict };
+  let pathConflict: string | null = null;
+  if (win && !paths.repo) {
+    try {
+      pathConflict = windowsPathConflict(execFileSync("where.exe", ["otto"], { encoding: "utf8", timeout: 1500, windowsHide: true }), path, link);
+    } catch {
+      // An absent PATH command is different from a conflicting one; use the full executable path.
+    }
+  }
+  return { path: existsSync(path) ? path : null, link, linked, conflict, pathConflict };
 }
 ipcMain.handle("agent:ottoInfo", () => ottoInfo());
 ipcMain.handle("agent:installOtto", () => {

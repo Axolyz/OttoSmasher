@@ -128,3 +128,32 @@ test("原素材页：列表、时间线、导出、设置、删除", async () =>
   expect(existsSync(wav)).toBe(true);
   await app.close();
 });
+
+test("短窗口的原素材长菜单可滚动到末项", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-menu-"));
+  const wav = join(dir, "Menu Show 01.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=f=330:duration=2", wav]);
+  const { app, page } = await launch();
+  try {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 600));
+    await page.evaluate(async (path) => {
+      const r = await window.otto.core.request("sources.add", { paths: [path] });
+      if (!r.ok) throw new Error("source setup failed");
+    }, wav);
+    await page.getByTestId("nav-sources").click();
+    await page.getByTestId("source-group").first().click();
+    await page.getByTestId("source-row").first().click({ button: "right" });
+    const menu = page.getByRole("menu").first();
+    await expect(menu).toBeVisible();
+    const bounds = await menu.boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
+    const last = menu.getByRole("menuitem").last();
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});

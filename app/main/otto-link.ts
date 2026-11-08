@@ -1,7 +1,7 @@
 // 把 otto 装成命令（所有者 2026-11-04：发布版启动时自动做）。不碰别的程序：不是我们放的同名文件一律不动。
 // macOS：~/.local/bin/otto 是指向启动器的链接。Windows：普通用户不能建符号链接，写一个转发脚本。
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, win32 } from "node:path";
 
 export const OTTO_SHIM_MARK = "@rem OttoSmasher";
 
@@ -35,4 +35,12 @@ export function ensureOttoLink(target: string, link: string, win: boolean): Otto
   if (old !== null) unlinkSync(link);
   symlinkSync(target, link);
   return "installed";
+}
+
+/** Inspect where.exe's first resolution; never replace another program's command. */
+export function windowsPathConflict(output: string, target: string, link: string | null): string | null {
+  const first = output.split(/\r?\n/).find((line) => line.trim())?.trim();
+  if (!first) return null;
+  const normalize = (p: string) => win32.resolve(p).toLowerCase();
+  return [target, link].some((p) => p && normalize(p) === normalize(first)) ? null : first;
 }
