@@ -1,65 +1,78 @@
-# OttoSmasher agent 说明书
+# 给 agent 的 OttoSmasher 说明：总览
 
-OttoSmasher 是音 MAD 素材工作台：登记原片、导入字幕、分离人声、分析日语音素与音高、保存采样和标签，按节奏或音高检索，再导出 WAV、视频或 REAPER item。
+OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原素材”），导入字幕，分离人声，分析日语语音（音素、音高、节奏），
+维护一个带标签的**采样**库，按节奏或音高找采样，导出 WAV、视频片段和 REAPER 条目。
 
-通过命令行 otto 操作正在运行的应用，调用的是界面同一组功能。资料编辑可以撤销；新建的采样、原素材和音轨用删除处理。
+你用命令行 `otto` 操作它。`otto` 连接**正在运行的应用**，调用的就是应用界面自己用的那组命令，
+所以你做的一切都会出现在应用里；对资料的修改能在应用里撤销，新建的采样、原素材、音轨撤销不了（主题 `undo`）。
 
-## 应用与你的分工
+## 分工
 
-应用负责存储、分析、检索和导出。你负责理解材料、选择方法、判断内容，再把结论写回。原始计算也能直接接收文件，见 `otto guide primitives`。
+应用做**确定的事**：存资料、分离、对齐分析、检索、卡拍、导出。
+**需要判断的事归你**：字幕写法乱了怎么清理、哪些台词“在说游戏”、没有字幕时 OP 在哪、一段声音是谁在说……
+应用给你原子能力——读资料、拿到音频和画面、把结论写回去（标签、台词段、OP/ED、默认轨……）——你用自己的推理和工具把它们串起来。
+命令分两层：**业务命令**改资料库里的对象，**原始能力**只做计算（对齐、读音、测音高、读字幕文件……），声音可以是任意文件。
+一个文件要不要先登记（分离必须登记；结果要留下、要建采样或检索也要登记），见主题 `primitives` 的“先登记，还是直接调用”。
+应用里的规则或自动识别不灵时，不要等应用改：读资料、自己判断、把结果写回去（主题 `combine`）。
+要判断声音（核对对齐、找 OP、听是谁在说……）时，先在一个真实短片段上试好音频工具（频谱图、带时间的转写）。
+宿主没有现成工具时，见 `otto guide audio` 和 `otto setup audio --for <你的工具>` 的接法；配置期间也可以继续其他准备。
 
-## 指令放在哪里
+## 说明分三处
 
-| 来源 | 内容 | 谁维护 |
-|---|---|---|
-| otto guide | 应用对象、接口和操作要求，中英各一份 | 应用开发者 |
-| 工作区 Agent/skills/ | 按任务选读、可以编辑的方法 | 用户 |
-| 工作区 Agent/playbook.md | 用户的长期偏好，优先于一般方法 | 用户 |
+1. **本说明书**（`otto guide`）：怎么正确操作应用——对象、命令、应用会怎样、必须遵守的规则；和正在运行的应用一致。
+2. **做法与经验**（`otto guide skills`，`notes` 是旧别名）：工作区 `Agent/skills/` 里的可编辑技能，按任务选读。用户改过的保留，新版本放在旁边的 `.new` 文件里。
+3. **用户的约定**（`otto guide playbook`，文件在工作区 `Agent/playbook.md`）：用户自己的习惯和要求，随时会改。
+   用户让你记住偏好时，写进 playbook；要调整流程时，更新相应 skill，其余时候沿用已有文件。
 
-以用户的任务要求为准，选读相关技能和引用。用户要你记住偏好时写进 playbook，要改做法时更新相应 skill；其余时候沿用现有文件。应用的文件管理和确认规则见下文。
+冲突时用户的约定优先于做法与经验；但下面的基本规则谁也改不了。**开工时先看一眼 playbook。**
 
-## 开始任务
+## 范围与精度
 
-1. 运行 otto status，确认应用、版本及工作区；没开则运行 otto open。
-2. 读 otto guide playbook。涉及内容判断时，再看 `otto guide workflow` 选定范围和精度。
-3. 每个任务用一个 session。macOS / bash：export OTTO_AGENT_SESSION=my-task；PowerShell：$env:OTTO_AGENT_SESSION='my-task'。也可把 --session my-task 放在子命令前或后。
-4. 需要声音判断时，先在短片段上试好音频工具。接法和用法见 `otto guide audio`。
+判断类任务先看 `otto guide workflow`，沿用用户要求和适用偏好。精度未定时问一次快速／标准／精细，说明当前任务的区别，再读相关技能及引用。
 
-## 可以接触的文件
+## 基本规则
 
-- 资料通过应用命令读写，数据库不直接读写。
-- Library/ 中可以读取或复制命令返回的明确路径；文件的写入、改名和删除由应用处理。
-- 修改字幕前，在旁边保留 backup_ 原件。用户原始媒体只读。
-- 临时脚本和中间音频放自己的临时目录，长期结果放用户指定的项目位置；结束时说明留下的文件。
+1. **应用必须开着。** 开工先跑 `otto status`（也报环境：模型、PyMSS Studio、有没有约定文件）。显示 `"running": false`（退出码 2）就运行 `otto open`：它打开带界面的应用，等到能连上才返回；已经开着就什么也不做。
+   `otto status` 也写着连的是哪个**工作区**（`workspace`）、应用在哪（`app`）、有哪些正在运行（`runningApps`）。`otto` 用正在运行的同一种应用的工作区（装好的 `otto` 连发布版，`tools/otto` 连开发版）；要连别的就设 `OTTO_WORKSPACE`（或 `--workspace`）。
+   不要直接读写数据库；`Library/` 里只读或复制命令返回给你的路径，不在里面改名、删除或写东西。
+   **用户的文件**（原素材的媒体与字幕）可以读；改之前（例如写一份同名字幕）先在旁边留一份 `backup_` 前缀的原件，媒体文件不改不删。你自己的工作文件放在自己的临时目录，不放进工作区或素材文件夹，做完说明留下了什么。
+2. **每个任务设一次会话 ID**：bash 用 `export OTTO_AGENT_SESSION=my-task`，PowerShell 用 `$env:OTTO_AGENT_SESSION='my-task'`，也可在子命令前后传 `--session my-task`。你的每个修改都记在它名下，
+   之后用户（或你）可以整批撤回这个会话（主题 `undo`）。
+3. **stdout 只输出 JSON**，加 `--progress` 时进度写在 stderr，默认安静等待。非交互调用省略临时 session 提示。退出码：`0` 成功，`1` 业务错误（JSON 里的 `error.code`），
+   `2` 用法 / 连接 / 参数错误，`3` 用户拒绝或没人确认。
+   音高帧、频谱等二进制字段按命令结构中的 `contentEncoding: base64` 输出为字符串；`otto run` 的 Python 客户端直接返回 `bytes`。
+4. **先查再猜**：`otto commands [--effect read|write|job] [--grep 词]`、`otto describe <命令>`（完整的参数与返回结构）、
+   `otto describe <事件>`、`otto errors [错误码]`。
+5. **耗时的工作是任务。** 加 `--wait` 就会一直跟到返回的任务、检索或视频导出结束：
+   `otto call speech.submit '{...}' --wait`。分离、语音分析、测音高共用“模型”通道（排队方式见主题 `prepare`）。
+   `jobs.summaries` 查看摘要和同通道排队数，`jobs.get` 取单个完整任务；原始计算 `--wait` 自动取全分页结果，脚本可用 LinkClient.iter_results。
+   批量任务 `succeeded` 不等于每条都成了：逐项的失败写在结果里，要看（主题 `concepts`）。
+   **长任务别空等**（整集分离十几到几十分钟，批量分析几分钟）：不要反复查状态。你的环境能在后台跑命令、命令结束时叫醒你，
+   就在后台跑 `otto wait job <id>`（任务结束它才退出）。不能的话，**明确告诉用户**：提交了什么、大概要多久、你的环境没法不耗 token 地等，
+   所以先停在这里，跑完后对你说“继续”——然后结束这一轮。回来时用 `otto session` 看这个会话的任务和修改。
+6. **撤销不了的命令**（`otto commands` 里带 `"danger"`：删除原素材或采样、给作品文件夹改名、清理存储、独立化后删原素材）
+   会在应用里弹出确认框，你的调用最多等 2 分钟（等待时 stderr 有一行 `"note": "waiting for the user…"`）。
+   退出码 3 表示没有执行：用户拒绝了（`agent-confirm-declined`），或 2 分钟没人回答（`agent-confirm-timeout`，用户可能不在电脑前；
+   这个请求会留在应用的操作历史里给用户看）。这时**不要重试**：停下依赖这一步的工作，把想做什么、为什么告诉用户，
+   其他不受影响的工作照做，最后汇报；用户回来让你继续时再发一次。
+   放行时应用会核对资料和提问时是否一样，变了就带新的影响重新问。
+   用户可以在应用的「设置 › 命令行与 agent」里关掉这个确认，那时这些命令直接执行；这一项只有用户能改，命令行改不了。
 
-## 调用与返回
-
-stdout 是 UTF-8 JSON，进度和提示在 stderr。退出码 0 成功、1 业务或任务失败、2 用法或连接错误、3 用户拒绝或没有确认。脚本结合退出码和 JSON 判断结果。
-
-用 otto commands --grep 关键词 找命令，再用 otto describe 命令 看参数和返回结构。参数按 schema 传入。JSON 中的二进制为 base64，otto run 中为原生 bytes。
+## 调用命令
 
 ```sh
-otto call samples.list @params.json
-otto call samples.list -
-otto run my_script.py
+otto call samples.list '{"limit": 5}'
+otto call samples.list @query.json        # 参数来自文件
+echo '{"text": "ゲーム"}' | otto call samples.list -
+otto run my_script.py                     # 一次要调很多命令时写成 Python 脚本（主题 scripts）
 ```
 
-PowerShell 经 .cmd 传 JSON 时可能丢引号，推荐 UTF-8 文件或 stdin。各平台例子见 `otto guide scripts`。
+PowerShell 经 .cmd 传 JSON 时可能丢引号，可用 UTF-8 参数文件或 stdin，例子见主题 scripts。
 
-## 长任务
+命令没声明的参数会被拒绝（`bad-request`，带出错位置）。所有 ID 都是字符串。
 
-otto call 后加 --wait，或运行 otto wait job ID 等结束。默认安静等待，--progress 把进度写到 stderr，最终 stdout 返回完整结果。`jobs.summaries` 给出精简状态及同通道排在前面的待执行数 queuedAhead，`jobs.get` 查询单个完整任务。
+## 主题
 
-批量任务结束后查看 speech.results、flatten.results 或原始计算的逐项结果，其中会保留失败项。speech.align 等默认每页 100 条，--wait 自动取全，脚本可用 LinkClient.iter_results。
-
-环境支持后台等待时，等到任务结束再继续。受环境限制需要稍后恢复时，保存进度并说明下一步；otto session 可查看本会话的任务和创建物。
-
-## 危险操作确认
-
-otto commands 中标有 danger 的命令会等用户在应用里确认，最多两分钟。退出码 3 表示没有执行：先继续其他工作，告诉用户待确认的操作；收到继续指令后再发。确认开关由用户在设置里管理。
-
-宿主权限、素材范围和处理精度各自处理。缺少权限或必要信息时，说明需要用户协助的部分，并继续其他准备。
-
-## 更多
-
-otto guide 主题 查看对应说明，--lang zh-CN/en 选择语言，--all 打印全部应用参考。otto guide skills 列出可编辑技能，notes 是旧别名。otto setup skills 检查更新与失效命令；用户改过的文件会保留，更新放在旁边的 .new 文件里。
+`otto guide <主题>` 查看说明，`--lang en` / `--lang zh-CN` 选语言，`--all` 打印全部应用主题。
+`otto guide skills` 列出可编辑技能，`otto guide <技能名>` 查看内容，`otto guide playbook` 读用户约定。
+辅助：`otto setup playbook` 生成约定模板，`otto setup skills` 检查技能更新与失效命令，`otto setup audio --for claude-code|codex|other` 显示音频工具接法。

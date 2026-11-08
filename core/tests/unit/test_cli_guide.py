@@ -86,7 +86,7 @@ def test_guide_command_prints_reference_and_skills(tmp_path, capsys, monkeypatch
     monkeypatch.setenv("OTTO_WORKSPACE", str(tmp_path))
     assert main(["guide", "--lang", "zh-CN"]) == 0
     text = capsys.readouterr().out
-    assert "可以接触的文件" in text and "preparing-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
+    assert "基本规则" in text and "preparing-subtitles" in text and str(tmp_path / "Agent" / "skills") in text
     assert "为 OttoSmasher 准备字幕" in text  # skill 的说明用工作区的语言
     assert main(["guide", "undo", "--lang", "en"]) == 0
     assert "edits.undoSession" in capsys.readouterr().out

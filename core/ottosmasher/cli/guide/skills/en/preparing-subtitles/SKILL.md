@@ -1,36 +1,42 @@
 ---
 name: preparing-subtitles
-description: "Prepare subtitles for OttoSmasher: clean text, retime across releases, split speaker turns, identify speakers, or transcribe material without captions. Use for CC, bilingual or messy subtitles and timing/speaker work; reuse parts that already meet the request."
+description: "Prepares subtitles for OttoSmasher: cleans the text, fixes timing, splits two-person cues, labels speakers by voiceprint, or makes timed subtitles when there are none. Use for messy, bilingual or closed-caption subtitles, mistimed segments, speaker labeling, or material with no subtitles. Not needed when the subtitles are already clean."
 ---
 
-# Prepare subtitles
+# Preparing subtitles
 
-Prepare a same-name UTF-8 SRT for each requested video, with the words actually spoken and times in source seconds. Keep one person's continuous speech in each cue; simultaneous speech may overlap and unknown names stay blank. App parsing and import are described in otto guide prepare.
+Goal: one UTF-8 `.srt` per video with exactly the same name, where each cue holds one person's continuous speech with accurate timing; simultaneous speech may overlap and unknown names stay blank. Reading rules are in `otto guide prepare`. Paths below are relative to this skill's folder.
 
-## Before starting
+## Scope and precision
 
-Read otto guide workflow to choose scope and precision, following existing user requirements. Try the needed audio tools as described in otto guide audio. Use `tracks.separatedVocals` / `tracks.defaultFromSeparation` to find and reuse vocals, separating missing ones as needed. Back up captions before editing.
+Follow the user's requirements and applicable preferences. If precision is open, use `otto guide workflow` to ask once for quick / standard / fine. This sets the review coverage and effort; see `references/verification.md`.
 
-## Suggested route
+## Recommended order
 
-1. Take representative audio from the beginning, middle and end to check release offsets and editing differences. See references/retiming.md.
-2. Clean alignment text and count and interpret this source's annotation habits. See references/cleaning.md.
-3. Split sequential turns before building voiceprint references. A known turn can be split while its name is still pending. See references/speakers.md.
-4. Check starts, ends, uncertain turns and overlaps. At fine precision, record an outcome for each suspicious case and sample other scenes. See references/verification.md.
-5. Check the final parsing result and import. Create requested missing samples and reuse analysis. Small corrections after import can edit existing objects; finish by checking per-item results and search coverage.
+For a full job, do these in one pass and produce one final subtitle file, because later steps depend on earlier ones. This is a suggested route; adapt the tools and order to the material:
 
-This route describes dependencies; tools and order can be adapted to the material. Experiment parameters are useful starting points, to be reconsidered against the audio of a different work.
+1. Reuse finished vocals, separating missing ones as needed.
+2. Check the timing against this release and fix any overall offset, because alignment needs windows that are close. Read `references/retiming.md`.
+3. Clean the text down to spoken words, because it becomes the alignment text. Read `references/cleaning.md`.
+4. Audit the speaker labels. Read `references/cleaning.md`.
+5. Split sequential turns, because voiceprints need one person per range. A clear turn can be split while its name is pending. Read `references/cleaning.md`.
+6. Compute voiceprints on the split lines and label speakers. Read `references/speakers.md`.
+7. Write one final subtitle file, check it, and import it once. A later re-import does not update the speakers of unchanged segments; small corrections can edit existing segments directly.
 
-## Doing just one part
+## If you only need part of it
 
-| Task | References |
+Read only what the task needs:
+
+| Task | Read |
 |---|---|
-| Clean text / interpret CC annotations | cleaning.md |
-| Timing / subtitles from another release | retiming.md and cleaning.md |
-| Identify speakers | cleaning.md annotation audit, then speakers.md |
-| No captions | no-subtitles.md |
-| Review suspicious boundaries and finish a batch | verification.md |
+| Clean messy or bilingual subtitles | `references/cleaning.md` |
+| Fix the timing of segments or subtitles | `references/retiming.md` |
+| Use subtitles from another release | `references/cleaning.md` ("Check timing against this release") |
+| Label who says each line | `references/cleaning.md` (label audit), then `references/speakers.md` |
+| Make subtitles for material with none | `references/no-subtitles.md` |
 
-## Included scripts
+## Before you start
 
-Paths are relative to this skill. scripts/speaker_embed.py computes voiceprints for your grouping and naming; scripts/audio_probe.py calls audio-mcp from hosts without an MCP connection. Choose caption statistics to suit the source; see references/verification.md.
+1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none, because splitting cues needs a clear voice.
+2. Check your audio tool as the overview describes; connection methods are in `otto guide audio`. scripts/audio_probe.py also works for hosts without MCP access.
+3. Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.
