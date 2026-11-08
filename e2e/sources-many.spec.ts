@@ -50,7 +50,18 @@ test("原素材列表：1500 个短音频的组只渲染看得见的行", async 
   expect(rendered).toBeLessThan(200);
   // 滚到底：最后一行可见、可以打开
   await page.getByTestId("source-row").first().hover();
+  const scrollState = () => page.getByTestId("source-list").getByRole("grid").evaluate((el) => ({
+    top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight,
+    rows: [...el.querySelectorAll('[data-testid="source-row"]')].map((r) => ({ text: r.textContent, height: r.getBoundingClientRect().height })),
+  }));
+  console.log("before wheel", JSON.stringify(await scrollState()));
   await page.mouse.wheel(0, 200000);
-  await expect(page.getByTestId("source-row").filter({ hasText: "se_0000" })).toBeVisible({ timeout: 10000 });
-  await app.close();
+  await expect.poll(async () => (await scrollState()).top).toBeGreaterThan(0);
+  console.log("after wheel", JSON.stringify(await scrollState()));
+  try {
+    await expect(page.getByTestId("source-row").filter({ hasText: "se_0000" })).toBeVisible({ timeout: 10000 });
+  } finally {
+    console.log("final scroll", JSON.stringify(await scrollState()));
+    await app.close();
+  }
 });
