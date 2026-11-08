@@ -381,7 +381,7 @@ export function SourceViewer(props: {
     const z = pendingZoom.current;
     if (!z || !asset) return;
     pendingZoom.current = null;
-    // 时间线换资产时会回到整段，等它先完成再放大
+    // 等时间线完成原片切换，再应用跳转范围
     setTimeout(() => {
       if (z.zoom) tl.current?.zoomTo(z.a, z.b);
       window.otto.player.seek(z.a);
@@ -861,6 +861,7 @@ export function SourceViewer(props: {
               return true;
             }}
             assetId={asset?.id ?? null}
+            viewKey={row.id}
             duration={duration}
             offset={offset}
             assetDuration={asset?.duration ?? duration}

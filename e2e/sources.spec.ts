@@ -92,6 +92,43 @@ test("原素材页：列表、时间线、导出、设置、删除", async () =>
   await page.keyboard.press("z");
   const zoomed = (await tl.getAttribute("data-view"))!.split(",").map(Number);
   expect(zoomed[1]! - zoomed[0]!).toBeLessThan(3);
+  // 同一原片切容器音轨 / 外挂音轨：保留播放头、选区与缩放，画布不重建。
+  await page.evaluate(async (path) => {
+    const rows = await window.otto.core.request("sources.list", {});
+    if (!rows.ok) throw rows.e;
+    const source = rows.r.find((r) => r.has_video)!;
+    const assets = await window.otto.core.request("assets.listForSource", { sourceId: source.id });
+    if (!assets.ok) throw assets.e;
+    const r = await window.otto.core.request("reimport.commit", { assetId: assets.r[0]!.id, start: 2, path });
+    if (!r.ok) throw r.e;
+    window.otto.player.seek(2.5);
+  }, wav);
+  await expect.poll(() => page.evaluate(() => window.otto.player.position("source"))).toBeCloseTo(2.5, 1);
+  const viewBefore = await tl.getAttribute("data-view");
+  const selectionBefore = [await readout.getAttribute("data-a"), await readout.getAttribute("data-b")];
+  const canvas = viewer.locator("canvas[data-otto-video]");
+  await canvas.evaluate((el) => el.setAttribute("data-track-test", "same"));
+  for (const index of [0, 2, 1, 2, 0]) {
+    await page.getByTestId("audio-source").getByRole("button").click();
+    await page.getByRole("option").nth(index).click();
+    await expect(page.getByTestId("open-error")).toHaveCount(0);
+    await expect(tl).toHaveAttribute("data-view", viewBefore!);
+    expect([await readout.getAttribute("data-a"), await readout.getAttribute("data-b")]).toEqual(selectionBefore);
+    await expect(canvas).toHaveAttribute("data-track-test", "same");
+    await expect.poll(() => page.evaluate(() => window.otto.player.position("source"))).toBeCloseTo(2.5, 1);
+  }
+  await page.getByTestId("play-pause").click();
+  await expect.poll(() => page.evaluate(() => window.otto.player.position("source"))).toBeGreaterThan(2.7);
+  await page.getByTestId("audio-source").getByRole("button").click();
+  await page.getByRole("option").nth(2).click();
+  await expect(page.getByTestId("play-pause")).toContainText("暂停");
+  await expect.poll(() => page.evaluate(() => window.otto.player.position("source"))).toBeGreaterThan(2.9);
+  await page.getByTestId("play-pause").click();
+  await expect(page.getByTestId("open-error")).toHaveCount(0);
+  // 回到原混音，后面的导出检查沿用原有断言。
+  await page.getByTestId("audio-source").getByRole("button").click();
+  await page.getByRole("option").nth(0).click();
+  await viewer.focus();
   await page.keyboard.press("f");
   await expect(tl).toHaveAttribute("data-view", /^0\.000,8\.0/);
   await page.screenshot({ path: ".cache/playwright-results/sources-page.png" });

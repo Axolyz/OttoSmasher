@@ -194,6 +194,8 @@ export const Timeline = forwardRef<
     labelMaxLines?: number;
     /** 可视范围（默认 [0, duration]）：缩放、平移、总览条、选区都只在这里面（详情区 = 采样范围 + 余量，所有者 2026-10-12） */
     bounds?: [number, number];
+    /** 同一原片切音轨时保留视口；其他入口默认随资产重置。 */
+    viewKey?: string;
     /** 焦点区间：之外的部分淡色遮住（详情区里采样自己的范围；余量里照常能框选） */
     focus?: Sel | null;
     /** 右键：光标处的时间、覆盖层上的区间、车道（若在车道上）与其区间 */
@@ -246,7 +248,7 @@ export const Timeline = forwardRef<
     [clampView, lo, hi],
   );
 
-  // 换资产 / 时长：丢掉旧峰值（同时会重取）；换资产、时长或可视范围：回到整段（有可视范围时 = 整个范围）。
+  // 换资产 / 时长重取峰值；视图身份、时长或可视范围变化时回到整段。
   // 两件事分开：详情区换到同一条轨上的另一个采样只换可视范围，峰值不能丢（丢了不会重取，波形就没了）
   useEffect(() => {
     setWhole(null);
@@ -254,7 +256,7 @@ export const Timeline = forwardRef<
   }, [assetId, duration]);
   useEffect(() => {
     setView(clampView(lo, hi));
-  }, [assetId, duration, clampView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [props.viewKey ?? assetId, duration, clampView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 尺寸
   useEffect(() => {

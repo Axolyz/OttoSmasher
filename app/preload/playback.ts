@@ -100,8 +100,27 @@ class Engine {
   /** ``audioFile``：外挂声部（分离声部等），画面仍来自 ``path``；``audioDelay`` = 原片秒 − 声部文件秒（R22.1）。 */
   load(path: string, aid: number, audioFile: string | null = null, audioDelay = 0): void {
     const ext = audioFile ?? "";
-    if (this.path === path && this.loaded && this.audioFile === ext) {
-      if (aid !== this.aid) {
+    if (this.path === path && this.loaded) {
+      // 同一视频只切音轨，保留播放位置、暂停状态和范围播放。
+      if (this.range) this.range.gen = this.gen;
+      if (this.audioFile !== ext) {
+        const oldExternal = this.audioFile ? this.aid : null;
+        this.mpv.set("aid", "no");
+        this.mpv.set("audio-delay", String(audioDelay));
+        if (audioFile) {
+          const r = this.mpv.command(["audio-add", audioFile, "select"]);
+          if (r < 0) {
+            this.fail(this.gen, { code: "playback-failed", args: { detail: `audio-add: mpv error ${r}` } });
+            return;
+          }
+          this.aid = Number(this.mpv.get("aid"));
+        } else {
+          this.mpv.set("aid", String(aid));
+          this.aid = aid;
+        }
+        if (oldExternal != null) this.mpv.command(["audio-remove", String(oldExternal)]);
+        this.audioFile = ext;
+      } else if (aid !== this.aid && !audioFile) {
         this.mpv.set("aid", String(aid));
         this.aid = aid;
       }
