@@ -4,6 +4,8 @@ The aligner fits the whole line into the window it receives and does not look fo
 
 Higher accuracy requires the text to match the speech in the selected window completely. Extra text that was not spoken can make alignment very inaccurate even when the time window is correct.
 
+Subtitles in another language can help estimate the overall offset; loudness, transcription, alignment and voiceprints can also help locate speech and find suspicious cases. When changing a boundary, use the actual words and neighbouring dialogue to establish which line the sound belongs to; silence or energy changes alone do not determine the edit.
+
 ## Retime a line
 
 1. Roughly locate the speech with a transcript with word times (such as audio-mcp's `audio_transcribe`) or loudness on/offsets, then check boundaries against the full sentence and neighbouring dialogue. Times from an exported file map back through its `mapping` (`otto guide export`).
@@ -12,7 +14,7 @@ Higher accuracy requires the text to match the speech in the selected window com
 
 ## Signs the window is wrong
 
-In the alignment result, `edges` near 0 or an absurdly long phoneme, such as a 0.8 s 「ン」, usually mean the window is off or overlaps another line.
+When `edges` is near 0, check for a clipped first or last sound or speech from a neighbouring line. The speech may also genuinely reach the window edge; judge it in context. An unusually long phoneme, such as a 0.8 s 「ン」, is another reason to check that the window matches the words.
 
 ## Check both ends
 

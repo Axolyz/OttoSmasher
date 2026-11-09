@@ -22,7 +22,7 @@ Follow the user's requirements and applicable preferences. If precision is open,
 For a full job, do these in one pass and produce one final subtitle file, because later steps depend on earlier ones. This is a suggested route; adapt the tools and order to the material:
 
 1. Reuse finished vocals, separating missing ones as needed.
-2. Check the timing against this release and fix any overall offset, because alignment needs windows that are close. Read `references/retiming.md`.
+2. Check the timing against this release, fix any overall offset and review line boundaries at the agreed precision, because alignment needs windows that are close. Read `references/retiming.md`.
 3. Clean the text down to spoken words, because it becomes the alignment text. Read `references/cleaning.md`.
 4. Audit the speaker labels. Read `references/cleaning.md`.
 5. Split sequential turns, because voiceprints need one person per range. A clear turn can be split while its name is pending. Read `references/cleaning.md`.
