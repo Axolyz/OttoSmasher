@@ -19,6 +19,6 @@ Check the actual words, speaker and delivery. For happiness, pride or victory, t
 
 ## Keep useful material
 
-Reuse samples and analysis, create selected full lines or excerpts, and retain source ranges and selection reasons. Preview tag changes with samples.batchEdit and pass changes to edits.apply. Keep earlier selections when adding candidates; revise them when the user asks for replacements.
+Reuse samples and analysis. When candidates are to be kept in the library, create the selected full lines or excerpts as agreed. Retain source ranges and selection reasons. Preview tag changes with samples.batchEdit and pass changes to edits.apply. Keep earlier selections when adding candidates; revise them when the user asks for replacements.
 
 Review candidates at the chosen precision and report the finds, semantic alternatives and points still needing confirmation, ready for arrangement.

@@ -12,6 +12,12 @@ Start with the sources or episodes, the desired output and any work you can reus
 
 The user can also ask for every-line review or focus the effort on particular episodes. Explain the likely difference in time and token use. If the agreed scope needs changing, discuss it before continuing at a lower precision. Unknown names and unresolved cases stay visible at every level.
 
+## Explain the plan before starting
+
+For an ambiguous request, inspect the material read-only first and clarify the scope in plain language. “Tidy these subtitles” may mean formatting alone, or retiming, splitting turns and labeling speakers too. Combine scope, precision and deliverables in one short plan: where files will go, whether originals will be replaced or the library updated, and any necessary long jobs with known time and disk costs. Wait for agreement before proceeding. When the request or standing preferences already settle this, explain and proceed.
+
+Choose methods freely within the agreed scope; necessary separation and analysis do not need repeated questions. New downloads or configuration changes follow “First-time setup” in the overview. Before additional uploads to an external service, explain the destination and purpose and get agreement; reuse the user's chosen host and agreed services. Ask again when scope or impact materially changes. Use the app's existing confirmation dialogs for deletion and similar actions.
+
 ## Choose a method for the material
 
 Read the relevant skill and references, then adapt the route to the source. Some steps depend on others: voiceprint references, for example, need single-speaker intervals. Within those dependencies, choose the tools and order that suit the task.

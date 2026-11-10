@@ -21,13 +21,13 @@ Follow the user's requirements and applicable preferences. If precision is open,
 
 For a full job, do these in one pass and produce one final subtitle file, because later steps depend on earlier ones. This is a suggested route; adapt the tools and order to the material:
 
-1. Reuse finished vocals, separating missing ones as needed.
+1. When the agreed work needs clear vocals, reuse finished vocals and separate missing ones as needed.
 2. Check the timing against this release, fix any overall offset and review line boundaries at the agreed precision, because alignment needs windows that are close. Read `references/retiming.md`.
 3. Clean the text down to spoken words, because it becomes the alignment text. Read `references/cleaning.md`.
 4. Audit the speaker labels. Read `references/cleaning.md`.
 5. Split sequential turns, because voiceprints need one person per range. A clear turn can be split while its name is pending. Read `references/cleaning.md`.
 6. Compute voiceprints on the split lines and label speakers. Read `references/speakers.md`.
-7. Write one final subtitle file, check it, and import it once. A later re-import does not update the speakers of unchanged segments; small corrections can edit existing segments directly.
+7. Write one final subtitle file, check it and save as agreed; import once when the task includes writing to Otto. A later re-import does not update the speakers of unchanged segments; small corrections can edit existing segments directly.
 
 ## If you only need part of it
 
@@ -43,6 +43,6 @@ Read only what the task needs:
 
 ## Before you start
 
-1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` if one is missing. Separate first if there are none, because splitting cues needs a clear voice.
+1. List finished vocals with `tracks.separatedVocals {"sourceIds"}` and reuse them. Set a default with `tracks.defaultFromSeparation` when the task needs a default track in Otto. Separate missing vocals when the agreed work needs a clear voice.
 2. Check your audio tool as the overview describes; connection methods are in `otto guide audio`.
 3. Keep a `backup_` copy of every subtitle file you change. A same-name `.ass` can stay.

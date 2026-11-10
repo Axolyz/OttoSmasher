@@ -21,13 +21,13 @@ description: "为 OttoSmasher 准备字幕：清洗文字、修正时间、拆�
 
 做完整流程时，放在同一轮做完，最后只产出一份字幕，因为后面的步骤依赖前面的结果。下面是参考路线，工具和顺序可按素材调整：
 
-1. 复用已有的人声，缺失时再分离。
+1. 约定的处理需要清晰人声时，复用已有的人声，缺失时再分离。
 2. 核对这个版本的时间轴，修正整体偏移，并按约定精度检查句子首尾，因为对齐要求窗口离语音足够近。读 `references/retiming.md`。
 3. 把文字洗到只剩说出口的话，因为它就是对齐用的文字。读 `references/cleaning.md`。
 4. 给说话人标注做体检。读 `references/cleaning.md`。
 5. 拆开先后换人的条目，因为声纹要求每段只有一个人。换人确定后可以先拆，名字稍后补。读 `references/cleaning.md`。
 6. 对拆好的句子算声纹，标上说话人。读 `references/speakers.md`。
-7. 写成一份最终字幕，检查后只导入一次。之后重新导入不会更新没变的段的说话人；后续小修正可直接编辑已有段。
+7. 写成一份最终字幕，检查后按约定保存；需要写入 Otto 时只导入一次。之后重新导入不会更新没变的段的说话人；后续小修正可直接编辑已有段。
 
 ## 如果只要其中一部分
 
@@ -43,6 +43,6 @@ description: "为 OttoSmasher 准备字幕：清洗文字、修正时间、拆�
 
 ## 开工前
 
-1. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。缺默认轨就用 `tracks.defaultFromSeparation` 设好。没有人声就先分离，因为拆字幕要听得清。
+1. 用 `tracks.separatedVocals {"sourceIds"}` 查已有的人声并直接用。需要在 Otto 中使用默认轨时，用 `tracks.defaultFromSeparation` 设好。约定的处理需要清晰人声而目前没有时，再分离。
 2. 按总览的要求检查音频工具，接法见 `otto guide audio`。
 3. 改字幕前都留一份 `backup_` 原件。同名的 `.ass` 可以留着。
