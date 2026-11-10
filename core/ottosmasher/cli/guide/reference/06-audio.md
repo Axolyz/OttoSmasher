@@ -6,6 +6,8 @@ Start with the audio-mcp tools exposed by your agent host. If they are absent, `
 
 Connect the chosen audio tool through the agent host's MCP support. audio-mcp is the current example; another tool can provide the waveform, measurements or transcription needed by the task. The host manages its connection and dependencies. Otto continues to provide the library, audio exports and time mapping through its CLI.
 
+The first uvx invocation, including `--help`, may download dependencies; the first transcription may also download a model. Follow “First-time setup” in the overview before these downloads. Reuse an existing environment directly.
+
 Check the CLI syntax with:
 
 ```sh

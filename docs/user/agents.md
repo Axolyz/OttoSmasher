@@ -98,6 +98,8 @@ agent 也可以出编排方案，但目前更推荐它做上游的素材处理�
 
 很多 agent 听不到声音。除了登记文件、导出指定采样这类按固定步骤做的事，agent 做需要判断的任务都要先接上音频工具，比如编排音 MAD rap、挑音色、挑台词、洗字幕。
 
+首次配置时，agent 会先检查已有环境，再说明要下载的工具和模型、已知的体积与保存位置，以及需要修改的配置，等你同意后再执行。已有环境和同意过的方案会直接沿用。
+
 运行 `otto setup audio --for claude-code|codex|other`，它会给出接上 [audio-mcp](https://pypi.org/project/audio-mcp/) 的命令或配置。接上后，agent 能看频谱图、量响度、做带时间的转写。通过 agent 宿主配置所选音频工具，再用短片段试好任务需要的能力。audio-mcp 是当前示例，也可以换成其他工具；部分能力还能通过工具自己的 CLI 调用。
 
 这需要先装好 `uv`，其中自带 `uvx`。接入命令用 uvx 启动 audio-mcp：首次准备工具和依赖，后续相同配置通常复用缓存中的隔离环境，不用每次重新安装；它也不会把这些依赖装进 Otto 或当前项目。缓存被清理或配置变化后，可能需要重新准备。已有可用的 MCP 连接可以直接沿用。机制见 [uv 的工具环境说明](https://docs.astral.sh/uv/concepts/tools/#tool-environments)。

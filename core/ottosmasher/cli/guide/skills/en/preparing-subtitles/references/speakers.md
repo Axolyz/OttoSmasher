@@ -10,7 +10,7 @@ The user usually cares only about named main characters. Minor characters may st
 2. Read label samples from `raw` or the subtitle file, and interpret them by the audit. A bracket alone on a line may label the next line, reading brackets are not names, and 人, たち, 一同 and the like mean several people.
 3. Use separated vocals. Find the track with `assets.tracks` and export it with `exports.wav`; its `mapping` converts file seconds to source seconds.
 4. Split two-line cues with `speech.align` and `lines`, using the cue time ± 0.2 s as the window. Diarization models could not tell anime female voices apart in the trial.
-5. Compute voiceprints: `uv run scripts/speaker_embed.py vocals ranges.json out-prefix`. It needs uv and ffmpeg, and the first run downloads PyTorch and the model, a few hundred MB. Usage is at the top of the script.
+5. Compute voiceprints: `uv run scripts/speaker_embed.py vocals ranges.json out-prefix`. It needs uv and ffmpeg, and the first run downloads PyTorch and the model; size depends on the platform and dependencies. Before that run, follow “First-time setup” in the overview and get agreement for the downloads and configuration changes. Usage is at the top of the script.
 
 Low similarities are normal: same person about 0.3–0.4, different people about 0.2. Compare relatively, and do not apply a fixed threshold such as 0.7.
 

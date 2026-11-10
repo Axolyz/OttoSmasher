@@ -17,6 +17,10 @@ When a rule or automatic detection in the app falls short, do not wait for the a
 Commands come in two layers. **Library commands** change objects in the library; **primitives** only compute (alignment, readings, pitch, reading subtitle files) and accept any file as sound.
 Topic `primitives` explains when to register a file first.
 
+## First-time setup
+
+Before setting up external tools or models, check what can be reused and explain the new downloads, known sizes and storage locations, and planned configuration changes. Get the user's agreement before proceeding. Read-only checks and presenting a plan can come first. Reuse existing environments and an agreed plan; ask again when adding downloads or expanding configuration changes.
+
 ## Where instructions come from
 
 | Source | What it holds | Who changes it |
