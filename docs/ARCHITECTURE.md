@@ -499,6 +499,8 @@ class LanguageProfile:
 
 - 拖出：Option/Alt 按下时冻结请求 → 移动 > 4 px 才请求 Core 生成 → 生成期间提示，Esc/松手/失焦放弃 → 完成且仍按住时主进程 `webContents.startDrag`；
   进入系统拖拽后 Esc 交给系统。生成失败用消息提示（不吞错误）。（Electron 的 startDrag 必须在拖动手势中调用，阶段 2 探针验证“生成后再发起”的时序。）
+- macOS 上，Electron 用 `CFURLCreateWithFileSystemPath` 把路径转为拖拽用的文件 URL。用同一接口和独立粘贴板实测，NFC 的 `が.wav` 在 URL 和 `public.file-url` 数据里变成分解写法。两种路径在本机 APFS 上指向同一个 WAV，磁盘目录项仍是 NFC。即使显式构造保留 NFC 的 URL，接收方读 `fileSystemRepresentation` 仍会拿到分解形式。
+  [Electron 的 macOS 拖拽实现](https://github.com/electron/electron/blob/v44.6.0/shell/browser/ui/drag_util_mac.mm#L51-L55) · [Chromium 的路径转换](https://github.com/chromium/chromium/blob/152.0.7977.130/base/apple/foundation_util.mm#L346-L374)
 - REAPER：Core 生成未烘焙原声 WAV（`Library/REAPER/<日期>/`）与 `<ITEM …>` 文本（规格 12 §12.3，12 位小数、引号选择、单调性校验；`domain/reaper.py`、`core/handoff.py`）；
   主进程（`reaper:copy`）向 Core 要文本，用 Electron 44 的 `clipboard.write([new ClipboardItem({'electron application/osclipboard;format="REAPERMedia"': …})])`
   写入（NUL 分隔、双 NUL 结尾），写后 `clipboard.read()` 回读校验；页面不能往剪贴板写任意内容。Windows 实测前标“未验收”。
