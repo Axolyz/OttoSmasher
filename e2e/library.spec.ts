@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 import type { PlayerState } from "../app/shared/protocol";
 import { launch, refreshLists } from "./helpers";
 
-test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", async () => {
+test("采样库深页：试听、缩放、再次截取和刷新保留浏览位置", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-lib-paging-"));
   const wav = join(dir, "paging.wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=5", wav]);
@@ -16,25 +16,29 @@ test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", as
       BrowserWindow.getAllWindows()[0]!.setContentSize(w, h);
     }, [width, height] as const);
     await resize(860);
-    await page.evaluate(async (path) => {
+    const sampleCount = 110;
+    await page.evaluate(async ({ path, count }) => {
       const req = window.otto.core.request;
       const add = (await req("sources.add", { paths: [path] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
       const assetId = add.r[0]!.assets[0]!.assetId;
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < count; i++) {
         const name = i % 2 ? `Paging ${i} ${"長いタイトルのサンプル".repeat(16)}` : `Paging ${i}`;
-        await req("samples.create", { assetId, start: i / 20, end: i / 20 + 2, name, nature: "speech" });
+        await req("samples.create", { assetId, start: i / 50, end: i / 50 + 2, name, nature: "speech" });
       }
-    }, wav);
+      await req("samples.create", { assetId, start: 0, end: 1, name: "Unrelated", nature: "speech" });
+    }, { path: wav, count: sampleCount });
     await refreshLists(page);
-    await expect(page.getByTestId("library-total")).toHaveText("40 个采样");
+    await expect(page.getByTestId("library-total")).toHaveText(`${sampleCount + 1} 个采样`);
+    const search = page.getByTestId("library-search");
+    await search.fill("Paging");
+    await expect(page.getByTestId("library-total")).toHaveText(`${sampleCount} 个采样`);
     const rows = page.getByTestId("sample-row");
     const next = page.getByRole("button", { name: "下一页" });
-    const first = await rows.first().getAttribute("data-id");
-    await next.click();
-    await expect(rows.first()).not.toHaveAttribute("data-id", first!);
-    const second = await rows.first().getAttribute("data-id");
-    await next.click();
-    await expect(rows.first()).not.toHaveAttribute("data-id", second!);
+    for (let i = 0; i < 10; i++) {
+      const first = await rows.first().getAttribute("data-id");
+      await next.click();
+      await expect(rows.first()).not.toHaveAttribute("data-id", first!);
+    }
     const anchor = (await rows.first().getAttribute("data-id"))!;
     const anchored = page.locator(`[data-testid="sample-row"][data-id="${anchor}"]`);
     const rowCount = await rows.count();
@@ -53,11 +57,46 @@ test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", as
     await expect.poll(() => rows.count()).toBeGreaterThan(smallCount);
     await expect(anchored).toBeAttached();
 
-    const ordered = await page.evaluate(async () => {
-      const response = await window.otto.core.request<{ rows: { id: string }[] }>("samples.list", { limit: 40, sort: "created" });
+    await anchored.click();
+    const sourceTags = ["project:paging", "batch:old"];
+    await page.evaluate(async ({ id, tags }) => {
+      const req = window.otto.core.request;
+      const sample = await req<{ version: number }>("samples.get", { id });
+      if (!sample.ok) throw new Error(sample.e.code);
+      const result = await req("edits.apply", {
+        batch: { label: { code: "sample-tags", args: { n: 1 } }, ops: [{ entity: "sample", id, version: sample.r.version, fields: { local_tags: tags } }] },
+      });
+      if (!result.ok) throw new Error(result.e.code);
+    }, { id: anchor, tags: sourceTags });
+    await expect(page.getByTestId("stage-tags").getByText("project:paging", { exact: false })).toBeVisible();
+    const pager = page.getByTestId("library-pager");
+    const currentPage = await pager.innerText();
+    const currentRows = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-id")));
+    const readout = page.getByTestId("stage-readout");
+    const start = Number(await readout.getAttribute("data-a")) + 0.1;
+    const startInput = page.getByTestId("stage-sel-start");
+    await startInput.fill(`0:${start.toFixed(3).padStart(6, "0")}`);
+    await startInput.press("Enter");
+    await page.getByTestId("stage-actions").getByTestId("clip").click();
+    const clip = page.getByTestId("clip-panel");
+    await expect(clip.getByTestId("clip-tags")).toHaveValue("batch:old\nproject:paging");
+    await clip.getByTestId("clip-tags").fill("project:paging\nbatch:new");
+    await clip.getByTestId("clip-name").fill("Outside the current filter");
+    await clip.getByTestId("clip-save").click();
+    await expect(page.getByTestId("stage-title")).toHaveText("Outside the current filter");
+    await expect(page.getByTestId("stage-tags").getByText("batch:new", { exact: false })).toBeVisible();
+    await expect(page.getByTestId("stage-tags").getByText("batch:old", { exact: false })).toHaveCount(0);
+    await expect(search).toHaveValue("Paging");
+    await expect(pager).toHaveText(currentPage);
+    expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-id")))).toEqual(currentRows);
+    await refreshLists(page);
+    await expect(pager).toHaveText(currentPage);
+
+    const ordered = await page.evaluate(async (limit) => {
+      const response = await window.otto.core.request<{ rows: { id: string }[] }>("samples.list", { limit, sort: "created", text: "Paging" });
       if (!response.ok) throw new Error(response.e.code);
       return response.r.rows.map((row) => row.id);
-    });
+    }, sampleCount);
     const grid = page.getByTestId("sample-list").getByRole("grid");
     const prev = page.getByRole("button", { name: "上一页" });
     for (const width of [900, 1440]) {
@@ -66,7 +105,6 @@ test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", as
       while (await prev.isEnabled()) await prev.click();
       await expect(rows.first()).toHaveAttribute("data-id", ordered[0]!);
       const pageSize = await grid.evaluate((el) => Math.floor(el.clientHeight / el.querySelector<HTMLElement>('[role="row"]')!.offsetHeight));
-      const pager = page.getByTestId("library-pager");
       const pagerBounds = await pager.boundingBox();
       for (let off = 0; off < ordered.length; off += pageSize) {
         const expected = ordered.slice(off, off + pageSize);

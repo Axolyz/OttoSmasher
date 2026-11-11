@@ -612,6 +612,7 @@ export function StageSpeech(props: {
             clip={
                 <ClipPanel
                   assetId={smp.asset_id}
+                  initialLocalTags={clipVia === "manual" ? smp.tags?.filter((tag) => tag.provenance === "local").map((tag) => tag.tag) : undefined}
                   track={trackLabel}
                   sel={sel}
                   isOpen={clipOpen}

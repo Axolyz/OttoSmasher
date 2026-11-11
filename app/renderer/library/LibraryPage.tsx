@@ -136,7 +136,7 @@ export function LibraryPage() {
   const [speechDraft, setSpeechDraft] = useState(newSpeechDraft);
   const [pitchDraft, setPitchDraft] = useState(newPitchDraft);
   const [metricsDraft, setMetricsDraft] = useState(() => newMetricsDraft("transient"));
-  const [resPage, setResPage] = useState<ResultPage | null>(null);
+  const [loadedResult, setResPage] = useState<ResultPage | null>(null);
   const [focusHit, setFocusHit] = useState<{ id: string; index: number } | null>(null);
   const [pad, setPad] = useState(false);
   const [hitPlaying, setHitPlaying] = useState<string | null>(null);
@@ -190,9 +190,10 @@ export function LibraryPage() {
     }
   }, [nowPlaying]);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
-  const [focusRow, setFocusRow] = useState<SampleRow | null>(null);
+  const [focusDetail, setFocusRow] = useState<SampleRow | null>(null);
+  const focusRow = focusDetail?.id === focus ? focusDetail : null;
   const [split, setSplit] = useState(0.5);
-  const splitRestored = useRef(false);
+  const [browseRestored, setBrowseRestored] = useState(false);
   const auditionGen = useRef(-1);
 
   /** 检索范围 = 当前浏览范围（用途 + 查找栏 + 范围行 + 临时原片块）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
@@ -200,8 +201,8 @@ export function LibraryPage() {
     () => ({
       natures: purpose === "all" ? undefined : [purpose],
       starred: find.starred,
-      text: find.text,
-      expr: find.expr,
+      text: find.text.trim(),
+      expr: find.expr.trim(),
       tags: scopeSize(find.tags) ? find.tags : undefined,
       sourceId: find.source?.sourceId,
     }),
@@ -209,23 +210,32 @@ export function LibraryPage() {
   );
   const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
   const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
+  const queryKey = JSON.stringify(query);
 
   const browseRequest = useRef(0);
   const load = useCallback(
     async (off: number) => {
       const request = ++browseRequest.current;
       try {
-        const r = await call("samples.list", { ...query, sort, offset: off, limit });
-        if (request === browseRequest.current) setData(r);
-        return r;
+        let r = await call("samples.list", { ...query, sort, offset: off, limit });
+        if (request !== browseRequest.current) return;
+        const last = Math.max(0, Math.ceil(r.total / limit) - 1) * limit;
+        if (off > last) {
+          r = await call("samples.list", { ...query, sort, offset: last, limit });
+          if (request !== browseRequest.current) return;
+          setAnchor(last);
+        }
+        setData(r);
       } catch (e) {
-        toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
-        return null;
+        if (request === browseRequest.current) toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [query, sort, limit],
   );
+  const browse = useRef({ load, offset });
+  browse.current = { load, offset };
+  const reloadBrowse = useCallback(() => void browse.current.load(browse.current.offset), []);
 
   // 保存筛选器与分面的值（范围行「＋」聚焦时刷新计数）
   const loadFilters = useCallback(() => void call("filters.list", {}).then(setFilters, () => {}), []);
@@ -246,58 +256,55 @@ export function LibraryPage() {
 
   // 分栏比例：重启恢复（UI_PLAN §2）
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || browseRestored) return;
     void call("ui.get", { page: "library" }).then((v) => {
       if (typeof v.split === "number") setSplit(v.split);
       const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize } | undefined;
       if (f && typeof f === "object") {
-        setFind({ ...EMPTY_FIND, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null });
+        setFind((current) => ({ ...EMPTY_FIND, source: current.source, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null }));
         if (f.purpose && PURPOSES.includes(f.purpose)) setPurpose(f.purpose);
         if (f.sort && SORTS.includes(f.sort)) setSort(f.sort);
         if (f.pageSize && PAGE_SIZES.includes(f.pageSize)) setPageSize(f.pageSize);
       }
-      splitRestored.current = true;
-    });
-  }, [ready]);
+      setBrowseRestored(true);
+    }, () => setBrowseRestored(true));
+  }, [ready, browseRestored]);
   useEffect(() => {
-    if (!splitRestored.current) return;
+    if (!browseRestored) return;
     const id = setTimeout(() => void call("ui.set", { page: "library", key: "split", value: split }), 300);
     return () => clearTimeout(id);
-  }, [split]);
+  }, [split, browseRestored]);
   useEffect(() => {
-    if (!splitRestored.current) return;
+    if (!browseRestored) return;
     const { source: _s, ...keep } = find;
     const id = setTimeout(() => void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize } }), 300);
     return () => clearTimeout(id);
-  }, [find, purpose, sort, pageSize]);
+  }, [find, purpose, sort, pageSize, browseRestored]);
 
-  // 条件、排序或手动切换每页数量时回第一页；窗口变化时保留上次翻页的位置。
-  const paging = useRef<{ query: typeof query; sort: Sort; pageSize: PageSize; limit: number } | null>(null);
+  const refreshTick = useApp((st) => st.refreshTick);
+  const libraryVisible = page === "library";
+  // 只在真正更换筛选或排序时回第一页。尺寸变化、回到采样库、手动刷新都读当前位置。
+  const paging = useRef<{ key: string; sort: Sort } | null>(null);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !browseRestored) return;
     const prev = paging.current;
-    paging.current = { query, sort, pageSize, limit };
-    if (!prev || prev.query !== query || prev.sort !== sort || prev.pageSize !== pageSize) {
+    paging.current = { key: queryKey, sort };
+    const changed = !!prev && prev.key !== queryKey;
+    if (!prev || changed || prev.sort !== sort) {
       setAnchor(0);
       void load(0);
-    } else if (prev.limit !== limit) {
-      void load(offset);
+    } else if (libraryVisible) {
+      reloadBrowse();
     }
     // 条件变化清空勾选（UI_PLAN §6.1）；排序、翻页和窗口变化保留勾选。
-    if (prev && prev.query !== query) {
+    if (changed) {
       setChecked((c) => {
         if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
         return new Set();
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, query, sort, pageSize, limit]);
-
-  // 切回本页时刷新（资料可能在别处变了：新截取、删除原片）
-  useEffect(() => {
-    if (page === "library" && ready) void load(offset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [ready, browseRestored, queryKey, sort, limit, libraryVisible, refreshTick]);
 
   // 资料变了（任务完成、后台补分析、别处的编辑）：当前页已有的行就地换成最新状态（分析标识、名称、标签……），
   // 不插入、不删除、不重排（P8；所有者 2026-11-05，DECISIONS §13）。新增的采样仍等「刷新浏览列表」。合并 400 毫秒。
@@ -320,13 +327,6 @@ export function LibraryPage() {
   });
   useEffect(() => () => void (patchTimer.current && clearTimeout(patchTimer.current)), []);
 
-  // 「刷新浏览列表」：按当前条件重读当前页（勾选与焦点保留）
-  const refreshTick = useApp((st) => st.refreshTick);
-  useEffect(() => {
-    if (refreshTick && ready) void load(offset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTick]);
-
   // ⌘F：聚焦查找栏的文字（UI_PLAN §7）
   useEffect(() => {
     if (page !== "library") return;
@@ -342,33 +342,27 @@ export function LibraryPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [page]);
 
-  // 截取后打开新采样
+  // 截取、回导、相关采样等只打开详情，保留列表、标签和浏览位置。
   useEffect(() => {
     if (!openSample || !ready) return;
-    void (async () => {
-      // 清空条件（新采样一定看得见），翻到它所在的那一页（按新建在前）
-      const all = await call("samples.ids", {});
-      const at = Math.max(0, all.indexOf(openSample));
-      const off = Math.floor(at / limit) * limit;
-      const r = await call("samples.list", { offset: off, limit, sort: "created" });
-      setPurpose("all");
-      setFind(EMPTY_FIND);
-      setSort("created");
-      setAnchor(off);
-      setData(r);
-      setFocus(openSample);
-      setOpenSample(null);
-    })();
+    setFocus(openSample);
+    setFocusHit(null);
+    setOpenSample(null);
   }, [openSample, ready, setOpenSample]);
 
-  // 焦点采样的资料（舞台）
-  useEffect(() => {
-    if (!focus || focus.startsWith("asset:") || focus.startsWith("gone:")) return setFocusRow(null);
-    const inPage = data?.rows.find((r) => r.id === focus);
-    if (inPage) setFocusRow((f) => (f?.id === inPage.id ? { ...f, ...inPage } : inPage));
-    // 舞台要有效标签：总是再取一次完整资料
-    void call("samples.get", { id: focus }).then(setFocusRow, () => setFocusRow(null));
-  }, [focus, data]);
+  const currentFocus = useRef(focus);
+  currentFocus.current = focus;
+  const focusRequest = useRef(0);
+  const reloadFocus = useCallback(() => {
+    const id = currentFocus.current;
+    const request = ++focusRequest.current;
+    if (!id || id.startsWith("asset:") || id.startsWith("gone:")) return setFocusRow(null);
+    void call("samples.get", { id }).then(
+      (row) => { if (request === focusRequest.current && id === currentFocus.current) setFocusRow(row); },
+      () => { if (request === focusRequest.current && id === currentFocus.current) setFocusRow(null); },
+    );
+  }, []);
+  useEffect(reloadFocus, [focus, reloadFocus]);
 
   // 试听状态；舞台波形的播放头 = 试听区间起点 + 区间本地秒（资产局部秒）。
   // 每帧读引擎位置（与原素材页一样插值、截停后贴终点）；这次试听真正开始播放之前不画（引擎里可能还是上一次的位置）
@@ -412,13 +406,14 @@ export function LibraryPage() {
   };
 
   // 固定结果（04 §4.2.10）：恢复不重搜；翻页只读；检索完成 → 新标签并激活、收起浮层
-  const results = useResults(ready, (r: SearchFinished) => {
-    setComposer(null);
-    setChecked(new Set());
-    setFocusHit(null);
+  const [resultPositions, setResultPositions] = useState<Record<string, number>>({});
+  const navigationKey = JSON.stringify([page, queryKey, sort, pageSize, anchor, focus, resultPositions]);
+  const results = useResults(ready, navigationKey, (r: SearchFinished, activated) => {
+    if (activated) setComposer(null);
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
   const inResult = results.active !== BROWSE;
+  const resPage = loadedResult?.result.id === results.active ? loadedResult : null;
   const fitBrowse = pageSize === "fit" && !inResult;
   useEffect(() => {
     const grid = sampleGrid.current;
@@ -440,8 +435,7 @@ export function LibraryPage() {
       clearTimeout(timer);
     };
   }, [fitBrowse]);
-  const [resultPosition, setResultPosition] = useState<{ id: string; anchor: number } | null>(null);
-  const resAnchor = resultPosition?.id === results.active ? resultPosition.anchor : 0;
+  const resAnchor = resultPositions[results.active] ?? 0;
   const resOffset = Math.floor(resAnchor / limit) * limit;
   const resultRequest = useRef(0);
   const loadResult = useCallback(async (id: string, off: number) => {
@@ -453,10 +447,15 @@ export function LibraryPage() {
       if (request === resultRequest.current) setResPage(null);
     }
   }, [limit]);
+  const currentResult = useRef({ id: results.active, offset: resOffset, load: loadResult });
+  currentResult.current = { id: results.active, offset: resOffset, load: loadResult };
+  const reloadActiveResult = () => {
+    const { id, offset, load } = currentResult.current;
+    if (id !== BROWSE) void load(id, offset);
+  };
   useEffect(() => {
     ++resultRequest.current;
     if (!inResult) return setResPage(null);
-    setResultPosition(null);
     setFocusHit(null);
     setChecked((c) => {
       if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
@@ -610,13 +609,13 @@ export function LibraryPage() {
       });
       // 就地更新，不重排（改完该行留在原位，刷新后按新条件归位）
       setData((d) => d && { ...d, rows: d.rows.map((r) => (ids.includes(r.id) ? { ...r, ...fields, version: r.version + 1 } : r)) });
-      if (inResult) void loadResult(results.active, resOffset);
+      reloadActiveResult();
       setFocusRow((f) => (f && ids.includes(f.id) ? { ...f, ...fields, version: f.version + 1 } : f));
-      if (focus && ids.includes(focus)) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
-      toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo().then(() => load(offset)) } });
+      reloadFocus();
+      toast({ text: t("library.edited", { n: all.length }), action: { label: t("common.undo"), run: () => void undo() } });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
-      void load(offset);
+      reloadFocus();
     }
   };
 
@@ -624,7 +623,7 @@ export function LibraryPage() {
   useCoreEvent("data.changed", (d) => {
     const c = d as Record<string, string[]>;
     if (focus && (c.sample?.includes(focus) || c.measure?.includes(focus) || c.segment || c.range_tag || c.source || c.asset)) {
-      void call("samples.get", { id: focus }).then(setFocusRow, () => {});
+      reloadFocus();
     }
   });
 
@@ -683,11 +682,6 @@ export function LibraryPage() {
       ],
     });
   };
-  const refreshAfterPromote = () => {
-    void load(offset);
-    if (focus) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
-  };
-
   const checkAllMatching = async () => {
     if (!inResult) return setChecked(new Set(await call("samples.ids", query)));
     // 固定结果：全部成员（跨页），失效的不勾
@@ -722,7 +716,7 @@ export function LibraryPage() {
   const goto = (p: number) => {
     const off = (Math.max(1, Math.min(pages, p)) - 1) * limit;
     if (inResult) {
-      setResultPosition({ id: results.active, anchor: off });
+      setResultPositions((positions) => ({ ...positions, [results.active]: off }));
       return;
     }
     setAnchor(off);
@@ -864,7 +858,8 @@ export function LibraryPage() {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
     } finally {
       setDeleteIds(null);
-      void load(offset);
+      reloadBrowse();
+      reloadActiveResult();
     }
   };
 
@@ -1512,10 +1507,7 @@ export function LibraryPage() {
         kind={batch?.kind ?? null}
         ids={batch?.ids ?? []}
         onClose={() => setBatch(null)}
-        onDone={() => {
-          void load(offset);
-          if (focus) void call("samples.get", { id: focus }).then(setFocusRow, () => {});
-        }}
+        onDone={reloadFocus}
         onGoSource={(ref) => {
           setBatch(null);
           if (ref.sourceId && ref.start != null && ref.end != null) {
@@ -1544,13 +1536,16 @@ export function LibraryPage() {
         onClose={() => setFilterDialog(null)}
         onApply={(expr) => setFind((f) => ({ ...f, tags: { ...f.tags, expr } }))}
       />
-      <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={refreshAfterPromote} />
+      <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={reloadFocus} />
       <ImportDialog
         paths={importPaths}
         defaultWhole
         defaultNature={purpose === "all" ? "unclassified" : purpose}
         onClose={() => setImportPaths(null)}
-        onImported={(r) => r.sampleIds[0] && setOpenSample(r.sampleIds[0])}
+        onImported={(r) => {
+          reloadBrowse();
+          if (r.sampleIds[0]) setOpenSample(r.sampleIds[0]);
+        }}
       />
       {composer ? (
         <Composer

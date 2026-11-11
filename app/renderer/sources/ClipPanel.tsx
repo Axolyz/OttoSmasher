@@ -21,6 +21,8 @@ export function ClipPanel(props: {
   from?: SamplePlanSource | null;
   assetId: string | null;
   track: string;
+  /** 从采样详情再次截取时预填的本地标签。 */
+  initialLocalTags?: string[];
   sel: { a: number; b: number } | null;
   isOpen: boolean;
   onOpenChange: (o: boolean) => void;
@@ -73,7 +75,8 @@ export function ClipPanel(props: {
       .catch((e) => setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)));
   };
   useEffect(() => {
-    if (!props.isOpen) setTags("");
+    // 打开时取一次默认值，面板内修改选区或重取计划时保留用户输入。
+    setTags(props.isOpen ? (props.initialLocalTags ?? []).join("\n") : "");
   }, [props.isOpen]);
   useEffect(() => {
     if (!props.isOpen) return;

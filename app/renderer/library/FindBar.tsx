@@ -74,6 +74,8 @@ export function FindBar(props: { find: FindState; setFind: (f: (x: FindState) =>
   const { find, setFind } = props;
   const [text, setText] = useState(find.text);
   const [expr, setExpr] = useState(find.expr);
+  const currentExpr = useRef(expr);
+  currentExpr.current = expr;
   const [bad, setBad] = useState<ExprError | null>(null);
   // 外部改了（恢复、清空、跳转）→ 输入框跟着变
   useEffect(() => setText(find.text), [find.text]);
@@ -84,6 +86,7 @@ export function FindBar(props: { find: FindState; setFind: (f: (x: FindState) =>
   useDebounced(text, 250, (v) => setFind((f) => ({ ...f, text: v })));
   useDebounced(expr, 250, async (v) => {
     const r = await call("tags.checkExpr", { expr: v });
+    if (v !== currentExpr.current) return;
     if (!r.ok) return setBad({ position: r.position!, reason: r.reason! });
     setBad(null);
     setFind((f) => ({ ...f, expr: v }));
