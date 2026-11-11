@@ -95,7 +95,9 @@ class ExportService:
         assets_mod.check_media(media)
         sr = ref.sample_rate
         a, b = round(win.to_file(start) * sr), round(win.to_file(end) * sr)
-        lo, hi = win.to_local(a / sr), win.to_local(b / sr)  # 实际导出的资产区间（按源样本取整后）
+        # PCM 取整后的端点可能略超出存储窗口，映射贴回边界，导出仍用取整后的帧。
+        lo = win.to_local(a / sr, frame=1.0 / sr)
+        hi = win.to_local(b / sr, frame=1.0 / sr)
 
         def handoff(path: str, key: str, frames: int, rate: int) -> dict[str, Any]:
             # 交给外部工具的坐标：文件秒 → 原片秒（原声 = 资产映射截取这段；卡拍等 = 清单里的合成映射）

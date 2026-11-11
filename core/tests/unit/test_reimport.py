@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,11 +13,12 @@ import pytest
 from ottosmasher.core import assets as assets_mod
 from ottosmasher.core.edits import EditService
 from ottosmasher.core.errors import CoreError
-from ottosmasher.core.exports import ExportService
+from ottosmasher.core.exports import ExportService, export_samples
 from ottosmasher.core.reimport import ReimportService
 from ottosmasher.core.samples import SampleService
 from ottosmasher.core.sources import SourceService
 from ottosmasher.media import decode as dec
+from ottosmasher.media import wavfile
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not on PATH")
 
@@ -57,6 +59,20 @@ def test_reimport_positive_and_cleanup(env, db, ws, tmp_path) -> None:
     pcm = dec.decode_frames(ref, 0, 4800, cache=ws.data / "Cache")
     assert ref.sample_rate == 48000 and np.abs(pcm).max() > 0.05
     assert ExportService(db, ws).export_wav(out["asset_id"], 0.0, 0.5, content="x", track="回导")["path"].endswith(".wav")
+
+
+def test_export_full_reimport_with_rounded_duration(env, db, ws, tmp_path) -> None:
+    svc, _, aid, _ = env
+    path = tmp_path / "one-beat.wav"
+    rate, frames = 44100, 14700
+    wavfile.save_wav24(path, np.full((frames, 1), 0.25, dtype=np.float32), rate)
+    sample = svc.commit(aid, 4.0, str(path), name="one beat")
+    assert sample["duration"] == 0.333333
+
+    exports = ExportService(db, ws)
+    [exported] = export_samples(exports, [sample["id"]], {})
+    assert wavfile.info(Path(exported)) == (rate, 1, 24, frames)
+    assert export_samples(exports, [sample["id"]], {}) == [exported]
 
 
 def test_reimport_out_of_bounds_rejected(env, db, tmp_path) -> None:

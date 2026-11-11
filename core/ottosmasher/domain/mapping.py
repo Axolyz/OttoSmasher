@@ -219,10 +219,11 @@ class FileWindow:
         t = min(max(t, self.local_start), self.local_end)
         return self.file_start + (t - self.local_start)
 
-    def to_local(self, f: float) -> float:
-        """文件秒 → 资产局部秒（to_file 的逆）。"""
+    def to_local(self, f: float, *, frame: float = 0.0) -> float:
+        """文件秒 → 资产局部秒。PCM 取整后的端点可传入一个采样周期，按 R3.4 贴边。"""
         lo, hi = self.file_start, self.file_start + (self.local_end - self.local_start)
-        if f < lo - EPS or f > hi + EPS:
+        tol = frame + EPS
+        if f < lo - tol or f > hi + tol:
             raise _out_of_range(f, lo, hi, "file")
         return self.local_start + (min(max(f, lo), hi) - self.file_start)
 
