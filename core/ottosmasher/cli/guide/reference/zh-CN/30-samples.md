@@ -20,7 +20,7 @@ otto call samples.plan '{"from": {"kind": "segments", "sourceId": "<id>", "ids":
 ```sh
 otto call samples.createPlanned '{"from": <同样的 from>, "token": "<token>", "keys": ["<key>", ...], "nature": "speech"}'
 ```
-返回新采样的 `ids`。`overrides` 可以给单条改名：`{"<key>": {"name": "..."}}`。
+返回新采样的 `ids`。`overrides` 可以给单条设置名称或本地标签，例如 `{"<key>": {"name": "...", "localTags": ["project:demo"]}}`。标签与采样在同一事务中保存。
 其他来源：`kind: "whole"`（整个原素材，`sourceIds`）、`"hints"`（音效提示）、`"selection"`
 （`assetId`、`start`、`end`，资产秒），或者直接建一段：`samples.create {"assetId", "start", "end"}`。
 

@@ -1374,6 +1374,7 @@ class SamplePlan(TypedDict):
 class SampleOverride(TypedDict):
     name: NotRequired[str]
     nature: NotRequired[str]
+    localTags: NotRequired[list[str]]
 
 
 SampleCreatePlannedParams = TypedDict(

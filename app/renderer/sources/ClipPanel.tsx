@@ -8,7 +8,7 @@ import { CoreFailure, call } from "../api/core";
 import type { Nature, SamplePlan, SamplePlanSource } from "../api/types";
 import { Button } from "../components/Button";
 import { Segmented } from "../components/Controls";
-import { TextField } from "../components/Fields";
+import { TextArea, TextField } from "../components/Fields";
 import { NaturePicker } from "../components/NaturePicker";
 import { AnchoredPanel } from "../components/Panel";
 import { clock } from "../format";
@@ -41,6 +41,7 @@ export function ClipPanel(props: {
   const setOpenSample = useApp((st) => st.setOpenSample);
   const [plan, setPlan] = useState<SamplePlan | null>(null);
   const [name, setName] = useState("");
+  const [tags, setTags] = useState("");
   const [nature, setNature] = useState<Nature>("unclassified");
   const [track, setTrack] = useState<"default" | "current">("default");
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,9 @@ export function ClipPanel(props: {
       .catch((e) => setError(e instanceof CoreFailure ? errorText(e.wire) : String(e)));
   };
   useEffect(() => {
+    if (!props.isOpen) setTags("");
+  }, [props.isOpen]);
+  useEffect(() => {
     if (!props.isOpen) return;
     // 段默认建在默认人声轨上；提示默认在当前查看的轨上（批量才默认音效轨）
     const tr = fromKind === "hints" && props.currentAsset ? "current" : "default";
@@ -83,10 +87,13 @@ export function ClipPanel(props: {
   const item = plan?.items[0] ?? null;
   const save = async () => {
     const src = source();
-    if (!src || !plan || !item || busy) return;
+    if (!src || !plan || !item || item.status !== "pending" || plan.missingDefault || !name.trim() || busy) return;
     setBusy(true);
     try {
-      const r = await call("samples.createPlanned", { from: src, token: plan.token, keys: [item.key], overrides: { [item.key]: { name, nature } } });
+      const localTags = tags.split(/\r?\n/).map((tag) => tag.trim()).filter(Boolean);
+      const r = await call("samples.createPlanned", {
+        from: src, token: plan.token, keys: [item.key], overrides: { [item.key]: { name, nature, localTags } },
+      });
       const id = r.ids[0]!;
       props.onOpenChange(false);
       if (props.afterSave) props.afterSave(id, name);
@@ -164,6 +171,7 @@ export function ClipPanel(props: {
         )}
         <TextField value={name} onChange={setName} label={t("clip.name")} testId="clip-name" />
         <NaturePicker value={nature} onChange={setNature} testId="clip-nature" />
+        <TextArea value={tags} onChange={setTags} label={t("batch.field.local_tags")} placeholder={t("clip.tagsHint")} testId="clip-tags" />
         <div className={s.clipHint}>
           {roles.length ? t("clip.roles", { roles: roles.map((r) => t(`role.${r}`)).join(" + ") }) : t("clip.noRoles")}
           {item?.judgeStart != null && item.judgeEnd != null ? ` · ${t("clip.judge", { a: clock(item.judgeStart), b: clock(item.judgeEnd) })}` : ""}

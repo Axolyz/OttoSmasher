@@ -44,6 +44,27 @@ def sample_rows(db):
         'SELECT asset_id, start, "end", name, nature, created_via, origin, text_snapshot, tag_judge_start, tag_judge_end FROM sample ORDER BY created_at, rowid')]
 
 
+def test_local_tags_are_saved_with_plan_and_invalid_tags_roll_back(db, env):
+    sid, edits, plan = env
+    vocal = asset(db, sid, origin="separation", stem="vocals", snapshot="v", roles=["vocal"])
+    set_default(db, edits, sid, "vocal", vocal)
+    src = {"kind": "segments", "sourceId": sid}
+    preview = plan.plan(src)
+    first, second = [it["key"] for it in preview["items"] if it["status"] == "pending"][:2]
+    with pytest.raises(CoreError) as error:
+        plan.create(src, preview["token"], [first, second], {
+            first: {"localTags": ["project:test"]}, second: {"localTags": ["x" * 201]},
+        })
+    assert error.value.code == "sample-invalid" and error.value.args_["reason"] == "tag-too-long"
+    assert not sample_rows(db)
+    created = plan.create(src, preview["token"], [first], {
+        first: {"localTags": [" project:test ", "", "project:test"]},
+    })["ids"][0]
+    tags = SampleService(db).get(created)["tags"]
+    assert [t["tag"] for t in tags if t["provenance"] == "local"] == ["project:test"]
+    assert db.execute("SELECT 1 FROM sample_effective_tag WHERE sample_id=? AND tag=?", (created, "project:test")).fetchone()
+
+
 def test_missing_default_track_is_refused_not_mixed(db, env):
     sid, _, plan = env
     src = {"kind": "segments", "sourceId": sid}

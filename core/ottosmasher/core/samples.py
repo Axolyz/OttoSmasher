@@ -23,7 +23,7 @@ from ottosmasher.store.db import transaction
 from . import assets as assets_mod
 from . import effective_tags, lineage, sample_filter, units
 from .clock import new_id, now_iso
-from .edits import ChangeSet, dumps, loads
+from .edits import ChangeSet, _Invalid, dumps, loads, validate_local_tags
 from .errors import CoreError
 
 NATURES = sample_filter.NATURES
@@ -141,7 +141,7 @@ class SampleService:
     def insert_checked(
         self, asset_id: str, start: float, end: float, *, name: str, nature: str | None = None, created_via: str = "manual",
         origin: dict[str, Any] | None = None, snapshot: dict[str, Any] | None = None,
-        judge: tuple[float, float] | None = None,
+        judge: tuple[float, float] | None = None, local_tags: list[str] | None = None,
     ) -> str:
         """校验并新建一个采样，在调用方的写事务里（批量新建整批原子）。判定区间没给 = 选区。"""
         asset = assets_mod.get(self.conn, asset_id)
@@ -157,6 +157,10 @@ class SampleService:
             raise CoreError("sample-invalid", reason="not-an-option", field="nature")
         if created_via not in CREATED_VIA:
             raise CoreError("sample-invalid", reason="not-an-option", field="created_via")
+        try:
+            tags = validate_local_tags(local_tags) if local_tags is not None else []
+        except _Invalid as bad:
+            raise CoreError("sample-invalid", field="local_tags", reason=bad.reason, **bad.args_) from None
         sid, ts = new_id(), now_iso()
         js, je = (round(judge[0], 6), round(judge[1], 6)) if judge else (None, None)
         self.conn.execute(
@@ -165,6 +169,8 @@ class SampleService:
             (sid, asset_id, start, end, name, nature, asset["language"], created_via,
              dumps(origin) if origin else None, dumps(snapshot) if snapshot else None, js, je, ts, ts),
         )
+        if tags:
+            self.conn.executemany("INSERT INTO sample_tag(sample_id, tag) VALUES (?, ?)", [(sid, tag) for tag in tags])
         effective_tags.refresh(self.conn, [sid])
         return sid
 

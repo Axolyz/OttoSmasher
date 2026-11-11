@@ -241,7 +241,7 @@ class SamplePlanner:
 
     def create(self, src: dict[str, Any], token: str, keys: list[str], overrides: dict[str, dict[str, Any]] | None = None,
                nature: str | None = None) -> dict[str, Any]:
-        """按计划原子创建（任何一条失败则这批回滚）。``overrides``：条目 → {name, nature}；``nature`` 给了就作用于全部。"""
+        """按计划原子创建（任何一条失败则这批回滚）。``overrides``：条目 → {name, nature, localTags}；``nature`` 给了就作用于全部。"""
         overrides = overrides or {}
         with transaction(self.conn):
             pv = self.plan(src)
@@ -260,6 +260,7 @@ class SamplePlanner:
                 created.append(self.samples.insert_checked(
                     it["assetId"], it["start"], it["end"], name=o.get("name") or it["name"], nature=nature or o.get("nature") or it["nature"],
                     created_via=it["createdVia"], origin=it["origin"], snapshot=it["snapshot"], judge=judge,
+                    local_tags=o.get("localTags"),
                 ))
         if self.on_change and created:
             cs = ChangeSet()

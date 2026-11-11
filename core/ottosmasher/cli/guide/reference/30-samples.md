@@ -20,7 +20,7 @@ The plan has `token`, `missingDefault` (a default track the source still needs â
 ```sh
 otto call samples.createPlanned '{"from": <same from>, "token": "<token>", "keys": ["<key>", ...], "nature": "speech"}'
 ```
-Returns `ids` of the new samples. `overrides` can rename single items: `{"<key>": {"name": "..."}}`.
+Returns `ids` of the new samples. Use `overrides` to set names or local tags per item, for example `{"<key>": {"name": "...", "localTags": ["project:demo"]}}`. The tags are saved in the same transaction as the sample.
 Other sources of samples: `kind: "whole"` (whole sources, `sourceIds`), `"hints"` (sfx hints), `"selection"`
 (`assetId`, `start`, `end` in asset seconds), or one range directly with `samples.create {"assetId", "start", "end"}`.
 

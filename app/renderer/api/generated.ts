@@ -1703,6 +1703,7 @@ export interface SampleMetricsRow {
 }
 
 export interface SampleOverride {
+  localTags?: string[];
   name?: string;
   nature?: string;
 }

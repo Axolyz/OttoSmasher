@@ -11819,6 +11819,12 @@
    "title": "SampleOverride",
    "type": "object",
    "properties": {
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "name": {
      "type": "string"
     },

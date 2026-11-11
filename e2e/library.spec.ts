@@ -112,11 +112,15 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(panel.locator('[role="radio"][aria-checked="true"]')).toHaveAttribute("data-nature", "unclassified");
   await panel.getByTestId("clip-name").fill("やったー");
   await panel.locator('[data-nature="speech"][role="radio"]').click();
+  await panel.getByTestId("clip-tags").fill("project:test\n  first take  \nproject:test");
   await panel.getByTestId("clip-save").click();
 
   // 跳到采样库并打开新采样
   await expect(page.getByTestId("page-library")).toBeVisible();
   await expect(page.getByTestId("stage-title")).toHaveText("やったー");
+  const tags = page.getByTestId("stage-tags");
+  await expect(tags.getByText("project:test", { exact: false })).toHaveCount(1);
+  await expect(tags.getByText("first take", { exact: false })).toBeVisible();
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   const row = page.getByTestId("sample-row").first();
   await expect(row).toHaveAttribute("data-nature", "speech");
@@ -142,6 +146,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   // R7.1 同一范围再保存一次 → 两个采样
   await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("source-viewer").getByTestId("clip").click();
+  await expect(panel.getByTestId("clip-tags")).toHaveValue("");
   await page.getByTestId("clip-save").click();
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
 

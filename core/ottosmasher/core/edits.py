@@ -153,6 +153,9 @@ def v_tags(max_count: int) -> Validator:
     return check
 
 
+validate_local_tags = v_tags(512)
+
+
 def v_roles(v: Any) -> list[str]:
     if not isinstance(v, list) or any(r not in ("vocal", "sfx") for r in v):
         raise _Invalid("not-an-option", options=["vocal", "sfx"])
@@ -260,7 +263,7 @@ _register(
             "rating": FieldSpec(v_opt_int(1, 5)),
             "starred": FieldSpec(v_bool),
             "nature": FieldSpec(v_enum("speech", "pitched", "unpitched", "unclassified")),
-            "local_tags": FieldSpec(v_tags(512), custom="local_tags"),
+            "local_tags": FieldSpec(validate_local_tags, custom="local_tags"),
             # 判定区间（所有者 2026-10-09）：资产局部秒，存成原片秒；决定标签继承和读哪些文本段；必须在采样范围内
             "judge": FieldSpec(v_judge, custom="judge"),
             # 节奏参数（规格 09 §9.3–§9.4「分组与停顿」「人工占格」；阶段 6）：灵敏度、语段阈值、绑定分析版本的人工项
