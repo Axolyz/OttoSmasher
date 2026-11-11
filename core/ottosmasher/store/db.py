@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -53,6 +54,7 @@ def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
         conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
+    conn.create_function("unicode_nfc", 1, lambda value: unicodedata.normalize("NFC", value) if value is not None else None, deterministic=True)
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")
     return conn

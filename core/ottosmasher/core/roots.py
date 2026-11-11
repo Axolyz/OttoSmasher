@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ottosmasher.domain.naming import stem
 from ottosmasher.store.db import transaction
 
 from . import rootpaths
@@ -46,10 +47,30 @@ def subtitle_update(media: str, current: str | None) -> str | None:
         return None
     if current and os.path.isfile(current):
         cur = Path(current)
-        if cur.parent != path.parent or cur.stem.lower() != path.stem.lower() or cur.suffix.lower() != ".ass":
+        if cur.suffix.lower() != ".ass" or stem(cur.name).lower() != stem(path.name).lower():
             return None
+        if cur.parent != path.parent:
+            try:
+                if not cur.parent.samefile(path.parent):
+                    return None
+            except OSError:
+                return None
     found = find_subtitle(path)
     return found if found and found != current else None
+
+
+def _folder_names(root: str) -> list[str]:
+    try:
+        return sorted(p.name for p in Path(root).iterdir() if not p.name.startswith(".") and p.is_dir())
+    except OSError:
+        return []
+
+
+def _work_paths(root: str) -> dict[str, list[str]]:
+    paths: dict[str, list[str]] = {}
+    for name in _folder_names(root):
+        paths.setdefault(unicodedata.normalize("NFC", name), []).append(os.path.join(root, name))
+    return paths
 
 
 def scan_roots(
@@ -61,14 +82,7 @@ def scan_roots(
     seen = set(known)
     todo = [f for f, _root in collect(paths) if path_key(f) not in seen]
     res = scan(todo, cache, progress)
-    folders: dict[str, list[str]] = {}
-    for r in roots:
-        if r["id"] in offline:
-            continue
-        try:
-            folders[r["id"]] = sorted(p.name for p in Path(r["path"]).iterdir() if p.is_dir() and not p.name.startswith("."))
-        except OSError:
-            folders[r["id"]] = []
+    folders = {r["id"]: _folder_names(r["path"]) for r in roots if r["id"] not in offline}
     subtitles = []
     for r in linked or ():
         found = subtitle_update(r["path"], r["subtitle"])
@@ -177,10 +191,7 @@ class RootService:
     def _ensure_folders(self, root_id: str, names: list[str] | None = None) -> None:
         if names is None:
             path = self.conn.execute("SELECT path FROM source_root WHERE id=?", (root_id,)).fetchone()[0]
-            try:
-                names = sorted(p.name for p in Path(path).iterdir() if p.is_dir() and not p.name.startswith("."))
-            except OSError:
-                names = []
+            names = _folder_names(path)
         ts = now_iso()
         for n in names:
             n = unicodedata.normalize("NFC", n)
@@ -300,14 +311,17 @@ class RootService:
 
     def works(self) -> list[dict[str, Any]]:
         rows = self.conn.execute(
-            "SELECT w.id, w.root_id, w.name, w.source_type, w.bind_pictures, w.version, r.path AS root_path FROM work_folder w"
+            "SELECT w.id, w.root_id, w.name, w.source_type, w.bind_pictures, w.version, r.path AS root_path,"
+            " (SELECT COUNT(*) FROM source s WHERE s.root_id=w.root_id AND s.work=w.name) AS sources FROM work_folder w"
             " JOIN source_root r ON r.id=w.root_id ORDER BY w.name"
         )
         out = []
+        paths: dict[str, dict[str, list[str]]] = {}
         for w in rows:
-            n = self.conn.execute(
-                "SELECT COUNT(*) FROM source WHERE root_id=? AND (rel_path LIKE ? || '/%')", (w["root_id"], w["name"])
-            ).fetchone()[0]
+            root = w["root_path"]
+            if root not in paths:
+                paths[root] = _work_paths(root)
+            candidates = paths[root].get(w["name"], [])
             out.append(
                 {
                     "id": w["id"],
@@ -316,8 +330,8 @@ class RootService:
                     "sourceType": w["source_type"],
                     "bindPictures": bool(w["bind_pictures"]),
                     "version": w["version"],
-                    "path": os.path.join(w["root_path"], w["name"]),
-                    "sources": n,
+                    "path": candidates[0] if len(candidates) == 1 else os.path.join(root, w["name"]),
+                    "sources": w["sources"],
                 }
             )
         return out
@@ -331,7 +345,7 @@ class RootService:
         return w
 
     def _source_ids(self, w: Any) -> list[str]:
-        return [r[0] for r in self.conn.execute("SELECT id FROM source WHERE root_id=? AND rel_path LIKE ? || '/%'", (w["root_id"], w["name"]))]
+        return [r[0] for r in self.conn.execute("SELECT id FROM source WHERE root_id=? AND work=?", (w["root_id"], w["name"]))]
 
     def settings_batch(self, folder_id: str, source_type: str, bind_pictures: bool) -> dict[str, Any]:
         """作品设置的编辑批次：作品文件夹的类型与画面开关 + 组内每个原片的来源类型（整组一起设）；由编辑通道预览、应用、撤销。"""
@@ -353,14 +367,17 @@ class RootService:
         root = w["root_path"]
         if not os.path.isdir(root):
             raise CoreError("root-offline", path=root)
-        old_dir, new_dir = os.path.join(root, w["name"]), os.path.join(root, name)
-        if not os.path.isdir(old_dir):
+        paths = _work_paths(root)
+        candidates = paths.get(w["name"], [])
+        if not candidates:
             raise CoreError("work-folder-missing", name=w["name"])
-        case_only = rootpaths.norm(old_dir) == rootpaths.norm(new_dir)
+        if len(candidates) > 1:
+            raise CoreError("work-folder-exists", name=w["name"])
+        old_dir, new_dir = candidates[0], os.path.join(root, name)
         clash = self.conn.execute("SELECT 1 FROM work_folder WHERE root_id=? AND name=? AND id<>?", (w["root_id"], name, folder_id)).fetchone()
-        if clash or (os.path.exists(new_dir) and not case_only):
-            raise CoreError("work-folder-exists", name=name)
         try:
+            if clash or name in paths or (os.path.exists(new_dir) and not os.path.samefile(old_dir, new_dir)):
+                raise CoreError("work-folder-exists", name=name)
             os.rename(old_dir, new_dir)
         except OSError as e:
             raise CoreError("work-rename-failed", name=name, detail=str(e)) from None

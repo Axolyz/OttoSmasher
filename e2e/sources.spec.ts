@@ -10,7 +10,7 @@ import { launch } from "./helpers";
 test("原素材页：列表、时间线、导出、设置、删除", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-src-"));
   const mkv = join(dir, "[Group] Test Show [01].mkv");
-  const wav = join(dir, "效果音 ♪.wav");
+  const wav = join(dir, "效果音 が♪.wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=8",
     "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=8", "-f", "lavfi", "-i", "sine=f=660:sample_rate=48000:duration=8",
     "-map", "0", "-map", "1", "-map", "2", "-c:v", "libx264", "-c:a", "flac", "-metadata:s:a:1", "language=jpn", mkv]);  // prettier-ignore
@@ -26,6 +26,12 @@ test("原素材页：列表、时间线、导出、设置、删除", async () =>
   await expect(groups.nth(0)).toContainText("Test Show");
   await expect(groups.nth(1)).toContainText("未指定作品");
   await expect(page.getByTestId("source-row")).toHaveCount(0); // 默认折叠
+  const search = page.getByTestId("sources-search");
+  await search.fill("か\u3099♪");
+  await expect(page.getByTestId("source-row")).toHaveCount(1);
+  await expect(page.getByTestId("source-row")).toContainText("效果音");
+  await search.clear();
+  await expect(groups).toHaveCount(2);
   await groups.nth(0).click();
   await page.getByTestId("source-row").first().click();
   const viewer = page.getByTestId("source-viewer");

@@ -11,6 +11,7 @@ NOT 的补集只在其他条件筛出的范围里取（都在同一个 WHERE 里
 from __future__ import annotations
 
 import sqlite3
+import unicodedata
 from typing import Any
 
 from ..domain import tagexpr
@@ -124,8 +125,8 @@ def _text_clause(conn: sqlite3.Connection, reader: text_search.Reader | None, te
     """名称、备注子串；或读到的段（与判定区间正长度交叠、未删除）的规范化原文 / 读音子串。"""
     from .edits import SEGMENT_MAX
 
-    parts = ["s.name LIKE ? ESCAPE '\\'", "s.note LIKE ? ESCAPE '\\'"]
-    needle = text_search.like_needle(text)
+    parts = ["unicode_nfc(s.name) LIKE ? ESCAPE '\\'", "unicode_nfc(s.note) LIKE ? ESCAPE '\\'"]
+    needle = text_search.like_needle(unicodedata.normalize("NFC", text))
     args: list[Any] = [needle, needle]
     if reader is not None:
         text_search.ensure(conn, reader)

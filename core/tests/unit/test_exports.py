@@ -1,5 +1,6 @@
 """导出 WAV：规格 16 R21.1–R21.3、R21.6，12 §12.1。"""
 
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -93,6 +94,30 @@ def test_modified_export_and_missing_source(env):
     with pytest.raises(CoreError) as ei:
         export(env, 1.0, 1.5)
     assert ei.value.code == "asset-file-missing"
+
+
+def test_export_reuses_equivalent_kana(env):
+    first = export(env, content="か\u3099は\u309a")
+    assert Path(first["path"]).name.startswith("がぱ__")
+    assert export(env, content="がぱ") == {**first, "reused": True}
+
+
+@pytest.mark.parametrize(("old_name", "requested_name"), [("か\u3099", "が"), ("がは\u309a", "がは\u309a")])
+def test_export_reuses_old_decomposed_key(env, monkeypatch, old_name, requested_name):
+    def old_key(prefix, *labels, suffix=()):
+        payload = exports_mod.dumps([*prefix, *labels, *suffix]).encode()
+        return [hashlib.sha256(payload).hexdigest()]
+
+    with monkeypatch.context() as patch:
+        patch.setattr(exports_mod, "export_keys", old_key)
+        old = export(env, content=old_name)
+
+    assert export(env, content=requested_name) == {**old, "reused": True}
+    with Path(old["path"]).open("ab") as out:
+        out.write(b"x")
+    with pytest.raises(CoreError) as ei:
+        export(env, content=requested_name)
+    assert ei.value.code == "export-modified"
 
 
 def test_one_frame_tolerance_at_end(env):

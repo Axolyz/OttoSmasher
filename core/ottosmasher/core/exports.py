@@ -15,7 +15,9 @@ import hashlib
 import os
 import shutil
 import sqlite3
+import unicodedata
 from datetime import datetime
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,12 @@ from .edits import dumps, loads
 from .errors import CoreError
 
 VERSION_ORIGINAL = "original"
+
+
+def export_keys(prefix: list[Any], *labels: str, suffix: tuple[Any, ...] = ()) -> list[str]:
+    """首项为新导出的 NFC 键，其余查找升级前可能用原样或 NFD 算出的键。路径和版本参数保持原样。"""
+    variants = [tuple(dict.fromkeys((unicodedata.normalize("NFC", s), unicodedata.normalize("NFD", s), s))) for s in labels]
+    return [hashlib.sha256(dumps([*prefix, *parts, *suffix]).encode()).hexdigest() for parts in product(*variants)]
 
 
 def _sha256(path: Path) -> str:
@@ -108,10 +116,15 @@ class ExportService:
             return {"sourceId": asset["source_id"], "assetId": asset_id, "range": [round(lo, 6), round(hi, 6)],
                     "sampleRate": rate, "frames": frames, "mapping": m}
 
-        key = hashlib.sha256(
-            dumps([asset_id, media["media_file_id"], media["snapshot"], a, b, sr, *version, content, track, processing]).encode()
-        ).hexdigest()
+        keys = export_keys([asset_id, media["media_file_id"], media["snapshot"], a, b, sr, *version], content, track, processing)
+        target_dir = Path(directory) if directory else self.ws.library / "Exports" / datetime.now().strftime("%Y-%m-%d")
+        reuse = self.find_reusable(keys, target_dir if directory else None)
+        if reuse is not None:
+            key, path = reuse
+            rate, _ch, _bits, frames = wavfile.info(path)
+            return {"path": path, "reused": True, "key": key, **handoff(path, key, frames, rate)}
 
+        key = keys[0]
         src = self.conn.execute("SELECT id, path FROM source WHERE id=?", (asset["source_id"],)).fetchone()
         if local_prefix is None:
             s0, s1 = mapping.to_source(start), mapping.to_source(end)
@@ -130,18 +143,6 @@ class ExportService:
                 local_prefix=local_prefix,
             )
         )
-        target_dir = Path(directory) if directory else self.ws.library / "Exports" / datetime.now().strftime("%Y-%m-%d")
-
-        # 复用：同一稳定键
-        row = self.conn.execute("SELECT path, size, mtime_ns FROM export_file WHERE stable_key=?", (key,)).fetchone()
-        if row is not None and (not directory or Path(row[0]).parent == target_dir):
-            p = Path(row[0])
-            if p.is_file():
-                st = p.stat()
-                if (st.st_size, st.st_mtime_ns) != (row[1], row[2]):
-                    raise CoreError("export-modified", path=str(p))
-                rate, _ch, _bits, frames = wavfile.info(p)
-                return {"path": str(p), "reused": True, "key": key, **handoff(str(p), key, frames, rate)}
         target = target_dir / name
         if target.exists():
             raise CoreError("export-exists", path=str(target))
@@ -166,6 +167,26 @@ class ExportService:
             d.mkdir(parents=True, exist_ok=True)
             (d / f"{key[:24]}.json").write_text(dumps(manifest(str(target), key)), encoding="utf-8")
         return {"path": str(target), "reused": False, "key": key, **handoff(str(target), key, len(pcm), out_sr)}
+
+    def find_reusable(self, keys: list[str], directory: Path | None = None) -> tuple[str, str] | None:
+        marks = ",".join("?" for _ in keys)
+        rows = {
+            r["stable_key"]: r for r in self.conn.execute(f"SELECT stable_key, path, size, mtime_ns FROM export_file WHERE stable_key IN ({marks})", keys)
+        }
+        for key in keys:
+            row = rows.get(key)
+            if row is None:
+                continue
+            path = Path(row["path"])
+            if not path.is_file():
+                continue
+            if directory is not None and path.parent != directory and not (directory.is_dir() and path.parent.samefile(directory)):
+                continue
+            st = path.stat()
+            if (st.st_size, st.st_mtime_ns) != (row["size"], row["mtime_ns"]):
+                raise CoreError("export-modified", path=str(path))
+            return key, str(path)
+        return None
 
     def _publish(self, staged: Path, target: Path) -> None:
         """原子发布，不覆盖已有文件。"""

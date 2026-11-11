@@ -16,15 +16,20 @@ def norm(path: str | os.PathLike[str]) -> str:
     return os.path.normcase(unicodedata.normalize("NFC", os.path.abspath(os.fspath(path))))
 
 
+def _relative(root: str, path: str) -> tuple[str, ...] | None:
+    if not norm(path).startswith(norm(root).rstrip(os.sep) + os.sep):
+        return None
+    # 前缀已按规范化形式比较，按组件数截下原样的后缀。relpath 会重新比较原字符串。
+    return Path(os.path.abspath(path)).parts[len(Path(os.path.abspath(root)).parts) :]
+
+
 def split(root: str, path: str) -> tuple[str, str] | None:
     """path 在 root 之下 → (相对路径, 作品)；否则 None。"""
-    rk, pk = norm(root).rstrip(os.sep), norm(path)
-    if not pk.startswith(rk + os.sep):
+    parts = _relative(root, path)
+    if parts is None:
         return None
-    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(root))
-    parts = PurePath(rel).parts
     work = unicodedata.normalize("NFC", parts[0]) if len(parts) > 1 else ""
-    return Path(rel).as_posix(), work
+    return PurePath(*parts).as_posix(), work
 
 
 def locate(conn: sqlite3.Connection, path: str) -> tuple[str, str, str] | None:
@@ -48,7 +53,5 @@ def replace_prefix(path: str | None, old: str, new: str) -> str | None:
         return None
     if norm(path) == norm(old):
         return new
-    if not norm(path).startswith(norm(old).rstrip(os.sep) + os.sep):
-        return None
-    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(old))
-    return os.path.join(new, rel)
+    parts = _relative(old, path)
+    return os.path.join(new, *parts) if parts is not None else None

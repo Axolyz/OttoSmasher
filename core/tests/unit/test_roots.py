@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ottosmasher.core import effective_tags
+from ottosmasher.core import effective_tags, rootpaths
 from ottosmasher.core.edits import EditService
 from ottosmasher.core.errors import CoreError
 from ottosmasher.core.roots import RootService, scan_roots
@@ -156,6 +156,44 @@ def test_root_overlap_refused(db, ws, tmp_path):
     for p in (tmp_path / "a" / "b", tmp_path / "a", tmp_path):
         with pytest.raises(CoreError):
             s.roots.add(str(p))
+
+
+def test_relative_path_preserves_suffix_across_normalization(tmp_path):
+    composed = str(tmp_path / "が")
+    decomposed = tmp_path / "か\u3099" / "ぱ" / "は\u309a.wav"
+    moved = str(tmp_path / "new")
+    assert rootpaths.split(composed, str(decomposed)) == ("ぱ/は\u309a.wav", "ぱ")
+    assert rootpaths.replace_prefix(str(decomposed), composed, moved) == str(Path(moved) / "ぱ" / "は\u309a.wav")
+
+
+@needs_ffmpeg
+def test_decomposed_work_folder_and_subtitle_rescan(db, ws, tmp_path):
+    root = tmp_path / "media"
+    folder = root / "か\u3099"
+    folder.mkdir(parents=True)
+    wav(folder / "は\u309a.wav", 0.2)
+    ass = folder / "ぱ.ass"
+    ass.touch()
+    s = Svc(db, ws)
+    s.roots.add(str(root))
+    assert s.scan()["new"] == 1
+    [info] = s.roots.works()
+    assert (info["name"], info["sources"], info["path"]) == ("が", 1, str(folder))
+    r = db.execute("SELECT id, subtitle_path FROM source").fetchone()
+    assert r["subtitle_path"] == str(ass)
+    batch = s.roots.settings_batch(info["id"], "animation", True)
+    assert [op["id"] for op in batch["ops"] if op["entity"] == "source"] == [r["id"]]
+    srt = folder / "ぱ.srt"
+    srt.touch()
+    assert s.scan()["subtitlesLinked"] == 1
+    assert db.execute("SELECT subtitle_path FROM source").fetchone()[0] == str(srt)
+
+    assert s.roots.rename(info["id"], "Renamed")["renamed"] == 1
+    new_folder = root / "Renamed"
+    row = db.execute("SELECT path, subtitle_path, rel_path FROM source").fetchone()
+    assert tuple(row) == (str(new_folder / "は\u309a.wav"), str(new_folder / "ぱ.srt"), "Renamed/は\u309a.wav")
+    assert all(Path(row[key]).is_file() for key in ("path", "subtitle_path"))
+    assert db.execute("SELECT path FROM media_file WHERE location='external'").fetchone()[0] == row["path"]
 
 
 def test_find_subtitle_priority(tmp_path):

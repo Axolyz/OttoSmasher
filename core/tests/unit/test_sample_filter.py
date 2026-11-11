@@ -54,6 +54,13 @@ def names(svc, **f):
     return sorted(r["name"] for r in svc.list(limit=500, **f)["rows"])
 
 
+def test_sample_search_matches_composed_and_decomposed_names_and_notes(lib, db):
+    svc, ids = lib
+    db.execute("UPDATE sample SET name=?, note=? WHERE id=?", ("は\u309a%", "が", ids["k1"]))
+    assert names(svc, text="ぱ%") == ["は\u309a%"]
+    assert names(svc, text="か\u3099") == ["は\u309a%"]
+
+
 def person(*values, single=False):
     return {"facets": [{"facet": "person", "values": list(values), "single": single}]}
 

@@ -108,6 +108,14 @@ def test_no_picture_is_an_error(db, ws, tmp_path) -> None:
     assert ei.value.code == "visual-none"  # Q8：不生成黑屏
 
 
+def test_video_export_reuses_equivalent_kana(env):
+    svc, jobs, aid, _samples, _src = env
+    out = run(svc, jobs, svc.range(aid, 0.5, 0.75, "か\u3099"))
+    assert Path(out["target"]).name.startswith("が__")
+    assert svc.range(aid, 0.5, 0.75, "が") == {"reused": True, "path": out["target"], "job": None}
+    assert len(jobs.submitted) == 1
+
+
 def test_late_video_start_pads_black(db, ws, tmp_path) -> None:
     """S7.4 的模式：外部 MP4 视频从 0.125 秒开始、音频从 0 开始 → 以音频为主时钟，开头补黑帧并计数。"""
     mp4 = tmp_path / "late.mp4"

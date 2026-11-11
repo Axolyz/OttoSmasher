@@ -13,7 +13,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import sqlite3
 from datetime import datetime
@@ -32,7 +31,7 @@ from . import visuals
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
-from .exports import _sha256, processing_label, track_label
+from .exports import ExportService, _sha256, export_keys, processing_label, track_label
 
 JOB_KIND = "export.video"
 VERSIONS = ("original", "stretched")
@@ -41,7 +40,7 @@ IMAGE_FPS = 30.0
 
 
 class VideoExportService:
-    def __init__(self, conn: sqlite3.Connection, ws: Workspace, exports: Any, handoff: Any, jobs: Any, emit: Any = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, ws: Workspace, exports: ExportService, handoff: Any, jobs: Any, emit: Any = None) -> None:
         self.conn = conn
         self.ws = ws
         self.exports = exports
@@ -151,10 +150,14 @@ class VideoExportService:
         ref, win, media = assets_mod.locate(self.conn, self.ws.root, asset, start, end)
         assets_mod.check_media(media)
         snap = _stat_key(b["path"])
-        key = hashlib.sha256(dumps([
+        keys = export_keys([
             "video", asset_id, media["media_file_id"], media["snapshot"], round(start, 6), round(end, 6), *ver_key, b["mode"], b["path"], snap,
-            b["offset"], audio, codec, content, ext,
-        ]).encode()).hexdigest()
+            b["offset"], audio, codec,
+        ], content, suffix=(ext,))
+        reuse = self.exports.find_reusable(keys)
+        if reuse is not None:
+            return {"reused": True, "path": reuse[1], "job": None, **extra}
+        key = keys[0]
         src_row = self.conn.execute("SELECT id, path FROM source WHERE id = ?", (asset["source_id"],)).fetchone()
         name = fname.export_filename(fname.ExportNameParts(
             content=content, track=track_label(asset, words), source_name=Path(src_row[1]).stem, source_id=src_row[0],
@@ -162,12 +165,6 @@ class VideoExportService:
             processing="_".join(x for x in (processing, words.get("video", "video")) if x), ext=ext,
         ))
         target_dir = self.ws.library / "Exports" / datetime.now().strftime("%Y-%m-%d")
-        reuse = self.conn.execute("SELECT path, size, mtime_ns FROM export_file WHERE stable_key = ?", (key,)).fetchone()
-        if reuse is not None and Path(reuse[0]).is_file():
-            st = Path(reuse[0]).stat()
-            if (st.st_size, st.st_mtime_ns) != (reuse[1], reuse[2]):
-                raise CoreError("export-modified", path=reuse[0])
-            return {"reused": True, "path": reuse[0], "job": None, **extra}
         target = target_dir / name
         if target.exists():
             raise CoreError("export-exists", path=str(target))

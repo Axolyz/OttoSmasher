@@ -64,8 +64,8 @@ export function SourceList(props: {
   const searching = q.trim() !== "";
 
   const { items, visible } = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const hit = (r: SourceRow) => !needle || [r.work, r.episode, basename(r.path)].some((x) => x.toLowerCase().includes(needle));
+    const needle = q.trim().normalize("NFC").toLowerCase();
+    const hit = (r: SourceRow) => !needle || [r.work, r.episode, basename(r.path)].some((x) => x.normalize("NFC").toLowerCase().includes(needle));
     const map = new Map<string, SourceRow[]>();
     for (const r of props.rows) {
       if (!hit(r)) continue;
