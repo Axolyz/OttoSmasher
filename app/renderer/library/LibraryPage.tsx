@@ -169,7 +169,8 @@ export function LibraryPage() {
   const libraryScope = useApp((st) => st.libraryScope);
   const setLibraryScope = useApp((st) => st.setLibraryScope);
   const limit = pageSize === "fit" ? fitRows : pageSize;
-  const [offset, setOffset] = useState(0);
+  const [anchor, setAnchor] = useState(0);
+  const offset = Math.floor(anchor / limit) * limit;
   const [data, setData] = useState<SamplePage | null>(null);
   /** 列表行的副信息（用途视图）：每次换页 / 刷新后按本页的采样取一次 */
   const [glyphs, setGlyphs] = useState<Record<string, SampleGlyph>>({});
@@ -209,11 +210,13 @@ export function LibraryPage() {
   const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
   const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
 
+  const browseRequest = useRef(0);
   const load = useCallback(
     async (off: number) => {
+      const request = ++browseRequest.current;
       try {
         const r = await call("samples.list", { ...query, sort, offset: off, limit });
-        setData(r);
+        if (request === browseRequest.current) setData(r);
         return r;
       } catch (e) {
         toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
@@ -239,6 +242,7 @@ export function LibraryPage() {
     const el = listBox.current;
     if (!el) return;
     const measure = () => {
+      if (!el.clientHeight) return; // 隐藏页面的高度不代表实际可用空间
       const row = el.querySelector<HTMLElement>('[data-testid="sample-row"]');
       const h = row && !row.querySelector("[data-top]") ? row.offsetHeight : ROW_GUESS;
       setFitRows(Math.max(5, Math.floor(el.clientHeight / Math.max(40, h || ROW_GUESS))));
@@ -283,34 +287,27 @@ export function LibraryPage() {
     return () => clearTimeout(id);
   }, [find, purpose, sort, pageSize]);
 
-  // 条件变化：回到第一页，清空勾选并提示（UI_PLAN §6.1）
-  const firstQuery = useRef(true);
+  // 条件、排序或手动切换每页数量时回第一页；窗口变化时保留上次翻页的位置。
+  const paging = useRef<{ query: typeof query; sort: Sort; pageSize: PageSize; limit: number } | null>(null);
   useEffect(() => {
     if (!ready) return;
-    setOffset(0);
-    void load(0);
-    if (firstQuery.current) {
-      firstQuery.current = false;
-      return;
+    const prev = paging.current;
+    paging.current = { query, sort, pageSize, limit };
+    if (!prev || prev.query !== query || prev.sort !== sort || prev.pageSize !== pageSize) {
+      setAnchor(0);
+      void load(0);
+    } else if (prev.limit !== limit) {
+      void load(offset);
     }
-    setChecked((c) => {
-      if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
-      return new Set();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, query]);
-  // 排序、每页行数变了：回到第一页重读（勾选保留）
-  const firstPaging = useRef(true);
-  useEffect(() => {
-    if (!ready) return;
-    if (firstPaging.current) {
-      firstPaging.current = false;
-      return;
+    // 条件变化清空勾选（UI_PLAN §6.1）；排序、翻页和窗口变化保留勾选。
+    if (prev && prev.query !== query) {
+      setChecked((c) => {
+        if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
+        return new Set();
+      });
     }
-    setOffset(0);
-    void load(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, limit]);
+  }, [ready, query, sort, pageSize, limit]);
 
   // 切回本页时刷新（资料可能在别处变了：新截取、删除原片）
   useEffect(() => {
@@ -373,7 +370,7 @@ export function LibraryPage() {
       setPurpose("all");
       setFind(EMPTY_FIND);
       setSort("created");
-      setOffset(off);
+      setAnchor(off);
       setData(r);
       setFocus(openSample);
       setOpenSample(null);
@@ -438,25 +435,33 @@ export function LibraryPage() {
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
   const inResult = results.active !== BROWSE;
-  const [resOffset, setResOffset] = useState(0);
+  const [resultPosition, setResultPosition] = useState<{ id: string; anchor: number } | null>(null);
+  const resAnchor = resultPosition?.id === results.active ? resultPosition.anchor : 0;
+  const resOffset = Math.floor(resAnchor / limit) * limit;
+  const resultRequest = useRef(0);
   const loadResult = useCallback(async (id: string, off: number) => {
+    const request = ++resultRequest.current;
     try {
-      setResPage(await call("results.page", { id, offset: off, limit }));
+      const result = await call("results.page", { id, offset: off, limit });
+      if (request === resultRequest.current) setResPage(result);
     } catch {
-      setResPage(null);
+      if (request === resultRequest.current) setResPage(null);
     }
   }, [limit]);
   useEffect(() => {
+    ++resultRequest.current;
     if (!inResult) return setResPage(null);
-    setResOffset(0);
+    setResultPosition(null);
     setFocusHit(null);
-    void loadResult(results.active, 0);
     setChecked((c) => {
       if (c.size) toast({ text: t("library.checkCleared", { n: c.size }) });
       return new Set();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.active, inResult]);
+  useEffect(() => {
+    if (inResult) void loadResult(results.active, resOffset);
+  }, [inResult, loadResult, results.active, resOffset]);
   const items: Item[] = inResult ? (resPage?.rows ?? []).map(toItem) : (data?.rows ?? []);
   const rows = items;
   const glyphKey = items.map((x) => x.id).join(",");
@@ -712,11 +717,10 @@ export function LibraryPage() {
   const goto = (p: number) => {
     const off = (Math.max(1, Math.min(pages, p)) - 1) * limit;
     if (inResult) {
-      setResOffset(off);
-      void loadResult(results.active, off);
+      setResultPosition({ id: results.active, anchor: off });
       return;
     }
-    setOffset(off);
+    setAnchor(off);
     void load(off);
   };
 

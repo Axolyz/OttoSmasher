@@ -4,7 +4,57 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { PlayerState } from "../app/shared/protocol";
-import { launch } from "./helpers";
+import { launch, refreshLists } from "./helpers";
+
+test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-lib-paging-"));
+  const wav = join(dir, "paging.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=5", wav]);
+  const { app, page } = await launch();
+  try {
+    const resize = (height: number) => app.evaluate(({ BrowserWindow }, h) => {
+      BrowserWindow.getAllWindows()[0]!.setContentSize(900, h);
+    }, height);
+    await resize(860);
+    await page.evaluate(async (path) => {
+      const req = window.otto.core.request;
+      const add = (await req("sources.add", { paths: [path] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
+      const assetId = add.r[0]!.assets[0]!.assetId;
+      for (let i = 0; i < 40; i++) {
+        await req("samples.create", { assetId, start: i / 20, end: i / 20 + 2, name: `Paging ${i}`, nature: "speech" });
+      }
+    }, wav);
+    await refreshLists(page);
+    await expect(page.getByTestId("library-total")).toHaveText("40 个采样");
+    const rows = page.getByTestId("sample-row");
+    const next = page.getByRole("button", { name: "下一页" });
+    const first = await rows.first().getAttribute("data-id");
+    await next.click();
+    await expect(rows.first()).not.toHaveAttribute("data-id", first!);
+    const second = await rows.first().getAttribute("data-id");
+    await next.click();
+    await expect(rows.first()).not.toHaveAttribute("data-id", second!);
+    const anchor = (await rows.first().getAttribute("data-id"))!;
+    const anchored = page.locator(`[data-testid="sample-row"][data-id="${anchor}"]`);
+    const rowCount = await rows.count();
+
+    await anchored.getByTestId("sample-play").click();
+    await expect(page.getByTestId("dock-stop")).toBeVisible();
+    await expect(rows.first()).toHaveAttribute("data-id", anchor);
+    await expect(page.getByTestId("dock-stop")).toBeHidden({ timeout: 6000 });
+    await expect(rows.first()).toHaveAttribute("data-id", anchor);
+
+    await resize(610);
+    await expect.poll(() => rows.count()).toBeLessThan(rowCount);
+    await expect(anchored).toBeAttached();
+    const smallCount = await rows.count();
+    await resize(860);
+    await expect.poll(() => rows.count()).toBeGreaterThan(smallCount);
+    await expect(anchored).toBeAttached();
+  } finally {
+    await app.close();
+  }
+});
 
 // 截取与采样库（规格 16 R7.1、R7.2、R2.6；UI_PLAN §2、§5、§6.1、§8）
 test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、全选、返回原素材、删除", async () => {
