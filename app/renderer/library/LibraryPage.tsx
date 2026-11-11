@@ -44,7 +44,7 @@ import { IndependDialog } from "./IndependDialog";
 import { VisualDialog, type VisualTarget } from "../sources/VisualDialog";
 import { Composer, type ComposerMode } from "./search/Composer";
 import { HitChips, HitLine } from "./search/HitLine";
-import { metricFilter, newMetricsDraft } from "./search/MetricsComposer";
+import { metricFilter, newMetricsDraft, restoreMetricsDraft } from "./search/MetricsComposer";
 import { newPitchDraft, pitchBlocks, pitchParams } from "./search/PitchComposer";
 import ss from "./search/Search.module.css";
 import { newSpeechDraft, speechQuery } from "./search/SpeechComposer";
@@ -194,6 +194,7 @@ export function LibraryPage() {
   const focusRow = focusDetail?.id === focus ? focusDetail : null;
   const [split, setSplit] = useState(0.5);
   const [browseRestored, setBrowseRestored] = useState(false);
+  const browseStateRead = useRef(false);
   const auditionGen = useRef(-1);
 
   /** 检索范围 = 当前浏览范围（用途 + 查找栏 + 范围行 + 临时原片块）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
@@ -247,39 +248,34 @@ export function LibraryPage() {
     if ((d as Record<string, string[]>).saved_filter) loadFilters();
   });
 
-  // 从原片页「派生采样」跳过来：查找栏出现临时“原片：…”块（不存）
-  useEffect(() => {
-    if (!libraryScope) return;
-    setFind((f) => ({ ...f, source: libraryScope }));
-    setLibraryScope(null);
-  }, [libraryScope, setLibraryScope]);
-
   // 分栏比例：重启恢复（UI_PLAN §2）
   useEffect(() => {
     if (!ready || browseRestored) return;
     void call("ui.get", { page: "library" }).then((v) => {
       if (typeof v.split === "number") setSplit(v.split);
-      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize } | undefined;
+      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize; metricsDraft?: unknown } | undefined;
       if (f && typeof f === "object") {
         setFind((current) => ({ ...EMPTY_FIND, source: current.source, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null }));
         if (f.purpose && PURPOSES.includes(f.purpose)) setPurpose(f.purpose);
         if (f.sort && SORTS.includes(f.sort)) setSort(f.sort);
         if (f.pageSize && PAGE_SIZES.includes(f.pageSize)) setPageSize(f.pageSize);
+        const savedMetrics = restoreMetricsDraft(f.metricsDraft);
+        if (savedMetrics) setMetricsDraft(savedMetrics);
       }
+      browseStateRead.current = true;
       setBrowseRestored(true);
     }, () => setBrowseRestored(true));
   }, [ready, browseRestored]);
   useEffect(() => {
-    if (!browseRestored) return;
+    if (!browseRestored || !browseStateRead.current) return;
     const id = setTimeout(() => void call("ui.set", { page: "library", key: "split", value: split }), 300);
     return () => clearTimeout(id);
   }, [split, browseRestored]);
   useEffect(() => {
-    if (!browseRestored) return;
+    if (!ready || !browseRestored || !browseStateRead.current) return;
     const { source: _s, ...keep } = find;
-    const id = setTimeout(() => void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize } }), 300);
-    return () => clearTimeout(id);
-  }, [find, purpose, sort, pageSize, browseRestored]);
+    void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize, metricsDraft } });
+  }, [find, purpose, sort, pageSize, metricsDraft, ready, browseRestored]);
 
   const refreshTick = useApp((st) => st.refreshTick);
   const libraryVisible = page === "library";
@@ -412,6 +408,14 @@ export function LibraryPage() {
     if (activated) setComposer(null);
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
+  const { setActive: setResultTab } = results;
+  // 只加临时原片条件。保留用户自己的筛选，并切回浏览以显示新范围。
+  useEffect(() => {
+    if (!libraryScope || !browseRestored) return;
+    setFind((f) => ({ ...f, source: libraryScope }));
+    setResultTab(BROWSE);
+    setLibraryScope(null);
+  }, [libraryScope, browseRestored, setLibraryScope, setResultTab]);
   const inResult = results.active !== BROWSE;
   const resPage = loadedResult?.result.id === results.active ? loadedResult : null;
   const fitBrowse = pageSize === "fit" && !inResult;

@@ -20,6 +20,7 @@ export function useResults(ready: boolean, navigationKey: string, onFinished: (r
   const [active, setActiveRaw] = useState<string>(BROWSE);
   const [running, setRunning] = useState<Running | null>(null);
   const restored = useRef(false);
+  const tabChosen = useRef(false);
   const runningRef = useRef<Running | null>(null);
   runningRef.current = running;
   const position = JSON.stringify([active, navigationKey]);
@@ -36,11 +37,12 @@ export function useResults(ready: boolean, navigationKey: string, onFinished: (r
     void Promise.all([call("results.list"), call("ui.get", { page: "library" })]).then(([list, ui]) => {
       setTabs(list);
       const a = typeof ui.activeResult === "string" ? ui.activeResult : BROWSE;
-      setActiveRaw(list.some((h) => h.id === a) ? a : BROWSE);
+      if (!tabChosen.current) setActiveRaw(list.some((h) => h.id === a) ? a : BROWSE);
     });
   }, [ready]);
 
   const setActive = useCallback((id: string) => {
+    tabChosen.current = true;
     setActiveRaw(id);
     void call("ui.set", { page: "library", key: "activeResult", value: id });
   }, []);

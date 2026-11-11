@@ -43,6 +43,9 @@ test("范围行：分面、表达式、保存筛选器、排序", async () => {
   await page.getByTestId("scope-add-list").getByRole("option", { name: /京子/ }).click();
   await expect(page.getByTestId("scope-chips")).toContainText("人物京子");
   await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
+  await page.getByTestId("scope-add").press("Backspace");
+  await expect(page.getByTestId("scope-chips")).toContainText("人物京子");
+  await page.keyboard.press("Escape");
   // 单击人物块 = 只要单人
   await page.getByTestId("scope-chips").getByText("京子", { exact: true }).click();
   await expect(page.getByTestId("scope-chips")).toContainText("（单人）");
@@ -71,14 +74,21 @@ test("范围行：分面、表达式、保存筛选器、排序", async () => {
   await page.getByTestId("scope-add").fill("A4");
   await page.getByTestId("scope-add-list").getByRole("option", { name: /A4/ }).click();
   await expect(page.getByTestId("scope-modified")).toBeVisible();
+  await page.getByTestId("scope-preset").click();
+  await expect(page.getByRole("menuitem", { name: /京子的/ })).toBeDisabled();
+  await expect(page.getByTestId("menu-preset-restore")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("scope-chips")).toContainText("A4");
   await page.getByTestId("scope-update").click();
   await expect(page.getByTestId("scope-modified")).toHaveCount(0);
 
-  // 筛选器菜单：全部采样（清空范围）→ 选用“京子的”= 用它替换范围行
-  await page.getByTestId("library-expr").fill("");
+  // 清空标签范围只移除范围行的条件，保留主表达式。
   await page.getByTestId("scope-preset").click();
   await page.screenshot({ path: `${SHOTS}/03-preset-menu.png` });
   await page.getByTestId("menu-preset-clear").click();
+  await expect(page.getByTestId("library-expr")).toHaveValue('NOT "pitch:A4"');
+  await expect(page.getByTestId("library-total")).toHaveText("2 个采样");
+  await page.getByTestId("library-expr").fill("");
   await expect(page.getByTestId("library-total")).toHaveText("4 个采样");
   await page.getByTestId("scope-preset").click();
   await page.getByRole("menuitem", { name: /京子的/ }).click();
@@ -100,11 +110,31 @@ test("范围行：分面、表达式、保存筛选器、排序", async () => {
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   await page.keyboard.press("ControlOrMeta+Shift+f");
   await expect(page.getByTestId("scope-add")).toBeFocused();
-  await page.waitForTimeout(500);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hunt-open").click();
+  const composer = page.getByTestId("composer");
+  await composer.getByTestId("composer-transient").click();
+  await composer.getByRole("button", { name: "更多指标" }).click();
+  const rms = composer.getByTestId("metric-min-rmsDb");
+  await rms.fill("-100");
+  const rmsRow = composer.getByTestId("table-row").filter({ has: page.getByTestId("metric-min-rmsDb") });
+  await rmsRow.locator("label").first().click();
+  await composer.getByRole("button", { name: "只看默认指标" }).click();
+  await composer.getByTestId("metric-min-effectiveDuration").fill("1");
+  await composer.getByTestId("table-row").first().locator("label").first().click();
+  await expect(rmsRow).toHaveAttribute("data-checked", "true");
+  await expect(page.getByTestId("metrics-active")).toBeVisible();
+  await composer.getByTestId("composer-close").click();
   await app.close();
   ({ app, page } = await launch({ workspace }));
   await page.getByTestId("nav-library").click();
   await expect(page.getByTestId("library-expr")).toHaveValue("好用");
+  await expect(page.getByTestId("metrics-active")).toBeVisible();
+  await page.getByTestId("hunt-open").click();
+  await page.getByTestId("composer-transient").click();
+  await expect(page.getByTestId("metric-min-rmsDb")).toHaveValue("-100");
+  await page.getByTestId("composer-close").click();
+  await page.getByRole("button", { name: "清除指标条件" }).click();
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   await app.close();
 });

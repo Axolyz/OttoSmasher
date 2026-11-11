@@ -29,6 +29,26 @@ export interface MetricsDraft {
 
 export const newMetricsDraft = (mode: MetricMode): MetricsDraft => ({ mode, chosen: [], ranges: {}, more: false });
 
+const ALL_METRICS = [...new Set([...DEFAULTS.timbre, ...DEFAULTS.transient, ...MORE])];
+
+export function restoreMetricsDraft(value: unknown): MetricsDraft | null {
+  if (!value || typeof value !== "object") return null;
+  const saved = value as Partial<MetricsDraft>;
+  if (saved.mode !== "timbre" && saved.mode !== "transient") return null;
+  const ranges: MetricsDraft["ranges"] = {};
+  const bound = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : null;
+  for (const metric of ALL_METRICS) {
+    const pair = saved.ranges?.[metric];
+    if (!Array.isArray(pair)) continue;
+    const lo = bound(pair[0]);
+    const hi = bound(pair[1]);
+    if (lo == null || hi == null || lo <= hi) ranges[metric] = [lo, hi];
+  }
+  const savedChosen = saved.chosen;
+  const chosen = Array.isArray(savedChosen) ? ALL_METRICS.filter((metric) => savedChosen.includes(metric)) : [];
+  return { mode: saved.mode, ranges, chosen, more: saved.more === true };
+}
+
 export function metricFilter(d: MetricsDraft): MetricFilter | null {
   const conditions = d.chosen.map((m) => ({ metric: m, min: d.ranges[m]?.[0] ?? null, max: d.ranges[m]?.[1] ?? null })).filter((c) => c.min != null || c.max != null);
   return conditions.length ? { mode: d.mode, conditions } : null;
@@ -37,7 +57,8 @@ export function metricFilter(d: MetricsDraft): MetricFilter | null {
 export function MetricsBody(props: { d: MetricsDraft; set: (d: MetricsDraft) => void; scope: SampleFilter }) {
   const { d, set } = props;
   const toast = useApp((st) => st.toast);
-  const metrics = [...DEFAULTS[d.mode], ...(d.more ? MORE.concat(DEFAULTS[d.mode === "timbre" ? "transient" : "timbre"].filter((m) => !DEFAULTS[d.mode].includes(m))) : [])];
+  const advanced = [...MORE, ...DEFAULTS[d.mode === "timbre" ? "transient" : "timbre"]];
+  const metrics = [...new Set([...DEFAULTS[d.mode], ...(d.more ? advanced : d.chosen)])];
   const [status, setStatus] = useState<MetricsStatus | null>(null);
   const reload = () => void call("metrics.status", { scope: props.scope, metrics }).then(setStatus, () => setStatus(null));
   useEffect(reload, [JSON.stringify(props.scope), metrics.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,7 +94,7 @@ export function MetricsBody(props: { d: MetricsDraft; set: (d: MetricsDraft) => 
         label={t("search.metrics.table")}
         rows={metrics.map((m) => ({ id: m }))}
         checked={new Set(d.chosen)}
-        onChecked={(next) => set({ ...d, chosen: metrics.filter((m) => next.has(m)) })}
+        onChecked={(next) => set({ ...d, chosen: [...next] })}
         checkLabel={(r) => t(`metric.${r.id}`)}
         testId="metrics-table"
         columns={[

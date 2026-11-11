@@ -245,13 +245,20 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("page-library")).toBeVisible();
   await expect(page.locator(`[data-testid="sample-row"][data-id="${remaining}"]`)).toHaveAttribute("data-focus", /.*/);
   // 「在采样库里列出全部」：查找栏出现临时“原素材：…”块，移除后回到全部（L16）
+  await page.getByTestId("library-expr").fill('NOT "batch:other"');
+  await expect.poll(() => page.evaluate(async () => {
+    const ui = await window.otto.core.request<{ find?: { expr?: string } }>("ui.get", { page: "library" });
+    return ui.ok ? ui.r.find?.expr : null;
+  })).toBe('NOT "batch:other"');
   await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("derived-button").click();
   await page.getByTestId("menu-in-library").click();
   await expect(page.getByTestId("find-source")).toContainText("Test Show 01");
+  await expect(page.getByTestId("library-expr")).toHaveValue('NOT "batch:other"');
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   await page.getByTestId("find-source").getByRole("button", { name: "移除原素材条件" }).click();
   await expect(page.getByTestId("find-source")).toHaveCount(0);
+  await expect(page.getByTestId("library-expr")).toHaveValue('NOT "batch:other"');
   await expect(page.getByTestId("stage-title")).toBeVisible();
   await page.screenshot({ path: ".cache/playwright-results/library-thumbs.png" });
   await app.close();

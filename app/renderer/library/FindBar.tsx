@@ -196,11 +196,16 @@ export function ScopeRow(props: {
   ];
 
   const presetItems: MenuItems = [
-    { id: "preset-clear", label: t("scope.clear"), run: () => setFind((f) => ({ ...f, preset: null, tags: EMPTY_SCOPE })) },
+    { id: "preset-clear", label: t("scope.clear"), disabled: !scopeSize(tags) && !preset, run: () => setFind((f) => ({ ...f, preset: null, tags: EMPTY_SCOPE })) },
+    ...(modified && preset ? [{
+      id: "preset-restore", label: t("scope.restorePreset"),
+      run: () => setFind((f) => ({ ...f, tags: normScope(preset.conditions) })),
+    }] : []),
     "-",
     ...filters.map((f) => ({
       id: `preset-${f.id}`,
       label: `${f.name}  ·  ${scopeSummary(normScope(f.conditions))}`,
+      disabled: f.id === find.preset,
       run: () => setFind((x) => ({ ...x, preset: f.id, tags: normScope(f.conditions) })),
     })),
     ...(filters.length ? (["-"] as MenuItems) : []),
@@ -216,7 +221,7 @@ export function ScopeRow(props: {
         items={presetItems}
         trigger={
           <Button size="sm" variant="flat" icon={<Flag />} data-testid="scope-preset">
-            {presetName(filters, find.preset) ?? t("scope.all")}
+            {presetName(filters, find.preset) ?? t(scopeSize(tags) ? "scope.custom" : "scope.all")}
             <ChevronDown size={12} />
           </Button>
         }
@@ -246,10 +251,6 @@ export function ScopeRow(props: {
                 if (id === "adv:expr") return props.onEditExpr();
                 const [facet, value] = id.split("\x1f") as [Facet, string];
                 add(facet, value);
-              }}
-              onBackspace={() => {
-                if (tags.expr.trim()) return setTags({ ...tags, expr: "" });
-                if (tags.facets.length) setTags({ ...tags, facets: tags.facets.slice(0, -1) });
               }}
               label={t("scope.add")}
               placeholder="+"
