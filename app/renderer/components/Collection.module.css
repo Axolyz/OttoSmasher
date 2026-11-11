@@ -15,6 +15,10 @@
 .groupRow[data-focus-visible] { box-shadow: inset 0 0 0 1px var(--accent2); border-radius: var(--r-sm); }
 
 .batch { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; background: var(--s3); border: 1px solid var(--line); border-radius: 12px; padding: 5px 6px 5px 14px; box-shadow: var(--shadow); font-size: var(--fs-sm); white-space: nowrap; z-index: 5; animation: pop var(--t-fast) ease-out; }
+.wrap[data-fixed-rows] .list { padding: 0; }
+.wrap[data-fixed-rows] .row { height: var(--collection-row-height); }
+.fixedFooter:not(:empty) { flex: none; display: flex; justify-content: safe center; padding: 4px; overflow-x: auto; }
+.fixedFooter .batch { position: static; transform: none; animation: none; }
 @keyframes pop { from { transform: translate(-50%, 6px); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
 
 .split { flex: 1; display: grid; min-width: 0; min-height: 0; }

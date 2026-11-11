@@ -10,7 +10,7 @@
 //
 // 实现：React Aria GridList 负责焦点移动、键盘导航、无障碍；selectionMode 设为 none——GridList 自带的多选
 // 在“已有勾选”时会把单击变成切换勾选（正是 UI_PLAN §10 第 14 条去掉的模式切换），所以勾选状态由这里按上面的规则维护。
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { GridList, GridListItem, ListLayout, Virtualizer } from "react-aria-components";
 import { t } from "../i18n";
 import { Checkbox } from "./Controls";
@@ -74,6 +74,9 @@ export function CollectionList<T extends CollectionRow>(props: {
   rowTestId?: string;
   /** 行很多时只渲染看得见的行（React Aria Virtualizer；原片列表，L15）。rowHeight = 估计行高 */
   virtual?: { rowHeight: number };
+  /** 一屏一页：固定行高，批量条在列表外占位。 */
+  fixedRowHeight?: number;
+  listRef?: Ref<HTMLDivElement>;
   groupTestId?: string;
   className?: string;
 }) {
@@ -219,6 +222,8 @@ export function CollectionList<T extends CollectionRow>(props: {
       <div
         ref={wrap}
         className={`${s.wrap} ${props.className ?? ""}`}
+        data-fixed-rows={props.fixedRowHeight != null || undefined}
+        style={props.fixedRowHeight == null ? undefined : { "--collection-row-height": `${props.fixedRowHeight}px` } as CSSProperties}
         data-testid={props.testId}
         onPointerDownCapture={(e) => {
           pointer.current = { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey };
@@ -261,6 +266,7 @@ export function CollectionList<T extends CollectionRow>(props: {
       >
         <MaybeVirtual on={!!props.virtual} rowHeight={props.virtual?.rowHeight ?? 48}>
         <GridList
+          ref={props.listRef}
           aria-label={props.label}
           items={props.items}
           selectionMode="none"
@@ -303,7 +309,7 @@ export function CollectionList<T extends CollectionRow>(props: {
           }}
         </GridList>
         </MaybeVirtual>
-        {props.footer}
+        {props.fixedRowHeight != null ? <div className={s.fixedFooter}>{props.footer}</div> : props.footer}
       </div>
       {ctx.node}
     </>

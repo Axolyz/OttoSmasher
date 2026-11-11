@@ -12,16 +12,17 @@ test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", as
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=5", wav]);
   const { app, page } = await launch();
   try {
-    const resize = (height: number) => app.evaluate(({ BrowserWindow }, h) => {
-      BrowserWindow.getAllWindows()[0]!.setContentSize(900, h);
-    }, height);
+    const resize = (height: number, width = 900) => app.evaluate(({ BrowserWindow }, [w, h]) => {
+      BrowserWindow.getAllWindows()[0]!.setContentSize(w, h);
+    }, [width, height] as const);
     await resize(860);
     await page.evaluate(async (path) => {
       const req = window.otto.core.request;
       const add = (await req("sources.add", { paths: [path] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
       const assetId = add.r[0]!.assets[0]!.assetId;
       for (let i = 0; i < 40; i++) {
-        await req("samples.create", { assetId, start: i / 20, end: i / 20 + 2, name: `Paging ${i}`, nature: "speech" });
+        const name = i % 2 ? `Paging ${i} ${"長いタイトルのサンプル".repeat(16)}` : `Paging ${i}`;
+        await req("samples.create", { assetId, start: i / 20, end: i / 20 + 2, name, nature: "speech" });
       }
     }, wav);
     await refreshLists(page);
@@ -51,6 +52,31 @@ test("窄窗采样库：一屏一页时，试听和缩放保留浏览位置", as
     await resize(860);
     await expect.poll(() => rows.count()).toBeGreaterThan(smallCount);
     await expect(anchored).toBeAttached();
+
+    const ordered = await page.evaluate(async () => {
+      const response = await window.otto.core.request<{ rows: { id: string }[] }>("samples.list", { limit: 40, sort: "created" });
+      if (!response.ok) throw new Error(response.e.code);
+      return response.r.rows.map((row) => row.id);
+    });
+    const grid = page.getByTestId("sample-list").getByRole("grid");
+    const prev = page.getByRole("button", { name: "上一页" });
+    for (const width of [900, 1440]) {
+      await resize(760, width);
+      await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
+      while (await prev.isEnabled()) await prev.click();
+      await expect(rows.first()).toHaveAttribute("data-id", ordered[0]!);
+      const pageSize = await grid.evaluate((el) => Math.floor(el.clientHeight / el.querySelector<HTMLElement>('[role="row"]')!.offsetHeight));
+      const pager = page.getByTestId("library-pager");
+      const pagerBounds = await pager.boundingBox();
+      for (let off = 0; off < ordered.length; off += pageSize) {
+        const expected = ordered.slice(off, off + pageSize);
+        await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-id")))).toEqual(expected);
+        expect(await grid.evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+        expect(await pager.boundingBox()).toEqual(pagerBounds);
+        if (off + pageSize < ordered.length) await next.click();
+      }
+      await expect(next).toBeDisabled();
+    }
   } finally {
     await app.close();
   }

@@ -57,7 +57,7 @@ const PAGE_SIZES: PageSize[] = ["fit", 20, 50, 100];
 type Sort = "created" | "name" | "duration";
 const SORTS: Sort[] = ["created", "name", "duration"];
 /** 一屏一页时估的行高（缩略图 64 + 上下内边距）；渲染后按实际行高修正 */
-const ROW_GUESS = 78;
+const FIT_ROW_HEIGHT = 72;
 
 /** 导出文件名“音轨”段的固定词（随界面语言，规格 12 §12.1） */
 const trackWords = exportWords;
@@ -165,7 +165,7 @@ export function LibraryPage() {
   const [independFor, setIndependFor] = useState<string[] | null>(null);
   const [picWide, setPicWide] = useState(false);
   const plusRef = useRef<HTMLInputElement>(null);
-  const listBox = useRef<HTMLDivElement>(null);
+  const sampleGrid = useRef<HTMLDivElement>(null);
   const libraryScope = useApp((st) => st.libraryScope);
   const setLibraryScope = useApp((st) => st.setLibraryScope);
   const limit = pageSize === "fit" ? fitRows : pageSize;
@@ -236,22 +236,6 @@ export function LibraryPage() {
   useCoreEvent("data.changed", (d) => {
     if ((d as Record<string, string[]>).saved_filter) loadFilters();
   });
-
-  // 一屏一页：按列表可见高度与实际行高算一页几行
-  useEffect(() => {
-    const el = listBox.current;
-    if (!el) return;
-    const measure = () => {
-      if (!el.clientHeight) return; // 隐藏页面的高度不代表实际可用空间
-      const row = el.querySelector<HTMLElement>('[data-testid="sample-row"]');
-      const h = row && !row.querySelector("[data-top]") ? row.offsetHeight : ROW_GUESS;
-      setFitRows(Math.max(5, Math.floor(el.clientHeight / Math.max(40, h || ROW_GUESS))));
-    };
-    measure();
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // 从原片页「派生采样」跳过来：查找栏出现临时“原片：…”块（不存）
   useEffect(() => {
@@ -435,6 +419,27 @@ export function LibraryPage() {
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
   const inResult = results.active !== BROWSE;
+  const fitBrowse = pageSize === "fit" && !inResult;
+  useEffect(() => {
+    const grid = sampleGrid.current;
+    if (!fitBrowse || !grid) return;
+    const measure = () => {
+      if (grid.clientHeight) {
+        setFitRows(Math.max(1, Math.min(500, Math.floor(grid.clientHeight / FIT_ROW_HEIGHT))));
+      }
+    };
+    let timer: ReturnType<typeof setTimeout>;
+    measure();
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(measure, 100);
+    });
+    observer.observe(grid);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [fitBrowse]);
   const [resultPosition, setResultPosition] = useState<{ id: string; anchor: number } | null>(null);
   const resAnchor = resultPosition?.id === results.active ? resultPosition.anchor : 0;
   const resOffset = Math.floor(resAnchor / limit) * limit;
@@ -1047,34 +1052,32 @@ export function LibraryPage() {
         plusRef={plusRef}
       />
       <div className={s.resultHead}>
-        <ClosableTabs
-          label={t("search.results")}
-          closeLabel={t("search.closeResult")}
-          value={results.active}
-          onChange={results.setActive}
-          onClose={(id) => void results.close(id)}
-          items={[
-            { id: BROWSE, label: t("library.browse"), count: inResult ? undefined : total, testId: "tab-browse" },
-            ...results.tabs.map((h) => ({ id: h.id, label: resultTitle(h), closable: true, testId: "result-tab" })),
-          ]}
-        />
-        <Button size="sm" variant="flat" icon={<Plus />} onPress={() => void pickImport()} data-testid="library-import">
-          {t("import.button")}
+        <div className={s.resultTabs}>
+          <ClosableTabs
+            label={t("search.results")}
+            closeLabel={t("search.closeResult")}
+            value={results.active}
+            onChange={results.setActive}
+            onClose={(id) => void results.close(id)}
+            items={[
+              { id: BROWSE, label: t("library.browse"), count: inResult ? undefined : total, testId: "tab-browse" },
+              ...results.tabs.map((h) => ({ id: h.id, label: resultTitle(h), closable: true, testId: "result-tab" })),
+            ]}
+          />
+        </div>
+        <Button size="sm" variant="flat" icon={<Plus />} onPress={() => void pickImport()} title={t("import.button")} data-testid="library-import">
+          <span className={s.toolbarLabel}>{t("import.button")}</span>
         </Button>
-        <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={pageNo <= 1} onPress={() => goto(pageNo - 1)} aria-label={t("pager.prev")} />
-        <span className="num">
-          {pageNo} / {pages}
-        </span>
-        <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={pageNo >= pages} onPress={() => goto(pageNo + 1)} aria-label={t("pager.next")} />
         <span className={ss.hunt}>
           <Button
             size="sm"
             variant={composer ? "primary" : "secondary"}
             icon={<Crosshair />}
+            title={t(`search.hunt.${HUNT[purpose]}`)}
             onPress={() => setComposer((c) => (c ? null : HUNT[purpose]!))}
             data-testid="hunt-open"
           >
-            {t(`search.hunt.${HUNT[purpose]}`)}
+            <span className={s.toolbarLabel}>{t(`search.hunt.${HUNT[purpose]}`)}</span>
           </Button>
           <Menu
             head={t("search.kindMenu")}
@@ -1083,6 +1086,13 @@ export function LibraryPage() {
             trigger={<Button size="sm" variant={composer ? "primary" : "secondary"} icon={<ChevronDown />} aria-label={t("search.kindMenu")} data-testid="hunt" />}
           />
         </span>
+        <div className={s.pager} data-testid="library-pager">
+          <Button size="sm" variant="flat" icon={<ChevronLeft />} isDisabled={pageNo <= 1} onPress={() => goto(pageNo - 1)} aria-label={t("pager.prev")} />
+          <span className="num">
+            {pageNo} / {pages}
+          </span>
+          <Button size="sm" variant="flat" icon={<ChevronRight />} isDisabled={pageNo >= pages} onPress={() => goto(pageNo + 1)} aria-label={t("pager.next")} />
+        </div>
       </div>
       <div className={s.status}>
         {inResult && resPage ? (
@@ -1126,7 +1136,7 @@ export function LibraryPage() {
           </>
         )}
       </div>
-      <div className={s.listBox} ref={listBox}>
+      <div className={s.listBox} data-fit={fitBrowse || undefined}>
       <CollectionList<Item>
         label={t("library.listLabel")}
         items={rows}
@@ -1146,6 +1156,8 @@ export function LibraryPage() {
         menu={(r, target) => (r._res && (r.dead || !r._res.sample) ? null : sampleMenu(r, target.ids, target.multi))}
         checkLabel={(r) => t("library.check", { name: r.name })}
         testId="sample-list"
+        listRef={sampleGrid}
+        fixedRowHeight={fitBrowse ? FIT_ROW_HEIGHT : undefined}
         rowTestId="sample-row"
         // 行里的试听按钮跟着这些状态变（所有者 2026-10-30：播完按钮停在“停止”，因为行被缓存、没重画）
         renderDeps={[playing, playingVer, hitPlaying]}

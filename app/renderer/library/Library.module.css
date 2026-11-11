@@ -1,5 +1,5 @@
 .page { flex: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
-.left { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.left { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; container-type: inline-size; }
 .findWrap { display: flex; flex-direction: column; padding: 10px 12px 2px 14px; gap: 4px; }
 .find { display: flex; gap: 6px; align-items: center; }
 /* 查找栏（UI_PLAN §2.3）：一个框里左边文字、右边表达式；出错整框标红 */
@@ -22,7 +22,11 @@
 .scopeLabel { font-size: var(--fs-xs); color: var(--muted); }
 .scopePlus { display: inline-flex; min-width: 70px; flex: 1 1 70px; }
 .scopeModified { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-xs); color: var(--warn); }
-.resultHead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px 6px 14px; color: var(--muted); font-size: var(--fs-sm); border-bottom: 1px solid var(--line2); }
+.resultHead { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); align-items: center; gap: 6px; padding: 6px 12px 6px 14px; color: var(--muted); font-size: var(--fs-sm); border-bottom: 1px solid var(--line2); }
+.resultTabs { min-width: 0; display: flex; }
+.resultTabs > * { min-width: 0; scrollbar-width: thin; }
+.pager { display: inline-flex; align-items: center; gap: 2px; }
+.pager > span { min-width: 8ch; text-align: center; white-space: nowrap; }
 .resultTab { background: var(--s3); color: var(--text); border-radius: 7px; padding: 3px 10px; display: inline-flex; gap: 6px; font-size: var(--fs-sm); }
 .resultTab .num { color: var(--muted); }
 .status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 14px; font-size: var(--fs-xs); color: var(--muted); border-bottom: 1px solid var(--line2); }
@@ -105,13 +109,19 @@
 .tokenRow { display: flex; flex-wrap: wrap; gap: 4px; }
 .hitNav { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-sm); color: var(--sub); }
 
-.resultHead > .num { white-space: nowrap; }
-
 /* 判定区间（所有者 2026-10-09：可见、可改，决定继承哪些区段标签、读哪几段） */
 .judgeRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }
 .rowOps { display: inline-flex; gap: 2px; justify-content: flex-end; }
 .listBox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .listBox > * { flex: 1; min-height: 0; }
+.listBox[data-fit] .name { overflow-wrap: anywhere; }
+@container (max-width: 500px) {
+  .toolbarLabel { display: none; }
+  .listBox[data-fit] .who { display: none; }
+}
+@container (max-width: 340px) {
+  .listBox[data-fit] .src { display: none; }
+}
 /* 批量编辑资料（原型 editModal 的两列表单）与预览 */
 .editGrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: var(--fs-sm); }
 .batchPreview { display: flex; flex-direction: column; gap: 6px; }
