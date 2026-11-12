@@ -75,7 +75,7 @@ OttoSmasher 的 LLM agent 工作流采用 **harness** 设计：通过命令行 `
 
 ```
 请用命令行 otto 做一次音频计算，应用没开就运行 otto open。
-只用原始能力：用 otto commands --layer primitive 查命令，用法看 otto guide primitives。不要读写资料库，也不用看其他说明。
+只用原始能力：用 otto commands --layer primitive 查命令，用法看 otto guide primitives。不要读写资料库。
 任务：……
 ```
 
