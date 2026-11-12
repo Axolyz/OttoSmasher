@@ -233,6 +233,7 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 - Windows 下部分 agent（如 DeepSeek Harness）的受限沙箱会拦住本地命名管道连接，提示 Access denied。使用 Codex 以外的 LLM agent 时，目前建议在宿主中开启 **Full Access**。
 - audio-mcp 首次转写需要下载模型（turbo 约 1.6 GB），需有合适的网络环境。CPU 转写长音频较慢，可以先提取短片段再分析。
 - Windows 下 Alt 拖到资源管理器需先松开 Alt 再放。
+- 在 macOS 上把 WAV 拖进 DAW 时，接收软件通过系统接口读取路径后，可能会把 `が` 读成 `か` 加一个组合浊点。OttoSmasher 导出的 WAV 文件名保留合成写法，实际表现取决于接收软件。
 - 更具体的未结事项见[路线图](docs/ROADMAP.md)。
 - Skill 系统未经过精细打磨，导致 DeepSeek 这类相对低智能的 Agent 在本项目下处理包括但不限于字幕预处理的复杂任务时表现可能还是较差。总之再次重申 MacOS + Codex + GPT 6.1 Sol 是本项目推荐配置，也是作者真实工作环境下采用的配置。 Windows 下 DeepSeek Harness 的可用性在完成基础任务时已经很高，但是如字幕预处理以及采样选择的这类需要判断和组合工具的复杂任务效果不能保证。
 

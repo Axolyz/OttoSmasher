@@ -235,6 +235,7 @@ But many advanced features depend on clean vocals and phoneme alignment, and the
 - Some restricted agent sandboxes on Windows, such as DeepSeek Harness, block local named-pipe connections with Access denied. For LLM agents other than Codex, the current recommendation is to enable **Full Access** in the host.
 - The first audio-mcp transcription downloads a model (turbo is about 1.6 GB) and needs a suitable network connection. Long CPU transcription can be slow; extracting short clips first helps.
 - On Windows, release Alt before dropping into File Explorer.
+- When you drag a WAV into a DAW on macOS, the receiving app may read `が` as `か` followed by a combining dakuten if it uses the system’s file path conversion. The WAV filename exported by OttoSmasher keeps the composed form. What you see depends on the receiving app.
 - See the [roadmap](docs/ROADMAP.md) for the remaining issues.
 - The skills are still being refined. The author mainly uses and recommends macOS + Codex (sandbox) + GPT 6.1 Sol. On Windows, DeepSeek Harness with Full Access works well for basic tasks; complex work such as subtitle preparation and sample selection, which combines tools and content judgement, still needs improvement.
 
