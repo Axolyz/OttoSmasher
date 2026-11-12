@@ -2,6 +2,7 @@
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, nativeImage, session, shell } from "electron";
 import en from "../renderer/i18n/locales/en.json";
 import zhCN from "../renderer/i18n/locales/zh-CN.json";
@@ -307,6 +308,19 @@ ipcMain.on("files:startDrag", (e, files: unknown) => {
   if (!Array.isArray(files) || !files.length) return;
   const ok = files.filter((f): f is string => typeof f === "string" && existsSync(f) && statSync(f).isFile());
   if (ok.length !== files.length) return;
+  if (process.platform === "darwin" && ok.some((path) => path.normalize("NFD") !== path)) {
+    try {
+      const win = BrowserWindow.fromWebContents(e.sender);
+      if (!win) return;
+      const bridgePath = join(app.getAppPath(), "app", "native", "mpv-bridge", "build", "Release", "mpv_bridge.node");
+      const bridge = require(bridgePath) as { startFileDrag(handle: Buffer, urls: string[]): void };
+      bridge.startFileDrag(win.getNativeWindowHandle(), ok.map((path) => pathToFileURL(path).href));
+    } catch (err) {
+      logDesktopEvent("file-drag-failed", { error: String(err) });
+      dialog.showErrorBox(t("dragout.failedTitle"), t("dragout.failedDetail"));
+    }
+    return;
+  }
   if (!dragIcon) {
     // 1×1 透明图：Electron 把拖拽图居中放在指针上，有的软件按图的左上角而不是指针放文件——
     // 原来 48 点的图标在 HiFiShifter 里落在指针左上方（所有者 2026-10-30；Logic Pro 按指针，没问题）。图小到 1 点，左上角就是指针。

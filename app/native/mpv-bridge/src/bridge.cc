@@ -346,6 +346,15 @@ class Player : public Napi::ObjectWrap<Player> {
 
 }  // namespace
 
-Napi::Object InitAll(Napi::Env env, Napi::Object exports) { return Player::Init(env, exports); }
+#ifdef __APPLE__
+Napi::Value StartFileDrag(const Napi::CallbackInfo& info);
+#endif
+
+Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+#ifdef __APPLE__
+  exports.Set("startFileDrag", Napi::Function::New(env, StartFileDrag));
+#endif
+  return Player::Init(env, exports);
+}
 
 NODE_API_MODULE(mpv_bridge, InitAll)

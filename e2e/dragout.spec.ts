@@ -1,24 +1,35 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { launch } from "./helpers";
 
 // 拖出（规格 12 §12.2、16 R21.8）：⌥ + 拖动越过 4 px 才生成，生成后交给系统拖拽。
-// 系统拖拽本身（拖到 Finder / REAPER）要人工验收；这里在主进程截下 startDrag 的参数，核对文件。
+// 在主进程截下系统拖拽的参数，核对文件及 macOS 原生拖出收到的 URL。
 test("拖出：时间线选区、勾选集、未越过阈值不生成", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-drag-"));
   const wav = join(dir, "拖出 ♪.wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=duration=4", wav]);
   const { app, page, workspace } = await launch();
-  await app.evaluate(({ BrowserWindow }) => {
-    const g = globalThis as unknown as { __drags: string[][] };
+  await app.evaluate(({ app: electronApp, BrowserWindow }) => {
+    const g = globalThis as unknown as { __drags: string[][]; __dragUrls: string[][] };
     g.__drags = [];
+    g.__dragUrls = [];
     for (const w of BrowserWindow.getAllWindows())
       w.webContents.startDrag = (item: { files?: string[]; file: string }) => {
         g.__drags.push(item.files ?? [item.file]);
       };
+    if (process.platform === "darwin") {
+      const load = process.getBuiltinModule("node:module")!.createRequire(`${electronApp.getAppPath()}/package.json`);
+      const bridge = load("./app/native/mpv-bridge/build/Release/mpv_bridge.node");
+      const url = process.getBuiltinModule("node:url")!;
+      bridge.startFileDrag = (_handle: Buffer, urls: string[]) => {
+        g.__dragUrls.push(urls);
+        g.__drags.push(urls.map((value) => url.fileURLToPath(value)));
+      };
+    }
   });
   const drags = () => app.evaluate(() => (globalThis as unknown as { __drags: string[][] }).__drags);
 
@@ -62,7 +73,7 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   // 采样库：两个采样都勾选，在其中一行上 ⌥ 拖 → 整个勾选集
   await page.evaluate(async (s) => {
     const a = (await window.otto.core.request<Array<{ id: string }>>("assets.listForSource", { sourceId: s })) as { r: Array<{ id: string }> };
-    await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 0.5, end: 1.0, name: "一" });
+    await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 0.5, end: 1.0, name: "か\u3099 #一" });
     await window.otto.core.request("samples.create", { assetId: a.r[0]!.id, start: 1.5, end: 2.0, name: "二" });
   }, sid);
   await page.keyboard.press("ControlOrMeta+1");
@@ -79,6 +90,12 @@ test("拖出：时间线选区、勾选集、未越过阈值不生成", async ()
   await page.keyboard.up("Alt");
   const second = (await drags())[1]!;
   expect(second).toHaveLength(2);
-  expect(second.map((p) => p.split(/[\\/]/).pop()!.split("__")[0]).sort()).toEqual(["一", "二"]);
+  expect(second.map((p) => basename(p).split("__")[0]).sort()).toEqual(["が #一", "二"]);
+  if (process.platform === "darwin") {
+    const nativeDrags = await app.evaluate(() => (globalThis as unknown as { __dragUrls: string[][] }).__dragUrls);
+    const urls = nativeDrags.at(-1)!;
+    expect(urls.map((url) => fileURLToPath(url))).toEqual(second);
+    expect(urls.find((url) => basename(fileURLToPath(url)).startsWith("が #一"))).toContain("%E3%81%8C%20%23");
+  }
   await app.close();
 });

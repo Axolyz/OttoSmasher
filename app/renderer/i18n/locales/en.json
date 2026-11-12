@@ -608,6 +608,8 @@
   "sources.timelineHelpLabel": "How the timeline works",
   "dragout.preparing": "Preparing file, keep holding the mouse · Esc to cancel",
   "dragout.cancelled": "Drag out canceled (generated files stay in the export folder)",
+  "dragout.failedTitle": "Couldn't start file drag",
+  "dragout.failedDetail": "The exported files are still available in the export folder.",
   "track.flatten": "Flatten",
   "track.reimport": "Re-import",
   "batch.label": "Batch actions bar",

@@ -608,6 +608,8 @@
   "sources.timelineHelpLabel": "时间线怎么用",
   "dragout.preparing": "正在准备文件，保持按住鼠标 · Esc 取消",
   "dragout.cancelled": "已取消拖出（已生成的文件保留在导出目录）",
+  "dragout.failedTitle": "无法开始拖出文件",
+  "dragout.failedDetail": "已导出的文件仍保留在导出目录。",
   "track.flatten": "拉平",
   "track.reimport": "回导",
   "batch.label": "批量操作条",

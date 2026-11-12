@@ -11,11 +11,14 @@
       "cflags_cc": ["-std=c++20", "-fexceptions"],
       "conditions": [
         ["OS=='mac'", {
+          "sources": ["src/file-drag-mac.mm"],
           "xcode_settings": {
+            "CLANG_ENABLE_OBJC_ARC": "YES",
             "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
             "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
             "MACOSX_DEPLOYMENT_TARGET": "12.0",
             "OTHER_LDFLAGS": [
+              "-framework AppKit",
               "-L<(module_root_dir)/../../../third_party/libmpv/macos-arm64",
               "-lmpv.2",
               "-Wl,-rpath,@loader_path/../../../../../third_party/libmpv/macos-arm64",

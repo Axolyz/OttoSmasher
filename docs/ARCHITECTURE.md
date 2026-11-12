@@ -498,9 +498,9 @@ class LanguageProfile:
 
 ### 10.4 拖出与 REAPER
 
-- 拖出：Option/Alt 按下时冻结请求 → 移动 > 4 px 才请求 Core 生成 → 生成期间提示，Esc/松手/失焦放弃 → 完成且仍按住时主进程 `webContents.startDrag`；
-  进入系统拖拽后 Esc 交给系统。生成失败用消息提示（不吞错误）。（Electron 的 startDrag 必须在拖动手势中调用，阶段 2 探针验证“生成后再发起”的时序。）
-- macOS 上，Electron 用 `CFURLCreateWithFileSystemPath` 把路径转为拖拽用的文件 URL。用同一接口和独立粘贴板实测，NFC 的 `が.wav` 在 URL 和 `public.file-url` 数据里变成分解写法。两种路径在本机 APFS 上指向同一个 WAV，磁盘目录项仍是 NFC。即使显式构造保留 NFC 的 URL，接收方读 `fileSystemRepresentation` 仍会拿到分解形式。
+- 拖出：Option/Alt 按下时冻结请求 → 移动 > 4 px 才请求 Core 生成 → 生成期间提示，Esc/松手/失焦放弃 → 完成且仍按住时由主进程启动系统拖拽。
+  进入系统拖拽后 Esc 交给系统。生成失败或无法启动原生拖拽时显示错误。（阶段 2 探针验证了“生成后再发起”的时序。）
+- macOS 上 Electron 的 `webContents.startDrag` 用 `CFURLCreateWithFileSystemPath` 把路径转为拖拽 URL，会分解 `が.wav` 的浊点。遇到含可分解字符的路径时，主进程用 Node 的 `pathToFileURL` 编码原路径，再由 `app/native/mpv-bridge/src/file-drag-mac.mm` 将 URL 直接交给 AppKit。原生接收窗口实测 `public.file-url` 保留单码位假名。接收端取 `fileSystemRepresentation` 时仍可能分解，具体 DAW 待按 ROADMAP L82 验证。
   [Electron 的 macOS 拖拽实现](https://github.com/electron/electron/blob/v44.6.0/shell/browser/ui/drag_util_mac.mm#L51-L55) · [Chromium 的路径转换](https://github.com/chromium/chromium/blob/152.0.7977.130/base/apple/foundation_util.mm#L346-L374)
 - REAPER：Core 生成未烘焙原声 WAV（`Library/REAPER/<日期>/`）与 `<ITEM …>` 文本（规格 12 §12.3，12 位小数、引号选择、单调性校验；`domain/reaper.py`、`core/handoff.py`）；
   主进程（`reaper:copy`）向 Core 要文本，用 Electron 44 的 `clipboard.write([new ClipboardItem({'electron application/osclipboard;format="REAPERMedia"': …})])`

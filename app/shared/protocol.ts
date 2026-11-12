@@ -101,7 +101,7 @@ export interface OttoApi {
     reveal(path: string): Promise<void>;
     /** 拖进窗口的文件的真实路径（只用于“拖文件进原片页”） */
     pathOf(file: File): string;
-    /** 拖出：文件已生成且鼠标仍按着时，交给系统拖拽（主进程 webContents.startDrag） */
+    /** 拖出：文件已生成且鼠标仍按着时，由主进程启动系统拖拽 */
     startDrag(files: string[]): void;
   };
   links: {
