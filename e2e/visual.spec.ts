@@ -14,22 +14,45 @@ test("舞台画面：同步视频、绑定图片、撤销", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-visual-"));
   const mkv = join(dir, "Show 01.mkv");
   const png = join(dir, "cover.png");
-  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24:duration=6", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=6",
-    "-c:v", "libx264", "-c:a", "flac", mkv]); // prettier-ignore
+  // 只给两个采样的首帧着色；颜色变化不插关键帧。
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=red:size=320x180:rate=24:duration=6", "-f", "lavfi", "-i", "sine=f=330:sample_rate=48000:duration=6",
+    "-vf", "drawbox=color=lime:t=fill:enable='eq(n,24)',drawbox=color=blue:t=fill:enable='eq(n,72)'",
+    "-c:v", "libx264", "-g", "144", "-sc_threshold", "0", "-c:a", "flac", mkv]); // prettier-ignore
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=orange:s=160x90:d=0.1", "-frames:v", "1", png]);
   const { app, page } = await launch();
   await page.setViewportSize({ width: 1536, height: 864 });
-  const sid = await page.evaluate(async (p) => {
+  const { sid, nextId } = await page.evaluate(async (p) => {
     const req = window.otto.core.request;
     const add = (await req("sources.add", { paths: [p] })) as { r: Array<{ assets: Array<{ assetId: string }> }> };
-    const c = (await req("samples.create", { assetId: add.r[0]!.assets[0]!.assetId, start: 1, end: 3, name: "画面テスト", nature: "speech" })) as { r: { id: string } };
-    return c.r.id;
+    const assetId = add.r[0]!.assets[0]!.assetId;
+    const create = async (start: number, end: number, name: string) => {
+      const c = (await req("samples.create", { assetId, start, end, name, nature: "speech" })) as { r: { id: string } };
+      return c.r.id;
+    };
+    return { sid: await create(1, 3, "画面テスト"), nextId: await create(3, 5, "次の画面") };
   }, mkv);
   await page.getByTestId("nav-library").click();
   await refreshLists(page);
-  await page.getByTestId("sample-row").first().click();
+  const row = (id: string) => page.getByTestId("sample-row").and(page.locator(`[data-id="${id}"]`));
+  const video = page.locator("canvas[data-otto-stage-video]");
+  const frameColor = async () => {
+    const shot = await video.screenshot();
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const ctx = new OffscreenCanvas(1, 1).getContext("2d")!;
+      ctx.drawImage(img, img.width / 2, img.height / 2, 1, 1, 0, 0, 1, 1);
+      return Array.from(ctx.getImageData(0, 0, 1, 1).data.slice(0, 3), (v) => v > 180);
+    }, shot.toString("base64"));
+  };
+  await row(sid).click();
   await expect(page.getByTestId("stage-picture")).toHaveAttribute("data-mode", "sync");
-  await expect(page.locator("canvas[data-otto-stage-video]")).toBeVisible();
+  await expect.poll(frameColor).toEqual([false, true, false]);
+  await row(nextId).click();
+  await expect.poll(frameColor).toEqual([false, false, true]);
+  await row(sid).click();
+  await expect.poll(frameColor).toEqual([false, true, false]);
   await page.getByTestId("stage-play").click();
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS}/01-stage-sync.png` });

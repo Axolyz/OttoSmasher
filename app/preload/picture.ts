@@ -46,7 +46,10 @@ export class StagePicture {
   private player: CanvasPlayer | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private plan: Plan | null = null;
-  private loadedPath = "";
+  private showSeq = 0;
+  private videoPath = "";
+  private loading = false;
+  private pendingSeek: number | null = null; // 画面文件秒
   private pos: number | null = null;
   private following: { a: number } | null = null;
   private playing = false;
@@ -58,10 +61,24 @@ export class StagePicture {
     if (this.player && c === this.canvas && c.isConnected) return true;
     this.player?.destroy();
     this.canvas = c;
-    this.loadedPath = "";
-    this.player = new CanvasPlayer(c, { hwdec: "auto-copy", aid: "no", mute: "yes", "loop-file": "no", "keep-open": "yes" }, 1280 * 720);
-    this.player.observe("time-pos", "double");
-    this.player.on((ev: MpvEvent) => {
+    this.videoPath = "";
+    this.pos = null;
+    const player = new CanvasPlayer(c, { hwdec: "auto-copy", aid: "no", mute: "yes", "loop-file": "no", "keep-open": "yes" }, 1280 * 720);
+    this.player = player;
+    player.observe("time-pos", "double");
+    player.on((ev: MpvEvent) => {
+      if (this.player !== player) return;
+      if (ev.type === "file-loaded" && this.loading && player.get("path") === this.videoPath) {
+        this.loading = false;
+        const pending = this.pendingSeek;
+        this.pendingSeek = null;
+        this.seekTo(pending);
+      } else if (ev.type === "end-file" && ev.error && this.loading) {
+        this.videoPath = "";
+        this.loading = false;
+        this.pendingSeek = null;
+        console.error(`stage picture: loading failed (${ev.error})`);
+      }
       if (ev.type === "property-change" && ev.name === "time-pos") this.pos = typeof ev.value === "number" ? ev.value : null;
     });
     return true;
@@ -69,30 +86,37 @@ export class StagePicture {
 
   /** 舞台换了采样：取它的有效画面；没有画面 / 图片 / 文件有问题 → 不用 mpv */
   async show(sampleId: string | null): Promise<void> {
-    this.following = null;
-    this.playing = false;
+    const seq = ++this.showSeq;
+    this.stopFollowing();
+    this.pendingSeek = null;
+    if (sampleId !== this.plan?.sampleId) this.plan = null;
     if (!sampleId) {
-      this.plan = null;
       this.player?.set("pause", "yes");
       return;
     }
     const plan = await core<Plan>("visuals.forSample", { id: sampleId });
+    if (seq !== this.showSeq) return;
     this.plan = { ...plan, sampleId };
     const b = plan.binding;
     if (!b || b.mode === "image" || b.state !== "ok" || !this.attach()) return;
-    this.player!.set("pause", "yes");
-    this.player!.set("loop-file", b.mode === "loop" ? "inf" : "no");
-    if (this.loadedPath !== b.path) {
-      this.loadedPath = b.path;
-      // 第三个参数是播放列表位置（mpv 0.38 起选项挪到第四个）；舞台画面没有报错通道，记日志并允许下次重试（P6）
-      const r = this.player!.command(["loadfile", b.path, "replace", "-1", `vid=${b.ordinal + 1},aid=no,pause=yes`]);
-      if (r < 0) {
-        this.loadedPath = "";
-        console.error(`stage picture: loadfile failed (mpv error ${r})`);
-      }
+    const player = this.player!;
+    player.set("pause", "yes");
+    player.set("loop-file", b.mode === "loop" ? "inf" : "no");
+    const start = this.timeAt(plan.start);
+    if (this.videoPath === b.path) {
+      this.seekTo(start);
+      return;
     }
-    // 静帧：采样起点那一刻
-    this.seekTo(this.timeAt(plan.start));
+    // loadfile 异步载入。把静帧位置作为本次载入的起点，避免载入前的 seek 被丢掉。
+    const options = `vid=${b.ordinal + 1},aid=no,pause=yes` + (start == null ? "" : `,start=${Math.max(0, start)}`);
+    const r = player.command(["loadfile", b.path, "replace", "-1", options]);
+    this.videoPath = r >= 0 ? b.path : "";
+    this.loading = r >= 0;
+    this.pos = null;
+    // 舞台画面没有报错通道，记日志并允许下次重试（P6）。
+    if (r < 0) {
+      console.error(`stage picture: loadfile failed (mpv error ${r})`);
+    }
   }
 
   /** 资产局部秒 → 画面时间 */
@@ -109,7 +133,11 @@ export class StagePicture {
   }
 
   private seekTo(t: number | null): void {
-    if (t == null || !this.player) return;
+    if (t == null || !this.player || !this.videoPath) return;
+    if (this.loading) {
+      this.pendingSeek = t;
+      return;
+    }
     this.player.command(["seek", String(Math.max(0, t)), "absolute+exact"]);
   }
 
@@ -137,7 +165,7 @@ export class StagePicture {
     const f = this.following;
     if (!f || !this.player) return;
     if (st.ended || st.error) return this.stopFollowing();
-    if (st.time == null || st.loading) return; // 还在加载
+    if (st.time == null || st.loading || this.loading || !this.videoPath) return; // 还在加载
     const want = this.timeAt(f.a + st.time);
     if (want == null) return;
     if (!st.playing) {
@@ -151,6 +179,7 @@ export class StagePicture {
   }
 
   destroy(): void {
+    this.showSeq += 1;
     this.player?.destroy();
     this.player = null;
   }
