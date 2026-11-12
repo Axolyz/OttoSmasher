@@ -80,7 +80,7 @@ def adopt_chunk(root: Path, asset_id: str, ident: str, k: int, src: Path, meta: 
         man = json.loads(mp.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         man = {"identity": ident, "meta": meta, "chunks": {}}
-    man["chunks"][str(k)] = {"frames": int(np.load(dst, mmap_mode="r").shape[0])}
+    man["chunks"][str(k)] = {"frames": int(np.load(dst).shape[0])}
     tmp = d / ".manifest.json.tmp"
     tmp.write_text(json.dumps(man, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     os.replace(tmp, mp)
@@ -96,9 +96,11 @@ def read(root: Path, asset_id: str, ident: str, start: float, end: float, durati
     d = asset_dir(root, asset_id, ident)
     for k in chunks_for(start, end, duration):
         p = d / f"{k}.npy"
-        if not p.exists():
+        try:
+            # A full chunk is only 72 KB. Read it directly instead of mapping a file for each slice.
+            arr = np.load(p)
+        except FileNotFoundError:
             continue
-        arr = np.load(p, mmap_mode="r")
         c0 = k * CHUNK_FRAMES
         a, b = max(i0, c0), min(i1, c0 + len(arr))
         if b > a:

@@ -761,9 +761,8 @@ class SpeechService:
                 out.pop("window")
         return out
 
-    def _run_wire(self, r: sqlite3.Row, version: int, m: Mapping) -> dict[str, Any]:
+    def _run_wire(self, r: sqlite3.Row, version: int, res: dict[str, Any] | None) -> dict[str, Any]:
         inp = loads(r["inputs"])
-        res = self._local_result(loads(r["result"]), m) if r["status"] == "ok" else None
         return {
             "runId": r["id"], "version": int(version), "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],
             "text": inp.get("text"), "textSource": inp.get("textSource"), "window": res.get("window") if res else None,
@@ -792,14 +791,23 @@ class SpeechService:
         target = units.seg_target(float(seg["start"]), float(seg["end"]), m, float(asset["duration"]))
         cur = next((r for r in runs if head is not None and r["id"] == head["run_id"]), None)
         part = src is not None and (src[0] > float(seg["start"]) + units.EPS or src[1] < float(seg["end"]) - units.EPS)
+        use_result = loads(use["result"]) if use is not None else None
+        usable_wire = None
+        if use is not None:
+            version = head["version"] if head and use is cur else 0
+            usable_wire = self._run_wire(use, version, self._local_result(use_result, m))
+        current_wire = usable_wire if cur is use else None
+        if cur is not None and head is not None and cur is not use:
+            cur_result = self._local_result(loads(cur["result"]), m) if cur["status"] == "ok" else None
+            current_wire = self._run_wire(cur, head["version"], cur_result)
         return {
             "unitId": uid, "segmentId": seg["id"], "ordinal": ordinal, "name": (seg["text"] or "").replace("\n", " "), "text": seg["text"],
             "speakers": loads(seg["speakers"]), "target": list(target) if target else None, "state": state, "partial": bool(part and use is not None),
-            "head": self._run_wire(use, head["version"] if head and use["id"] == head["run_id"] else 0, m) if use is not None else None,
-            "current": self._run_wire(cur, head["version"], m) if cur is not None and head is not None else None,
+            "head": usable_wire,
+            "current": current_wire,
             "headVersion": int(head["version"]) if head else 0,
             "measuredOn": self._measured_on(use["asset_id"], memo) if use is not None else None,
-            "windowSource": ((loads(use["result"]) or {}).get("window") or [use["range_start"], use["range_end"]]) if use is not None else None,
+            "windowSource": ((use_result or {}).get("window") or [use["range_start"], use["range_end"]]) if use is not None else None,
             "runs": [
                 {
                     "id": r["id"], "status": r["status"], "manual": bool(r["manual"]), "createdAt": r["created_at"],

@@ -39,6 +39,13 @@ log = logging.getLogger(__name__)
 TERMINAL = ("succeeded", "failed", "cancelled", "interrupted")
 RETRYABLE = ("failed", "cancelled", "interrupted")
 
+# Only the separation device shown in the summary needs the frozen job parameters.
+_SUMMARY_COLUMNS = (
+    "id, kind, channel, status, affects, progress, error, result, device, retry_of, items_total, items_ok, items_failed, "
+    "created_at, started_at, finished_at, background, promote_seq, actor_kind, actor_session, "
+    "CASE WHEN kind='separate' THEN params END AS params"
+)
+
 Adopter = Callable[[dict[str, Any], dict[str, Any]], None]  # (job 行, 结果) → 登记
 
 
@@ -167,10 +174,10 @@ class Scheduler:
     # ---------- 查询
 
     def summary(self, jid: str) -> dict[str, Any]:
-        return _summary(self._row(jid))
+        return _summary(self._row(jid, columns=_SUMMARY_COLUMNS))
 
     def list(self, limit: int = 200) -> list[dict[str, Any]]:
-        rows = self.conn.execute("SELECT * FROM job ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        rows = self.conn.execute(f"SELECT {_SUMMARY_COLUMNS} FROM job ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [_summary(r) for r in rows]
 
     def brief(self, limit: int = 50, session: str | None = None, offset: int = 0) -> list[dict[str, Any]]:
@@ -204,8 +211,8 @@ class Scheduler:
         q = "SELECT COUNT(*) FROM job WHERE status IN ('queued', 'running')" + ("" if include_background else " AND background = 0")
         return self.conn.execute(q).fetchone()[0]
 
-    def _row(self, jid: str) -> sqlite3.Row:
-        row = self.conn.execute("SELECT * FROM job WHERE id=?", (jid,)).fetchone()
+    def _row(self, jid: str, *, columns: str = "*") -> sqlite3.Row:
+        row = self.conn.execute(f"SELECT {columns} FROM job WHERE id=?", (jid,)).fetchone()
         if row is None:
             raise CoreError("job-not-found", id=jid)
         return row
