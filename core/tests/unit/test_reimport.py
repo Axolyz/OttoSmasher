@@ -42,7 +42,8 @@ def test_reimport_positive_and_cleanup(env, db, ws, tmp_path) -> None:
     pv = svc.preview(aid, 4.0, str(f))
     assert pv["ok"] and pv["duration"] == pytest.approx(0.627, abs=1e-3) and pv["end"] == pytest.approx(4.627, abs=1e-3)
     assert pv["suggestedName"]  # 建议名 = 落到的那段的建议名（没有文本层 → 原素材名 起–止）
-    out = svc.commit(aid, 4.0, str(f), name="やったー！")
+    out = svc.commit(aid, 4.0, str(f), name="やったー！", local_tags=["project:dil"])
+    assert [(t["tag"], t["provenance"]) for t in out["tags"] if t["tag"].startswith("project:")] == [("project:dil", "local")]
     assert out["nature"] == "unclassified" and out["created_via"] == "reimport" and "parent_sample_id" not in out
     assert out["source_start"] == pytest.approx(4.0) and out["duration"] == pytest.approx(0.627, abs=1e-3)
     assert out["source_end"] == pytest.approx(4.627, abs=1e-3)

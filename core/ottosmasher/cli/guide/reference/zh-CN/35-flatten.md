@@ -8,6 +8,8 @@
 
 `samples.metrics {"ids"}` 读取 rmsDb、pitchSpread、voicedDuration 等缓存指标，缺失的用 metrics.prepare 计算。用音频工具比较代表候选；响度差异影响判断时，可以临时副本做等响比较。先完成几份样例，再批量处理。
 
+`flatten.submit` 和 `flatten.submitBatch` 都可传 `localTags`，给任务新建的采样加本地标签，例如 `["project:dil"]`。命令行不读取桌面的当前项目；重跑失败项时保留原任务的标签。
+
 ## 打开、估算和提交
 
 1. `flatten.open {"assetId", "start", "end", "entry": "single", "sampleId"}` 冻结资产局部选区，返回 token、默认值、alignment 和 alignmentIssue。alignment、inner、处理区间用输入局部秒，外选区起点为零。

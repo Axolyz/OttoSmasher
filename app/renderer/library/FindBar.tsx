@@ -3,7 +3,7 @@
 // - 范围行：⚑ 保存筛选器 + 标签条件（分面块、可选的“标签表达式”块）+「＋」（可搜索、带计数）；选用筛选器 = 用它替换这一行；
 //   改动后显示“已修改 · 更新 · 另存”。各条件取交集，同一分面多个值取并集；人物块单击切换“只要单人”。
 // 表达式在输入后 250 ms 校验（Core `tags.checkExpr`）：出错就标红并写出“第 n 个字符：原因”，列表保持上一次有效的条件。
-import { Flag, ChevronDown, Star, X } from "lucide-react";
+import { Flag, ChevronDown, Folder, Star, X } from "lucide-react";
 import { type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { call } from "../api/core";
 import type { FacetCondition, FacetValues, SavedFilter, TagScope } from "../api/types";
@@ -70,7 +70,7 @@ export interface ExprError {
 }
 export const exprErrorText = (e: ExprError) => t("error.tag-expr-invalid", { position: e.position, reason: t(`reason.${e.reason}`) });
 
-export function FindBar(props: { find: FindState; setFind: (f: (x: FindState) => FindState) => void; textRef?: Ref<HTMLInputElement> }) {
+export function FindBar(props: { find: FindState; setFind: (f: (x: FindState) => FindState) => void; textRef?: Ref<HTMLInputElement>; project?: { active: boolean; toggle: () => void } }) {
   const { find, setFind } = props;
   const [text, setText] = useState(find.text);
   const [expr, setExpr] = useState(find.expr);
@@ -121,6 +121,17 @@ export function FindBar(props: { find: FindState; setFind: (f: (x: FindState) =>
           aria-pressed={find.starred}
           data-testid="library-starred"
         />
+        {props.project ? (
+          <Button
+            variant={props.project.active ? "primary" : "flat"}
+            icon={<Folder />}
+            onPress={props.project.toggle}
+            aria-label={t("project.only")}
+            title={t("project.only")}
+            aria-pressed={props.project.active}
+            data-testid="library-project-only"
+          />
+        ) : null}
       </div>
       {bad ? (
         <div className={s.findError} role="alert" data-testid="expr-error">

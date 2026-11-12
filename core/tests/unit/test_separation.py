@@ -100,7 +100,7 @@ def test_full_separation_registers_stems_and_runs_again(db, ws, env):
 def test_selection_three_track_crops_mapping(db, env):
     h, svc, sid, aid, _ = env
     list_models(h, svc)
-    job = svc.submit(aid, 0.5, 2.0, "fake_3track", ["speech", "effects"])["job"]
+    job = svc.submit(aid, 0.5, 2.0, "fake_3track", ["speech", "effects"], local_tags=["project:dil"])["job"]
     h.wait_status(job["id"], "succeeded", "failed", timeout=60)
     assert h.status(job["id"]) == "succeeded", h.s.summary(job["id"])["error"]
     got = {a["stem_name"]: a for a in svc.results(job["id"])}
@@ -112,6 +112,7 @@ def test_selection_three_track_crops_mapping(db, env):
     sp, ef = rows[got["speech"]["id"]], rows[got["effects"]["id"]]
     assert (sp["start"], sp["end"], sp["nature"], sp["created_via"]) == (0.0, 1.5, "speech", "processed") and sp["name"].endswith("\u00b7 speech")
     assert ef["nature"] == "unpitched" and len(rows) == 2
+    assert [r[0] for r in db.execute("SELECT tag FROM sample_tag")] == ["project:dil", "project:dil"]
     with pytest.raises(CoreError) as e:
         svc.submit(aid, None, None, "fake_3track", ["Vocals"])
     assert e.value.code == "sep-stems-invalid"

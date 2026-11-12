@@ -126,6 +126,9 @@ interface AppState {
   /** 全局 BPM 的镜像（Core 的 rhythm.bpm；事件 rhythm.bpm 同步） */
   bpm: number | null;
   setBpm(v: number | null): void;
+  /** undefined = 界面状态尚未恢复；null = 未选项目 */
+  currentProject: string | null | undefined;
+  setCurrentProject(name: string | null): void;
   nowPlaying: NowPlaying | null;
   setNowPlaying(v: NowPlaying | null): void;
   stageRhythm: StageRhythm;
@@ -189,6 +192,8 @@ export const useApp = create<AppState>((set) => ({
   refreshLists: () => set((st) => ({ stale: false, refreshTick: st.refreshTick + 1 })),
   toasts: [],
   bpm: null,
+  currentProject: undefined,
+  setCurrentProject: (currentProject) => set({ currentProject }),
   setBpm: (bpm) => set({ bpm }),
   nowPlaying: null,
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),

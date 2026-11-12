@@ -251,7 +251,7 @@ class Core:
         r("samples.createPlanned", "write", T.SampleCreatePlannedParams, T.SamplesCreated, "Create the chosen planned samples atomically (always new samples).",
           lambda p: self.sample_plan.create(dict(p["from"]), p["token"], list(p["keys"]), p.get("overrides"), p.get("nature")))
         r("samples.list", "read", T.SamplesListParams, T.SamplePage,
-          "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
+          "One page of samples matching the filter (nature, star, text incl. read segments and readings, project tag, tag facets, tag expressions), with the total.",
           lambda p: self.samples.list(
               offset=int(p.get("offset", 0)), limit=int(p.get("limit", 100)), sort=p.get("sort", "created"),
               **{k: v for k, v in p.items() if k not in ("offset", "limit", "sort")},
@@ -411,17 +411,17 @@ class Core:
           lambda p: self.primitives.parse_subtitles(p["path"], p.get("duration")), layer="primitive")
         r("studio.status", "read", T.StudioStatusParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status(bool(p.get("refresh", False))))
-        r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem.",
-          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges")))
+        r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem with optional local tags.",
+          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges"), local_tags=p.get("localTags")))
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
           lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))
         r("flatten.estimate", "read", T.FlattenEstimateParams, T.FlattenEstimate, "Estimate the target from cached measurements only (no model run).",
           lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
-        r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged).",
-          lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId")))
-        r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue one batch flatten with shared auto/edge options; determine each sample target independently.",
-          lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"])))
+        r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged), with optional local tags on the new sample.",
+          lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId"), local_tags=p.get("localTags")))
+        r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue one batch flatten with shared auto/edge options; determine each sample target independently and optionally tag the new samples.",
+          lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"]), local_tags=p.get("localTags")))
         r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
           lambda p: self.flatten.rerun_failed(p["jobId"]))
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
@@ -472,8 +472,8 @@ class Core:
         r("reimport.preview", "read", T.ReimportParams, T.ReimportPreview, "Reimport preview: file duration and the end it would land on (start fixed, end by file length).",
           lambda p: self.reimport.preview(p["assetId"], float(p["start"]), p["path"]))
         r("reimport.commit", "write", T.ReimportCommitParams, T.SampleRow,
-          "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
-          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified"))
+          "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample with optional local tags.",
+          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified", local_tags=p.get("localTags")))
         r("storage.report", "read", T.NoParams, T.StorageReport, "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
           lambda p: self.storage.report())
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,

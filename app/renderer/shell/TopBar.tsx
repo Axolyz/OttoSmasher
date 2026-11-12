@@ -1,11 +1,14 @@
-import { Command, Ellipsis, Undo2 } from "lucide-react";
+import { Command, Ellipsis, Folder, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { EditLabel } from "../api/types";
 import { Button } from "../components/Button";
+import { TextField } from "../components/Fields";
+import { AnchoredPanel } from "../components/Panel";
 import { Menu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
 import { errorText, keys, t } from "../i18n";
+import { PROJECT_NAME_LIMIT, projectTag } from "../state/project";
 import { useApp } from "../state/store";
 import { HistoryButton } from "./History";
 import { describeLabel } from "./labels";
@@ -87,6 +90,7 @@ export function TopBar() {
           />
           <span className={s.tempoUnit}>{t("top.bpm")}</span>
         </label>
+      <ProjectControl ready={ready} />
       <Button variant="secondary" icon={<Command />} aria-label={t("top.command")} onPress={() => useApp.getState().setPaletteOpen(true)} data-testid="palette-open">
         <span className={s.cmdLabel}>{t("top.command")}</span> <kbd className={s.kbd}>{keys("⌘K")}</kbd>
       </Button>
@@ -104,6 +108,57 @@ export function TopBar() {
         ]}
       />
     </header>
+  );
+}
+
+function ProjectControl({ ready }: { ready: boolean }) {
+  const name = useApp((st) => st.currentProject);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const value = draft.trim();
+  const invalid = Array.from(value).length > PROJECT_NAME_LIMIT;
+  const save = async () => {
+    if (!ready || invalid || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await call("ui.set", { page: "shell", key: "currentProject", value: value || null });
+      useApp.getState().setCurrentProject(value || null);
+      setOpen(false);
+    } catch (e) {
+      setError(e instanceof CoreFailure ? errorText(e.wire) : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <AnchoredPanel
+      title={t("project.current")}
+      width={320}
+      placement="bottom end"
+      isOpen={open}
+      onOpenChange={(next) => {
+        if (next) {
+          setDraft(name ?? "");
+          setError(null);
+        }
+        setOpen(next);
+      }}
+      trigger={
+        <Button variant="secondary" icon={<Folder />} isDisabled={!ready || name === undefined}
+          aria-label={name ? t("project.active", { name }) : t("project.current")}
+          title={name ? t("project.active", { name }) : t("project.current")} data-testid="current-project">
+          <span className={s.projectName} data-user-data={name ? "" : undefined}>{name || t("project.none")}</span>
+        </Button>
+      }
+      footer={<Button variant="primary" isDisabled={invalid || saving} onPress={() => void save()} data-testid="project-save">{t("common.save")}</Button>}
+    >
+      <TextField label={t("project.name")} value={draft} onChange={setDraft} onSubmit={() => void save()} invalid={invalid} autoFocus testId="project-name" />
+      <div className={s.projectHint}>{value && !invalid ? t("project.willTag", { tag: projectTag(value)! }) : t("project.hint")}</div>
+      {invalid || error ? <div role="alert">{invalid ? t("project.tooLong", { max: PROJECT_NAME_LIMIT }) : error}</div> : null}
+    </AnchoredPanel>
   );
 }
 

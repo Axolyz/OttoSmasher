@@ -82,6 +82,9 @@ def where(conn: sqlite3.Connection, f: dict[str, Any] | None, reader: text_searc
         args += list(natures)
     if f.get("starred"):
         clauses.append("s.starred = 1")
+    if project_tag := f.get("projectTag"):
+        clauses.append("EXISTS (SELECT 1 FROM sample_tag WHERE sample_id = s.id AND tag = ?)")
+        args.append(project_tag)
     langs = f.get("languages")
     if langs:
         clauses.append(f"s.language IN ({','.join('?' * len(langs))})")

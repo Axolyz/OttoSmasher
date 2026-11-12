@@ -40,6 +40,7 @@ from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
 from .probes import record_probes
+from .samples import checked_local_tags, insert_local_tags
 
 JOB_KIND = "flatten"
 ENTRIES = ("detail", "single", "batch")
@@ -291,17 +292,22 @@ class FlattenService:
             return str(r[0])
         return None
 
-    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool) -> dict[str, Any]:
+    def _submit(self, items: list[dict[str, Any]], ver: dict[str, Any], options: dict[str, Any], batch: bool,
+                local_tags: list[str] | None = None) -> dict[str, Any]:
         params = {
             "items": items, "versions": ver, "options": options, "batch": batch,
             "models_dir": str(self.ws.models), "support_dir": str(self.support_dir),
+            "localTags": checked_local_tags(local_tags),
         }  # fmt: skip
         affects = {"sample": [it["sample"] for it in items if it.get("sample")], "asset": sorted({it["asset"] for it in items if it.get("asset")})}
         job = self.jobs.submit(JOB_KIND, params, affects)
         self.jobs.add_items(job["id"], [(it.get("sample") or it.get("asset") or "", "queued") for it in items])
         return self.jobs.summary(job["id"])
 
-    def submit(self, token: dict[str, Any], opts: dict[str, Any], name: str, sample_id: str | None = None) -> dict[str, Any]:
+    def submit(
+        self, token: dict[str, Any], opts: dict[str, Any], name: str, sample_id: str | None = None, *,
+        local_tags: list[str] | None = None,
+    ) -> dict[str, Any]:
         """单个拉平（拉平台「开始拉平」）。"""
         name = (name or "").strip()
         if not name:
@@ -311,7 +317,7 @@ class FlattenService:
         o = self._options(opts, batch=False)
         ver = self._versions()
         it = self._item(0, token, o, name, sample_id, ver)
-        return self._submit([it], ver, o, False)
+        return self._submit([it], ver, o, False, local_tags)
 
     def _batch_items(self, sample_ids: list[str], o: dict[str, Any], ver: dict[str, Any]) -> list[dict[str, Any]]:
         items = []
@@ -328,13 +334,13 @@ class FlattenService:
                 items.append({"idx": idx, "sample": sid, "name": s["name"], "asset": s["asset_id"], "error": e.to_wire()})
         return items
 
-    def submit_batch(self, sample_ids: list[str], opts: dict[str, Any]) -> dict[str, Any]:
+    def submit_batch(self, sample_ids: list[str], opts: dict[str, Any], *, local_tags: list[str] | None = None) -> dict[str, Any]:
         """批量拉平：每项按自己的范围与边界独立定音；只有自动定音（Q10）。"""
         if not sample_ids:
             raise CoreError("flatten-invalid", reason="too-short", field="ids")
         o = self._options(opts, batch=True)
         ver = self._versions()
-        return self._submit(self._batch_items(sample_ids, o, ver), ver, o, True)
+        return self._submit(self._batch_items(sample_ids, o, ver), ver, o, True, local_tags)
 
     def rerun_failed(self, job_id: str) -> dict[str, Any]:
         """只重跑失败项（同一组选项，输入在现在重新冻结）。"""
@@ -352,9 +358,9 @@ class FlattenService:
             it = items[0]
             token = self._freeze(it["asset"], it["start"], it["end"])
             token.pop("_snap")
-            return self._submit([self._item(0, token, o, it["name"], it.get("sample"), ver)], ver, o, False)
+            return self._submit([self._item(0, token, o, it["name"], it.get("sample"), ver)], ver, o, False, params.get("localTags"))
         sids = [it["sample"] for it in items if it.get("sample")]
-        return self._submit(self._batch_items(sids, o, ver), ver, o, True)
+        return self._submit(self._batch_items(sids, o, ver), ver, o, True, params.get("localTags"))
 
     # ------------------------------------------------------------ 登记
 
@@ -387,7 +393,7 @@ class FlattenService:
                         aid = self._register_asset(job, params, it, res, ts, device, moved)
                         created_assets.append(aid)
                         f0_pending.append((aid, {int(k): item_dir / str(it["idx"]) / "f0" / f"{k}.npy" for k in res["f0Chunks"]}))
-                    sid = self._register_sample(job["id"], it, aid, ts)
+                    sid = self._register_sample(job["id"], it, aid, ts, params.get("localTags", []))
                     created_samples.append(sid)
                     cs.add("sample", sid)
                     cs.add("asset", aid)
@@ -442,7 +448,7 @@ class FlattenService:
         assets_mod.prefill_roles(self.conn, aid, list(inp["roles"]))  # 成品继承输入资产的角色（04 §4.2.4）
         return aid
 
-    def _register_sample(self, job_id: str, it: dict[str, Any], aid: str, ts: str) -> str:
+    def _register_sample(self, job_id: str, it: dict[str, Any], aid: str, ts: str, local_tags: list[str]) -> str:
         a = assets_mod.get(self.conn, aid)
         sid = new_id()
         origin = {"kind": "flatten", "job": job_id, "idx": it["idx"]}
@@ -451,6 +457,7 @@ class FlattenService:
             " VALUES (?, ?, 0, ?, ?, 'pitched', ?, 'processed', ?, ?, ?)",
             (sid, aid, float(a["duration"]), it["name"], a["language"], dumps(origin), ts, ts),
         )
+        insert_local_tags(self.conn, sid, local_tags)
         effective_tags.refresh(self.conn, [sid])
         return sid
 

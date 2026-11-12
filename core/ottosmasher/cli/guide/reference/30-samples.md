@@ -48,6 +48,7 @@ Rename or remove a tag everywhere: `tags.globalPlan` → `edits.apply`.
 `samples.ids` (all matching ids) and `samples.list` (pages, `limit`/`offset`, `sort`) take the same filter:
 `natures`, `starred`, `text`, `sourceId`, `expr` (main expression), `tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`.
 Example: `otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`.
+Use `projectTag: "project:dil"` to match that exact local tag. The CLI does not take a project from the desktop toolbar.
 
 
 ## Cached acoustic metrics

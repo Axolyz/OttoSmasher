@@ -13,6 +13,7 @@ import { NaturePicker } from "../components/NaturePicker";
 import { AnchoredPanel } from "../components/Panel";
 import { clock } from "../format";
 import { errorText, t } from "../i18n";
+import { currentProjectTags, projectTag } from "../state/project";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
@@ -38,6 +39,7 @@ export function ClipPanel(props: {
   /** 从右键菜单打开：贴着指针位置出现（没有按钮） */
   at?: { x: number; y: number } | null;
 }) {
+  const tag = projectTag(useApp((st) => st.currentProject));
   const toast = useApp((st) => st.toast);
   const setPage = useApp((st) => st.setPage);
   const setOpenSample = useApp((st) => st.setOpenSample);
@@ -93,7 +95,7 @@ export function ClipPanel(props: {
     if (!src || !plan || !item || item.status !== "pending" || plan.missingDefault || !name.trim() || busy) return;
     setBusy(true);
     try {
-      const localTags = tags.split(/\r?\n/).map((tag) => tag.trim()).filter(Boolean);
+      const localTags = [...tags.split(/\r?\n/).map((tag) => tag.trim()).filter(Boolean), ...currentProjectTags()];
       const r = await call("samples.createPlanned", {
         from: src, token: plan.token, keys: [item.key], overrides: { [item.key]: { name, nature, localTags } },
       });
@@ -175,6 +177,7 @@ export function ClipPanel(props: {
         <TextField value={name} onChange={setName} label={t("clip.name")} testId="clip-name" />
         <NaturePicker value={nature} onChange={setNature} testId="clip-nature" />
         <TextArea value={tags} onChange={setTags} label={t("batch.field.local_tags")} placeholder={t("clip.tagsHint")} testId="clip-tags" />
+        {tag ? <div className={s.clipHint}>{t("project.willTag", { tag })}</div> : null}
         <div className={s.clipHint}>
           {roles.length ? t("clip.roles", { roles: roles.map((r) => t(`role.${r}`)).join(" + ") }) : t("clip.noRoles")}
           {item?.judgeStart != null && item.judgeEnd != null ? ` · ${t("clip.judge", { a: clock(item.judgeStart), b: clock(item.judgeEnd) })}` : ""}

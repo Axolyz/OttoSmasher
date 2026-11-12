@@ -63,6 +63,7 @@ OP/ED 类型可在 `options` 中显式指定：`{"opedConfirm": [{"index": 0, "k
 
 - `studio.status`：PyMSS Studio 装没装、有哪些模型（`ok` 为 false 就告诉用户装 PyMSS Studio）。`studio.status {"refresh": true}` 刷新已安装模型列表，不下载权重；子目录文件变化会使缓存失效。保留返回的 stem 名称，角色别名不分大小写。先查 tracks.separatedVocals / assets.tracks，复用已有声部。
 - `separation.submit {"assetId", "model"}` 分离整条；加 `start` / `end`（资产秒）只分离一段；`ranges: [[start, end], ...]` 一次分离多段——拼成一个输入一起分离（Studio 按约 22 秒的块推理，短段单独交也按整块算）。结果 `separation.results {"jobId"}`：每个声部一条新音轨，带时间映射。
+- 局部分离可传 `localTags`（例如 `["project:dil"]`），给新建的声部采样打本地标签。整轨分离不建采样，命令行也不读取桌面的当前项目。
   局部分离出来的声部只盖住那一段，人声声部自动带人声角色；**局部分离的每个声部还会自动建一个采样**（整轨分离不建）——这些采样撤销不了，删除要用户确认，多段分离就会建很多个。每次请求都真的分离一遍、生成新的音轨，不会复用已有结果；要重跑前先看 `assets.tracks`，多出来的用 `assets.delete` 删（有采样在用的删不了）。整集分离要十几到几十分钟（长任务的等法见总览“等待长任务”）。
 - 默认人声 / 音效轨必须盖住整个原素材，局部声部不能当默认轨。但需要指定音轨的地方都能直接给它：
   `speech.preview` / `speech.submit` 加 `"assetId"` 就用那条轨分析（只分析落在它范围里的段），`samples.create`、`exports.wav`、原始能力也都收 `assetId`。

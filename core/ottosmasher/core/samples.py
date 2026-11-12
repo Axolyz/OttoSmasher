@@ -43,6 +43,18 @@ def source_display_name(work: str, episode: str, path: str) -> str:
     return work or episode or Path(path).stem
 
 
+def checked_local_tags(local_tags: list[str] | None) -> list[str]:
+    try:
+        return validate_local_tags(local_tags) if local_tags is not None else []
+    except _Invalid as bad:
+        raise CoreError("sample-invalid", field="local_tags", reason=bad.reason, **bad.args_) from None
+
+
+def insert_local_tags(conn: sqlite3.Connection, sample_id: str, tags: list[str]) -> None:
+    if tags:
+        conn.executemany("INSERT INTO sample_tag(sample_id, tag) VALUES (?, ?)", [(sample_id, tag) for tag in tags])
+
+
 class SampleService:
     def __init__(self, conn: sqlite3.Connection, *, on_change: Any = None, reader: Any = None) -> None:
         self.conn = conn
@@ -157,10 +169,7 @@ class SampleService:
             raise CoreError("sample-invalid", reason="not-an-option", field="nature")
         if created_via not in CREATED_VIA:
             raise CoreError("sample-invalid", reason="not-an-option", field="created_via")
-        try:
-            tags = validate_local_tags(local_tags) if local_tags is not None else []
-        except _Invalid as bad:
-            raise CoreError("sample-invalid", field="local_tags", reason=bad.reason, **bad.args_) from None
+        tags = checked_local_tags(local_tags)
         sid, ts = new_id(), now_iso()
         js, je = (round(judge[0], 6), round(judge[1], 6)) if judge else (None, None)
         self.conn.execute(
@@ -169,8 +178,7 @@ class SampleService:
             (sid, asset_id, start, end, name, nature, asset["language"], created_via,
              dumps(origin) if origin else None, dumps(snapshot) if snapshot else None, js, je, ts, ts),
         )
-        if tags:
-            self.conn.executemany("INSERT INTO sample_tag(sample_id, tag) VALUES (?, ?)", [(sid, tag) for tag in tags])
+        insert_local_tags(self.conn, sid, tags)
         effective_tags.refresh(self.conn, [sid])
         return sid
 

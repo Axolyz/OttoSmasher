@@ -48,9 +48,9 @@ OttoSmasher 不生成音乐，也不替你创作。它负责让素材处理和�
 
 第一次使用请看[入门教程](docs/user/tutorial.md)。完整说明见[用户说明](docs/user/README.md)。
 
-## 配合 agent 使用
+## 配合 LLM agent 使用：OttoSmasher Harness
 
-Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `otto` 操作 OttoSmasher，调用的是和界面相同的功能。应用负责存资料、分离、分析、检索和导出这些确定的工作；洗字幕、对轴、挑台词、挑音色这些需要判断的工作可以交给 agent。agent 也可以出编排方案，但我们目前更推荐它做上游的素材处理，选择和创作留给人。
+OttoSmasher 的 LLM agent 工作流采用 **harness** 设计：通过命令行 `otto` 把工作区、和界面共用的操作、任务指南及 Skills 提供给 Claude Code、Codex 等外部 agent。模型与 agent 宿主由你选择；写回的改动可以在应用里核对，支持撤销的操作可从操作历史撤回。应用负责存资料、分离、分析、检索和导出这些确定的工作；洗字幕、对轴、挑台词、挑音色这些需要判断的工作可以交给 agent。agent 也可以出编排方案，但我们目前更推荐它做上游的素材处理，选择和创作留给人。
 
 系统方面，MacOS 是最为推荐的用于 Agent 接入的操作系统，但 Windows 也可用。需要注意的是 Windows 下很多 Agent 工具为了运行 `otto` 命令只能开 Full Access 模式，不然会撞沙箱。
 
@@ -154,6 +154,8 @@ Claude Code、Codex 等能在本机运行命令的 agent 可以通过命令行 `
 | <img src="docs/images/flatten.webp" alt="拉平台：外选区、处理范围与目标音高"> | <img src="docs/images/tasks.webp" alt="任务抽屉：后台任务列表"> |
 
 ### 整理采样
+
+在顶栏选择当前项目后，手动截取、拉平、局部分离或回导得到的新采样会加上项目标签。用「只看本项目」找回已经选入项目的素材。详见[按项目整理采样](docs/user/how-to.md#按项目整理采样)。
 
 标签可以从作品、字幕说话人和区段标注自动继承，也可以手动添加。支持星标、标签表达式和按作品、人物、音高等条件筛选，常用的条件可以存成筛选器。批量修改前会先显示前后对比，资料修改都可以撤销。
 

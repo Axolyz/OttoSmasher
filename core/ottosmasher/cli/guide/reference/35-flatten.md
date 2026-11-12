@@ -8,6 +8,8 @@ Flattening changes pitch while retaining words and duration: a whole phrase at o
 
 `samples.metrics {"ids"}` reads cached measures such as rmsDb, pitchSpread and voicedDuration; `metrics.prepare` computes missing ones. Compare representative candidates with audio tools. Temporary level-matched copies help when loudness differences get in the way. Try a few finished samples before processing a large set.
 
+Both `flatten.submit` and `flatten.submitBatch` accept `localTags` for the new samples, e.g. `["project:dil"]`. CLI calls do not read the current desktop project. Retrying failures keeps the original job’s tags.
+
 ## Open, estimate and submit
 
 1. `flatten.open {"assetId", "start", "end", "entry": "single", "sampleId"}` freezes an asset-local selection and returns token, defaults, alignment and alignmentIssue. Times in alignment, inner and processing intervals are input-local seconds, with the selection start at zero.

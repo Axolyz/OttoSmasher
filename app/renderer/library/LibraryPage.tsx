@@ -29,6 +29,7 @@ import { type PaletteCommand, type PaletteSection, fromMenu } from "../component
 import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { exportWords } from "../exportWords";
+import { projectTag } from "../state/project";
 import { type AuditionVersion, useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
 import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeSize } from "./FindBar";
@@ -153,6 +154,10 @@ export function LibraryPage() {
   };
   // 查找栏 + 范围行（UI_PLAN §2.3）、排序、分页；重启恢复（勾选不恢复）
   const [find, setFind] = useState<FindState>(EMPTY_FIND);
+  const currentProject = useApp((st) => st.currentProject);
+  const currentTag = projectTag(currentProject);
+  const [projectOnly, setProjectOnly] = useState(false);
+  const projectFilter = projectOnly ? currentTag : undefined;
   const [sort, setSort] = useState<Sort>("created");
   const [pageSize, setPageSize] = useState<PageSize>("fit");
   const [fitRows, setFitRows] = useState(20);
@@ -202,12 +207,13 @@ export function LibraryPage() {
     () => ({
       natures: purpose === "all" ? undefined : [purpose],
       starred: find.starred,
+      ...(projectFilter ? { projectTag: projectFilter } : {}),
       text: find.text.trim(),
       expr: find.expr.trim(),
       tags: scopeSize(find.tags) ? find.tags : undefined,
       sourceId: find.source?.sourceId,
     }),
-    [purpose, find.starred, find.text, find.expr, find.tags, find.source],
+    [purpose, find.starred, projectFilter, find.text, find.expr, find.tags, find.source],
   );
   const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
   const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
@@ -253,9 +259,10 @@ export function LibraryPage() {
     if (!ready || browseRestored) return;
     void call("ui.get", { page: "library" }).then((v) => {
       if (typeof v.split === "number") setSplit(v.split);
-      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize; metricsDraft?: unknown } | undefined;
+      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize; metricsDraft?: unknown; projectOnly?: boolean } | undefined;
       if (f && typeof f === "object") {
         setFind((current) => ({ ...EMPTY_FIND, source: current.source, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null }));
+        setProjectOnly(f.projectOnly === true);
         if (f.purpose && PURPOSES.includes(f.purpose)) setPurpose(f.purpose);
         if (f.sort && SORTS.includes(f.sort)) setSort(f.sort);
         if (f.pageSize && PAGE_SIZES.includes(f.pageSize)) setPageSize(f.pageSize);
@@ -274,8 +281,8 @@ export function LibraryPage() {
   useEffect(() => {
     if (!ready || !browseRestored || !browseStateRead.current) return;
     const { source: _s, ...keep } = find;
-    void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize, metricsDraft } });
-  }, [find, purpose, sort, pageSize, metricsDraft, ready, browseRestored]);
+    void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize, metricsDraft, projectOnly } });
+  }, [find, purpose, sort, pageSize, metricsDraft, projectOnly, ready, browseRestored]);
 
   const refreshTick = useApp((st) => st.refreshTick);
   const libraryVisible = page === "library";
@@ -699,7 +706,7 @@ export function LibraryPage() {
   };
 
   const total = inResult ? (resPage?.total ?? 0) : (data?.total ?? 0);
-  const filtered = !!(find.text || find.expr || find.starred || find.source || scopeSize(find.tags) || purpose !== "all" || metrics);
+  const filtered = !!(find.text || find.expr || find.starred || projectFilter || find.source || scopeSize(find.tags) || purpose !== "all" || metrics);
   /** 「更新」：把范围行写回当前选用的筛选器（可撤销） */
   const updatePreset = async () => {
     const f = filters.find((x) => x.id === find.preset);
@@ -885,7 +892,23 @@ export function LibraryPage() {
     const jobs = [...byAsset].map(([assetId, ranges]) => ({ assetId, ranges }));
     requestSeparation({ assetId: jobs[0]!.assetId, trackLabel: "", duration: 0, selection: null, scope: "sel", batch: { kind: "samples", n: ids.length, jobs } });
   };
+  const projectItems = (ids: string[]): MenuItems => currentTag ? [{
+    id: "project-add",
+    label: t("project.add"),
+    run: async () => {
+      try {
+        const { batch } = await call("samples.batchEdit", { ids, fields: { addTags: [currentTag] } });
+        const n = batch.ops.length;
+        if (!n) return toast({ text: t("project.already") });
+        await call("edits.apply", { batch: { ...batch, label: { code: "batch-tags-add", args: { n, tag: currentTag } } } });
+        toast({ text: t("batch.done", { n }), action: { label: t("common.undo"), run: () => void undo() } });
+      } catch (e) {
+        toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+      }
+    },
+  }] : [];
   const groupItems = (ids: string[]): MenuItems => [
+    ...projectItems(ids),
     { id: "tags-add", label: t("library.addTags"), run: () => setBatch({ kind: "tags-add", ids }) },
     { id: "tags-remove", label: t("library.removeTags"), run: () => setBatch({ kind: "tags-remove", ids }) },
     { id: "nature", label: t("library.setNature"), items: natureItems(ids) },
@@ -932,6 +955,7 @@ export function LibraryPage() {
             { id: "audition", label: t("library.auditionOriginal"), shortcut: "Space", run: () => void audition(r) },
             ...(isSingle(r.nature) ? [] : [{ id: "auditionStretched", label: t("library.auditionStretched"), shortcut: "B", run: () => void audition(r, "stretched") }]),
             "-",
+            ...projectItems([r.id]),
             { id: "tags-add", label: t("library.addTags"), run: () => setBatch({ kind: "tags-add", ids: [r.id] }) },
             { id: "tags-remove", label: t("library.removeTags"), run: () => setBatch({ kind: "tags-remove", ids: [r.id] }) },
             { id: "nature", label: t("library.setNature"), items: natureItems([r.id]) },
@@ -1037,7 +1061,13 @@ export function LibraryPage() {
 
   const list = (
     <section className={s.left}>
-      <FindBar find={find} setFind={setFind} />
+      <FindBar find={find} setFind={setFind} project={currentTag ? {
+        active: projectOnly,
+        toggle: () => {
+          setProjectOnly((only) => !only);
+          setResultTab(BROWSE);
+        },
+      } : undefined} />
       <ScopeRow
         find={find}
         setFind={setFind}

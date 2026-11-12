@@ -17,6 +17,7 @@ import { seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { assetLabel } from "../library/StageSpeech";
 import { type Curve, type Layer, type Sel, Timeline } from "../sources/Timeline";
+import { currentProjectTags } from "../state/project";
 import { type FlattenRequest, useApp } from "../state/store";
 import s from "./Flatten.module.css";
 
@@ -222,7 +223,7 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
     setBusy(true);
     setSubmitError(null);
     try {
-      await call("flatten.submit", { token: op.token, options, name, sampleId: req?.sampleId ?? null });
+      await call("flatten.submit", { token: op.token, options, name, sampleId: req?.sampleId ?? null, localTags: currentProjectTags() });
       toast({ text: t("flatten.queued"), action: { label: t("speech.openTasks"), run: () => setTasksOpen(true) } });
       onClose();
     } catch (e) {
@@ -394,7 +395,7 @@ function BatchFlatten({ ids, onClose }: { ids: string[]; onClose: () => void }) 
     setBusy(true);
     setError(null);
     try {
-      await call("flatten.submitBatch", { ids, options: { range, target, side } });
+      await call("flatten.submitBatch", { ids, options: { range, target, side }, localTags: currentProjectTags() });
       toast({ text: t("flatten.batchQueued", { n: ids.length }), action: { label: t("speech.openTasks"), run: () => setTasksOpen(true) } });
       onClose();
     } catch (e) {

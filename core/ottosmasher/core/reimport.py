@@ -66,7 +66,8 @@ class ReimportService:
         return {"duration": dur, "sampleRate": rate, "start": start, "end": end, "ok": ok, "reason": reason,
                 "sourceStart": mapping.to_source(start), "sourceEnd": src_end, "assetDuration": float(asset["duration"]), "suggestedName": suggested}
 
-    def commit(self, asset_id: str, start: float, path: str, *, name: str | None = None, nature: str = "unclassified") -> dict[str, Any]:
+    def commit(self, asset_id: str, start: float, path: str, *, name: str | None = None, nature: str = "unclassified",
+               local_tags: list[str] | None = None) -> dict[str, Any]:
         asset = assets_mod.get(self.conn, asset_id)
         dur, rate, pr = _file_audio(path)
         mapping = Mapping.of(asset["mapping"])
@@ -105,7 +106,7 @@ class ReimportService:
                     self.conn.execute("INSERT INTO asset_role(asset_id, role, state) VALUES (?, ?, ?)", (aid, role, state))
                 label = (name or "").strip() or self.samples.suggest(asset_id, start, min(start + dur, float(asset["duration"])))["name"]
                 sid = self.samples.insert_checked(aid, 0.0, dur, name=label, nature=nature, created_via="reimport",
-                                                  origin={"kind": "reimport", "inputAsset": asset_id, "inputStart": start, "file": src.name})
+                                                  local_tags=local_tags, origin={"kind": "reimport", "inputAsset": asset_id, "inputStart": start, "file": src.name})
                 effective_tags.refresh(self.conn, [sid])
         except Exception:
             target.unlink(missing_ok=True)

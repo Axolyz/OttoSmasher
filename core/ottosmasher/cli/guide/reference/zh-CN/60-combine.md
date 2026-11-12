@@ -17,6 +17,8 @@
 
 都记在你的会话下。修改（标签、段、OP/ED、默认轨、画面）可以撤销；新建的采样（`samples.plan` / `samples.create`）、回导的音轨撤销不了，只能删除（要用户确认）。
 
+回导时可给 `reimport.commit` 传 `localTags`（如 `["project:dil"]`），随新采样一起保存。命令行不读取桌面的当前项目。
+
 ## 拿到原始材料
 
 * 文本：`textLayer.list {"sourceId"}`（段、音效提示、OP/ED）；字幕文件本身。

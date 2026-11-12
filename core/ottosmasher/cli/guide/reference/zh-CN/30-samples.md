@@ -48,6 +48,7 @@ otto call edits.apply '{"batch": <预览里的 batch>}'
 `samples.ids`（所有匹配的 ID）与 `samples.list`（分页，`limit`/`offset`、`sort`）用同一套条件：
 `natures`、`starred`、`text`、`sourceId`、`expr`（主表达式）、`tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`。
 例：`otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`。
+只查某个项目时，传 `projectTag: "project:dil"`，匹配采样自身的完整标签。命令行不会自动读取桌面的当前项目。
 
 ## 筛选与创建物
 

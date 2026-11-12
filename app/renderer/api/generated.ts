@@ -580,6 +580,7 @@ export interface FlattenAlignment {
 
 export interface FlattenBatchParams {
   ids: string[];
+  localTags?: string[];
   options: FlattenOptions;
 }
 
@@ -649,6 +650,7 @@ export interface FlattenResultRow {
 }
 
 export interface FlattenSubmitParams {
+  localTags?: string[];
   name: string;
   options: FlattenOptions;
   sampleId?: string | null;
@@ -1188,6 +1190,7 @@ export interface PitchSourceScope {
   languages?: string[] | null;
   metrics?: MetricFilter | null;
   natures?: string[] | null;
+  projectTag?: string;
   roles?: ("mix" | "sfx" | "vocal")[] | null;
   sourceId?: string | null;
   starred?: boolean | null;
@@ -1327,6 +1330,7 @@ export interface RegisterStemParams {
 
 export interface ReimportCommitParams {
   assetId: string;
+  localTags?: string[];
   name?: string | null;
   nature?: "pitched" | "speech" | "unclassified" | "unpitched";
   path: string;
@@ -1681,6 +1685,7 @@ export interface SampleFilter {
   languages?: string[] | null;
   metrics?: MetricFilter | null;
   natures?: string[] | null;
+  projectTag?: string;
   sourceId?: string | null;
   starred?: boolean | null;
   tags?: TagScope | null;
@@ -1842,6 +1847,7 @@ export interface SamplesListParams {
   metrics?: MetricFilter | null;
   natures?: string[] | null;
   offset?: number;
+  projectTag?: string;
   sort?: "created" | "duration" | "name" | "source";
   sourceId?: string | null;
   starred?: boolean | null;
@@ -2002,6 +2008,7 @@ export interface SeparationDevice {
 export interface SeparationSubmitParams {
   assetId: string;
   end?: number | null;
+  localTags?: string[];
   model: string;
   ranges?: number[][] | null;
   start?: number | null;
@@ -3160,9 +3167,9 @@ export interface Commands {
   "flatten.rerunFailed": { params: JobIdParams; result: JobSummary; effect: "job" };
   /** Per-item results of a flatten job (product sample and target). */
   "flatten.results": { params: JobIdParams; result: FlattenResultRow[]; effect: "read" };
-  /** Queue one flatten (checks the frozen asset is unchanged). */
+  /** Queue one flatten (checks the frozen asset is unchanged), with optional local tags on the new sample. */
   "flatten.submit": { params: FlattenSubmitParams; result: JobSummary; effect: "job" };
-  /** Queue one batch flatten with shared auto/edge options; determine each sample target independently. */
+  /** Queue one batch flatten with shared auto/edge options; determine each sample target independently and optionally tag the new samples. */
   "flatten.submitBatch": { params: FlattenBatchParams; result: JobSummary; effect: "job" };
   /** Add an sfx hint by hand (protected). */
   "hints.add": { params: HintAddParams; result: SegmentAdded; effect: "write" };
@@ -3234,7 +3241,7 @@ export interface Commands {
   "reaper.handoff": { params: ReaperParams; result: ReaperHandoff; effect: "write" };
   /** Write the same items as an .RTrackTemplate file; dropping it into REAPER gives items with stretch markers. */
   "reaper.template": { params: ReaperParams; result: ReaperTemplate; effect: "write" };
-  /** Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample. */
+  /** Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample with optional local tags. */
   "reimport.commit": { params: ReimportCommitParams; result: SampleRow; effect: "write" };
   /** Reimport preview: file duration and the end it would land on (start fixed, end by file length). */
   "reimport.preview": { params: ReimportParams; result: ReimportPreview; effect: "read" };
@@ -3282,7 +3289,7 @@ export interface Commands {
   "samples.independ": { params: IndependParams; result: JobSummary; effect: "job" };
   /** What independence would store for each sample (slice size, picture clip). */
   "samples.independPlan": { params: IdsParams; result: IndependItem[]; effect: "read" };
-  /** One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total. */
+  /** One page of samples matching the filter (nature, star, text incl. read segments and readings, project tag, tag facets, tag expressions), with the total. */
   "samples.list": { params: SamplesListParams; result: SamplePage; effect: "read" };
   /** Read cached acoustic metrics with ready/stale/missing state for each sample. */
   "samples.metrics": { params: IdsParams; result: SampleMetricsRow[]; effect: "read" };
@@ -3324,7 +3331,7 @@ export interface Commands {
   "segments.split": { params: SegmentSplitParams; result: SegmentsSplit; effect: "write" };
   /** Assets registered by a separation job. */
   "separation.results": { params: JobIdParams; result: AssetRecord[]; effect: "read" };
-  /** Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem. */
+  /** Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem with optional local tags. */
   "separation.submit": { params: SeparationSubmitParams; result: SeparationSubmitted; effect: "job" };
   /** All settings with value, default and version (edit via edits.apply, entity 'setting'). */
   "settings.list": { params: NoParams; result: Record<string, SettingEntry>; effect: "read" };

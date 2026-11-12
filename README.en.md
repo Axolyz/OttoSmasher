@@ -50,9 +50,9 @@ OttoSmasher also supports other ways of working:
 
 For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The full documentation is in the [user guide](docs/user/README.md) (in Chinese).
 
-## Using it with agents
+## Using LLM agents with the OttoSmasher harness
 
-Agents that can run commands on your computer, such as Claude Code and Codex, can operate OttoSmasher through the `otto` command line, using the same functions as the interface. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
+OttoSmasher provides an **LLM agent harness**. Through the `otto` CLI, external agents such as Claude Code and Codex get access to the workspace, the same operations as the desktop app, and task guides and Skills. You choose the model and agent host. You can review changes in the app and undo supported edits from the operation history. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
 macOS is the recommended operating system for agent integration, with fewer setup issues in the author’s experience; Windows is also supported. On Windows, many agent hosts need Full Access to connect to Otto through the current local IPC setup.
 
@@ -156,6 +156,8 @@ Flattens the pitch of a stretch of speech onto one note, keeping the words, and 
 | <img src="docs/images/flatten.webp" alt="Flatten bench: outer selection, processing range and target pitch"> | <img src="docs/images/tasks.webp" alt="Task drawer: list of background tasks"> |
 
 ### Organizing samples
+
+Set the current project in the toolbar to automatically tag samples you create by clipping, flattening, separating a selection, or reimporting. Use Current project only to find the samples you have selected for that project.
 
 Tags can be inherited automatically from the work, subtitle speakers and range tags, or added by hand. You can use stars and tag expressions, filter by work, person, pitch and more, and save common conditions as filters. Batch edits show a before-and-after comparison first, and data edits can be undone.
 

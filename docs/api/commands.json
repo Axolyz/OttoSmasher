@@ -520,7 +520,7 @@
    "name": "flatten.submit",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue one flatten (checks the frozen asset is unchanged).",
+   "summary": "Queue one flatten (checks the frozen asset is unchanged), with optional local tags on the new sample.",
    "params": {
     "$ref": "#/$defs/FlattenSubmitParams"
    },
@@ -532,7 +532,7 @@
    "name": "flatten.submitBatch",
    "effect": "job",
    "layer": "library",
-   "summary": "Queue one batch flatten with shared auto/edge options; determine each sample target independently.",
+   "summary": "Queue one batch flatten with shared auto/edge options; determine each sample target independently and optionally tag the new samples.",
    "params": {
     "$ref": "#/$defs/FlattenBatchParams"
    },
@@ -982,7 +982,7 @@
    "name": "reimport.commit",
    "effect": "write",
    "layer": "library",
-   "summary": "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample.",
+   "summary": "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample with optional local tags.",
    "params": {
     "$ref": "#/$defs/ReimportCommitParams"
    },
@@ -1287,7 +1287,7 @@
    "name": "samples.list",
    "effect": "read",
    "layer": "library",
-   "summary": "One page of samples matching the filter (nature, star, text incl. read segments and readings, tag facets, tag expressions), with the total.",
+   "summary": "One page of samples matching the filter (nature, star, text incl. read segments and readings, project tag, tag facets, tag expressions), with the total.",
    "params": {
     "$ref": "#/$defs/SamplesListParams"
    },
@@ -1548,7 +1548,7 @@
    "name": "separation.submit",
    "effect": "job",
    "layer": "library",
-   "summary": "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem.",
+   "summary": "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem with optional local tags.",
    "params": {
     "$ref": "#/$defs/SeparationSubmitParams"
    },
@@ -6397,6 +6397,12 @@
       "type": "string"
      }
     },
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "options": {
      "$ref": "#/$defs/FlattenOptions"
     }
@@ -6778,6 +6784,12 @@
    "title": "FlattenSubmitParams",
    "type": "object",
    "properties": {
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "name": {
      "type": "string"
     },
@@ -9280,6 +9292,9 @@
       }
      ]
     },
+    "projectTag": {
+     "type": "string"
+    },
     "roles": {
      "anyOf": [
       {
@@ -9905,6 +9920,12 @@
    "properties": {
     "assetId": {
      "type": "string"
+    },
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "name": {
      "anyOf": [
@@ -11689,6 +11710,9 @@
       }
      ]
     },
+    "projectTag": {
+     "type": "string"
+    },
     "sourceId": {
      "anyOf": [
       {
@@ -12533,6 +12557,9 @@
     "offset": {
      "type": "integer"
     },
+    "projectTag": {
+     "type": "string"
+    },
     "sort": {
      "enum": [
       "created",
@@ -13231,6 +13258,12 @@
        "type": "null"
       }
      ]
+    },
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "model": {
      "type": "string"

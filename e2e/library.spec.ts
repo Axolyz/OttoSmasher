@@ -263,3 +263,90 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await page.screenshot({ path: ".cache/playwright-results/library-thumbs.png" });
   await app.close();
 });
+
+test("当前项目：筛选、跨项目选材、截取自动打标与恢复", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-lib-project-"));
+  const wav = join(dir, "project.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=5", wav]);
+  const { app, page } = await launch();
+  try {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(900, 850));
+    const { candidate, other } = await page.evaluate(async (path) => {
+      const req = window.otto.core.request;
+      const added = await req<Array<{ assets: Array<{ assetId: string }> }>>("sources.add", { paths: [path] });
+      if (!added.ok) throw new Error(added.e.code);
+      const assetId = added.r[0]!.assets[0]!.assetId;
+      const create = async (name: string, start: number) => {
+        const r = await req<{ id: string }>("samples.create", { assetId, name, start, end: start + 2, nature: "speech" });
+        if (!r.ok) throw new Error(r.e.code);
+        return r.r.id;
+      };
+      return { candidate: await create("Project candidate", 0), other: await create("Unselected candidate", 2) };
+    }, wav);
+    await refreshLists(page);
+    const total = page.getByTestId("library-total");
+    await expect(total).toHaveText("2 个采样");
+    const current = page.getByTestId("current-project");
+    const setProject = async (name: string) => {
+      await current.click();
+      await page.getByTestId("project-name").fill(name);
+      await page.getByTestId("project-save").click();
+      await expect(current).toHaveText(name || "未选项目");
+    };
+    const only = page.getByTestId("library-project-only");
+    const row = (id: string) => page.locator(`[data-testid="sample-row"][data-id="${id}"]`);
+    const addToProject = async () => {
+      await row(candidate).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "加入当前项目" }).click();
+    };
+    await setProject("mix A");
+    await only.click();
+    await expect(total).toHaveText("0 个采样");
+    await only.click();
+    await expect(row(candidate)).toBeVisible();
+    await addToProject();
+    await only.click();
+    await expect(row(candidate)).toBeVisible();
+    await expect(row(other)).toHaveCount(0);
+    const search = page.getByTestId("library-search");
+    await search.fill("Unselected");
+    await expect(total).toHaveText("0 个采样");
+    await search.clear();
+    await expect(total).toHaveText("1 个采样");
+
+    await setProject("mix B");
+    await expect(total).toHaveText("0 个采样");
+    await only.click();
+    await expect(row(candidate)).toBeVisible();
+    await addToProject();
+    await row(candidate).click();
+    const tags = page.getByTestId("stage-tags");
+    await expect(tags.getByText("project:mix A", { exact: false })).toBeVisible();
+    await expect(tags.getByText("project:mix B", { exact: false })).toBeVisible();
+
+    await row(other).click();
+    await expect(page.getByTestId("stage-title")).toHaveText("Unselected candidate");
+    const startInput = page.getByTestId("stage-sel-start");
+    await startInput.fill("0:02.100");
+    await startInput.press("Enter");
+    await page.getByTestId("stage-actions").getByTestId("clip").click();
+    const clip = page.getByTestId("clip-panel");
+    await expect(clip.getByTestId("clip-save")).toBeEnabled();
+    await clip.getByTestId("clip-name").fill("Edited in mix B");
+    await clip.getByTestId("clip-save").click();
+    await expect(page.getByTestId("stage-title")).toHaveText("Edited in mix B");
+    await expect(tags.getByText("project:mix B", { exact: false })).toBeVisible();
+    await expect(tags.getByText("project:mix A", { exact: false })).toHaveCount(0);
+    await only.click();
+    await expect(total).toHaveText("2 个采样");
+    await page.reload();
+    await expect(current).toHaveText("mix B");
+    await expect(only).toHaveAttribute("aria-pressed", "true");
+    await expect(total).toHaveText("2 个采样");
+    await setProject("");
+    await expect(only).toHaveCount(0);
+    await expect(total).toHaveText("3 个采样");
+  } finally {
+    await app.close();
+  }
+});

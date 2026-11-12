@@ -54,6 +54,10 @@ def test_flatten_end_to_end(tmp_path):
     tone(wav)
     c = CoreProc(root)
     try:
+        # 避免后台测音高抢先填好输入缓存；这里验证拉平自己的测量和登记。
+        assert c.call("edits.apply", batch={"ops": [{
+            "entity": "setting", "id": "analysis.auto_prepare", "version": 0, "fields": {"value": False},
+        }]})["ok"]
         aid = c.call("sources.add", paths=[str(wav)])["r"][0]["assets"][0]["assetId"]
         smp = c.call("samples.create", assetId=aid, start=0.2, end=2.8, name="tone", nature="speech")["r"]["id"]
 
@@ -78,7 +82,7 @@ def test_flatten_end_to_end(tmp_path):
 
         # ---- 单个：整段 + 段内自动
         n_samples = c.call("samples.list")["r"]["total"]
-        job = c.call("flatten.submit", token=tok, name="tone", sampleId=smp, options={"range": "whole", "target": "auto"})["r"]
+        job = c.call("flatten.submit", token=tok, name="tone", sampleId=smp, localTags=["project:dil"], options={"range": "whole", "target": "auto"})["r"]
         j = wait(c, job["id"])
         assert j["status"] == "succeeded", j
         rows = c.call("flatten.results", jobId=job["id"])["r"]
@@ -86,6 +90,7 @@ def test_flatten_end_to_end(tmp_path):
         pid = rows[0]["productId"]
         assert c.call("samples.list")["r"]["total"] == n_samples + 1  # 只登记一个采样
         p = c.call("samples.get", id=pid)["r"]
+        assert [t["tag"] for t in p["tags"] if t["provenance"] == "local"] == ["project:dil"]
         assert p["nature"] == "pitched" and p["name"] == "tone"  # 名称不加音名
         assert "pitch:A♯3" in [t["tag"] for t in p["tags"] if t["provenance"] == "auto"]
         a = c.call("assets.get", id=p["asset_id"])["r"]
@@ -107,10 +112,11 @@ def test_flatten_end_to_end(tmp_path):
         assert c.call("flatten.estimate", token=tok, options={"range": "whole", "target": "auto"})["r"]["status"] == "in-job"
 
         # ---- 复用：相同输入 + 参数 + 模型 → 成品音频复用，采样新建
-        job2 = c.call("flatten.submit", token=tok, name="tone again", options={"range": "whole", "target": "auto"})["r"]
+        job2 = c.call("flatten.submit", token=tok, name="tone again", localTags=["project:other"], options={"range": "whole", "target": "auto"})["r"]
         assert wait(c, job2["id"])["status"] == "succeeded"
         p2 = c.call("samples.get", id=c.call("flatten.results", jobId=job2["id"])["r"][0]["productId"])["r"]
         assert p2["id"] != pid and p2["asset_id"] == p["asset_id"]
+        assert [t["tag"] for t in p2["tags"] if t["provenance"] == "local"] == ["project:other"]
 
         # ---- 批量：仅元音（没有对齐）→ 逐项失败并说明；整段 → 成功
         smp2 = c.call("samples.create", assetId=aid, start=0.6, end=1.4, name="t2", nature="speech")["r"]["id"]
@@ -122,10 +128,11 @@ def test_flatten_end_to_end(tmp_path):
         # 批量不接受手动 / 内部（Q10）
         assert c.call("flatten.submitBatch", ids=[smp], options={"range": "whole", "target": "manual", "manual": "A4"})["e"]["code"] == "flatten-invalid"
         assert c.call("flatten.submitBatch", ids=[smp], options={"range": "inner", "target": "auto"})["e"]["code"] == "flatten-invalid"
-        jw = c.call("flatten.submitBatch", ids=[smp2], options={"range": "whole", "target": "edge", "side": "right"})["r"]
+        jw = c.call("flatten.submitBatch", ids=[smp2], localTags=["project:batch"], options={"range": "whole", "target": "edge", "side": "right"})["r"]
         assert wait(c, jw["id"])["status"] == "succeeded"
         rw = c.call("flatten.results", jobId=jw["id"])["r"][0]
         assert rw["status"] == "ok" and rw["target"] == "A♯3"
+        assert c.call("samples.ids", projectTag="project:batch")["r"] == [rw["productId"]]
         # 只重跑失败项：同一组选项，仍然失败（没有对齐）
         rr = c.call("flatten.rerunFailed", jobId=jb["id"])["r"]
         assert wait(c, rr["id"])["items"]["failed"] == 2

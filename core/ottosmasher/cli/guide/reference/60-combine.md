@@ -18,6 +18,8 @@ and write back the conclusions that should stay.
 
 All are recorded under your session. Edits (tags, segments, OP/ED, default tracks, pictures) can be undone; newly created samples (`samples.plan` / `samples.create`) and reimported tracks cannot — they can only be deleted (with the user's confirmation).
 
+Pass `localTags` (e.g. `["project:dil"]`) to `reimport.commit` to tag the new sample. CLI calls do not read the current desktop project.
+
 ## Getting the raw material
 
 * Text: `textLayer.list {"sourceId"}` (segments, sound hints, OP/ED); the subtitle files themselves.

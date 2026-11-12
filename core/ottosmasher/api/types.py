@@ -1156,6 +1156,7 @@ class TagScope(TypedDict):
 class SampleFilter(TypedDict):
     natures: NotRequired[list[str] | None]
     starred: NotRequired[bool | None]
+    projectTag: NotRequired[str]  # exact local sample tag
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
     createdBySession: NotRequired[str]
@@ -1994,6 +1995,7 @@ class SeparationSubmitParams(TypedDict):
     ranges: NotRequired[list[list[float]] | None]
     model: str
     stems: NotRequired[list[str] | None]
+    localTags: NotRequired[list[str]]  # only on samples created by partial separation
 
 
 class SeparationSubmitted(TypedDict):
@@ -2326,11 +2328,13 @@ class FlattenSubmitParams(TypedDict):
     options: FlattenOptions
     name: str
     sampleId: NotRequired[str | None]
+    localTags: NotRequired[list[str]]
 
 
 class FlattenBatchParams(TypedDict):
     ids: list[str]
     options: FlattenOptions
+    localTags: NotRequired[list[str]]
 
 
 class FlattenResultRow(TypedDict):
@@ -2650,6 +2654,7 @@ class PitchParamsInput(TypedDict):
 class PitchSourceScope(TypedDict):
     natures: NotRequired[list[str] | None]  # 原片模式下给了就拒绝（采样专用）
     starred: NotRequired[bool | None]
+    projectTag: NotRequired[str]  # sample mode only
     text: NotRequired[str]
     sourceId: NotRequired[str | None]
     roles: NotRequired[list[Literal["vocal", "sfx", "mix"]] | None]
@@ -2953,6 +2958,7 @@ class ReimportPreview(TypedDict):
 
 class ReimportCommitParams(ReimportParams):
     name: NotRequired[str | None]
+    localTags: NotRequired[list[str]]
     nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
 
 

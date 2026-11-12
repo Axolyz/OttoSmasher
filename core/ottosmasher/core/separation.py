@@ -33,6 +33,7 @@ from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
+from .samples import checked_local_tags
 
 DEVICES = ("auto", "cpu", "cuda", "mps")
 
@@ -107,7 +108,7 @@ class SeparationService:
     # ---------- 提交
 
     def submit(self, asset_id: str, start: float | None, end: float | None, model_name: str, stems: list[str] | None,
-               ranges: list[list[float]] | None = None) -> dict[str, Any]:
+               ranges: list[list[float]] | None = None, *, local_tags: list[str] | None = None) -> dict[str, Any]:
         asset = assets_mod.get(self.conn, asset_id)
         frame = 1.0 / assets_mod.rate_of(self.conn, asset)
         if ranges is not None and (start is not None or end is not None):
@@ -149,6 +150,7 @@ class SeparationService:
             "deviceId": values["studio.device_id"],
             "cache": str(self.ws.data / "Cache"),
             "inputs": inputs,
+            "localTags": checked_local_tags(local_tags),
         }
         job = self.jobs.submit("separate", params, {"source": [asset["source_id"]], "asset": [asset_id]})
         return {"job": job}
@@ -233,7 +235,7 @@ class SeparationService:
             if partial and self.samples is not None:
                 name = self.samples.suggest(aid, 0.0, duration)["name"]
                 sid = self.samples.insert_checked(aid, 0.0, duration, name=f"{name} \u00b7 {st['stem']}"[:500], created_via="processed",
-                                                  origin={"kind": "separation", "job": job["id"], "stem": st["stem"]})
+                                                  local_tags=params.get("localTags"), origin={"kind": "separation", "job": job["id"], "stem": st["stem"]})
                 effective_tags.refresh(self.conn, [sid])
                 new_samples.append(sid)
 

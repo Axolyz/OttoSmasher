@@ -130,6 +130,27 @@ def test_ids_equal_list_and_facet_counts(lib) -> None:
     assert any(x["value"] == "speaker-status:多人未分段" for x in fv["other"])
 
 
+def test_project_filter_matches_exact_local_membership(lib, db) -> None:
+    svc, ids = lib
+    source = db.execute(
+        "SELECT source_id FROM sound_asset JOIN sample ON sample.asset_id=sound_asset.id WHERE sample.id=?",
+        (ids["k1"],),
+    ).fetchone()[0]
+    edits = EditService(db)
+    edits.apply({"ops": [{"entity": "range_tag", "op": "create", "fields": {
+        "source_id": source, "scope": "source", "start": 10, "end": 22, "tags": ["project:dil"],
+    }}]})
+    for key, tags in {
+        "k1": ["project:dil", "project:other", "好用"], "y1": ["project:dil-remix"], "s1": ["project:dil"],
+    }.items():
+        v = db.execute("SELECT version FROM sample WHERE id=?", (ids[key],)).fetchone()[0]
+        edits.apply({"ops": [{"entity": "sample", "id": ids[key], "version": v, "fields": {"local_tags": tags}}]})
+    assert names(svc, expr='"project:dil"') == ["k1", "kmulti", "s1"]  # 普通标签可来自区段
+    assert names(svc, projectTag="project:dil") == ["k1", "s1"]
+    assert names(svc, projectTag="project:other") == ["k1"]
+    assert svc.ids(projectTag="project:dil", tags={"facets": [{"facet": "other", "values": ["好用"]}]}) == [ids["k1"]]
+
+
 def test_window_predicate_for_source_track_mode(lib, db) -> None:
     """原片音轨模式的音高检索（D1，L28）：范围的标签条件按“查询窗与标注交叠”求值。"""
     from ottosmasher.core import effective_tags

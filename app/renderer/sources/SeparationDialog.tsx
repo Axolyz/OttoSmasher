@@ -9,6 +9,7 @@ import { Callout, Checkbox, RadioList, Segmented } from "../components/Controls"
 import { DialogBox } from "../components/Overlay";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
+import { currentProjectTags } from "../state/project";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
@@ -58,11 +59,12 @@ export function SeparationDialog() {
 
   // 一个原素材出错（文件不在、没有音频）不挡其他的；分离任务在模型通道里一个个跑
   const submitBatch = async (jobs: Array<{ assetId: string; ranges?: number[][] }>, m: StudioModel) => {
+    const localTags = currentProjectTags();
     let queued = 0;
     const failed: string[] = [];
     for (const job of jobs) {
       try {
-        await call("separation.submit", { ...job, model: m.name, stems: stems.size ? m.stems.filter((x) => stems.has(x)) : null });
+        await call("separation.submit", { ...job, ...(job.ranges ? { localTags } : {}), model: m.name, stems: stems.size ? m.stems.filter((x) => stems.has(x)) : null });
         queued += 1;
       } catch (e) {
         failed.push(e instanceof CoreFailure ? errorText(e.wire) : String(e));
@@ -91,6 +93,7 @@ export function SeparationDialog() {
         model: chosen.name,
         stems: stems.size ? chosen.stems.filter((x) => stems.has(x)) : null,
         ...range,
+        ...(scope === "sel" ? { localTags: currentProjectTags() } : {}),
       });
       toast({ text: t("sep.queued", { model: chosen.name }), action: { label: t("sep.openTasks"), run: () => setTasksOpen(true) } });
       props.onClose();

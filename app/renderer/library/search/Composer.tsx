@@ -36,7 +36,8 @@ export function Composer(props: {
   const [pSel, setPSel] = useState<number | null>(null);
   const check = usePitchCheck(props.pitch);
   const [cov, setCov] = useState<SearchCoverage | null>(null);
-  const covMode = mode === "speech" ? "speech" : mode === "pitch" ? (props.pitch.mode === "samples" ? "pitch" : "pitchSources") : null;
+  const incompatibleProject = mode === "pitch" && props.pitch.mode !== "samples" && !!props.scope.projectTag;
+  const covMode = incompatibleProject ? null : mode === "speech" ? "speech" : mode === "pitch" ? (props.pitch.mode === "samples" ? "pitch" : "pitchSources") : null;
   const loadCov = () => {
     if (!covMode) return setCov(null);
     void call("search.coverage", { mode: covMode, scope: props.scope }).then(setCov, () => setCov(null));
@@ -56,7 +57,7 @@ export function Composer(props: {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
     }
   };
-  const problem = mode === "speech" ? speechProblem(props.speech) : mode === "pitch" ? (check && !check.ok ? t("search.pitch.fix") : null) : null;
+  const problem = incompatibleProject ? t("project.pitchTracks") : mode === "speech" ? speechProblem(props.speech) : mode === "pitch" ? (check && !check.ok ? t("search.pitch.fix") : null) : null;
   const noneReady = cov != null && cov.ready === 0;
   const canFind = (mode === "speech" || mode === "pitch") && !problem && !noneReady && (mode !== "pitch" || check?.ok === true);
 
@@ -130,6 +131,7 @@ export function Composer(props: {
             <PitchCanvas d={props.pitch} set={props.setPitch} sel={pSel} setSel={setPSel} />
             <PitchInspector d={props.pitch} set={props.setPitch} sel={pSel} setSel={setPSel} check={check} />
           </div>
+          {incompatibleProject ? <span className={s.err}>{problem}</span> : null}
           <PitchFooter d={props.pitch} set={props.setPitch} check={check} />
         </>
       ) : null}
