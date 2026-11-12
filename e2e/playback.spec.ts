@@ -79,6 +79,14 @@ test("播放：范围截停、代次、一个声音、试听", async () => {
   end = await waitEnded("audition", gen);
   expect(end.time!).toBeCloseTo(0.3, 2);
 
+  // 恢复原素材播放会结束当前试听，后续不会再收到旧代次的结束事件。
+  gen = await page.evaluate((id) => window.otto.player.audition(id, 0, 5), assetId);
+  const auditionState = async () => (await states()).filter((s) => s.player === "audition").at(-1);
+  await expect.poll(auditionState).toMatchObject({ gen, playing: true });
+  await page.evaluate(() => window.otto.player.play());
+  await expect.poll(auditionState).toMatchObject({ gen: gen + 1, playing: false });
+  expect((await states()).some((s) => s.player === "audition" && s.gen === gen && s.ended)).toBe(false);
+
   // 错误：Core 的错误码原样传回，不换轨
   const err = await page.evaluate(async () => {
     try {

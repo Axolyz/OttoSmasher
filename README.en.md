@@ -95,6 +95,8 @@ See [Using agents with OttoSmasher](docs/user/agents.md) (in Chinese) for detail
 
 You can select a range on the timeline during playback, or create a sample directly from a line in the script. Lines can be searched by text or reading, across episodes. Every sample remembers where it came from, so you can always go back to the source for context.
 
+The playback bar also shows auditions from separation results and the flattening workspace. When an audition ends or stops, its button returns to Play.
+
 ### Creating samples in bulk
 
 You can turn a whole season of lines into samples at once, or create samples in bulk from sound hints or whole files. Lines inside the OP and ED are skipped automatically. A sample only records a range on a track and creates no new file, so even large numbers of samples take little extra space.

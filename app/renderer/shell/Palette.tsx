@@ -8,6 +8,7 @@ import { CoreFailure, call } from "../api/core";
 import type { EditLabel } from "../api/types";
 import { CommandPalette, type PaletteCommand, type PaletteSection } from "../components/CommandPalette";
 import { errorText, t } from "../i18n";
+import { stopAudition } from "../state/audition";
 import { collectCommands, useCommands } from "../state/commands";
 import { type Page, useApp, visiblePages } from "../state/store";
 import { SETTINGS_GROUPS } from "../workbenches/SettingsSheet";
@@ -21,7 +22,7 @@ async function setBpm(value: number | null): Promise<void> {
   try {
     const r = await call("rhythm.setBpm", { bpm: value });
     st.setBpm(r.bpm);
-    window.otto.player.stopAudition();
+    stopAudition();
     st.toast({ text: r.bpm == null ? t("top.bpm.original") : t("top.bpm.changed", { bpm: r.bpm }) });
   } catch (e) {
     st.toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });

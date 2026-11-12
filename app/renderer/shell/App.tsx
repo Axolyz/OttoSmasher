@@ -8,6 +8,7 @@ import { LibraryPage } from "../library/LibraryPage";
 import { keys, t } from "../i18n";
 import { SourcesPage } from "../sources/SourcesPage";
 import { fileSize } from "../format";
+import { onAuditionState } from "../state/audition";
 import { type Page, useApp, visiblePages } from "../state/store";
 import { ToolsPage } from "../tools/ToolsPage";
 import { SpeechDialog } from "./SpeechDialog";
@@ -51,6 +52,8 @@ export function App() {
   }, [st.hello, st.page]);
   const restored = useRef(false);
   const active = jobs.filter((j) => j.status === "queued" || j.status === "running").length;
+
+  useEffect(() => window.otto.player.onState(onAuditionState), []);
 
   // Core 状态
   useEffect(() => {

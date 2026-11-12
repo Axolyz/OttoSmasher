@@ -4,12 +4,14 @@
 import { GripVertical, Play, Save, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ClipPanel } from "../sources/ClipPanel";
-import { CoreFailure, call } from "../api/core";
+import { call } from "../api/core";
 import type { AssetRecord } from "../api/types";
 import { Button } from "../components/Button";
 import { beginDragOut } from "../dragout";
 import { seconds } from "../format";
-import { errorText, t } from "../i18n";
+import { t } from "../i18n";
+import { assetLabel } from "../library/StageSpeech";
+import { startAudition, stopAudition, useAudition } from "../state/audition";
 import { useApp } from "../state/store";
 import s from "./TaskDrawer.module.css";
 
@@ -18,28 +20,19 @@ type ResultAsset = AssetRecord;
 export function SeparationResults({ jobId }: { jobId: string }) {
   const toast = useApp((st) => st.toast);
   const [rows, setRows] = useState<ResultAsset[] | null>(null);
-  const [playing, setPlaying] = useState<string | null>(null);
+  const playing = useAudition((st) => {
+    const target = st.current?.request.target;
+    return target?.kind === "stem" ? target.assetId : null;
+  });
   const [clipFor, setClipFor] = useState<string | null>(null);
   const setPage = useApp((st) => st.setPage);
   const setOpenSample = useApp((st) => st.setOpenSample);
   useEffect(() => {
     void call("separation.results", { jobId }).then(setRows, () => setRows([]));
   }, [jobId]);
-  const fail = (e: unknown) => toast({ text: e instanceof CoreFailure ? errorText(e.wire) : errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
-
-  const audition = async (a: ResultAsset) => {
-    if (playing === a.id) {
-      window.otto.player.stopAudition();
-      setPlaying(null);
-      return;
-    }
-    try {
-      setPlaying(a.id);
-      await window.otto.player.audition(a.id, 0, a.duration);
-    } catch (e) {
-      setPlaying(null);
-      fail(e);
-    }
+  const audition = (a: ResultAsset) => {
+    if (playing === a.id) return stopAudition();
+    return startAudition({ target: { kind: "stem", assetId: a.id }, name: assetLabel(a) }, () => ({ assetId: a.id, start: 0, end: a.duration }));
   };
   if (!rows) return null;
   if (!rows.length) return <div className={s.none}>{t("sep.resultsNone")}</div>;
@@ -63,7 +56,7 @@ export function SeparationResults({ jobId }: { jobId: string }) {
           <span className="num">{t("format.sec", { v: seconds(a.duration) })}</span>
           {a.roles.length ? <span className={s.chip}>{a.roles.map((r) => t(`role.${r}`)).join(" + ")}</span> : null}
           <span className={s.grow} />
-          <Button size="sm" variant="flat" icon={playing === a.id ? <Square /> : <Play />} onPress={() => void audition(a)} aria-label={t("library.audition")} />
+          <Button size="sm" variant="flat" icon={playing === a.id ? <Square /> : <Play />} onPress={() => void audition(a)} aria-label={t(playing === a.id ? "library.stop" : "library.audition")} data-testid="sep-play" />
           <ClipPanel
             from={{ kind: "stem", assetId: a.id }}
             assetId={a.id}

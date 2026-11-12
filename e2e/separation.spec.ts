@@ -50,6 +50,14 @@ test("分离：确认框选模型、排队、任务结果里的声部", async ()
   await expect(results).toContainText("Instrumental");
   await expect(results).toContainText("人声");
   await page.screenshot({ path: ".cache/playwright-results/separation-results.png" });
+  const vocals = results.getByTestId("sep-play").first();
+  for (let i = 0; i < 2; i++) {
+    await vocals.click();
+    await expect(vocals).toHaveAccessibleName("停止");
+    await expect(page.getByTestId("dock-now")).toContainText("Vocals");
+    await expect(vocals).toHaveAccessibleName("试听");
+    await expect(page.getByTestId("dock-now")).toContainText("没有在播放");
+  }
   // 再提交同一模型 → 再跑一次
   await page.keyboard.press("Escape");
   await page.getByTestId("separate").click();

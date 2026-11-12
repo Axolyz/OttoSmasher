@@ -50,14 +50,14 @@ export interface PlayerApi {
   /** 原片播放器静音（不影响试听播放器） */
   setMuted(muted: boolean): void;
   playRange(a: number, b: number, loop?: boolean): number;
-  /** ``sampleId``：舞台正在看的采样的原声试听，舞台画面跟着走 */
-  audition(assetId: string, start: number, end: number, loop?: boolean, sampleId?: string): Promise<number>;
+  /** ``sampleId`` 让舞台画面跟着采样原声走；``onBegin`` 在加载之前通知本次播放代次。 */
+  audition(assetId: string, start: number, end: number, loop?: boolean, sampleId?: string, onBegin?: (gen: number) => void): Promise<number>;
   /** 舞台画面换成这个采样的有效画面（null = 没有舞台） */
   showPicture(sampleId: string | null): Promise<void>;
   /** 舞台画面停在资产局部秒 local 那一帧（没在跟着试听时；详情区单击放光标，所有者 2026-10-12） */
   pictureAt(sampleId: string, local: number): void;
-  /** 试听渲染结果（Core rhythm.render 的键）：卡拍、咔哒声 */
-  auditionRender(key: string, loop?: boolean): Promise<number>;
+  /** 试听渲染结果（Core rhythm.render 的键）：卡拍、咔哒声；``onBegin`` 同 audition。 */
+  auditionRender(key: string, loop?: boolean, onBegin?: (gen: number) => void): Promise<number>;
   stopAudition(): void;
   /** 每帧读引擎当前位置（原片秒 / 试听为区间本地秒）；没有加载时为 null */
   position(player: PlayerName): number | null;

@@ -5,9 +5,8 @@
 // - 批量：同一套选项，但只有自动定音、没有内部拉平（Q10）；每项按自己的范围与边界独立定音；没有对齐的项单独失败。
 // 时间：波形与内区用输入局部秒（外选区起点 = 0）；标题里的外选区是资产局部秒。
 import { Play, Square } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CoreFailure, call } from "../api/core";
-import type { PlayerState } from "../../shared/protocol";
 import type { AssetRecord, FlattenEstimate, FlattenOpened, FlattenOptions, ModelsStatus } from "../api/types";
 import { Button } from "../components/Button";
 import { Callout, RadioList, Segmented } from "../components/Controls";
@@ -17,6 +16,7 @@ import { seconds } from "../format";
 import { errorText, t } from "../i18n";
 import { assetLabel } from "../library/StageSpeech";
 import { type Curve, type Layer, type Sel, Timeline } from "../sources/Timeline";
+import { auditionPosition, startAudition, stopAudition, useAudition } from "../state/audition";
 import { autoProjectTags } from "../state/project";
 import { type FlattenRequest, useApp } from "../state/store";
 import s from "./Flatten.module.css";
@@ -83,7 +83,7 @@ export function FlattenSheet() {
   const req = useApp((st) => st.flattenRequest);
   const close = useApp((st) => st.requestFlatten);
   const onClose = () => {
-    window.otto.player.stopAudition();
+    if (useAudition.getState().current?.request.target.kind === "flatten") stopAudition();
     close(null);
   };
   return req?.kind === "batch" ? (
@@ -112,9 +112,8 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
   const [estError, setEstError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const gen = useRef(-1);
-  const playAt = useRef<number | null>(null);
+  const preview = useAudition((st) => st.current?.request.target.kind === "flatten" ? st.current : null);
+  const playing = preview != null;
 
   // 打开：冻结并取默认值
   useEffect(() => {
@@ -185,38 +184,13 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
     };
   }, [op, options, req?.sampleId]);
 
-  // 试听外选区（试听播放器，关闭工作台即停；不影响原片播放器）
-  useEffect(
-    () =>
-      window.otto.player.onState((st: PlayerState) => {
-        if (st.player !== "audition" || st.gen !== gen.current) return;
-        playAt.current = st.time;
-        if (st.ended || st.error) {
-          setPlaying(false);
-          playAt.current = null;
-        }
-      }),
-    [],
-  );
-  const play = async (a: number, b: number) => {
+  // 播放区间由输入局部秒换成资产局部秒。
+  const play = (a: number, b: number) => {
     if (!op) return;
-    if (playing) {
-      window.otto.player.stopAudition();
-      setPlaying(false);
-      return;
-    }
-    try {
-      setPlaying(true);
-      const base = op.token.start;
-      gen.current = await window.otto.player.audition(op.token.assetId, base + a, base + b);
-      playAt.current = 0;
-      offsetRef.current = a;
-    } catch (e) {
-      setPlaying(false);
-      toast({ text: errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
-    }
+    if (playing) return stopAudition();
+    const { assetId, start } = op.token;
+    return startAudition({ target: { kind: "flatten" }, name: assetLabel(asset) || op.name }, () => ({ assetId, start: start + a, end: start + b }));
   };
-  const offsetRef = useRef(0);
 
   const submit = async () => {
     if (!op || busy) return;
@@ -292,7 +266,11 @@ function SingleFlatten({ req, onClose }: { req: Extract<FlattenRequest, { kind: 
                     duration={d}
                     offset={-op.token.start}
                     assetDuration={asset.duration}
-                    playhead={() => (playing && playAt.current != null ? offsetRef.current + playAt.current : null)}
+                    playhead={() => {
+                      const start = preview?.details?.assetStart;
+                      const pos = auditionPosition();
+                      return start == null || pos == null ? null : start - op.token.start + pos;
+                    }}
                     playing={playing}
                     selection={range === "inner" ? inner : null}
                     selectionTone="gold"

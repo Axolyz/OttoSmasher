@@ -4,7 +4,6 @@
 // S 星标 · ⌘F 聚焦查找栏的文字。条件变化清空勾选并提示；翻页保留勾选。
 import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Crosshair, MoreHorizontal, Plus, SquareStack, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PlayerState } from "../../shared/protocol";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import { useThumb } from "../api/thumbs";
 import { RhythmGlyph, Sparkline } from "../components/Glyphs";
@@ -30,7 +29,8 @@ import { TopSlot } from "../shell/TopSlot";
 import { useUndo } from "../shell/useUndo";
 import { exportWords } from "../exportWords";
 import { projectTag } from "../state/project";
-import { type AuditionVersion, useApp } from "../state/store";
+import { type AuditionVersion, lastSampleAuditionPosition, sampleAuditionPosition, startAudition, stopAudition, useAudition } from "../state/audition";
+import { useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
 import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeExpression, scopeSize } from "./FindBar";
 import { ManageFiltersDialog, SaveFilterDialog, ScopeExprDialog } from "./FilterDialogs";
@@ -180,26 +180,16 @@ export function LibraryPage() {
   const [glyphs, setGlyphs] = useState<Record<string, SampleGlyph>>({});
   const [focus, setFocus] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [playing, setPlaying] = useState<string | null>(null);
-  /** 正在试听的版本与声音（"original:voice"、"stretched:voice+click" …） */
-  const setNowPlaying = useApp((st) => st.setNowPlaying);
+  const auditionRequest = useAudition((st) => st.current?.request);
+  const playing = auditionRequest?.target.kind === "sample" ? auditionRequest.target.sampleId : null;
+  const playingVer = playing != null && auditionRequest ? `${auditionRequest.version}:${auditionRequest.sound}` : null;
   const stageRhythm = useApp((st) => st.stageRhythm);
-  const [playingVer, setPlayingVer] = useState<string | null>(null);
-  // 播放条停止或播完（nowPlaying 变成空）→ 本页的“正在试听”也清掉
-  const nowPlaying = useApp((st) => st.nowPlaying);
-  useEffect(() => {
-    if (!nowPlaying) {
-      setPlaying(null);
-      setPlayingVer(null);
-    }
-  }, [nowPlaying]);
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [focusDetail, setFocusRow] = useState<SampleRow | null>(null);
   const focusRow = focusDetail?.id === focus ? focusDetail : null;
   const [split, setSplit] = useState(0.5);
   const [browseRestored, setBrowseRestored] = useState(false);
   const browseStateRead = useRef(false);
-  const auditionGen = useRef(-1);
 
   /** 检索范围 = 当前浏览范围（用途 + 查找栏 + 范围行 + 临时原片块）；单音指标是浏览里的即时筛选，另外加在列表查询上 */
   const scope = useMemo<SampleFilter>(
@@ -377,46 +367,9 @@ export function LibraryPage() {
   }, []);
   useEffect(reloadFocus, [focus, reloadFocus]);
 
-  // 试听状态；舞台波形的播放头 = 试听区间起点 + 区间本地秒（资产局部秒）。
-  // 每帧读引擎位置（与原素材页一样插值、截停后贴终点）；这次试听真正开始播放之前不画（引擎里可能还是上一次的位置）
-  const auditionFrom = useRef(0);
-  const auditionLive = useRef(false);
-  useEffect(
-    () =>
-      window.otto.player.onState((st: PlayerState) => {
-        if (st.player !== "audition" || st.gen !== auditionGen.current) return;
-        if (st.playing && !st.loading && st.time != null) auditionLive.current = true;
-        if (st.ended || st.error) setPlaying(null);
-      }),
-    [],
-  );
-  /** 这次试听最后播到的位置（播完贴在终点、停止时停在停下处）：详情区用它放光标 */
-  const stagePlayhead = (): number | null => {
-    if (!auditionLive.current) return null;
-    const p = window.otto.player.position("audition");
-    return p == null ? null : auditionFrom.current + p;
-  };
   /** 在舞台波形上播放资产的一段（光标处、选区、循环） */
-  const playRange = async (r: SampleRow, a: number, b: number, loop = false) => {
-    try {
-      setPlaying(r.id);
-      setPlayingVer("original:voice");
-      auditionFrom.current = a;
-      auditionLive.current = false;
-      auditionGen.current = -1;
-      auditionGen.current = await window.otto.player.audition(r.asset_id, a, b, loop, r.id);
-      setNowPlaying({ sampleId: r.id, name: r.name, version: "original", sound: "voice", plan: null, bpm: null, originalSpeed: false, duration: b - a });
-    } catch (e) {
-      setPlaying(null);
-      setNowPlaying(null);
-      toast({ text: errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
-    }
-  };
-  const stopAudition = () => {
-    window.otto.player.stopAudition();
-    setPlaying(null);
-    setNowPlaying(null);
-  };
+  const playRange = (r: SampleRow, a: number, b: number, loop = false) =>
+    startAudition({ target: { kind: "sample", sampleId: r.id }, name: r.name }, () => ({ assetId: r.asset_id, start: a, end: b, loop }));
 
   // 固定结果（04 §4.2.10）：恢复不重搜；翻页只读；检索完成 → 新标签并激活、收起浮层
   const [resultPositions, setResultPositions] = useState<Record<string, number>>({});
@@ -426,7 +379,8 @@ export function LibraryPage() {
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
   const { setActive: setResultTab } = results;
-  const hitPlaying = nowPlaying?.hit?.resultId === results.active ? nowPlaying.hit : undefined;
+  const activeHit = auditionRequest?.target.kind === "hit" ? auditionRequest.target.ref : null;
+  const hitPlaying = activeHit?.resultId === results.active ? activeHit : null;
   // 只加临时原片条件。保留用户自己的筛选，并切回浏览以显示新范围。
   useEffect(() => {
     if (!libraryScope || !browseRestored) return;
@@ -503,39 +457,21 @@ export function LibraryPage() {
   }, [glyphKey, ready, refreshTick]);
   /** 试听一个采样（PB1：原声、卡拍都一步）：原声直接读绑定区间（R22.3）；卡拍与咔哒声先由 Core 渲染（方案按需计算）。
    *  再按一次同一个 = 停止。 */
-  const audition = async (r: SampleRow, version: AuditionVersion = "original", opts: AuditionOpts = {}) => {
+  const audition = (r: SampleRow, version: AuditionVersion = "original", opts: AuditionOpts = {}) => {
     const sound = opts.sound ?? "voice";
     const key = `${version}:${sound}`;
     if (playing === r.id && playingVer === key) {
-      window.otto.player.stopAudition();
-      setPlaying(null);
-      setNowPlaying(null);
-      return;
+      return stopAudition();
     }
     if (version === "stretched" && isSingle(r.nature)) {
       toast({ text: t("error.rhythm-not-for-single-sound") });
       return;
     }
-    try {
-      setPlaying(r.id);
-      setPlayingVer(key);
-      auditionLive.current = false;
-      auditionGen.current = -1;
-      if (version === "original" && sound === "voice") {
-        auditionFrom.current = r.start;
-        auditionGen.current = await window.otto.player.audition(r.asset_id, r.start, r.end, false, r.id);
-        setNowPlaying({ sampleId: r.id, name: r.name, version, sound, plan: null, bpm: null, originalSpeed: false, duration: r.end - r.start });
-      } else {
-        const rr = await call("rhythm.render", { id: r.id, version, sound, plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false });
-        auditionFrom.current = version === "original" ? r.start : Number.NaN; // 卡拍后的时间不在资产时间轴上：舞台波形不画播放头
-        auditionGen.current = await window.otto.player.auditionRender(rr.key);
-        setNowPlaying({ sampleId: r.id, name: r.name, version, sound, plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
-      }
-    } catch (e) {
-      setPlaying(null);
-      setNowPlaying(null);
-      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : errorText(e as { code: string; args: Record<string, unknown> }), tone: "error" });
-    }
+    if (version === "original" && sound === "voice") return playRange(r, r.start, r.end);
+    return startAudition({ target: { kind: "sample", sampleId: r.id }, name: r.name, version, sound }, async () => {
+      const audio = await call("rhythm.render", { id: r.id, version, sound, plan: opts.plan ?? "near_fast", mora: opts.mora ?? false, longVowel: opts.longVowel ?? false });
+      return { ...audio, assetStart: version === "original" ? r.start : undefined };
+    });
   };
 
   // 导出与交接（12 §12.1、§12.3）：舞台上的卡拍导出/交接用舞台的临时方案与纯 mora；列表、批量用默认（近快、原节奏）
@@ -780,36 +716,23 @@ export function LibraryPage() {
     setFocus(it.id);
     setFocusHit({ id: it.id, index: i });
   };
-  const playHit = async (it: Item, i: number, version: "original" | "stretched") => {
+  const playHit = (it: Item, i: number, version: AuditionVersion) => {
     const r = it._res;
     if (!r) return;
     const hit = hitRef(r, i);
-    if (hitPlaying?.rank === hit.rank && hitPlaying.index === hit.index && nowPlaying?.version === version) {
-      stopAudition();
-      return;
+    if (hitPlaying?.rank === hit.rank && hitPlaying.index === hit.index && auditionRequest?.version === version) {
+      return stopAudition();
     }
-    try {
+    return startAudition({ target: { kind: "hit", ref: hit }, name: it.name, version }, async () => {
       const info = await call("hits.resolve", hit);
-      const current = { hit, sampleId: info.sampleId ?? "", name: it.name, version, sound: "voice" as const };
       if (version === "original") {
         const p = pad && info.kind === "speech" ? 0.3 : 0;
         const dur = p ? (await call("assets.get", { id: info.assetId })).duration : info.end;
-        const a = Math.max(0, info.start - p);
-        const b = Math.min(dur, info.end + p);
-        auditionFrom.current = a;
-        auditionGen.current = await window.otto.player.audition(info.assetId, a, b);
-        setNowPlaying({ ...current, plan: null, bpm: null, originalSpeed: false, duration: b - a });
-      } else {
-        if (!info.stretch) return toast({ text: t("error.hit-no-stretch") });
-        const rr = await call("hits.render", { ...hit, version, sound: "voice" });
-        auditionFrom.current = Number.NaN;
-        auditionGen.current = await window.otto.player.auditionRender(rr.key);
-        setNowPlaying({ ...current, plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
+        return { assetId: info.assetId, start: Math.max(0, info.start - p), end: Math.min(dur, info.end + p) };
       }
-      setPlaying(null);
-    } catch (e) {
-      fail(e);
-    }
+      if (!info.stretch) throw new CoreFailure({ code: "hit-no-stretch", args: {} });
+      return call("hits.render", { ...hit, version, sound: "voice" });
+    });
   };
   const exportHit = async (r: ResultRow, i: number, version: "original" | "stretched") => {
     try {
@@ -1457,11 +1380,11 @@ export function LibraryPage() {
           ) : null}
           <StageSpeech
             sample={focusRow}
-            playhead={() => (playing === focusRow.id && playingVer?.startsWith("original:") ? stagePlayhead() : null)}
+            playhead={() => sampleAuditionPosition(focusRow.id)}
             playing={playing === focusRow.id && !!playingVer?.startsWith("original:")}
             onPlayRange={(a, b, loop) => void playRange(focusRow, a, b, loop)}
             onStop={stopAudition}
-            lastPlayed={stagePlayhead}
+            lastPlayed={() => lastSampleAuditionPosition(focusRow.id)}
             onStretched={isSingle(focusRow.nature) ? undefined : () => void audition(focusRow, "stretched", stageOpts(focusRow.id))}
             stretchedPlaying={playing === focusRow.id && playingVer === "stretched:voice"}
             hit={stageHit ? { a: stageHit.start, b: stageHit.end, approx: !!stageHit.evidence && !stageHit.evidence.strict, key: `${results.active}:${focusHit?.index}` } : null}

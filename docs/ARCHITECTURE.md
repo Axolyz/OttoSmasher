@@ -467,6 +467,7 @@ class LanguageProfile:
 
 - **mpv 渲染桥**（`app/native/mpv-bridge`，C++/node-addon-api）：在 preload 中加载，管理每个窗口的两个 libmpv 实例——
   **原片播放器**（视频 + 音频）与**试听播放器**（`vid=no`，列表/命中/详情/工作台试听共用）。
+- **试听状态**（`app/renderer/state/audition.ts`）：缩略图、命中卡、采样详情、分离声部、拉平工作台与全局播放条共用当前试听。准备结果只交给发起它的当前请求；preload 在解析音频前交出播放代次，界面按代次处理播完、失败与原片接管。手动停止、切换试听和改 BPM 都走同一个停止入口。波形继续按各自的时间坐标取播放位置。
 - **画面**：用 libmpv render API 渲染到离屏缓冲（先用软件渲染 `MPV_RENDER_API_TYPE_SW`，按画布实际像素尺寸输出 RGBA，例如 1280×720），
   写入与渲染进程共享的帧缓冲，页面用 WebGL 把它贴到 `<canvas>`。画面因此是普通 DOM 元素：弹窗、菜单、抽屉、缩放、切页都不需要任何特殊处理。
   解码仍用硬件（`hwdec=videotoolbox-copy` / `d3d11va-copy`）。性能不够时改为 GL 渲染到共享纹理（同一接口）。

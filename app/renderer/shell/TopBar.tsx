@@ -8,6 +8,7 @@ import { AnchoredPanel } from "../components/Panel";
 import { Menu } from "../components/Menu";
 import { Tip } from "../components/Overlay";
 import { errorText, keys, t } from "../i18n";
+import { stopAudition } from "../state/audition";
 import { PROJECT_NAME_LIMIT, projectTag } from "../state/project";
 import { useApp } from "../state/store";
 import { HistoryButton } from "./History";
@@ -46,7 +47,7 @@ export function TopBar() {
     try {
       const r = await call("rhythm.setBpm", { bpm: value });
       setBpm(r.bpm);
-      window.otto.player.stopAudition();
+      stopAudition();
       toast({ text: r.bpm == null ? t("top.bpm.original") : t("top.bpm.changed", { bpm: r.bpm }) });
     } catch (e) {
       toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });

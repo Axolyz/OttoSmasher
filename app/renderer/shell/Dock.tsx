@@ -1,22 +1,23 @@
 import { FileAudio, Play, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { PlayerState } from "../../shared/protocol";
+import type { RhythmSound } from "../api/types";
 import { Button } from "../components/Button";
 import { ProgressBar } from "../components/Controls";
 import { seconds } from "../format";
 import { t } from "../i18n";
-import { type NowPlaying, useApp } from "../state/store";
+import { type AuditionDetails, type AuditionVersion, auditionPosition, stopAudition, useAudition } from "../state/audition";
+import { useApp } from "../state/store";
 import s from "./Shell.module.css";
 
 /** 当前声音的版本说明（UI_PLAN §1：原声 / 卡拍及方案；所有者 2026-10-08 的三种声音） */
-export function versionLabel(np: Pick<NowPlaying, "version" | "sound" | "plan" | "bpm" | "originalSpeed">): string {
+function versionLabel(version: AuditionVersion, sound: RhythmSound, { plan, bpm, originalSpeed }: AuditionDetails): string {
   const base =
-    np.version === "original"
+    version === "original"
       ? t("audition.original")
-      : np.originalSpeed
-        ? t("audition.stretchedOriginal", { plan: t(`rhythm.plan.${np.plan ?? "near_fast"}`) })
-        : t("audition.stretchedBpm", { bpm: np.bpm ?? "", plan: t(`rhythm.plan.${np.plan ?? "near_fast"}`) });
-  return np.sound === "voice" ? base : `${base} · ${t(`rhythm.sound.${np.sound}`)}`;
+      : originalSpeed
+        ? t("audition.stretchedOriginal", { plan: t(`rhythm.plan.${plan ?? "near_fast"}`) })
+        : t("audition.stretchedBpm", { bpm: bpm ?? "", plan: t(`rhythm.plan.${plan ?? "near_fast"}`) });
+  return sound === "voice" ? base : `${base} · ${t(`rhythm.sound.${sound}`)}`;
 }
 
 /** 全局播放条（UI_PLAN §1）：当前声音（名称、原声/卡拍及方案、进度、停止）；导出交接（最近导出的文件：普通拖动即可拖进 DAW / Finder、定位）；
@@ -24,51 +25,41 @@ export function versionLabel(np: Pick<NowPlaying, "version" | "sound" | "plan" |
 export function Dock() {
   const stale = useApp((st) => st.stale);
   const refreshLists = useApp((st) => st.refreshLists);
-  const np = useApp((st) => st.nowPlaying);
+  const preview = useAudition((st) => st.current);
+  const details = preview?.details;
   const lastExport = useApp((st) => st.lastExport);
   const setLastExport = useApp((st) => st.setLastExport);
-  const setNowPlaying = useApp((st) => st.setNowPlaying);
   const [pos, setPos] = useState(0);
-  useEffect(
-    () =>
-      window.otto.player.onState((st: PlayerState) => {
-        if (st.player === "audition" && (st.ended || st.error)) setNowPlaying(null);
-      }),
-    [setNowPlaying],
-  );
   useEffect(() => {
-    if (!np) return;
+    if (!details) return;
     setPos(0);
-    const id = setInterval(() => setPos(window.otto.player.position("audition") ?? 0), 100);
+    const id = setInterval(() => setPos(auditionPosition() ?? 0), 100);
     return () => clearInterval(id);
-  }, [np]);
+  }, [details]);
   return (
     <footer className={s.dock}>
       <div className={s.np} data-testid="dock-now">
-        {np ? (
+        {preview && details ? (
           <>
             <Button
               variant="flat"
               size="sm"
               icon={<Square />}
-              onPress={() => {
-                window.otto.player.stopAudition();
-                setNowPlaying(null);
-              }}
+              onPress={stopAudition}
               aria-label={t("library.stop")}
               data-testid="dock-stop"
             />
             <span className={s.npName} lang="ja" data-user-data="">
-              {np.name}
+              {preview.request.name}
             </span>
-            <span className={s.npVer} data-ver={np.version} data-testid="dock-version">
-              {versionLabel(np)}
+            <span className={s.npVer} data-ver={preview.request.version} data-testid="dock-version">
+              {versionLabel(preview.request.version, preview.request.sound, details)}
             </span>
             <span className={s.npBar}>
-              <ProgressBar value={np.duration > 0 ? Math.min(pos, np.duration) : null} max={np.duration || 1} label={t("dock.progress")} />
+              <ProgressBar value={details.duration > 0 ? Math.min(pos, details.duration) : null} max={details.duration || 1} label={t("dock.progress")} />
             </span>
             <span className={`${s.muted} num`}>
-              {seconds(Math.min(pos, np.duration))} / {seconds(np.duration)}
+              {seconds(Math.min(pos, details.duration))} / {seconds(details.duration)}
             </span>
           </>
         ) : (

@@ -48,7 +48,14 @@ test("拉平：拉平台、任务、成品、批量", async () => {
   // 改范围不自动改定音（Q6）
   await sheet.getByTestId("flatten-range-whole").click();
   await expect(sheet.getByTestId("flatten-target-edge")).toHaveAttribute("data-selected", "true");
-  await expect(sheet.getByTestId("flatten-estimate")).toContainText("任务中分析确定");
+  // 后台若已测得音高，会直接给出缓存预估。
+  await expect(sheet.getByTestId("flatten-estimate")).toContainText(/任务中分析确定|预估目标/);
+  const listen = sheet.getByTestId("flatten-play");
+  await listen.click();
+  await expect(listen).toHaveText("停止");
+  await expect(page.getByTestId("dock-version")).toHaveText("原声");
+  await expect(listen).toHaveText("试听外选区");
+  await expect(page.getByTestId("dock-now")).toContainText("没有在播放");
   // 手动目标：纯数字拒绝；带单位的频率精确换算、不吸附
   await sheet.getByTestId("flatten-target-manual").click();
   await sheet.getByTestId("flatten-manual").fill("440");

@@ -1,7 +1,7 @@
 // 界面状态（不是用户资料）：当前页、抽屉、工作台、提示条、Core 状态。
 import { create } from "zustand";
 import type { CoreStatus } from "../../shared/protocol";
-import type { Hello, HitRefParams, RhythmPlan, RhythmSound } from "../api/types";
+import type { Hello, RhythmPlan, RhythmSound } from "../api/types";
 
 export type Page = "library" | "sources" | "tools";
 
@@ -62,22 +62,6 @@ export interface SeparationRequest {
   batch?: { kind: "sources" | "samples"; n: number; jobs: Array<{ assetId: string; ranges?: number[][] }> };
 }
 
-/** 试听的版本（规格 09 §9.5.3、12 §12.1；所有者 2026-10-08：不卡拍 / 卡拍 × 原声 / 原声＋咔哒 / 纯咔哒） */
-export type AuditionVersion = "original" | "stretched";
-
-/** 全局播放条显示的当前声音（UI_PLAN §1） */
-export interface NowPlaying {
-  sampleId: string;
-  hit?: HitRefParams;
-  name: string;
-  version: AuditionVersion;
-  sound: RhythmSound;
-  plan: RhythmPlan | null;
-  bpm: number | null;
-  originalSpeed: boolean;
-  duration: number;
-}
-
 /** 舞台上节奏与卡拍的临时选择（换采样就回到默认；所有者 2026-10-08：纯 mora 不保存） */
 export interface StageRhythm {
   sampleId: string | null;
@@ -132,8 +116,6 @@ interface AppState {
   setCurrentProject(name: string | null): void;
   projectAutoJoin: boolean;
   setProjectAutoJoin(enabled: boolean): void;
-  nowPlaying: NowPlaying | null;
-  setNowPlaying(v: NowPlaying | null): void;
   stageRhythm: StageRhythm;
   setStageRhythm(patch: Partial<StageRhythm>): void;
   /** 详情区波形是否显示“判定区间”车道（默认隐藏，会话内记住；所有者 2026-10-12） */
@@ -200,8 +182,6 @@ export const useApp = create<AppState>((set) => ({
   projectAutoJoin: true,
   setProjectAutoJoin: (projectAutoJoin) => set({ projectAutoJoin }),
   setBpm: (bpm) => set({ bpm }),
-  nowPlaying: null,
-  setNowPlaying: (nowPlaying) => set({ nowPlaying }),
   stageRhythm: { sampleId: null, plan: "near_fast", mora: false, longVowel: false, sound: "voice" },
   setStageRhythm: (patch) =>
     set((st) => {

@@ -251,7 +251,7 @@ class Engine {
       this.queue = [];
       for (const fn of q) fn();
       this.push(true);
-    } else if (ev.type === "end-file" && ev.error && !this.loaded) {
+    } else if (ev.type === "end-file" && ev.error && (!this.loaded || this.name === "audition")) {
       this.fail(this.gen, { code: "playback-failed", args: { detail: ev.error } });
     } else if (ev.type === "playback-restart") {
       this.awaitingSeek = false;
@@ -324,10 +324,10 @@ export class Playback {
     for (const l of this.listeners) l(s);
   };
 
-  /** 全应用一个声音：一个开始播放，另一个暂停。 */
+  /** 全应用一个声音。回到原片时结束一次性试听；试听只暂停原片，以便从原处继续。 */
   private exclusive = (name: PlayerName) => {
-    const other = name === "source" ? this.auditionEng : this.sourceEng;
-    other?.mpv.set("pause", "yes");
+    if (name === "source") this.stopAudition();
+    else this.sourceEng?.mpv.set("pause", "yes");
   };
 
   onState(cb: (s: PlayerState) => void): () => void {
@@ -408,9 +408,10 @@ export class Playback {
 
   /** 试听：资产区间（局部秒），引擎在终点截停；时钟报区间本地秒。 */
   /** ``sampleId``：舞台正在看的采样的原声试听 → 舞台画面跟着走（规格 12 §12.4） */
-  async audition(assetId: string, start: number, end: number, loop = false, sampleId?: string): Promise<number> {
+  async audition(assetId: string, start: number, end: number, loop = false, sampleId?: string, onBegin?: (gen: number) => void): Promise<number> {
     const e = this.auditionEngine();
     const gen = e.begin();
+    onBegin?.(gen); // 在解析音频前交出代次，界面能收到极短片段或加载失败的结束事件
     this.picture.follow(sampleId, start);
     try {
       const h = await core<{ path: string; aid: number; fileStart: number; fileEnd: number }>("playback.resolveAsset", {
@@ -421,7 +422,7 @@ export class Playback {
       if (gen !== e.gen) return gen;
       e.setOffset(h.fileStart);
       e.load(h.path, h.aid);
-      e.playRange(h.fileStart, h.fileEnd, loop);
+      if (gen === e.gen) e.playRange(h.fileStart, h.fileEnd, loop);
       return gen;
     } catch (err) {
       e.fail(gen, err as CoreErrorWire);
@@ -430,16 +431,17 @@ export class Playback {
   }
 
   /** 试听渲染结果（卡拍、咔哒声；Core 的 rhythm.render 生成，按键解析，不接受路径）：从头播到尾；时钟报文件秒。 */
-  async auditionRender(key: string, loop = false): Promise<number> {
+  async auditionRender(key: string, loop = false, onBegin?: (gen: number) => void): Promise<number> {
     const e = this.auditionEngine();
     const gen = e.begin();
+    onBegin?.(gen);
     this.picture.stopFollowing(); // 卡拍后的时间不在资产时间轴上：画面不跟
     try {
       const h = await core<{ path: string; aid: number; fileStart: number; fileEnd: number }>("playback.resolveRender", { key });
       if (gen !== e.gen) return gen;
       e.setOffset(0);
       e.load(h.path, h.aid);
-      e.playRange(h.fileStart, h.fileEnd, loop);
+      if (gen === e.gen) e.playRange(h.fileStart, h.fileEnd, loop);
       return gen;
     } catch (err) {
       e.fail(gen, err as CoreErrorWire);

@@ -15,7 +15,8 @@ import { AnchoredPanel } from "../components/Panel";
 import { PagedTable } from "../components/PagedTable";
 import { seconds } from "../format";
 import { errorText, t } from "../i18n";
-import { type AuditionVersion, useApp } from "../state/store";
+import type { AuditionVersion } from "../state/audition";
+import { useApp } from "../state/store";
 import s from "./Library.module.css";
 import { useRhythmView } from "./rhythmView";
 
