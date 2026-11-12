@@ -18,6 +18,9 @@ export function useJobs(): JobSummary[] {
   useEffect(() => {
     if (ready) void call("jobs.list").then(setJobs, () => setJobs([]));
   }, [ready]);
+  useCoreEvent("jobs.pruned", () => {
+    void call("jobs.list").then(setJobs, () => setJobs([]));
+  });
   useCoreEvent("job.updated", (d) => {
     const j = d as JobSummary;
     setJobs((prev) => {

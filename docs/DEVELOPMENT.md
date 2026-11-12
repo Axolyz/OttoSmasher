@@ -112,4 +112,5 @@ Windows 还要在所有者的电脑上过一遍真实素材、DirectML、PyMSS S
 - **`otto`**：仓库里一律用 `tools/otto`（连正在运行的开发版的工作区，没开就是 `dev-workspace`）；`~/.local/bin/otto`（发布版启动时自动安装）指向发布版。两者不交叉。先 `otto status` 看 `workspace`。
 - **流程**：日常遇到 bug → 记下日志（`Data/Logs/`、任务的 `Data/Jobs/<id>/log.txt`、agent 的 `otto session`）→ 克隆工作区、开发版复现、修好、测试 → 提交 → `tools/package_mac.py`（版本加一）
   → 替换“应用程序”里的旧版。新版第一次打开日常工作区会升级数据库，升级前自动备份到 `Data/Backups/`；保留上一版 ZIP 以便换回（换回时连同备份一起恢复）。
+- **回退原始对齐结果**：只读逐条 JSON 的旧版需要先恢复 `Data/Jobs/<id>/items/<序号>.json`。新版的 `alignment-results.zip` 每个条目是一个 MessagePack `dict[int, bytes]`，键是结果序号，值是原 JSON 字节。恢复时保持已有 JSON，写回缺少的文件。也可直接还原升级前的完整工作区快照。
 

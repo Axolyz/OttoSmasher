@@ -56,6 +56,7 @@ def test_every_emitted_event_is_registered():
     dangerous = {c["name"]: c["danger"] for c in cat["commands"] if "danger" in c}
     assert dangerous == {"assets.delete": "always",
         "storage.cleanBackups": "always",
+        "storage.cleanJobHistory": "always",
         "sources.delete": "always", "samples.delete": "always", "works.rename": "always",
                          "storage.clean": "always", "samples.independ": "conditional"}
 

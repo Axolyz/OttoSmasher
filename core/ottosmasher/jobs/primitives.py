@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.errors import CoreError
+from .artifacts import archive_alignment
 from ..domain.mapping import Mapping
 
 
@@ -88,7 +89,9 @@ def speech_align(params: dict[str, Any], ctx: Any) -> dict[str, Any]:
         res = align_item(it, lambda _t: fe, aligner, cache=cache)
         return shape_alignment(it, fe, res, spans)
 
-    return _each(params["items"], ctx, "align", "speech-aligning", one)
+    result = _each(params["items"], ctx, "align", "speech-aligning", one)
+    archive_alignment(ctx.job_dir)
+    return result
 
 
 def join_lines(texts: list[str], fes: list[Any]) -> tuple[Any, list[tuple[str, int, int]]]:

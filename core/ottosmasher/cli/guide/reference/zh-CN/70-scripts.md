@@ -40,6 +40,8 @@ with LinkClient.from_env() as c:
 
 ## PowerShell 与任务摘要
 
+`storage.report` 的 `jobHistory` 给出旧任务天数门槛和可删除数。在应用中确认后，可用 `storage.cleanJobHistory` 删除已结束的旧任务及其日志和逐条结果。已登记的产物和较新重试所引用的任务保留。对齐任务结果可能在磁盘上打包，照常用 `speech.alignResults` 分页读取。
+
 Otto 输出 UTF-8。宿主若按其他编码读取原生命令，可先设置 `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`。保存 JSON 用 `otto call sources.list | Set-Content -Encoding utf8 sources.json`；Windows PowerShell 5.1 的 `>` 默认写 UTF-16LE，PowerShell 7.4 起原生命令的 stdout 重定向会保留原始字节，不应把两者混为一谈。
 
 复杂 JSON 优先写 UTF-8 文件，CLI 支持 BOM：

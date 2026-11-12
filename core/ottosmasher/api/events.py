@@ -73,6 +73,7 @@ EVENTS: dict[str, tuple[Any, str]] = {
     "core.fatal": (T.ErrorWire, "Core could not open the workspace and is exiting."),
     "data.changed": (dict[str, list[str]], "User data changed: entity -> ids. Re-read what you show; nothing refreshes by itself."),
     "job.updated": (T.JobSummary, "A job was queued, progressed or finished (status succeeded / failed / cancelled / interrupted)."),
+    "jobs.pruned": (NoPayload, "Old jobs were deleted; refresh the task list."),
     "search.started": (SearchStartedEvent, "A speech or pitch search started."),
     "search.finished": (T.SearchFinished, "A search ended; when status is done, read hits with results.page(resultId)."),
     "search.coverage": (SearchCoverageEvent, "Background preparation added search index / pitch / metrics for some items."),

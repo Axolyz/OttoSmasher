@@ -168,7 +168,7 @@ core/
     media/               ffprobe、区间解码、MP3 V0 编码、WAV、峰值、缩略图、拉伸渲染、视频片段
     studio/              PyMSS Studio 适配（发现、worker 协议）
     jobs/                任务进程入口（worker.py 按任务种类分发）
-    store/               db.py（连接、迁移、备份）、migrations/（0001–0017，只增不改）、workspace.py（工作区布局与锁）
+    store/               db.py（连接、迁移、备份）、migrations/（0001–0018，只增不改）、workspace.py（工作区布局与锁）
     platform/            进程组 / 作业对象
     cli/                 命令行 otto：main.py、client.py、skills.py、guide/（说明书、内置 skill、playbook 模板）
     resources.py         “仓库还是 Resources”的统一判断（源码运行 / 发布版）
@@ -185,7 +185,7 @@ docs/                    开发文档；spec/（原始规格）、history/（过
 
 ## 4. 数据模型
 
-> 业务事实以规格 04 与 DECISIONS 为准；表结构以 `core/ottosmasher/store/migrations/` 为准（0001–0017），下面是要点。ID 一律为不透明的随机 128 位十六进制串（`uuid4().hex`），
+> 业务事实以规格 04 与 DECISIONS 为准；表结构以 `core/ottosmasher/store/migrations/` 为准（0001–0018），下面是要点。ID 一律为不透明的随机 128 位十六进制串（`uuid4().hex`），
 > 文件位置是独立字段；**不做媒体内容指纹**，文件是否被替换用“文件快照”判断（§4.1）。所有用户可编辑对象都有 `version`（乐观并发）和 `created_at`/`updated_at`；写入记来源（`actor_kind`、`actor_session`）。
 > 显示文字不入库：性质、角色、来源种类等存稳定的内部值（如 `speech`、`vocal`），界面按语言显示。
 
@@ -363,12 +363,15 @@ docs/                    开发文档；spec/（原始规格）、history/（过
     ├── Measurements/                F0 帧、音高索引（永不当缓存删）
     ├── Cache/                       峰值、缩略图、帧索引、试听渲染（可清理；15 分钟内生成的跳过）
     ├── Jobs/<job-id>/               任务输入、输出、日志（成功后清理私有中间文件；失败保留证据）
+    │   └── alignment-results.zip   原始对齐的逐条结果，按 32 条独立压缩，读取兼容旧版 items/*.json
     ├── Manifests/                   导出清单（规格 12 §12.1：放数据目录，不放导出目录）
     ├── Dictionary/                  用户辞典源与编译产物
     ├── Logs/                        核心日志、界面事件日志（滚动，有上限）
     ├── Backups/                     结构迁移前的一致性备份
     └── Staging/                     原子发布用的临时文件（与 Library 同卷）
 ```
+
+任务历史手动清理只删超过 90 天的终止任务，保留较新重试链。`Jobs/.history-cleanup/` 记录待清理的目录，清理器只移除任务行已经删除的目录。被占用的文件稍后重试。正式产物仍按素材库和测量目录的引用读取。
 
 - 原片目录名按 `<作品 集数> [<原片 ID 前 8 位>]` 在第一次生成文件时取（`core/libdirs.py`），之后按末尾的 `[id8]` 找回、不随改名移动（L23，阶段 9 统一了分离 / 拉平 / 回导 / 独立化）。
 - **长期固定的目录名一律英文**（`Library/`、`Tracks/`、`Separation/`、`Flatten/`、`Reimport/`、`Independent/`、`Exports/`、`REAPER/`、`Models/`、`Data/` 及其下各目录）；按原片、按日期生成的子目录不受限制，可以用中日文（所有者 2026-10-06）。子目录与文件名都经过可移植处理（规格 12 §12.1）。界面里每个原片/采样都有“打开所在目录”。

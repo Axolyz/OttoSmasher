@@ -23,6 +23,7 @@ export function StoragePanel() {
   const [unused, setUnused] = useState<UnusedAsset[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
+  const [confirmingHistory, setConfirmingHistory] = useState(false);
   const load = () => {
     void call("storage.report", {}).then(setRep, () => setRep(null));
     void call("assets.unused", {}).then(setUnused, () => setUnused([]));
@@ -66,6 +67,19 @@ export function StoragePanel() {
       load();
     }
   };
+  const cleanHistory = async () => {
+    setBusy(true);
+    try {
+      const r = await call("storage.cleanJobHistory", {});
+      toast({ text: t("storage.jobHistoryCleaned", { count: r.rows, size: fileSize(r.bytes) }) });
+    } catch (e) {
+      toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    } finally {
+      setBusy(false);
+      setConfirmingHistory(false);
+      load();
+    }
+  };
   if (!rep) return null;
   const selectedRows = unused.filter((u) => checked.has(u.assetId));
   const backups = rep.categories.find((c) => c.key === "backups");
@@ -93,6 +107,9 @@ export function StoragePanel() {
         </Checkbox>
       </div>
       <div className={s.storageActions}>
+        <Button variant="secondary" onPress={() => setConfirmingHistory(true)} isDisabled={busy || rep.jobHistory.count === 0} data-testid="storage-clean-job-history">
+          {t("storage.cleanJobHistory", { days: rep.jobHistory.days, count: rep.jobHistory.count })}
+        </Button>
         <Button variant="secondary" onPress={() => void cleanBackups()} isDisabled={busy || (backups?.files ?? 0) < 2} data-testid="storage-clean-backups">
           {t("storage.cleanBackups")}
         </Button>
@@ -103,6 +120,18 @@ export function StoragePanel() {
           {t("storage.openReaper")}
         </Button>
       </div>
+      <ConfirmDialog
+        isOpen={confirmingHistory}
+        title={t("storage.jobHistoryConfirmTitle", { count: rep.jobHistory.count })}
+        confirmLabel={t("storage.jobHistoryConfirmRun")}
+        danger
+        busy={busy}
+        onConfirm={() => void cleanHistory()}
+        onClose={() => setConfirmingHistory(false)}
+        testId="storage-job-history-confirm"
+      >
+        {t("storage.jobHistoryConfirmBody", { days: rep.jobHistory.days })}
+      </ConfirmDialog>
       {rep.lastAuto ? <div className={s.hint}>{t("storage.lastAuto", { at: new Date(rep.lastAuto * 1000).toTimeString().slice(0, 8) })}</div> : null}
       {rep.sources.length ? (
         <>

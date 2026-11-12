@@ -2453,10 +2453,16 @@ export interface StorageCleaned {
   rows: number;
 }
 
+export interface StorageJobHistory {
+  count: number;
+  days: number;
+}
+
 export interface StorageReport {
   categories: StorageCategory[];
   folders: Record<string, string>;
   idleCleanup: boolean;
+  jobHistory: StorageJobHistory;
   lastAuto: number | null;
   sources: StorageSource[];
 }
@@ -3390,10 +3396,12 @@ export interface Commands {
   "speech.submit": { params: SpeechPlanParams; result: JobSummary; effect: "job" };
   /** Make another successful version of a segment's analysis the current one. */
   "speech.switchHead": { params: SpeechSwitchParams; result: SpeechHeadRef; effect: "write" };
-  /** Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index. */
+  /** Clean rebuildable caches and adopted job intermediates, archive old alignment results, and optionally clear the derived search index. */
   "storage.clean": { params: StorageCleanParams; result: StorageCleaned; effect: "write" };
   /** Delete old pre-upgrade database backups, keeping the newest one. */
   "storage.cleanBackups": { params: NoParams; result: StorageCleaned; effect: "write" };
+  /** Delete terminal jobs and their private files older than the jobHistory cutoff in storage.report. */
+  "storage.cleanJobHistory": { params: NoParams; result: StorageCleaned; effect: "write" };
   /** Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source. */
   "storage.report": { params: NoParams; result: StorageReport; effect: "read" };
   /** PyMSS Studio installation and model list (submits a listing job when unknown). */
@@ -3496,6 +3504,8 @@ export interface Events {
   "exports.videoDone": VideoDone;
   /** A job was queued, progressed or finished (status succeeded / failed / cancelled / interrupted). */
   "job.updated": JobSummary;
+  /** Old jobs were deleted; refresh the task list. */
+  "jobs.pruned": NoPayload;
   /** Model files or their status changed. */
   "models.changed": NoPayload;
   /** Building waveform peaks failed for these assets. */

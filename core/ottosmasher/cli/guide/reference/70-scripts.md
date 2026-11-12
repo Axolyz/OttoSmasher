@@ -30,6 +30,8 @@ with LinkClient.from_env() as c:
 
 ## Shells, pagination and binary results
 
+`storage.report` includes `jobHistory` with the age cutoff and eligible job count. With confirmation in the app, `storage.cleanJobHistory` deletes eligible terminal jobs, including logs and per-item results. Saved outputs and jobs referenced by newer retries are kept. Use `speech.alignResults` to page through alignment results, including archived ones.
+
 Otto emits UTF-8. If the host decodes native output differently, set `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`. Save JSON with `otto call sources.list | Set-Content -Encoding utf8 sources.json`. Windows PowerShell 5.1 writes UTF-16LE with `>`; PowerShell 7.4+ preserves native stdout bytes when redirecting. These are different cases.
 
 For complex JSON, especially in PowerShell, use a UTF-8 JSON file:

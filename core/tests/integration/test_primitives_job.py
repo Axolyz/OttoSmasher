@@ -40,6 +40,8 @@ def test_align_analyze_and_f0_without_storing(tmp_path):
         rows = ok(c.call("speech.alignResults", jobId=job["id"]))
         assert [r["status"] for r in rows] == ["ok", "ok", "failed"]
         assert rows[2]["error"]["code"] == "frontend-failed"
+        assert (root / "Data" / "Jobs" / job["id"] / "alignment-results.zip").is_file()
+        assert ok(c.call("speech.alignResults", jobId=job["id"], offset=1, limit=1)) == rows[1:2]
         f, a = rows[0]["result"], rows[1]["result"]
         assert (f["clock"], a["clock"]) == ("file", "asset")
         assert f["window"] == pytest.approx([1.0, 2.0], abs=1e-4)

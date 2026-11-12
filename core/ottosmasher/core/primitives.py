@@ -17,6 +17,7 @@ import numpy as np
 
 from ottosmasher.domain import oped_rule, subtitle_rules, subtitles
 from ottosmasher.domain.mapping import check_range
+from ottosmasher.jobs.artifacts import alignment_items
 from ottosmasher.media import probe as probe_mod
 from ottosmasher.store.workspace import Workspace
 
@@ -147,12 +148,17 @@ class PrimitiveService:
         rows = self.conn.execute(
             "SELECT idx, status, error FROM job_item WHERE job_id=? ORDER BY idx LIMIT ? OFFSET ?", (job_id, int(limit), int(offset))
         ).fetchall()
-        d = self.jobs.jobs_dir / job_id / "items"
+        job_dir = self.jobs.jobs_dir / job_id
+        d = job_dir / "items"
+        alignments = alignment_items(job_dir, (r["idx"] for r in rows if r["status"] == "ok")) if kind == "speech.align" else {}
         out = []
         for r in rows:
             row: dict[str, Any] = {"idx": r["idx"], "status": r["status"], "error": loads(r["error"]) if r["error"] else None}
             f = d / f"{r['idx']}.json"
-            if r["status"] == "ok" and f.is_file():
+            if kind == "speech.align":
+                if r["idx"] in alignments:
+                    row["result"] = json.loads(alignments[r["idx"]])
+            elif r["status"] == "ok" and f.is_file():
                 res = json.loads(f.read_text(encoding="utf-8"))
                 if kind == "f0.track":
                     arr = np.load(d / f"{r['idx']}.npy").astype("<f4")

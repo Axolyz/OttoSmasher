@@ -1856,7 +1856,7 @@
    "name": "storage.clean",
    "effect": "write",
    "layer": "library",
-   "summary": "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
+   "summary": "Clean rebuildable caches and adopted job intermediates, archive old alignment results, and optionally clear the derived search index.",
    "params": {
     "$ref": "#/$defs/StorageCleanParams"
    },
@@ -1870,6 +1870,19 @@
    "effect": "write",
    "layer": "library",
    "summary": "Delete old pre-upgrade database backups, keeping the newest one.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/StorageCleaned"
+   },
+   "danger": "always"
+  },
+  {
+   "name": "storage.cleanJobHistory",
+   "effect": "write",
+   "layer": "library",
+   "summary": "Delete terminal jobs and their private files older than the jobHistory cutoff in storage.report.",
    "params": {
     "$ref": "#/$defs/NoParams"
    },
@@ -2456,6 +2469,13 @@
    "summary": "A job was queued, progressed or finished (status succeeded / failed / cancelled / interrupted).",
    "payload": {
     "$ref": "#/$defs/JobSummary"
+   }
+  },
+  {
+   "name": "jobs.pruned",
+   "summary": "Old jobs were deleted; refresh the task list.",
+   "payload": {
+    "$ref": "#/$defs/NoPayload"
    }
   },
   {
@@ -15674,6 +15694,22 @@
     "rows"
    ]
   },
+  "StorageJobHistory": {
+   "title": "StorageJobHistory",
+   "type": "object",
+   "properties": {
+    "count": {
+     "type": "integer"
+    },
+    "days": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "count",
+    "days"
+   ]
+  },
   "StorageReport": {
    "title": "StorageReport",
    "type": "object",
@@ -15692,6 +15728,9 @@
     },
     "idleCleanup": {
      "type": "boolean"
+    },
+    "jobHistory": {
+     "$ref": "#/$defs/StorageJobHistory"
     },
     "lastAuto": {
      "anyOf": [
@@ -15714,6 +15753,7 @@
     "categories",
     "folders",
     "idleCleanup",
+    "jobHistory",
     "lastAuto",
     "sources"
    ]

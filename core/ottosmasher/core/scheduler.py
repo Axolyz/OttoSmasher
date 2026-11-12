@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..jobs.artifacts import INTERMEDIATE_JOBS, cleanup_intermediates
 from ..jobs.kinds import channel_of
 from ..platform.proc import ProcessTree, spawn_tree
 from ..store.db import transaction
@@ -32,7 +33,6 @@ from . import actor as actor_mod
 from .clock import new_id, now_iso
 from .edits import dumps, loads
 from .errors import CoreError
-from .job_artifacts import cleanup_separation
 
 log = logging.getLogger(__name__)
 
@@ -331,8 +331,8 @@ class Scheduler:
             else:
                 err = _all_failed(self._row(jid), run.result)
                 self._finish(jid, "failed" if err else "succeeded", error=err, result=_small(run.result))
-                if row["kind"] == "separate":
-                    cleanup_separation(self.jobs_dir, jid)
+                if err is None and row["kind"] in INTERMEDIATE_JOBS:
+                    cleanup_intermediates(self.jobs_dir, jid, row["kind"], self.jobs_dir.parent / "Measurements" / "f0", run.result.get("f0") or ())
         else:
             err = run.error or {"code": "job-worker-exited", "args": {"exit_code": code}}
             err = {**err, "args": {**err.get("args", {}), "log": str(self.jobs_dir / jid / "log.txt")}}

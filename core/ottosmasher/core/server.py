@@ -479,10 +479,13 @@ class Core:
         r("storage.report", "read", T.NoParams, T.StorageReport, "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
           lambda p: self.storage.report())
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,
-          "Clean rebuildable caches (not files touched in the last 15 minutes; refused while jobs run); optionally the derived search index.",
+          "Clean rebuildable caches and adopted job intermediates, archive old alignment results, and optionally clear the derived search index.",
           lambda p: self.storage.clean(derived=bool(p.get("derived"))), danger=True)
         r("storage.cleanBackups", "write", T.NoParams, T.StorageCleaned, "Delete old pre-upgrade database backups, keeping the newest one.",
           lambda p: self.storage.clean_backups(), danger=True)
+        r("storage.cleanJobHistory", "write", T.NoParams, T.StorageCleaned,
+          "Delete terminal jobs and their private files older than the jobHistory cutoff in storage.report.",
+          lambda p: self._clean_job_history(), danger=True)
         r("app.userInput", "ui", T.NoParams, None, "The UI reports real user input (idle timer for automatic cache cleanup; polling does not count).",
           lambda p: self.storage.user_input())
         r("results.list", "read", T.NoParams, list[T.ResultHeader], "Open fixed results (restored without searching again).",
@@ -627,6 +630,12 @@ class Core:
 
     def post(self, fn: Callable[[], None]) -> None:
         self._q.put(("call", fn))
+
+    def _clean_job_history(self) -> T.StorageCleaned:
+        result = self.storage.clean_job_history()
+        if result["rows"]:
+            self.emit("jobs.pruned", {})
+        return result
 
     def _on_change(self, cs: ChangeSet) -> None:
         self.emit("data.changed", cs.to_wire())
@@ -779,6 +788,8 @@ class Core:
                 marks = ",".join("?" * len(ids[:20]))
                 names = [r[0] for r in self.conn.execute(f"SELECT name FROM sample WHERE id IN ({marks})", ids[:20])] if ids else []
                 return {"count": len(ids), "names": names}
+            if method == "storage.cleanJobHistory":
+                return self.storage.history_preview()
         except Exception:  # noqa: BLE001
             log.exception("danger preview failed for %s", method)
         return None

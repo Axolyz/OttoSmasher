@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 
@@ -86,14 +87,74 @@ def test_successful_separation_leftovers_are_cleanable_but_evidence_is_not(db, w
 
 
 def test_private_cleanup_refuses_job_or_directory_symlinks(tmp_path):
-    from ottosmasher.core.job_artifacts import cleanup_separation
+    from ottosmasher.jobs.artifacts import cleanup_intermediates
     jobs = tmp_path / 'jobs'
     outside = make(tmp_path / 'outside' / 'input' / 'audio.wav')
     jobs.mkdir()
     (jobs / 'linked').symlink_to(outside.parent.parent)
-    cleanup_separation(jobs, 'linked')
-    cleanup_separation(jobs, '../outside')
     (jobs / 'real').mkdir()
     (jobs / 'real' / 'input').symlink_to(outside.parent)
-    cleanup_separation(jobs, 'real')
+    for jid in ('linked', '../outside', 'real'):
+        cleanup_intermediates(jobs, jid, 'separate', tmp_path / 'f0', ())
     assert outside.exists()
+
+
+def test_only_identical_adopted_f0_and_private_cache_are_cleaned(db, ws):
+    svc = StorageService(db, ws, Jobs())
+    plan = json.dumps({"plan": [{"asset": "asset", "identity": "original", "chunks": [0, 1, 2, 3]}]})
+    db.execute("INSERT INTO job(id,kind,channel,status,params,device,created_at) VALUES ('done','f0.measure','model','succeeded',?,'{}','2026-01-01')", (plan,))
+    job = ws.jobs / "done"
+    formal = ws.f0 / "asset" / "original"
+    make(formal / "0.npy", age=3600)
+    make(formal / "1.npy", age=3600).write_bytes(b"y" * 10)
+    make(formal / "3.npy", age=3600)
+    (formal / "manifest.json").write_text('{"chunks":{"0":{},"1":{},"2":{},"3":{}}}')
+    copies = [make(job / "f0" / "asset" / f"{i}.npy", age=60 if i == 3 else 3600) for i in range(4)]
+    cache = make(job / "cache" / "FrameIndex" / "index.npz", age=3600)
+    result = svc.clean()
+    assert result == {"files": 2, "bytes": 20, "rows": 0}
+    assert not copies[0].exists() and not cache.exists()
+    assert all(p.exists() for p in copies[1:])
+    assert (formal / "0.npy").read_bytes() == b"x" * 10
+
+
+def test_clean_old_job_history_keeps_retry_ancestors_and_recovers_file_removal(db, ws, monkeypatch):
+    svc = StorageService(db, ws, Jobs())
+    for jid, ts, retry in [
+        ("origin", "2000-01-01", None), ("retry", "2000-01-01", "origin"), ("recent", "2099-01-01", "retry"),
+        ("gone", "2000-01-01", None), ("gone_retry", "2000-01-01", "gone"),
+    ]:
+        db.execute("INSERT INTO job(id,kind,channel,status,params,device,created_at,retry_of) VALUES (?, 'speech.align','model','failed','{}','{}',?,?)", (jid, ts, retry))
+        db.execute("INSERT INTO job_item(job_id,idx,target,status) VALUES (?,0,'x','failed')", (jid,))
+        make(ws.jobs / jid / "log.txt")
+    assert svc.history_preview() == {"days": 90, "count": 2}
+    db.execute("UPDATE job SET status='running' WHERE id='recent'")
+    with pytest.raises(CoreError, match="storage-busy"):
+        svc.clean_job_history()
+    db.execute("UPDATE job SET status='failed' WHERE id='recent'")
+    def unavailable(_path):
+        raise PermissionError("test file lock")
+    with monkeypatch.context() as m:
+        m.setattr(st.shutil, "rmtree", unavailable)
+        assert svc.clean_job_history() == {"files": 0, "bytes": 0, "rows": 2}
+    assert {r[0] for r in db.execute("SELECT job_id FROM job_item")} == {"origin", "retry", "recent"}
+    assert (ws.jobs / "gone" / "log.txt").is_file()
+    assert svc.clean()["bytes"] == 20
+    assert not (ws.jobs / "gone").exists() and not (ws.jobs / "gone_retry").exists()
+    assert (ws.jobs / "origin" / "log.txt").is_file()
+
+
+def test_old_alignment_results_are_packed_and_can_still_be_paged(db, ws):
+    from ottosmasher.jobs.artifacts import RESULTS_ARCHIVE, alignment_items
+
+    svc = StorageService(db, ws, Jobs())
+    db.execute("INSERT INTO job(id,kind,channel,status,params,device,created_at) VALUES ('align','speech.align','model','succeeded','{}','{}','2026-01-01')")
+    job = ws.jobs / "align"
+    for i in (0, 31, 32, 65):
+        make(job / "items" / f"{i}.json", 400, age=3600)
+    assert alignment_items(job, [31, 32, 33]) == {31: b"x" * 400, 32: b"x" * 400}
+    result = svc.clean()
+    assert result["files"] == 4 and result["bytes"] > 0
+    assert (job / RESULTS_ARCHIVE).is_file() and not list((job / "items").iterdir())
+    assert alignment_items(job, [31, 32, 33]) == {31: b"x" * 400, 32: b"x" * 400}
+    assert svc.clean() == {"files": 0, "bytes": 0, "rows": 0}

@@ -3012,11 +3012,17 @@ class StorageSource(TypedDict):
     files: int
 
 
+class StorageJobHistory(TypedDict):
+    days: int
+    count: int
+
+
 class StorageReport(TypedDict):
     categories: list[StorageCategory]
     sources: list[StorageSource]
     idleCleanup: bool
     lastAuto: float | None
+    jobHistory: StorageJobHistory
     # 给“打开文件夹”用
     folders: dict[str, str]
 
