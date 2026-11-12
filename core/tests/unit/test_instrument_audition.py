@@ -30,7 +30,7 @@ class Players(HTMLParser):
 
 
 def test_manifest_builds_a_page_with_resolvable_local_audio(tmp_path, capsys):
-    audio = tmp_path / '声 音 #1&".wav'
+    audio = tmp_path / "声 音 #1&'.wav"
     with wave.open(str(audio), "wb") as wav:
         wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         wav.writeframes(b"\x00\x01" * 1600)
