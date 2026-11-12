@@ -9,7 +9,7 @@ import { Callout, Checkbox, RadioList, Segmented } from "../components/Controls"
 import { DialogBox } from "../components/Overlay";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
-import { currentProjectTags } from "../state/project";
+import { autoProjectTags } from "../state/project";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
@@ -59,7 +59,7 @@ export function SeparationDialog() {
 
   // 一个原素材出错（文件不在、没有音频）不挡其他的；分离任务在模型通道里一个个跑
   const submitBatch = async (jobs: Array<{ assetId: string; ranges?: number[][] }>, m: StudioModel) => {
-    const localTags = currentProjectTags();
+    const localTags = autoProjectTags();
     let queued = 0;
     const failed: string[] = [];
     for (const job of jobs) {
@@ -93,7 +93,7 @@ export function SeparationDialog() {
         model: chosen.name,
         stems: stems.size ? chosen.stems.filter((x) => stems.has(x)) : null,
         ...range,
-        ...(scope === "sel" ? { localTags: currentProjectTags() } : {}),
+        ...(scope === "sel" ? { localTags: autoProjectTags() } : {}),
       });
       toast({ text: t("sep.queued", { model: chosen.name }), action: { label: t("sep.openTasks"), run: () => setTasksOpen(true) } });
       props.onClose();

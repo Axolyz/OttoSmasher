@@ -265,7 +265,7 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await app.close();
 });
 
-test("当前项目：筛选、跨项目选材、截取自动打标与恢复", async () => {
+test("当前项目：筛选、跨项目选材、自动加入开关与恢复", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-lib-project-"));
   const wav = join(dir, "project.wav");
   execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=5", wav]);
@@ -288,6 +288,7 @@ test("当前项目：筛选、跨项目选材、截取自动打标与恢复", as
     const total = page.getByTestId("library-total");
     await expect(total).toHaveText("2 个采样");
     const current = page.getByTestId("current-project");
+    const autoJoin = page.getByTestId("project-auto-join");
     const setProject = async (name: string) => {
       await current.click();
       await page.getByTestId("project-name").fill(name);
@@ -301,6 +302,7 @@ test("当前项目：筛选、跨项目选材、截取自动打标与恢复", as
       await page.getByRole("menuitem", { name: "加入当前项目" }).click();
     };
     await setProject("mix A");
+    await expect(autoJoin).toHaveAttribute("aria-pressed", "true");
     await only.click();
     await expect(total).toHaveText("0 个采样");
     await only.click();
@@ -325,27 +327,43 @@ test("当前项目：筛选、跨项目选材、截取自动打标与恢复", as
     await expect(tags.getByText("project:mix A", { exact: false })).toBeVisible();
     await expect(tags.getByText("project:mix B", { exact: false })).toBeVisible();
 
-    await expect(page.getByTestId("stage-title")).toHaveText("Project candidate");
-    const startInput = page.getByTestId("stage-sel-start");
-    await startInput.fill("0:00.100");
-    await startInput.press("Enter");
-    await page.getByTestId("stage-actions").getByTestId("clip").click();
-    const clip = page.getByTestId("clip-panel");
-    await expect(clip.getByTestId("clip-save")).toBeEnabled();
-    await clip.getByTestId("clip-name").fill("Edited in mix B");
-    await clip.getByTestId("clip-save").click();
-    await expect(page.getByTestId("stage-title")).toHaveText("Edited in mix B");
+    const recut = async (name: string) => {
+      await expect(page.getByTestId("stage-title")).toHaveText("Project candidate");
+      const startInput = page.getByTestId("stage-sel-start");
+      await startInput.fill("0:00.100");
+      await startInput.press("Enter");
+      await page.getByTestId("stage-actions").getByTestId("clip").click();
+      const clip = page.getByTestId("clip-panel");
+      await expect(clip.getByTestId("clip-save")).toBeEnabled();
+      await clip.getByTestId("clip-name").fill(name);
+      await clip.getByTestId("clip-save").click();
+      await expect(page.getByTestId("stage-title")).toHaveText(name);
+    };
+    await recut("Edited in mix B");
     await expect(tags.getByText("project:mix B", { exact: false })).toBeVisible();
     await expect(tags.getByText("project:mix A", { exact: false })).toHaveCount(0);
     await only.click();
     await expect(total).toHaveText("2 个采样");
+    await autoJoin.click();
+    await expect(autoJoin).toHaveAttribute("aria-pressed", "false");
+    await expect(only).toHaveAttribute("aria-pressed", "true");
     await page.reload();
     await expect(current).toHaveText("mix B");
+    await expect(autoJoin).toHaveAttribute("aria-pressed", "false");
     await expect(only).toHaveAttribute("aria-pressed", "true");
     await expect(total).toHaveText("2 个采样");
+    await row(candidate).click();
+    await recut("Edited without a project");
+    await expect(tags.getByText("project:mix B", { exact: false })).toHaveCount(0);
+    await expect(tags.getByText("project:mix A", { exact: false })).toHaveCount(0);
+    await expect(total).toHaveText("2 个采样");
+
+    await autoJoin.click();
+    await expect(autoJoin).toHaveAttribute("aria-pressed", "true");
     await setProject("");
+    await expect(autoJoin).toBeDisabled();
     await expect(only).toHaveCount(0);
-    await expect(total).toHaveText("3 个采样");
+    await expect(total).toHaveText("4 个采样");
   } finally {
     await app.close();
   }

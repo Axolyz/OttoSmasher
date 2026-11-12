@@ -281,7 +281,7 @@ docs/                    开发文档；spec/（原始规格）、history/（过
 | `visual_binding` | id, owner_type(source/sample), mode(`sync`/`image`/`loop`/`materialized_clip`), media_file_id, clip_offset, version | 采样 > 原片 > 原片自带视频流 |
 | `user_dictionary` | version, source_text, compiled_path, created_at | 全局一份；编译成功才原子启用 |
 | `setting` | key, value, version | 走编辑通道（可撤销）；只作用于之后的操作 |
-| `ui_state` | window, page, key, value | 重启恢复（勾选集合不恢复）。顶栏的当前项目存在 `main/shell/currentProject`，`workflow.context` 向 CLI 提供项目和 BPM 的只读快照 |
+| `ui_state` | window, page, key, value | 重启恢复（勾选集合不恢复）。顶栏的当前项目和桌面自动加入开关存在 `main/shell` 的 `currentProject`、`projectAutoJoin`。`workflow.context` 向 CLI 提供项目和 BPM 的只读快照 |
 | `model_probe` | model, file_sha, device_setting, status, ep_node_counts, error, tested_at | “文件就位 / 运行库可加载 / 实测通过”分开记（规格 14 §14.7） |
 
 ### 4.9 采样独立化（刚需，数据模型从阶段 1 起支持）

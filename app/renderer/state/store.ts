@@ -129,6 +129,8 @@ interface AppState {
   /** undefined = 界面状态尚未恢复；null = 未选项目 */
   currentProject: string | null | undefined;
   setCurrentProject(name: string | null): void;
+  projectAutoJoin: boolean;
+  setProjectAutoJoin(enabled: boolean): void;
   nowPlaying: NowPlaying | null;
   setNowPlaying(v: NowPlaying | null): void;
   stageRhythm: StageRhythm;
@@ -194,6 +196,8 @@ export const useApp = create<AppState>((set) => ({
   bpm: null,
   currentProject: undefined,
   setCurrentProject: (currentProject) => set({ currentProject }),
+  projectAutoJoin: true,
+  setProjectAutoJoin: (projectAutoJoin) => set({ projectAutoJoin }),
   setBpm: (bpm) => set({ bpm }),
   nowPlaying: null,
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),

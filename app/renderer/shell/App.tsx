@@ -69,6 +69,7 @@ export function App() {
     void call("ui.get", { page: "shell" }).then((v) => {
       if (typeof v.page === "string" && visiblePages(true).includes(v.page as Page)) st.setPage(v.page as Page);
       if (v.theme === "light" || v.theme === "dark") st.setTheme(v.theme);
+      st.setProjectAutoJoin(v.projectAutoJoin !== false);
       st.setCurrentProject(typeof v.currentProject === "string" ? v.currentProject : null);
       restored.current = true;
       // 新工作区第一次打开、缺模型权重：提醒一次去哪里下载（所有者 2026-10-10：发布包不带模型；只提醒，不自动下载）

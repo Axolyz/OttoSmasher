@@ -1,4 +1,4 @@
-import { Command, Ellipsis, Folder, Undo2 } from "lucide-react";
+import { Command, Ellipsis, Folder, Tag, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CoreFailure, call, useCoreEvent } from "../api/core";
 import type { EditLabel } from "../api/types";
@@ -113,6 +113,21 @@ export function TopBar() {
 
 function ProjectControl({ ready }: { ready: boolean }) {
   const name = useApp((st) => st.currentProject);
+  const autoJoin = useApp((st) => st.projectAutoJoin);
+  const [savingAutoJoin, setSavingAutoJoin] = useState(false);
+  const toggleAutoJoin = async () => {
+    if (!ready || !name || savingAutoJoin) return;
+    const next = !autoJoin;
+    setSavingAutoJoin(true);
+    try {
+      await call("ui.set", { page: "shell", key: "projectAutoJoin", value: next });
+      useApp.getState().setProjectAutoJoin(next);
+    } catch (e) {
+      useApp.getState().toast({ text: e instanceof CoreFailure ? errorText(e.wire) : String(e), tone: "error" });
+    } finally {
+      setSavingAutoJoin(false);
+    }
+  };
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -133,32 +148,46 @@ function ProjectControl({ ready }: { ready: boolean }) {
       setSaving(false);
     }
   };
+  const tag = value && !invalid && autoJoin ? projectTag(value) : undefined;
   return (
-    <AnchoredPanel
-      title={t("project.current")}
-      width={320}
-      placement="bottom end"
-      isOpen={open}
-      onOpenChange={(next) => {
-        if (next) {
-          setDraft(name ?? "");
-          setError(null);
+    <div className={s.projectControls}>
+      <AnchoredPanel
+        title={t("project.current")}
+        width={320}
+        placement="bottom end"
+        isOpen={open}
+        onOpenChange={(next) => {
+          if (next) {
+            setDraft(name ?? "");
+            setError(null);
+          }
+          setOpen(next);
+        }}
+        trigger={
+          <Button variant="secondary" icon={<Folder />} isDisabled={!ready || name === undefined}
+            aria-label={name ? t("project.active", { name }) : t("project.current")}
+            title={name ? t("project.active", { name }) : t("project.current")} data-testid="current-project">
+            <span className={s.projectName} data-user-data={name ? "" : undefined}>{name || t("project.none")}</span>
+          </Button>
         }
-        setOpen(next);
-      }}
-      trigger={
-        <Button variant="secondary" icon={<Folder />} isDisabled={!ready || name === undefined}
-          aria-label={name ? t("project.active", { name }) : t("project.current")}
-          title={name ? t("project.active", { name }) : t("project.current")} data-testid="current-project">
-          <span className={s.projectName} data-user-data={name ? "" : undefined}>{name || t("project.none")}</span>
-        </Button>
-      }
-      footer={<Button variant="primary" isDisabled={invalid || saving} onPress={() => void save()} data-testid="project-save">{t("common.save")}</Button>}
-    >
-      <TextField label={t("project.name")} value={draft} onChange={setDraft} onSubmit={() => void save()} invalid={invalid} autoFocus testId="project-name" />
-      <div className={s.projectHint}>{value && !invalid ? t("project.willTag", { tag: projectTag(value)! }) : t("project.hint")}</div>
-      {invalid || error ? <div role="alert">{invalid ? t("project.tooLong", { max: PROJECT_NAME_LIMIT }) : error}</div> : null}
-    </AnchoredPanel>
+        footer={<Button variant="primary" isDisabled={invalid || saving} onPress={() => void save()} data-testid="project-save">{t("common.save")}</Button>}
+      >
+        <TextField label={t("project.name")} value={draft} onChange={setDraft} onSubmit={() => void save()} invalid={invalid} autoFocus testId="project-name" />
+        <div className={s.projectHint}>{tag ? t("project.willTag", { tag }) : t("project.hint")}</div>
+        {invalid || error ? <div role="alert">{invalid ? t("project.tooLong", { max: PROJECT_NAME_LIMIT }) : error}</div> : null}
+      </AnchoredPanel>
+      <Tip content={t(!name ? "project.autoJoinNoProject" : autoJoin ? "project.autoJoinOn" : "project.autoJoinOff")}>
+        <Button
+          variant={name && autoJoin ? "primary" : "secondary"}
+          icon={<Tag />}
+          isDisabled={!ready || !name || savingAutoJoin}
+          aria-label={t("project.autoJoin")}
+          aria-pressed={!!name && autoJoin}
+          onPress={() => void toggleAutoJoin()}
+          data-testid="project-auto-join"
+        />
+      </Tip>
+    </div>
   );
 }
 

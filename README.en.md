@@ -157,7 +157,7 @@ Flattens the pitch of a stretch of speech onto one note, keeping the words, and 
 
 ### Organizing samples
 
-Set the current project in the toolbar to automatically tag samples you create by clipping, flattening, separating a selection, or reimporting. Use Current project only to find the samples you have selected for that project.
+Set the current project in the toolbar to automatically tag samples you create by clipping, flattening, separating a selection, or reimporting. Use the tag button next to the project name to pause automatic tagging. Use Current project only to find the samples you have selected for that project.
 
 Tags can be inherited automatically from the work, subtitle speakers and range tags, or added by hand. You can use stars and tag expressions, filter by work, person, pitch and more, and save common conditions as filters. Batch edits show a before-and-after comparison first, and data edits can be undone.
 

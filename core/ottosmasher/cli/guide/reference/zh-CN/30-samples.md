@@ -52,7 +52,7 @@ otto call edits.apply '{"batch": <预览里的 batch>}'
 
 ## 把成品加入项目
 
-从 `otto call workflow.context` 读取当前项目与完整的 `projectTag`。候选采样默认留在全库。创建选定的成品时，`samples.create` 和 `samples.createPlanned` 可显式传 `useCurrentProject: true`。按计划建采样时，这个选项作用于全部选中的键。应用在创建时读取项目，没选项目会在写入前报错 `current-project-unset`。
+从 `otto call workflow.context` 读取当前项目与完整的 `projectTag`。Agent 新建的采样默认不加入项目，桌面自动加入开关只控制手动操作。用户明确要求加入当前项目时，给 `samples.create` 或 `samples.createPlanned` 显式传 `useCurrentProject: true`。按计划建采样时，这个选项作用于全部选中的键。应用在创建时读取项目，没选项目会在写入前报错 `current-project-unset`。
 
 如果要让一批操作始终归属同一个项目，开始时记下完整标签，给 `samples.create` 传 `localTags`，或给 `samples.createPlanned` 的选定条目传 `overrides[key].localTags`。给已经存在的采样加入项目时，用 `samples.batchEdit` 的 `addTags`，再应用返回的批次。
 

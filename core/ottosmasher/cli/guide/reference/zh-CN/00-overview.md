@@ -64,7 +64,7 @@ OttoSmasher 是做音MAD 素材的桌面应用：登记视频与音频（“原�
 
 ## 当前项目与 BPM
 
-`otto status` 的 `context` 与 `otto call workflow.context` 都提供当前项目名、完整的 `projectTag` 和 BPM。节奏检索与卡拍导出直接使用桌面 BPM。只在用户任务需要时把选定的成品加入项目，具体写入方法见主题 `samples`。
+`otto status` 的 `context` 与 `otto call workflow.context` 都提供当前项目名、完整的 `projectTag` 和 BPM。节奏检索与卡拍导出直接使用桌面 BPM。Agent 建采样默认不加入项目，只有用户明确要求时才加入。桌面的自动加入开关只控制手动操作。具体写入方法见主题 `samples`。
 
 ## 调用命令
 

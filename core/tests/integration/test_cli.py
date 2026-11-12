@@ -73,8 +73,10 @@ def test_workflow_context_and_project_membership_are_opt_in(app, tmp_path):
     rc, live, _ = otto(root, "call", "workflow.context")
     assert rc == 0 and live == context
 
+    assert c.call("ui.set", page="shell", key="projectAutoJoin", value=True)["ok"]
     rc, candidate, _ = otto(root, "call", "samples.create", "-", stdin=json.dumps(selection))
     assert rc == 0 and all(t["provenance"] != "local" for t in candidate["tags"])
+    assert c.call("ui.set", page="shell", key="projectAutoJoin", value=False)["ok"]
     rc, direct, _ = otto(root, "call", "samples.create", "-", stdin=json.dumps({
         **selection, "useCurrentProject": True, "localTags": ["take:final"],
     }))

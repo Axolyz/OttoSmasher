@@ -107,7 +107,7 @@ The user can turn this confirmation off in Settings › Command line & agent; th
 
 ## Current project and BPM
 
-The `context` in `otto status` and `otto call workflow.context` both report the current project name, its exact `projectTag`, and the target BPM. Rhythm search and stretched exports use the desktop BPM directly. Add selected products to a project when the user's task calls for it. See the `samples` topic for write commands.
+The `context` in `otto status` and `otto call workflow.context` both report the current project name, its exact `projectTag`, and the target BPM. Rhythm search and stretched exports use the desktop BPM directly. By default, agent-created samples stay outside any project. Add samples to a project only when the user explicitly asks. The desktop auto-add toggle applies to manual desktop operations. See the `samples` topic for write commands.
 
 ## Calling a command
 

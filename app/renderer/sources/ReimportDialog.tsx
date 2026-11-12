@@ -11,7 +11,7 @@ import { NaturePicker } from "../components/NaturePicker";
 import { DialogBox } from "../components/Overlay";
 import { clock, seconds } from "../format";
 import { errorText, t } from "../i18n";
-import { currentProjectTags } from "../state/project";
+import { autoProjectTags } from "../state/project";
 import { useApp } from "../state/store";
 import s from "./Sources.module.css";
 
@@ -56,7 +56,7 @@ export function ReimportDialog(props: { req: ReimportRequest | null; onClose: ()
     if (!req || !path || !pv?.ok) return;
     setBusy(true);
     try {
-      const r = await call("reimport.commit", { assetId: req.assetId, start: req.start, path, name: name.trim() || null, nature, localTags: currentProjectTags() });
+      const r = await call("reimport.commit", { assetId: req.assetId, start: req.start, path, name: name.trim() || null, nature, localTags: autoProjectTags() });
       toast({ text: t("reimport.saved", { name: r.name }) });
       props.onClose();
       if (props.onSaved) props.onSaved(r.id);
