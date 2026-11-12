@@ -1534,7 +1534,7 @@
   "handoff.reaperOriginalN": "Original, stretch markers on onsets ({n}, in sequence)",
   "handoff.reaperMenu": "Copy REAPER handoff",
   "settings.export.reaper_kind.label": "REAPER handoff copied by ⌘C",
-  "settings.export.reaper_kind.hint": "In the Library, ⌘C (outside text fields) copies the checked samples, or the current sample if none are checked. The menu has both kinds.",
+  "settings.export.reaper_kind.hint": "In the Library, ⌘C copies the checked samples, or the current sample if none are checked, when no text field is focused and no text is selected. The menu has both kinds.",
   "settings.export.reaper_kind.original": "Original, stretch markers on onsets",
   "settings.export.reaper_kind.fitted": "Beat-fit by stretch markers",
   "settings.export.video_codec.label": "Video clip codec",

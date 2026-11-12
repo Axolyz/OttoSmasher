@@ -1534,7 +1534,7 @@
   "handoff.reaperOriginalN": "原声，音头带拉伸标记（{n} 项，依次排开）",
   "handoff.reaperMenu": "复制 REAPER 交接",
   "settings.export.reaper_kind.label": "⌘C 复制哪种 REAPER 交接",
-  "settings.export.reaper_kind.hint": "采样库里按 ⌘C（不在输入框时）复制勾选的采样，没有勾选就是当前采样。菜单里两种都有。",
+  "settings.export.reaper_kind.hint": "采样库里按 ⌘C（不在输入框、也没选中文字时）复制勾选的采样，没有勾选就是当前采样。菜单里两种都有。",
   "settings.export.reaper_kind.original": "原声，音头带拉伸标记",
   "settings.export.reaper_kind.fitted": "卡拍效果，用拉伸标记实现",
   "settings.export.video_codec.label": "视频片段的编码",

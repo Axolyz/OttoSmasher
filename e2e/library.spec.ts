@@ -6,6 +6,61 @@ import { expect, test } from "@playwright/test";
 import type { PlayerState } from "../app/shared/protocol";
 import { launch, refreshLists } from "./helpers";
 
+test("采样详情文字可拖选，复制有选区时让给文字", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "otto-lib-copy-"));
+  const wav = join(dir, "copy-source.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "sine=sample_rate=48000:duration=3", wav]);
+  const { app, page } = await launch();
+  try {
+    // 只验证 REAPER 交接入口是否收到请求，不改系统剪贴板。
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler("reaper:copy");
+      ipcMain.handle("reaper:copy", () => ({ ok: true, r: { files: [], manifest: "", count: 1 } }));
+    });
+    await page.setViewportSize({ width: 1536, height: 864 });
+    await page.evaluate(async (p) => {
+      const req = window.otto.core.request;
+      const added = await req<Array<{ sourceId: string; assets: Array<{ assetId: string }> }>>("sources.add", { paths: [p] });
+      if (!added.ok) throw new Error(added.e.code);
+      const { sourceId, assets } = added.r[0]!;
+      await req("segments.add", { sourceId, start: 1, end: 2, text: "台詞の原文" });
+      await req("samples.create", { assetId: assets[0]!.assetId, start: 1, end: 2, name: "サンプル名", nature: "speech" });
+    }, wav);
+    await refreshLists(page);
+    await page.getByTestId("sample-row").first().click();
+
+    for (const [id, expected] of [["stage-title", "サンプル名"], ["speech-text", "台詞の原文"], ["stage-source", /copy-source.*0:01\.000/]] as const) {
+      const label = page.getByTestId(id);
+      await expect(label).toHaveText(expected);
+      await label.scrollIntoViewIfNeeded();
+      const { x, y, width, height } = await label.evaluate((el) => {
+        const text = document.createRange();
+        text.selectNodeContents(el);
+        return text.getBoundingClientRect().toJSON() as DOMRect;
+      });
+      await page.mouse.move(x + 1, y + height / 2);
+      await page.mouse.down();
+      await page.mouse.move(x + width - 1, y + height / 2, { steps: 6 });
+      await page.mouse.up();
+      expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(await label.innerText());
+      expect(await page.evaluate(() => {
+        const mac = window.otto.app.platform === "darwin";
+        const key = window.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: mac, ctrlKey: !mac, cancelable: true }));
+        const copy = document.dispatchEvent(new ClipboardEvent("copy", { cancelable: true }));
+        return { key, copy };
+      })).toEqual({ key: true, copy: true });
+    }
+
+    expect(await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      return document.dispatchEvent(new ClipboardEvent("copy", { cancelable: true }));
+    })).toBe(false);
+    await expect(page.getByText("已复制 · 在 REAPER 选择轨道和光标位置后粘贴")).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
 test("采样库深页：试听、缩放、再次截取和刷新保留浏览位置", async () => {
   const dir = mkdtempSync(join(tmpdir(), "otto-lib-paging-"));
   const wav = join(dir, "paging.wav");

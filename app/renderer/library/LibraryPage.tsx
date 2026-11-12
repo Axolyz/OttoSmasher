@@ -1307,7 +1307,7 @@ export function LibraryPage() {
               {t(`nature.${focusRow.nature}`)}
             </span>
             <span className="num">{t("format.sec", { v: seconds(focusRow.duration) })}</span>
-            <span data-user-data="">
+            <span className={s.stageSource} data-user-data="" data-testid="stage-source">
               {focusRow.source_name} · {clock(focusRow.source_start)}
             </span>
             <Button

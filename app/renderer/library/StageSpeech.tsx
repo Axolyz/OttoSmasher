@@ -732,7 +732,7 @@ export function StageSpeech(props: {
         {view?.text ? (
           <div className={s.textLine}>
             <span className={s.mutedText}>{t("speech.textSource.segments", { n: unitList.length })}</span>
-            <span lang="ja" data-user-data="" data-testid="speech-text">
+            <span className={s.speechText} lang="ja" data-user-data="" data-testid="speech-text">
               {view.text}
             </span>
           </div>

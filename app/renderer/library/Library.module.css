@@ -43,6 +43,7 @@
 .stage { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; min-width: 0; overflow: auto; }
 .stageHead { display: flex; align-items: flex-start; gap: 4px; }
 .stageTitle { margin: 0; font-size: var(--fs-2xl); font-weight: 650; line-height: 1.4; word-break: break-word; flex: 1; }
+.stageTitle, .stageSource, .speechText { user-select: text; }
 .stageMeta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: var(--fs-sm); flex-wrap: wrap; }
 .natBadge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; color: var(--text); }
 .natBadge[data-nature="speech"] { border-color: var(--nat-speech); color: var(--nat-speech); }
