@@ -41,6 +41,12 @@ Inspect waveform, spectrum and pitch in the original utterance or effect context
 
 `samples.metrics` reads cached single-sound measures, `measure.f0` reads pitch frames, and `spectrum.get` shows the spectrum; consult `otto describe` for parameters. Before creating samples, analyze asset ranges or exported cuts and register the selected ones as agreed. Use measures to narrow the set and performance in the target part to choose; calibrate thresholds to the current material.
 
+## Check search coverage
+
+Before searching by pitch, call `search.coverage` on the same scope and follow `otto guide search` to fill gaps in fundamental frequency (F0). For timbre or transient filters, call `metrics.status` on the scope before applying metric thresholds and check each metric you plan to use. Fill gaps with `metrics.prepare` as needed, then check again. F0 and acoustic measures can be prepared independently. Use phoneme alignment for voice candidates whose cut points need to follow phoneme boundaries.
+
+For a quick first pass, compare the measured subset. If the task calls for all matches, an answer about whether a match exists, or the best sound across the scope, first fill the measurements you can. Report how many items were checked out of the total in scope and what data is still missing.
+
 ## Compare and deliver
 
 Compare original cuts, then audition each candidate with the same notes, chords or drum pattern. Match levels when loudness differences obscure the comparison, and state processing used for the audition. Describe what you heard, or explain when a conclusion comes from spectral or other analysis.

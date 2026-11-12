@@ -1,11 +1,20 @@
 # Search: rhythm (speech) and pitch
 
 Both searches run over a **scope** (the same filter as `samples.ids`) and end in a **fixed result** that does not change when data
-changes later. Readiness: `search.coverage` (index built / pitch measured); `search.prepare` queues the missing parts.
+changes later.
 
-These two searches cover **samples** only (usable pieces already cut; to search a whole season, first create samples from its segments in bulk). To find where a line is in the **raw material** (which episode, what time), use `textLayer.search`:
+Rhythm search works on **samples**. To search a whole season for rhythm, first create samples from its segments in bulk. To find where a line is in the **raw material** (which episode, what time), use `textLayer.search`:
 it searches the text layer's segments and sound hints (normalised text substring or reading substring, the same rules as the samples' "line" filter); hits are positions on sources (source seconds), not samples, and nothing is stored.
 `sourceIds` omitted = all sources; `notImported` = sources with an associated subtitle but an empty text layer (not searchable); `readingPending` = segments whose reading is not computed yet (matched by text only).
+
+## Check and prepare coverage
+
+Call `search.coverage` with the same scope you intend to search. Use `mode: "speech"` for rhythm, `"pitch"` for sample pitch and `"pitchSources"` for source tracks. Coverage reports `total` in scope, `ready`, `stale` (needs preparation), and `noAnalysis` (lacks usable speech analysis).
+
+- In speech mode, `noAnalysis` includes samples without usable analysis and samples whose analysis could not produce an index of speech blocks. Use `speech.preview` on the relevant samples and `speech.submit` for analyses you can fill. Address the actual cause when a sample has no dialogue segment or overlapping phonemes, for example.
+- In speech mode, `stale` means analysis exists but the index is missing or out of date. Let any background preparation finish, or call `search.prepare` with the same scope and `--wait`. This step builds the index. In pitch modes, `search.prepare` measures missing fundamental frequency (F0).
+
+Check coverage again after preparation. A search only examines items ready at execution time. Report `searched` out of `total` from the result statistics and explain remaining gaps. A fixed result keeps its original coverage. Run the search again after filling gaps.
 
 ## Speech / rhythm search
 

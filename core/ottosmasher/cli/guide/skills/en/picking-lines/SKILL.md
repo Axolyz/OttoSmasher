@@ -17,6 +17,12 @@ textLayer.search suits known phrases; textLayer.list with a local script helps c
 
 Check the actual words, speaker and delivery. For happiness, pride or victory, try celebrations, successful actions, pleased laughter and introductions. High pitch also occurs in fear or pain, so consider emotion and compare the character's ordinary voice. Where pictures matter, inspect the frames: previews and offscreen dialogue may show somebody else.
 
+## Check search coverage
+
+For meaning, character or emotion, start with text and auditioning. Analyse the relevant candidates when you need to verify vowels, syllables or beat placement. For a reading-based text search, check `readingPending`. Account for any agreed sources whose text has not been imported.
+
+Before using `search.speech` for vowels, block order or rhythm, call `search.coverage` on the same scope and follow `otto guide search` for pending indexes and missing usable analyses. For a quick first pass, search the ready subset. If the task calls for all matches, or you want to say there are no matches or name the best match across the scope, first prepare the analyses and indexes that can be filled. Report how many items were searched out of the total in scope and why any items remain uncovered.
+
 ## Keep useful material
 
 Reuse samples and analysis. When candidates are to be kept in the library, create the selected full lines or excerpts as agreed. Retain source ranges and selection reasons. Preview tag changes with samples.batchEdit and pass changes to edits.apply. Keep earlier selections when adding candidates; revise them when the user asks for replacements.
