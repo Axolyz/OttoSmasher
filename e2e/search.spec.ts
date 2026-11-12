@@ -84,8 +84,13 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
   await row.getByTestId("hit-chip").nth(1).click();
   await expect(page.getByTestId("hit-nav")).toContainText("命中 2/4");
   await page.screenshot({ path: `${SHOTS}/02-results-hit.png` });
-  await row.getByTestId("hit-play").first().click();
-  await expect(page.getByTestId("dock-version")).toContainText("原声");
+  const hitPlay = row.getByTestId("hit-play").first();
+  for (let i = 0; i < 2; i++) {
+    await hitPlay.click();
+    await expect(page.getByTestId("dock-version")).toContainText("原声");
+    await expect(page.getByTestId("dock-now")).toContainText("没有在播放");
+    await expect(hitPlay.locator("svg.lucide-play")).toBeVisible();
+  }
   // 卡拍版很短（不到 0.2 秒就放完），按退避间隔轮询会错过（L48）：在页面里记下播放条出现过的版本文字
   await page.evaluate(() => {
     const seen: string[] = ((window as unknown as { __dockSeen: string[] }).__dockSeen = []);
@@ -94,8 +99,10 @@ test("三大搜索：浮层、准备索引、固定结果、命中、音高、�
       if (v) seen.push(v);
     }).observe(document.body, { subtree: true, childList: true, characterData: true });
   });
-  await row.getByTestId("hit-play").first().click({ button: "right" });
+  await hitPlay.click({ button: "right" });
   await expect.poll(() => page.evaluate(() => (window as unknown as { __dockSeen: string[] }).__dockSeen.join("|"))).toContain("卡拍");
+  await expect(page.getByTestId("dock-now")).toContainText("没有在播放");
+  await expect(hitPlay.locator("svg.lucide-play")).toBeVisible();
   await row.getByTestId("hit").first().click({ button: "right" });
   await expect(page.getByTestId("hit-menu")).toContainText("导出卡拍 WAV");
   await page.keyboard.press("Escape");

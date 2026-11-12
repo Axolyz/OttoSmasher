@@ -140,7 +140,6 @@ export function LibraryPage() {
   const [loadedResult, setResPage] = useState<ResultPage | null>(null);
   const [focusHit, setFocusHit] = useState<{ id: string; index: number } | null>(null);
   const [pad, setPad] = useState(false);
-  const [hitPlaying, setHitPlaying] = useState<string | null>(null);
   const [clipTick, setClipTick] = useState(0);
   const hitMenu = useContextMenu("hit-menu");
   const [importPaths, setImportPaths] = useState<string[] | null>(null);
@@ -427,6 +426,7 @@ export function LibraryPage() {
     if (r.stats) toast({ text: t("search.done", { n: r.stats.samples, m: r.stats.hits }) });
   });
   const { setActive: setResultTab } = results;
+  const hitPlaying = nowPlaying?.hit?.resultId === results.active ? nowPlaying.hit : undefined;
   // 只加临时原片条件。保留用户自己的筛选，并切回浏览以显示新范围。
   useEffect(() => {
     if (!libraryScope || !browseRestored) return;
@@ -783,17 +783,14 @@ export function LibraryPage() {
   const playHit = async (it: Item, i: number, version: "original" | "stretched") => {
     const r = it._res;
     if (!r) return;
-    const key = `${r.rank}:${i}:${version}`;
-    if (hitPlaying === key) {
-      window.otto.player.stopAudition();
-      setHitPlaying(null);
-      setNowPlaying(null);
+    const hit = hitRef(r, i);
+    if (hitPlaying?.rank === hit.rank && hitPlaying.index === hit.index && nowPlaying?.version === version) {
+      stopAudition();
       return;
     }
     try {
-      const info = await call("hits.resolve", hitRef(r, i));
-      setHitPlaying(key);
-      setPlaying(null);
+      const info = await call("hits.resolve", hit);
+      const current = { hit, sampleId: info.sampleId ?? "", name: it.name, version, sound: "voice" as const };
       if (version === "original") {
         const p = pad && info.kind === "speech" ? 0.3 : 0;
         const dur = p ? (await call("assets.get", { id: info.assetId })).duration : info.end;
@@ -801,16 +798,16 @@ export function LibraryPage() {
         const b = Math.min(dur, info.end + p);
         auditionFrom.current = a;
         auditionGen.current = await window.otto.player.audition(info.assetId, a, b);
-        setNowPlaying({ sampleId: info.sampleId ?? "", name: it.name, version: "original", sound: "voice", plan: null, bpm: null, originalSpeed: false, duration: b - a });
+        setNowPlaying({ ...current, plan: null, bpm: null, originalSpeed: false, duration: b - a });
       } else {
         if (!info.stretch) return toast({ text: t("error.hit-no-stretch") });
-        const rr = await call("hits.render", { ...hitRef(r, i), version: "stretched", sound: "voice" });
+        const rr = await call("hits.render", { ...hit, version, sound: "voice" });
         auditionFrom.current = Number.NaN;
         auditionGen.current = await window.otto.player.auditionRender(rr.key);
-        setNowPlaying({ sampleId: info.sampleId ?? "", name: it.name, version: "stretched", sound: "voice", plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
+        setNowPlaying({ ...current, plan: rr.plan, bpm: rr.bpm, originalSpeed: rr.originalSpeed, duration: rr.duration });
       }
+      setPlaying(null);
     } catch (e) {
-      setHitPlaying(null);
       fail(e);
     }
   };
@@ -1304,7 +1301,7 @@ export function LibraryPage() {
                       kind={resPage?.result.kind ?? "speech"}
                       start={r.start}
                       focusIndex={focusHit?.id === r.id ? focusHit.index : null}
-                      playing={hitPlaying && hitPlaying.startsWith(`${r._res.rank}:`) ? Number(hitPlaying.split(":")[1]) : null}
+                      playing={hitPlaying?.rank === r._res.rank ? hitPlaying.index : null}
                       pad={pad}
                       onPad={setPad}
                       onPlay={(i, v) => void playHit(r, i, v)}

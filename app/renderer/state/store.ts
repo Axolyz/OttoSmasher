@@ -1,7 +1,7 @@
 // 界面状态（不是用户资料）：当前页、抽屉、工作台、提示条、Core 状态。
 import { create } from "zustand";
 import type { CoreStatus } from "../../shared/protocol";
-import type { Hello, RhythmPlan, RhythmSound } from "../api/types";
+import type { Hello, HitRefParams, RhythmPlan, RhythmSound } from "../api/types";
 
 export type Page = "library" | "sources" | "tools";
 
@@ -68,6 +68,7 @@ export type AuditionVersion = "original" | "stretched";
 /** 全局播放条显示的当前声音（UI_PLAN §1） */
 export interface NowPlaying {
   sampleId: string;
+  hit?: HitRefParams;
   name: string;
   version: AuditionVersion;
   sound: RhythmSound;
