@@ -52,6 +52,48 @@ def test_status_call_and_exit_codes(app):
     assert rc == 0 and u["undone"] == 1
 
 
+def test_workflow_context_and_project_membership_are_opt_in(app, tmp_path):
+    import numpy as np
+    from ottosmasher.media import wavfile
+
+    c, root = app
+    wav = tmp_path / "selection.wav"
+    wavfile.save_wav24(wav, np.zeros((16000, 1), dtype=np.float32), 16000)
+    asset = c.call("sources.add", paths=[str(wav)])["r"][0]["assets"][0]["assetId"]
+    selection = {"assetId": asset, "start": 0, "end": 0.5}
+    rc, failure, _ = otto(root, "call", "samples.create", "-", stdin=json.dumps({**selection, "useCurrentProject": True}))
+    assert rc == 1 and failure["error"]["code"] == "current-project-unset"
+    assert c.call("samples.ids")["r"] == []
+
+    assert c.call("ui.set", page="shell", key="currentProject", value="Mix A")["ok"]
+    assert c.call("rhythm.setBpm", bpm=180)["ok"]
+    context = {"currentProject": "Mix A", "projectTag": "project:Mix A", "bpm": 180}
+    rc, status, _ = otto(root, "status")
+    assert rc == 0 and status["context"] == context
+    rc, live, _ = otto(root, "call", "workflow.context")
+    assert rc == 0 and live == context
+
+    rc, candidate, _ = otto(root, "call", "samples.create", "-", stdin=json.dumps(selection))
+    assert rc == 0 and all(t["provenance"] != "local" for t in candidate["tags"])
+    rc, direct, _ = otto(root, "call", "samples.create", "-", stdin=json.dumps({
+        **selection, "useCurrentProject": True, "localTags": ["take:final"],
+    }))
+    assert rc == 0 and {t["tag"] for t in direct["tags"] if t["provenance"] == "local"} == {"project:Mix A", "take:final"}
+
+    source = {"kind": "selection", **selection}
+    plan = c.call("samples.plan", **{"from": source})["r"]
+    key = plan["items"][0]["key"]
+    assert c.call("ui.set", page="shell", key="currentProject", value="Mix B")["ok"]
+    rc, result, _ = otto(root, "call", "samples.createPlanned", "-", stdin=json.dumps({
+        "from": source, "token": plan["token"], "keys": [key], "useCurrentProject": True,
+        "overrides": {key: {"localTags": ["project:shared", "take:final"]}},
+    }))
+    assert rc == 0 and result["created"] == 1
+    assert c.call("samples.ids", projectTag="project:Mix A")["r"] == [direct["id"]]
+    assert c.call("samples.ids", projectTag="project:Mix B")["r"] == result["ids"]
+    assert c.call("samples.ids", projectTag="project:shared")["r"] == result["ids"]
+
+
 def test_wait_follows_a_job(app):
     c, root = app
     rc, j, err = otto(root, "call", "jobs.submit", '{"kind": "selftest.sleep", "params": {"seconds": 0.5}}', "--wait", "--progress")

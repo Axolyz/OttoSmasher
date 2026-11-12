@@ -48,7 +48,13 @@ Rename or remove a tag everywhere: `tags.globalPlan` → `edits.apply`.
 `samples.ids` (all matching ids) and `samples.list` (pages, `limit`/`offset`, `sort`) take the same filter:
 `natures`, `starred`, `text`, `sourceId`, `expr` (main expression), `tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`.
 Example: `otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`.
-Use `projectTag: "project:dil"` to match that exact local tag. The CLI does not take a project from the desktop toolbar.
+Use `projectTag: "project:dil"` to match that exact local tag.
+
+## Add products to a project
+
+Read the current project and exact `projectTag` from `otto call workflow.context`. Candidates stay in the full library by default. Pass `useCurrentProject: true` to `samples.create` or `samples.createPlanned` when the new samples should join the current project. For a plan, it applies to all selected keys. The app reads the project at creation time. If no project is selected, the call returns `current-project-unset` before creating samples.
+
+For a task spanning multiple calls, capture the exact tag at the start to keep the same project throughout. Pass `localTags` to `samples.create` or `overrides[key].localTags` for chosen items in `samples.createPlanned`. For existing samples, use `addTags` in `samples.batchEdit` and apply the returned batch.
 
 
 ## Cached acoustic metrics

@@ -582,6 +582,7 @@ export interface FlattenBatchParams {
   ids: string[];
   localTags?: string[];
   options: FlattenOptions;
+  useCurrentProject?: boolean;
 }
 
 export interface FlattenDefaults {
@@ -655,6 +656,7 @@ export interface FlattenSubmitParams {
   options: FlattenOptions;
   sampleId?: string | null;
   token: FlattenToken;
+  useCurrentProject?: boolean;
 }
 
 export interface FlattenTarget {
@@ -1335,6 +1337,7 @@ export interface ReimportCommitParams {
   nature?: "pitched" | "speech" | "unclassified" | "unpitched";
   path: string;
   start: number;
+  useCurrentProject?: boolean;
 }
 
 export interface ReimportParams {
@@ -1655,9 +1658,11 @@ export interface RuntimeStatus {
 export interface SampleCreateParams {
   assetId: string;
   end: number;
+  localTags?: string[];
   name?: string | null;
   nature?: string | null;
   start: number;
+  useCurrentProject?: boolean;
   via?: "hit" | "manual";
 }
 
@@ -1667,6 +1672,7 @@ export interface SampleCreatePlannedParams {
   nature?: string | null;
   overrides?: Record<string, SampleOverride> | null;
   token: string;
+  useCurrentProject?: boolean;
 }
 
 export interface SampleDetail {
@@ -2013,6 +2019,7 @@ export interface SeparationSubmitParams {
   ranges?: number[][] | null;
   start?: number | null;
   stems?: string[] | null;
+  useCurrentProject?: boolean;
 }
 
 /** 全部的段进一个任务。不做自动复用：点一次跑一次（DECISIONS §9）。 */
@@ -3085,6 +3092,12 @@ export interface WorkSettingsParams {
   sourceType?: string;
 }
 
+export interface WorkflowContext {
+  bpm: number | null;
+  currentProject: string | null;
+  projectTag: string | null;
+}
+
 /** All Core commands: params, result and effect. */
 export interface Commands {
   /** The user's answer to an agent.confirm request (approve runs the command for the waiting connection). */
@@ -3451,6 +3464,8 @@ export interface Commands {
   "visuals.matchPlan": { params: IdsParams; result: MatchItem[]; effect: "read" };
   /** Register a picture file (video / animation / image) as a not-yet-attached binding; attach by editing visual_binding_id (undoable). */
   "visuals.prepare": { params: VisualPrepareParams; result: VisualPrepared; effect: "write" };
+  /** Read the current desktop project, its exact tag and the target BPM. */
+  "workflow.context": { params: NoParams; result: WorkflowContext; effect: "read" };
   /** Work folders (first-level subfolders of source folders). */
   "works.list": { params: NoParams; result: WorkFolder[]; effect: "read" };
   /** Rename a work: renames the folder on disk (not undoable). */
@@ -3520,6 +3535,7 @@ export type ErrorCode =
   | "audio-stream-not-found"
   | "bad-request"
   | "bpm-invalid"
+  | "current-project-unset"
   | "decode-failed"
   | "decode-misaligned"
   | "default-track-invalid"

@@ -269,7 +269,13 @@ def cmd_status(args: argparse.Namespace) -> None:
         out({"running": False, "workspace": str(ws), **where, "hint": "run `otto open` to start the app", "environment": environment(args, ws, None)}, args.pretty)
         raise Exit(2)
     with connect(args) as c:
-        out({"running": True, "workspace": str(ws), **where, "core": c.hello, "session": c.session,
+        context = {}
+        try:
+            context["context"] = c.call("workflow.context")
+        except CoreError as e:
+            if e.code != "unknown-method":
+                raise
+        out({"running": True, "workspace": str(ws), **where, "core": c.hello, "session": c.session, **context,
              "catalogVersion": catalog()["catalogVersion"], "sessions": c.call("agent.sessions"), "environment": environment(args, ws, c)}, args.pretty)
 
 

@@ -48,7 +48,13 @@ otto call edits.apply '{"batch": <预览里的 batch>}'
 `samples.ids`（所有匹配的 ID）与 `samples.list`（分页，`limit`/`offset`、`sort`）用同一套条件：
 `natures`、`starred`、`text`、`sourceId`、`expr`（主表达式）、`tags: {"facets": [{"facet": "other", "values": ["topic:game"]}], "expr": "..."}`。
 例：`otto call samples.ids '{"tags": {"expr": "topic:game AND character:*"}}'`。
-只查某个项目时，传 `projectTag: "project:dil"`，匹配采样自身的完整标签。命令行不会自动读取桌面的当前项目。
+只查某个项目时，传 `projectTag: "project:dil"`，匹配采样自身的完整标签。
+
+## 把成品加入项目
+
+从 `otto call workflow.context` 读取当前项目与完整的 `projectTag`。候选采样默认留在全库。创建选定的成品时，`samples.create` 和 `samples.createPlanned` 可显式传 `useCurrentProject: true`。按计划建采样时，这个选项作用于全部选中的键。应用在创建时读取项目，没选项目会在写入前报错 `current-project-unset`。
+
+如果要让一批操作始终归属同一个项目，开始时记下完整标签，给 `samples.create` 传 `localTags`，或给 `samples.createPlanned` 的选定条目传 `overrides[key].localTags`。给已经存在的采样加入项目时，用 `samples.batchEdit` 的 `addTags`，再应用返回的批次。
 
 ## 筛选与创建物
 

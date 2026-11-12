@@ -79,13 +79,14 @@ test("采样库深页：试听、缩放、再次截取和刷新保留浏览位�
     await startInput.press("Enter");
     await page.getByTestId("stage-actions").getByTestId("clip").click();
     const clip = page.getByTestId("clip-panel");
-    await expect(clip.getByTestId("clip-tags")).toHaveValue("batch:old\nproject:paging");
-    await clip.getByTestId("clip-tags").fill("project:paging\nbatch:new");
+    await expect(clip.getByTestId("clip-tags")).toHaveValue("batch:old");
+    await clip.getByTestId("clip-tags").fill("batch:new");
     await clip.getByTestId("clip-name").fill("Outside the current filter");
     await clip.getByTestId("clip-save").click();
     await expect(page.getByTestId("stage-title")).toHaveText("Outside the current filter");
     await expect(page.getByTestId("stage-tags").getByText("batch:new", { exact: false })).toBeVisible();
     await expect(page.getByTestId("stage-tags").getByText("batch:old", { exact: false })).toHaveCount(0);
+  await expect(page.getByTestId("stage-tags").getByText("project:paging", { exact: false })).toHaveCount(0);
     await expect(search).toHaveValue("Paging");
     await expect(pager).toHaveText(currentPage);
     expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-id")))).toEqual(currentRows);
@@ -245,20 +246,20 @@ test("截取：建议名与性质 → 保存 → 采样库；试听、1/2/3/0、
   await expect(page.getByTestId("page-library")).toBeVisible();
   await expect(page.locator(`[data-testid="sample-row"][data-id="${remaining}"]`)).toHaveAttribute("data-focus", /.*/);
   // 「在采样库里列出全部」：查找栏出现临时“原素材：…”块，移除后回到全部（L16）
-  await page.getByTestId("library-expr").fill('NOT "batch:other"');
-  await expect.poll(() => page.evaluate(async () => {
-    const ui = await window.otto.core.request<{ find?: { expr?: string } }>("ui.get", { page: "library" });
-    return ui.ok ? ui.r.find?.expr : null;
-  })).toBe('NOT "batch:other"');
+  await page.getByTestId("scope-add").click();
+  await page.getByTestId("scope-add-list").getByRole("option", { name: "高级表达式…" }).click();
+  await page.getByTestId("scope-expr-input").fill('NOT "batch:other"');
+  await page.getByTestId("scope-expr").getByTestId("confirm-ok").click();
+  await expect(page.getByTestId("scope-chips")).toContainText('NOT "batch:other"');
   await page.keyboard.press("ControlOrMeta+2");
   await page.getByTestId("derived-button").click();
   await page.getByTestId("menu-in-library").click();
   await expect(page.getByTestId("find-source")).toContainText("Test Show 01");
-  await expect(page.getByTestId("library-expr")).toHaveValue('NOT "batch:other"');
+  await expect(page.getByTestId("scope-chips")).toContainText('NOT "batch:other"');
   await expect(page.getByTestId("library-total")).toHaveText("1 个采样");
   await page.getByTestId("find-source").getByRole("button", { name: "移除原素材条件" }).click();
   await expect(page.getByTestId("find-source")).toHaveCount(0);
-  await expect(page.getByTestId("library-expr")).toHaveValue('NOT "batch:other"');
+  await expect(page.getByTestId("scope-chips")).toContainText('NOT "batch:other"');
   await expect(page.getByTestId("stage-title")).toBeVisible();
   await page.screenshot({ path: ".cache/playwright-results/library-thumbs.png" });
   await app.close();
@@ -324,10 +325,9 @@ test("当前项目：筛选、跨项目选材、截取自动打标与恢复", as
     await expect(tags.getByText("project:mix A", { exact: false })).toBeVisible();
     await expect(tags.getByText("project:mix B", { exact: false })).toBeVisible();
 
-    await row(other).click();
-    await expect(page.getByTestId("stage-title")).toHaveText("Unselected candidate");
+    await expect(page.getByTestId("stage-title")).toHaveText("Project candidate");
     const startInput = page.getByTestId("stage-sel-start");
-    await startInput.fill("0:02.100");
+    await startInput.fill("0:00.100");
     await startInput.press("Enter");
     await page.getByTestId("stage-actions").getByTestId("clip").click();
     const clip = page.getByTestId("clip-panel");

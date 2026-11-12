@@ -18,7 +18,7 @@ and write back the conclusions that should stay.
 
 All are recorded under your session. Edits (tags, segments, OP/ED, default tracks, pictures) can be undone; newly created samples (`samples.plan` / `samples.create`) and reimported tracks cannot — they can only be deleted (with the user's confirmation).
 
-Pass `localTags` (e.g. `["project:dil"]`) to `reimport.commit` to tag the new sample. CLI calls do not read the current desktop project.
+Pass `localTags` (e.g. `["project:dil"]`) to `reimport.commit` to tag the new sample, or use `useCurrentProject: true` to add it to the desktop’s current project. The tags are saved with the sample.
 
 ## Getting the raw material
 

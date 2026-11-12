@@ -32,7 +32,7 @@ import { exportWords } from "../exportWords";
 import { projectTag } from "../state/project";
 import { type AuditionVersion, useApp } from "../state/store";
 import { PromoteDialog } from "./PromoteDialog";
-import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeSize } from "./FindBar";
+import { EMPTY_FIND, type FindState, FindBar, ScopeRow, normScope, scopeExpression, scopeSize } from "./FindBar";
 import { ManageFiltersDialog, SaveFilterDialog, ScopeExprDialog } from "./FilterDialogs";
 import { BatchDialog, type BatchKind } from "./BatchDialogs";
 import s from "./Library.module.css";
@@ -209,11 +209,11 @@ export function LibraryPage() {
       starred: find.starred,
       ...(projectFilter ? { projectTag: projectFilter } : {}),
       text: find.text.trim(),
-      expr: find.expr.trim(),
+      ...(find.legacyExpr ? { expr: find.legacyExpr } : {}),
       tags: scopeSize(find.tags) ? find.tags : undefined,
       sourceId: find.source?.sourceId,
     }),
-    [purpose, find.starred, projectFilter, find.text, find.expr, find.tags, find.source],
+    [purpose, find.starred, projectFilter, find.text, find.legacyExpr, find.tags, find.source],
   );
   const metrics = useMemo(() => metricFilter(metricsDraft), [metricsDraft]);
   const query = useMemo(() => ({ ...scope, metrics }), [scope, metrics]);
@@ -257,11 +257,22 @@ export function LibraryPage() {
   // 分栏比例：重启恢复（UI_PLAN §2）
   useEffect(() => {
     if (!ready || browseRestored) return;
-    void call("ui.get", { page: "library" }).then((v) => {
+    void call("ui.get", { page: "library" }).then(async (v) => {
       if (typeof v.split === "number") setSplit(v.split);
-      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize; metricsDraft?: unknown; projectOnly?: boolean } | undefined;
+      const f = v.find as Partial<FindState> & { purpose?: Purpose; sort?: Sort; pageSize?: PageSize; metricsDraft?: unknown; projectOnly?: boolean; expr?: string } | undefined;
       if (f && typeof f === "object") {
-        setFind((current) => ({ ...EMPTY_FIND, source: current.source, text: f.text ?? "", expr: f.expr ?? "", starred: !!f.starred, tags: normScope(f.tags), preset: f.preset ?? null }));
+        const tags = normScope(f.tags);
+        let legacyExpr = f.legacyExpr ?? f.expr?.trim();
+        if (legacyExpr) {
+          const expr = scopeExpression(tags, legacyExpr);
+          // 两个旧字段各自有长度和词项上限。合并超限时保留原查询，等待用户改写。
+          const valid = !tags.expr.trim() || await call("tags.checkExpr", { expr }).then((r) => r.ok, () => false);
+          if (valid) {
+            tags.expr = expr;
+            legacyExpr = undefined;
+          }
+        }
+        setFind((current) => ({ ...EMPTY_FIND, source: current.source, text: f.text ?? "", starred: !!f.starred, tags, legacyExpr, preset: f.preset ?? null }));
         setProjectOnly(f.projectOnly === true);
         if (f.purpose && PURPOSES.includes(f.purpose)) setPurpose(f.purpose);
         if (f.sort && SORTS.includes(f.sort)) setSort(f.sort);
@@ -280,8 +291,8 @@ export function LibraryPage() {
   }, [split, browseRestored]);
   useEffect(() => {
     if (!ready || !browseRestored || !browseStateRead.current) return;
-    const { source: _s, ...keep } = find;
-    void call("ui.set", { page: "library", key: "find", value: { ...keep, purpose, sort, pageSize, metricsDraft, projectOnly } });
+    const { source: _s, legacyExpr, ...keep } = find;
+    void call("ui.set", { page: "library", key: "find", value: { ...keep, ...(legacyExpr ? { legacyExpr } : {}), purpose, sort, pageSize, metricsDraft, projectOnly } });
   }, [find, purpose, sort, pageSize, metricsDraft, projectOnly, ready, browseRestored]);
 
   const refreshTick = useApp((st) => st.refreshTick);
@@ -706,11 +717,11 @@ export function LibraryPage() {
   };
 
   const total = inResult ? (resPage?.total ?? 0) : (data?.total ?? 0);
-  const filtered = !!(find.text || find.expr || find.starred || projectFilter || find.source || scopeSize(find.tags) || purpose !== "all" || metrics);
+  const filtered = !!(find.text || find.legacyExpr || find.starred || projectFilter || find.source || scopeSize(find.tags) || purpose !== "all" || metrics);
   /** 「更新」：把范围行写回当前选用的筛选器（可撤销） */
   const updatePreset = async () => {
     const f = filters.find((x) => x.id === find.preset);
-    if (!f) return;
+    if (!f || find.legacyExpr) return;
     try {
       await call("edits.apply", {
         batch: { label: { code: "filter-update", args: { name: f.name } }, ops: [{ entity: "saved_filter", id: f.id, version: f.version, fields: { conditions: find.tags } }] } as never,
@@ -995,11 +1006,11 @@ export function LibraryPage() {
       { key: "library/starred", label: find.starred ? t("cmd.starredOff") : t("library.starredOnly"), group: g, run: () => setFind((f) => ({ ...f, starred: !f.starred })) },
       ...filters.map((f) => ({
         key: `library/filter-${f.id}`, label: t("cmd.filter", { name: f.name }), group: g, disabled: find.preset === f.id,
-        run: () => setFind((x) => ({ ...x, preset: f.id, tags: normScope(f.conditions) })),
+        run: () => setFind((x) => ({ ...x, preset: f.id, tags: normScope(f.conditions), legacyExpr: undefined })),
       })),
-      { key: "library/scope-clear", label: t("scope.clear"), group: g, disabled: !scopeSize(find.tags), run: () => setFind((f) => ({ ...f, preset: null, tags: EMPTY_FIND.tags })) },
+      { key: "library/scope-clear", label: t("scope.clear"), group: g, disabled: !scopeSize(find.tags), run: () => setFind((f) => ({ ...f, preset: null, tags: EMPTY_FIND.tags, legacyExpr: undefined })) },
       { key: "library/scope-expr", label: t("cmd.scopeExpr"), group: g, run: () => setFilterDialog("expr") },
-      { key: "library/scope-save", label: t("scope.saveAsDots"), group: g, disabled: !scopeSize(find.tags), run: () => setFilterDialog("save") },
+      { key: "library/scope-save", label: t("scope.saveAsDots"), group: g, disabled: !!find.legacyExpr || !scopeSize(find.tags), run: () => setFilterDialog("save") },
       { key: "library/scope-manage", label: t("scope.manageDots"), group: g, disabled: !filters.length, run: () => setFilterDialog("manage") },
       { key: "library/import", label: t("cmd.import"), group: g, run: () => void pickImport() },
     ];
@@ -1566,9 +1577,9 @@ export function LibraryPage() {
       <ManageFiltersDialog isOpen={filterDialog === "manage"} filters={filters} onClose={() => setFilterDialog(null)} onChanged={loadFilters} />
       <ScopeExprDialog
         isOpen={filterDialog === "expr"}
-        value={find.tags.expr}
+        value={scopeExpression(find.tags, find.legacyExpr)}
         onClose={() => setFilterDialog(null)}
-        onApply={(expr) => setFind((f) => ({ ...f, tags: { ...f.tags, expr } }))}
+        onApply={(expr) => setFind((f) => ({ ...f, tags: { ...f.tags, expr }, legacyExpr: undefined }))}
       />
       <PromoteDialog sample={promoteFor} onClose={() => setPromoteFor(null)} onDone={reloadFocus} />
       <ImportDialog

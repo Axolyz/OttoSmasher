@@ -32,6 +32,7 @@ from . import assets as assets_mod
 from . import settings as settings_mod
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
+from .samples import checked_local_tags
 
 KINDS = ("selection", "segments", "hints", "stem", "whole")
 ROLE_OF = {"segments": "vocal", "hints": "sfx"}
@@ -231,18 +232,19 @@ class SamplePlanner:
     # ---------- 创建
 
     def create_selection(self, asset_id: str, start: float, end: float, *, name: str | None = None, nature: str | None = None,
-                         via: str = "manual") -> str:
+                         via: str = "manual", local_tags: list[str] | None = None) -> str:
         """单条选区的快捷方式（脚本、agent、测试）：同一个计划、同一套默认规则；名称 / 性质给了就覆盖。"""
         src = {"kind": "selection", "assetId": asset_id, "start": start, "end": end, "via": via}
         pv = self.plan(src)
         key = pv["items"][0]["key"]
         over = {k: v for k, v in (("name", name), ("nature", nature)) if v}
-        return self.create(src, pv["token"], [key], {key: over} if over else None)["ids"][0]
+        return self.create(src, pv["token"], [key], {key: over} if over else None, local_tags=local_tags)["ids"][0]
 
     def create(self, src: dict[str, Any], token: str, keys: list[str], overrides: dict[str, dict[str, Any]] | None = None,
-               nature: str | None = None) -> dict[str, Any]:
+               nature: str | None = None, *, local_tags: list[str] | None = None) -> dict[str, Any]:
         """按计划原子创建（任何一条失败则这批回滚）。``overrides``：条目 → {name, nature, localTags}；``nature`` 给了就作用于全部。"""
         overrides = overrides or {}
+        shared_tags = checked_local_tags(local_tags)
         with transaction(self.conn):
             pv = self.plan(src)
             if pv["token"] != token:
@@ -256,11 +258,12 @@ class SamplePlanner:
                 if it is None or it["status"] != "pending":
                     raise CoreError("sample-plan-not-pending", key=k, status=None if it is None else it["status"])
                 o = overrides.get(k) or {}
+                tags = checked_local_tags(o.get("localTags")) + shared_tags
                 judge = (it["judgeStart"], it["judgeEnd"]) if it["judgeStart"] is not None else None
                 created.append(self.samples.insert_checked(
                     it["assetId"], it["start"], it["end"], name=o.get("name") or it["name"], nature=nature or o.get("nature") or it["nature"],
                     created_via=it["createdVia"], origin=it["origin"], snapshot=it["snapshot"], judge=judge,
-                    local_tags=o.get("localTags"),
+                    local_tags=tags,
                 ))
         if self.on_change and created:
             cs = ChangeSet()

@@ -183,6 +183,7 @@ ERRORS: dict[str, tuple[tuple[str, ...], str]] = {
     "segment-overlap": (("n", "canCut"), "The new segment overlaps existing segments; choose replace, cut or cancel."),
     "segment-invalid": (("reason",), "The segment operation is invalid (split point outside the segment, merge needs two segments)."),
     "sample-plan-invalid": (("field",), "The sample plan request is invalid."),
+    "current-project-unset": ((), "No current project is selected."),
     "sample-plan-stale": ((), "Things changed since the plan was made; plan again."),
     "sample-plan-not-pending": (("key", "status"), "That planned sample cannot be created (OP/ED, outside the track or without a name)."),
     "rhythm-no-blocks": ((), "The analysis has no vowel or N, so there are no rhythm blocks."),

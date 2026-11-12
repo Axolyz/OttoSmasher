@@ -176,6 +176,12 @@ class Hello(TypedDict):
 # ---------------------------------------------------------------- 外部连接（命令行 / agent，阶段 A）
 
 
+class WorkflowContext(TypedDict):
+    currentProject: str | None
+    projectTag: str | None
+    bpm: float | None
+
+
 class Actor(TypedDict):
     kind: Literal["user", "script", "agent"]
     session: str | None
@@ -1305,6 +1311,8 @@ class SampleCreateParams(TypedDict):
     name: NotRequired[str | None]
     nature: NotRequired[str | None]
     via: NotRequired[Literal["manual", "hit"]]
+    localTags: NotRequired[list[str]]
+    useCurrentProject: NotRequired[bool]
 
 
 class SamplePlanSource(TypedDict):
@@ -1380,7 +1388,11 @@ class SampleOverride(TypedDict):
 
 SampleCreatePlannedParams = TypedDict(
     "SampleCreatePlannedParams",
-    {"from": SamplePlanSource, "token": str, "keys": list[str], "overrides": NotRequired[dict[str, SampleOverride] | None], "nature": NotRequired[str | None]},
+    {
+        "from": SamplePlanSource, "token": str, "keys": list[str],
+        "overrides": NotRequired[dict[str, SampleOverride] | None], "nature": NotRequired[str | None],
+        "useCurrentProject": NotRequired[bool],
+    },
 )
 
 
@@ -1996,6 +2008,7 @@ class SeparationSubmitParams(TypedDict):
     model: str
     stems: NotRequired[list[str] | None]
     localTags: NotRequired[list[str]]  # only on samples created by partial separation
+    useCurrentProject: NotRequired[bool]
 
 
 class SeparationSubmitted(TypedDict):
@@ -2329,12 +2342,14 @@ class FlattenSubmitParams(TypedDict):
     name: str
     sampleId: NotRequired[str | None]
     localTags: NotRequired[list[str]]
+    useCurrentProject: NotRequired[bool]
 
 
 class FlattenBatchParams(TypedDict):
     ids: list[str]
     options: FlattenOptions
     localTags: NotRequired[list[str]]
+    useCurrentProject: NotRequired[bool]
 
 
 class FlattenResultRow(TypedDict):
@@ -2960,6 +2975,7 @@ class ReimportCommitParams(ReimportParams):
     name: NotRequired[str | None]
     localTags: NotRequired[list[str]]
     nature: NotRequired[Literal["speech", "pitched", "unpitched", "unclassified"]]
+    useCurrentProject: NotRequired[bool]
 
 
 class IndependItem(TypedDict):

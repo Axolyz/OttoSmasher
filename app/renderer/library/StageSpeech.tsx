@@ -20,6 +20,7 @@ import { ClipPanel } from "../sources/ClipPanel";
 import { AnchoredPanel } from "../components/Panel";
 import { clock, seconds } from "../format";
 import { errorText, t, type TArgs } from "../i18n";
+import { isProjectTag } from "../state/project";
 import { useApp } from "../state/store";
 import { type SpectrumScale } from "../components/SpectrumMenu";
 import { WaveCard, WaveEditBar, WaveEditHint, WaveLayers, WaveProcess, WaveSelection, WaveTitle } from "../components/WaveCard";
@@ -612,7 +613,7 @@ export function StageSpeech(props: {
             clip={
                 <ClipPanel
                   assetId={smp.asset_id}
-                  initialLocalTags={clipVia === "manual" ? smp.tags?.filter((tag) => tag.provenance === "local").map((tag) => tag.tag) : undefined}
+                  initialLocalTags={clipVia === "manual" ? smp.tags?.filter((tag) => tag.provenance === "local" && !isProjectTag(tag.tag)).map((tag) => tag.tag) : undefined}
                   track={trackLabel}
                   sel={sel}
                   isOpen={clipOpen}

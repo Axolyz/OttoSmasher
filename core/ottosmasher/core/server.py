@@ -125,6 +125,8 @@ class Core:
           self._dictionary_preview)
         r("models.probe", "job", T.NoParams, T.JobSummary, "Submit a job that runs one minimal inference per model under the current device setting.",
           self._models_probe)
+        r("workflow.context", "read", T.NoParams, T.WorkflowContext, "Read the current desktop project, its exact tag and the target BPM.",
+          lambda p: self._workflow_context())
         r("ui.get", "ui", T.UiGetParams, dict[str, Any], "Restore UI state of one page.", self._ui_get)
         r("ui.set", "ui", T.UiSetParams, None, "Save one UI state value (not user data, no undo).", self._ui_set)
         r("app.prepareQuit", "app", T.NoParams, T.PrepareQuit,
@@ -244,12 +246,12 @@ class Core:
           "Create one sample on an asset range with suggested defaults (name and nature can be overridden).",
           lambda p: self.samples.get(self.sample_plan.create_selection(
               p["assetId"], float(p["start"]), float(p["end"]), name=p.get("name"), nature=p.get("nature"),
-              via=p.get("via") or "manual")))
+              via=p.get("via") or "manual", local_tags=self._sample_creation_tags(p))))
         r("samples.plan", "read", T.SamplePlanParams, T.SamplePlan,
           "Plan new samples from one source kind (selection, segments, sfx hints, stem, whole source): same defaults for single and batch.",
           lambda p: self.sample_plan.plan(dict(p["from"])))
         r("samples.createPlanned", "write", T.SampleCreatePlannedParams, T.SamplesCreated, "Create the chosen planned samples atomically (always new samples).",
-          lambda p: self.sample_plan.create(dict(p["from"]), p["token"], list(p["keys"]), p.get("overrides"), p.get("nature")))
+          lambda p: self.sample_plan.create(dict(p["from"]), p["token"], list(p["keys"]), p.get("overrides"), p.get("nature"), local_tags=self._sample_creation_tags(p)))
         r("samples.list", "read", T.SamplesListParams, T.SamplePage,
           "One page of samples matching the filter (nature, star, text incl. read segments and readings, project tag, tag facets, tag expressions), with the total.",
           lambda p: self.samples.list(
@@ -412,16 +414,16 @@ class Core:
         r("studio.status", "read", T.StudioStatusParams, T.StudioStatus, "PyMSS Studio installation and model list (submits a listing job when unknown).",
           lambda p: self.separation.status(bool(p.get("refresh", False))))
         r("separation.submit", "job", T.SeparationSubmitParams, T.SeparationSubmitted, "Separate an asset, a range or several ranges with a Studio model. Runs again on every request and makes new tracks; a partial separation also creates one sample per stem with optional local tags.",
-          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges"), local_tags=p.get("localTags")))
+          lambda p: self.separation.submit(p["assetId"], p.get("start"), p.get("end"), p["model"], p.get("stems"), p.get("ranges"), local_tags=self._sample_creation_tags(p)))
         r("flatten.open", "read", T.FlattenOpenParams, T.FlattenOpened,
           "Open the flatten workbench: freeze asset + outer selection, entry defaults, alignment availability, suggested name.",
           lambda p: self.flatten.open(p["assetId"], float(p["start"]), float(p["end"]), p["entry"], p.get("sampleId")))
         r("flatten.estimate", "read", T.FlattenEstimateParams, T.FlattenEstimate, "Estimate the target from cached measurements only (no model run).",
           lambda p: self.flatten.estimate(dict(p["token"]), dict(p["options"]), p.get("sampleId")))
         r("flatten.submit", "job", T.FlattenSubmitParams, T.JobSummary, "Queue one flatten (checks the frozen asset is unchanged), with optional local tags on the new sample.",
-          lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId"), local_tags=p.get("localTags")))
+          lambda p: self.flatten.submit(dict(p["token"]), dict(p["options"]), str(p["name"]), p.get("sampleId"), local_tags=self._sample_creation_tags(p)))
         r("flatten.submitBatch", "job", T.FlattenBatchParams, T.JobSummary, "Queue one batch flatten with shared auto/edge options; determine each sample target independently and optionally tag the new samples.",
-          lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"]), local_tags=p.get("localTags")))
+          lambda p: self.flatten.submit_batch(list(p["ids"]), dict(p["options"]), local_tags=self._sample_creation_tags(p)))
         r("flatten.rerunFailed", "job", T.JobIdParams, T.JobSummary, "Re-queue only the failed items of a flatten job with the same options.",
           lambda p: self.flatten.rerun_failed(p["jobId"]))
         r("flatten.results", "read", T.JobIdParams, list[T.FlattenResultRow], "Per-item results of a flatten job (product sample and target).",
@@ -473,7 +475,7 @@ class Core:
           lambda p: self.reimport.preview(p["assetId"], float(p["start"]), p["path"]))
         r("reimport.commit", "write", T.ReimportCommitParams, T.SampleRow,
           "Reimport a processed file at the selection start: copy it into the library (lossless), new asset inheriting roles, new whole sample with optional local tags.",
-          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified", local_tags=p.get("localTags")))
+          lambda p: self.reimport.commit(p["assetId"], float(p["start"]), p["path"], name=p.get("name"), nature=p.get("nature") or "unclassified", local_tags=self._sample_creation_tags(p)))
         r("storage.report", "read", T.NoParams, T.StorageReport, "Disk usage by category (cleanable vs. never cleaned) and persistent tracks per source.",
           lambda p: self.storage.report())
         r("storage.clean", "write", T.StorageCleanParams, T.StorageCleaned,
@@ -1177,6 +1179,26 @@ class Core:
         else:
             rs = subtitle_rules.SubtitleRules.build({k: draft.get(k, current[k]) for k in subtitle_rules.KEYS}, check=True)
         return subtitle_rules.classify(str(p["text"]), rs).wire()
+
+    def _current_project(self) -> str | None:
+        row = self.conn.execute(
+            "SELECT value FROM ui_state WHERE window='main' AND page='shell' AND key='currentProject'"
+        ).fetchone()
+        value = loads(row[0]) if row else None
+        return value if isinstance(value, str) and value else None
+
+    def _workflow_context(self) -> T.WorkflowContext:
+        project = self._current_project()
+        return {"currentProject": project, "projectTag": f"project:{project}" if project else None, "bpm": self.rhythm.bpm()}
+
+    def _sample_creation_tags(self, params: dict[str, Any]) -> list[str]:
+        tags = params.get("localTags") or []
+        if params.get("useCurrentProject"):
+            project = self._current_project()
+            if project is None:
+                raise CoreError("current-project-unset")
+            return [*tags, f"project:{project}"]
+        return tags
 
     def _ui_get(self, p: dict[str, Any]) -> dict[str, Any]:
         rows = self.conn.execute(

@@ -105,6 +105,10 @@ Exit code 3 means the command did not run: the user declined (`agent-confirm-dec
 On approval the app re-checks the data; if it changed, the user is asked again with the new impact.
 The user can turn this confirmation off in Settings › Command line & agent; the command line cannot change that setting.
 
+## Current project and BPM
+
+The `context` in `otto status` and `otto call workflow.context` both report the current project name, its exact `projectTag`, and the target BPM. Rhythm search and stretched exports use the desktop BPM directly. Add selected products to a project when the user's task calls for it. See the `samples` topic for write commands.
+
 ## Calling a command
 
 ```sh

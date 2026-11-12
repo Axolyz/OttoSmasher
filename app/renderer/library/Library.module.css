@@ -2,21 +2,15 @@
 .left { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; container-type: inline-size; }
 .findWrap { display: flex; flex-direction: column; padding: 10px 12px 2px 14px; gap: 4px; }
 .find { display: flex; gap: 6px; align-items: center; }
-/* 查找栏（UI_PLAN §2.3）：一个框里左边文字、右边表达式；出错整框标红 */
+/* 查找栏：文字和从原素材跳转时的临时条件 */
 .findBox { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--s1); border-radius: var(--r-lg); padding: 0 4px 0 2px; }
 .findBox:focus-within { border-color: var(--accent); }
-.findBox[data-invalid] { border-color: var(--bad); }
 .findBox input { border-color: transparent !important; background: transparent !important; box-shadow: none !important; outline: none !important; }
 .findText { flex: 3 1 120px; min-width: 0; display: flex; }
 .findText > * { flex: 1; }
-.findSep { width: 1px; align-self: stretch; margin: 7px 0; background: var(--line); }
-.findExprLabel { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
-.findExpr { flex: 2 1 90px; min-width: 0; display: flex; }
-.findExpr > * { flex: 1; }
 .findSource { display: inline-flex; align-items: center; gap: 0; flex: none; max-width: 40%; overflow: hidden; }
 .findX { border: none; background: transparent; color: var(--muted); padding: 2px; border-radius: 5px; display: inline-flex; }
 .findX:hover { background: var(--line); color: var(--text); }
-.findError { font-size: var(--fs-xs); color: var(--bad); padding-left: 4px; }
 /* 范围行（副）：一行小字、淡色，多了折行 */
 .scopeRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 12px 6px 14px; font-size: var(--fs-sm); color: var(--muted); border-bottom: 1px solid var(--line2); min-height: 30px; }
 .scopeLabel { font-size: var(--fs-xs); color: var(--muted); }

@@ -265,7 +265,7 @@ docs/                    开发文档；spec/（原始规格）、history/（过
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `result_set` | id, kind(`speech`/`pitch`), created_at, title, query, scope_snapshot（范围栏标签条件 + 查找栏文字/表达式/临时条件 + 当时的筛选器内容）, params（含 BPM）, stats（后端耗时、缺少有效分析计数、是否截断）, ui_state（激活、页码、选中、滚动）, closed | 固定结果；重启后恢复不重搜（规格 04 §4.2.10） |
+| `result_set` | id, kind(`speech`/`pitch`), created_at, title, query, scope_snapshot（标签条件（分面和高级表达式）、查找栏文字与临时条件，以及当时选用的筛选器内容）, params（含 BPM）, stats（后端耗时、缺少有效分析计数、是否截断）, ui_state（激活、页码、选中、滚动）, closed | 固定结果；重启后恢复不重搜（规格 04 §4.2.10） |
 | `result_member` | result_id, rank, sample_id 或 (asset_id, 原片模式), binding_snapshot（asset_id/start/end/分析版本/索引版本）, hits（每处命中：区间、证据、方案、分数） | 读取时只核对失效（已删除/绑定变化/索引变化），不重算不重排 |
 | `segment_search`（迁移 0014，阶段 8） | segment_id, text, dict_version, norm, reading | 文字搜索：段的规范化原文与平假名读音（pyopenjtalk-plus + 用户辞典，不经 tsqyomi）；可重建，检索前补齐过期行、资料变化后在后台补 |
 | `saved_filter` | id, name, conditions（**只有标签条件**：分面〔作品、类型、人物、音高、其他标签〕+ 可选的标签表达式；所有者 2026-10-06：文字不能进筛选器，筛选器只放标签）, sort_order, version | 范围栏上的命名预设【基线变更：规格 07 §7.3 原含文字、性质、原片、星标、属性条件】 |
@@ -281,7 +281,7 @@ docs/                    开发文档；spec/（原始规格）、history/（过
 | `visual_binding` | id, owner_type(source/sample), mode(`sync`/`image`/`loop`/`materialized_clip`), media_file_id, clip_offset, version | 采样 > 原片 > 原片自带视频流 |
 | `user_dictionary` | version, source_text, compiled_path, created_at | 全局一份；编译成功才原子启用 |
 | `setting` | key, value, version | 走编辑通道（可撤销）；只作用于之后的操作 |
-| `ui_state` | window, page, key, value | 重启恢复（勾选集合不恢复） |
+| `ui_state` | window, page, key, value | 重启恢复（勾选集合不恢复）。顶栏的当前项目存在 `main/shell/currentProject`，`workflow.context` 向 CLI 提供项目和 BPM 的只读快照 |
 | `model_probe` | model, file_sha, device_setting, status, ep_node_counts, error, tested_at | “文件就位 / 运行库可加载 / 实测通过”分开记（规格 14 §14.7） |
 
 ### 4.9 采样独立化（刚需，数据模型从阶段 1 起支持）

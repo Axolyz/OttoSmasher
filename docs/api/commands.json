@@ -2330,6 +2330,18 @@
    }
   },
   {
+   "name": "workflow.context",
+   "effect": "read",
+   "layer": "library",
+   "summary": "Read the current desktop project, its exact tag and the target BPM.",
+   "params": {
+    "$ref": "#/$defs/NoParams"
+   },
+   "result": {
+    "$ref": "#/$defs/WorkflowContext"
+   }
+  },
+  {
    "name": "works.list",
    "effect": "read",
    "layer": "library",
@@ -2635,6 +2647,11 @@
     "max"
    ],
    "summary": "BPM must be 20-400 (empty = original speed)."
+  },
+  {
+   "code": "current-project-unset",
+   "args": [],
+   "summary": "No current project is selected."
   },
   {
    "code": "decode-failed",
@@ -6405,6 +6422,9 @@
     },
     "options": {
      "$ref": "#/$defs/FlattenOptions"
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -6808,6 +6828,9 @@
     },
     "token": {
      "$ref": "#/$defs/FlattenToken"
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -9950,6 +9973,9 @@
     },
     "start": {
      "type": "number"
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -11531,6 +11557,12 @@
     "end": {
      "type": "number"
     },
+    "localTags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "name": {
      "anyOf": [
       {
@@ -11553,6 +11585,9 @@
     },
     "start": {
      "type": "number"
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     },
     "via": {
      "enum": [
@@ -11605,6 +11640,9 @@
     },
     "token": {
      "type": "string"
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -13306,6 +13344,9 @@
        "type": "null"
       }
      ]
+    },
+    "useCurrentProject": {
+     "type": "boolean"
     }
    },
    "required": [
@@ -18350,6 +18391,47 @@
    },
    "required": [
     "id"
+   ]
+  },
+  "WorkflowContext": {
+   "title": "WorkflowContext",
+   "type": "object",
+   "properties": {
+    "bpm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "currentProject": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "projectTag": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "bpm",
+    "currentProject",
+    "projectTag"
    ]
   }
  }

@@ -1,6 +1,6 @@
 // 保存筛选器的对话框（规格 07 §7.3；UI_PLAN §2.3；原型 saveFilterModal 与「管理筛选器」）：
 // 存为筛选器（名称 1–200 字；只存范围行的标签条件）、管理（改名、上移下移〔一次编辑原子改顺序〕、删除〔确认〕），都走编辑通道、可撤销。
-// 另有范围行“标签表达式”块的编辑框（与查找栏的主表达式是两个独立的框，各自校验）。
+// 范围行的高级表达式在应用前由 Core 校验。
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CoreFailure, call } from "../api/core";
@@ -11,7 +11,7 @@ import { ConfirmDialog, DialogBox } from "../components/Overlay";
 import { PagedTable } from "../components/PagedTable";
 import { errorText, t } from "../i18n";
 import { useApp } from "../state/store";
-import { type ExprError, type Scope, exprErrorText, normScope, scopeSize, scopeSummary } from "./FindBar";
+import { type Scope, normScope, scopeSize, scopeSummary } from "./FindBar";
 import s from "./Library.module.css";
 
 async function apply(label: { code: string; args?: Record<string, unknown> }, ops: unknown[]): Promise<string | null> {
@@ -145,33 +145,48 @@ export function ManageFiltersDialog(props: { isOpen: boolean; filters: SavedFilt
   );
 }
 
-/** 范围行的“标签表达式”块：只含标签，存进筛选器；与查找栏的主表达式分开、各自校验 */
 export function ScopeExprDialog(props: { isOpen: boolean; value: string; onClose: () => void; onApply: (expr: string) => void }) {
   const [v, setV] = useState("");
-  const [bad, setBad] = useState<ExprError | null>(null);
+  const [checked, setChecked] = useState<{ value: string; error: string | null } | null>(null);
   useEffect(() => {
     if (props.isOpen) {
       setV(props.value);
-      setBad(null);
+      setChecked(null);
     }
   }, [props.isOpen, props.value]);
   useEffect(() => {
     if (!props.isOpen) return;
+    let active = true;
     const id = setTimeout(() => {
-      void call("tags.checkExpr", { expr: v }).then((r) => setBad(r.ok ? null : { position: r.position!, reason: r.reason! }));
+      void call("tags.checkExpr", { expr: v }).then(
+        (r) => {
+          if (!active) return;
+          const error = r.ok ? null : t("error.tag-expr-invalid", { position: r.position!, reason: t(`reason.${r.reason}`) });
+          setChecked({ value: v, error });
+        },
+        (e: unknown) => {
+          if (active) setChecked({ value: v, error: e instanceof CoreFailure ? errorText(e.wire) : String(e) });
+        },
+      );
     }, 200);
-    return () => clearTimeout(id);
-  }, [v, props.isOpen]);
-  const ok = () => {
-    if (bad) return;
+    return () => {
+      active = false;
+      clearTimeout(id);
+    };
+  }, [v, props.isOpen, props.value]);
+  const current = checked?.value === v ? checked : null;
+  const error = current?.error;
+  const canApply = current != null && error == null;
+  const applyExpr = () => {
+    if (!canApply) return;
     props.onApply(v.trim());
     props.onClose();
   };
   return (
-    <ConfirmDialog isOpen={props.isOpen} title={t("scope.exprTitle")} confirmLabel={t("scope.exprOk")} confirmDisabled={!!bad} onConfirm={ok} onClose={props.onClose} testId="scope-expr">
+    <ConfirmDialog isOpen={props.isOpen} title={t("scope.exprTitle")} confirmLabel={t("scope.exprOk")} confirmDisabled={!canApply} onConfirm={applyExpr} onClose={props.onClose} testId="scope-expr">
       <div className={s.hintText}>{t("scope.exprSay")}</div>
-      <TextField value={v} onChange={setV} onSubmit={ok} autoFocus mono invalid={!!bad} label={t("scope.exprChip")} placeholder={t("scope.exprPlaceholder")} testId="scope-expr-input" />
-      {bad ? <div className={s.badText}>{exprErrorText(bad)}</div> : <div className={s.mutedText}>{t("scope.exprHelp")}</div>}
+      <TextField value={v} onChange={setV} onSubmit={applyExpr} autoFocus mono invalid={!!error} label={t("scope.exprChip")} placeholder={t("scope.exprPlaceholder")} testId="scope-expr-input" />
+      {error ? <div className={s.badText} role="alert" data-testid="expr-error">{error}</div> : <div className={s.mutedText}>{t("scope.exprHelp")}</div>}
     </ConfirmDialog>
   );
 }
