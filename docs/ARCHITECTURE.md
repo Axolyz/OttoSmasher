@@ -579,7 +579,7 @@ Windows 云端（合成素材）测试通过，还没有实机验证；真实素
 
 ## 14. 分发（2026-10-30【基线变更】：本地构建 macOS、模型随包；DECISIONS §14）
 
-Windows（2026-11-03，还没发布）：`tools/package_win.py` 由云端构建，免安装文件夹 + ZIP，不签名；布局见脚本开头。下面写的是 macOS。
+Windows：`tools/package_win.py` 由云端构建，免安装文件夹 + ZIP，不签名，布局见脚本开头。打包时从 `assets/brand/logo-1024.png` 生成透明圆角的 ICO，嵌入 `OttoSmasher.exe`。
 
 - `tools/package_mac.py` 直接组装 `.app`（不用 electron-builder）：复制 Electron 的 `Electron.app`，改名（主程序与四个 Helper）、改 Info.plist（`io.github.axolyz.ottosmasher`、macOS 14+）、
   由 `assets/brand/logo.png` 生成图标；逐个 ad-hoc 签名所有 Mach-O，再签整个 .app；`ditto` 打 ZIP（< 2 GB）并写 SHA-256。

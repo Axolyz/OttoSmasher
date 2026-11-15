@@ -57,6 +57,19 @@ def preflight() -> dict[str, Path]:
     return need
 
 
+def make_icon(ffmpeg: Path, dst: Path) -> None:
+    """把品牌图裁成透明圆角，供 Windows EXE 使用。"""
+    source = ROOT / "assets" / "brand" / "logo-1024.png"
+    size, radius = 256, 64
+    # 算像素中心到圆角中心的距离，用一像素宽的过渡保留抗锯齿边缘。
+    dx = f"max({radius}-min(X+0.5,W-X-0.5),0)"
+    dy = f"max({radius}-min(Y+0.5,H-Y-0.5),0)"
+    distance = f"sqrt(pow({dx},2)+pow({dy},2))"
+    alpha = f"alpha(X,Y)*clip({radius}+0.5-{distance},0,1)"
+    mask = f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}':interpolation=nearest"
+    run(ffmpeg, "-v", "error", "-y", "-i", source, "-vf", f"scale={size}:{size},format=gbrap,{mask}", "-pix_fmt", "bgra", dst)
+
+
 def make_shell(need: dict[str, Path], folder: Path, version: str) -> Path:
     """Electron 外壳：改名、换图标和文件信息。"""
     if folder.exists():
@@ -67,7 +80,7 @@ def make_shell(need: dict[str, Path], folder: Path, version: str) -> Path:
     (folder / "resources" / "default_app.asar").unlink(missing_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         ico = Path(tmp) / "icon.ico"
-        run(need["ffmpeg"] / "bin" / "ffmpeg.exe", "-v", "error", "-y", "-i", ROOT / "assets" / "brand" / "logo-1024.png", "-vf", "scale=256:256", ico)
+        make_icon(need["ffmpeg"] / "bin" / "ffmpeg.exe", ico)
         run(need["rcedit"], exe, "--set-icon", ico, "--set-file-version", version, "--set-product-version", version,
             "--set-version-string", "ProductName", NAME, "--set-version-string", "FileDescription", NAME,
             "--set-version-string", "CompanyName", NAME, "--set-version-string", "LegalCopyright", "GPL-3.0-or-later",
