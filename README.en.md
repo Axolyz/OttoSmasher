@@ -15,6 +15,8 @@
 
 OttoSmasher is a workstation for otoMAD material. It keeps lines, samples and sound effects from anime, videos, game voices and sample packs in one place, and handles cutting, vocal separation, flattening and beat-fitting. You can search the whole library by rhythm or pitch, then hand the results to a DAW or video editor. Agents such as Claude Code and Codex can also operate it from the command line, for work that needs judgement, such as cleaning subtitles, picking lines and choosing timbres. Without an agent, it is still a complete material workstation.
 
+You can turn a whole season of dialogue into samples in one batch. Each sample simply points to a range on its source track. For your next project, search the same library by character, dialogue, rhythm or pitch. Jump back to the source to hear a line in context, and use the same sample in multiple projects.
+
 OttoSmasher does not generate music or create on your behalf. It cuts the repetitive work in processing and managing material; what to choose, how to arrange it and what to express stay with you.
 
 **The project is at an early stage, so expect bugs and rough edges.**
@@ -51,6 +53,8 @@ OttoSmasher also supports other ways of working:
 For a first run, follow the [tutorial](docs/user/tutorial.md) (in Chinese). The full documentation is in the [user guide](docs/user/README.md) (in Chinese).
 
 ## Using LLM agents with the OttoSmasher harness
+
+For example, ask an agent to look through dialogue you've already analyzed, pick a few lines from one character across episodes for your opening, and save the candidates to the sample library. You can revisit the original scenes, audition the original and beat-fitted audio, and add your picks to the current project. Paste them into REAPER and each onset comes with an editable stretch marker. For other DAWs, you can drag out original or beat-fitted WAVs.
 
 OttoSmasher provides an **LLM agent harness**. Through the `otto` CLI, external agents such as Claude Code and Codex get access to the workspace, the same operations as the desktop app, and task guides and Skills. You choose the model and agent host. You can review changes in the app and undo supported edits from the operation history. The app does the deterministic work: storing data, separation, analysis, search and export. Work that needs judgement can go to the agent: cleaning subtitles, retiming, picking lines, choosing timbres. The agent can also propose arrangements, but for now we recommend it for upstream material work, and leaving choices and creation to people.
 
@@ -106,6 +110,8 @@ You can turn a whole season of lines into samples at once, or create samples in 
 ### Speech analysis
 
 Turns Japanese lines into phonemes and readings, then finds the time range of each phoneme in the audio, which is usually called phoneme alignment. Wrong readings can be corrected in the user dictionary, and inaccurate boundaries can be fixed by hand.
+
+The original mix, separated vocals and flattened audio share the line's phoneme timings on the source timeline. Correct a boundary once and every sample of that line on those tracks picks up the correction.
 
 ### Beat-fit
 
