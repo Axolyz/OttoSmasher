@@ -67,7 +67,12 @@ def make_icon(ffmpeg: Path, dst: Path) -> None:
     distance = f"sqrt(pow({dx},2)+pow({dy},2))"
     alpha = f"alpha(X,Y)*clip({radius}+0.5-{distance},0,1)"
     mask = f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}':interpolation=nearest"
-    run(ffmpeg, "-v", "error", "-y", "-i", source, "-vf", f"scale={size}:{size},format=gbrap,{mask}", "-pix_fmt", "bgra", dst)
+    # rcedit 2.0.0 只写出图标资源长度的低 16 位。用 PNG 压缩，让 256 px 图标保留在这个范围内。
+    run(ffmpeg, "-v", "error", "-y", "-i", source, "-vf", f"scale={size}:{size},format=gbrap,{mask}",
+        "-c:v", "png", "-pix_fmt", "rgba", dst)
+    ico_header_size = 22  # ICO 头 6 字节 + 单个图像的目录项 16 字节
+    if dst.stat().st_size - ico_header_size > 0xFFFF:
+        raise ValueError("Windows icon payload exceeds rcedit 2.0.0's 65535-byte limit")
 
 
 def make_shell(need: dict[str, Path], folder: Path, version: str) -> Path:
