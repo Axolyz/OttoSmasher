@@ -21,6 +21,8 @@ OttoSmasher does not generate music or create on your behalf. It cuts the repeti
 
 **The project is at an early stage, so expect bugs and rough edges.**
 
+The developer mainly uses macOS. Windows has had basic hands-on testing, but some bugs may remain.
+
 Download: [Releases](https://github.com/Axolyz/OttoSmasher/releases) (macOS on Apple silicon, Windows 10 / 11 x64). See [Installation](#installation) for the steps.
 
 The user documentation is currently in Chinese only. The interface is available in English.
@@ -120,6 +122,10 @@ Use OttoSmasher as a material library and toolkit for LLM-assisted otoMAD. The h
 
 - Built-in skills cover subtitle cleanup, timing and speaker labels. Edit them or put your preferences in the playbook. Connect audio-mcp to let the agent inspect spectrograms, measure loudness and make timed transcripts.
 - There's even a just-for-fun **“do it all” mode (都爆模式)** ([`picking-instruments`](docs/user/agents.md#修改-skill-和约定), guide in Chinese): give the agent MIDI and material, and let it find samples and make previews. The results are pretty rough; it's there for fun. The point is to help you create faster, not to create for you.
+
+### Human VOCALOID workflow
+
+Batch-cutting phonemes and semi-automatic UTAU voicebank creation are worth exploring, but the developer isn't familiar enough with human VOCALOID workflows to know how they should fit into the app. If you make otoMADs with this workflow, ideas are very welcome.
 
 ## Using LLM agents with the OttoSmasher harness
 

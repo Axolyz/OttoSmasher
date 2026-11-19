@@ -21,6 +21,8 @@ OttoSmasher 不生成音乐，也不替你创作。它负责让素材处理和�
 
 **当前项目仍处于早期版本，可能存在 BUG 或不稳定的问题。**
 
+开发者主要在 macOS 上使用；Windows 只做过大致的实机测试，仍可能有少量 bug。
+
 下载：[发布页](https://github.com/Axolyz/OttoSmasher/releases)（macOS Apple 芯片、Windows 10 / 11 x64）。安装步骤见[安装](#安装)。
 
 <table>
@@ -117,6 +119,10 @@ PyMSS 模型处理（如人声分离）、截取片段、音高拉平、回导�
 
 - 洗字幕、对轴、标说话人这类复杂任务有内置 skill，可以自行修改，也可以在 playbook 里加自己的要求。接上 audio-mcp 后，agent 还能看频谱、量响度、做带时间戳的转写。
 - Skill 里自带图一乐的**都爆模式**（[`picking-instruments`](docs/user/agents.md#修改-skill-和约定)）：给定 MIDI 和素材，让 agent 找采样、做试听（效果比较垃圾，仅供娱乐）。
+
+### 人力 VOCALOID 工作流
+
+按照现在项目的成熟度，批量裁切拼字的音素、乃至半自动制作 UTAU 音源都有探索空间，但开发者不熟悉人力 VOCALOID 工作流，不知道怎么做到软件里。如果你是一位熟悉上述工作流的音 mader，非常欢迎提这方面的开发思路。
 
 ## 配合 LLM agent 使用
 
