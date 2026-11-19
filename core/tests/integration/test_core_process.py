@@ -149,7 +149,7 @@ def test_models_status_reports_files_runtime_separately(tmp_path):
 def test_sources_over_rpc(tmp_path):
     media = tmp_path / "媒体 [x]"
     media.mkdir()
-    f = media / "[Kemono Friends][02].wav"
+    f = media / "Kemono Friends [02].wav"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=duration=1", str(f)], check=True)
     c = CoreProc(tmp_path / "ws")
     r = c.call("sources.add", paths=[str(f)])["r"]

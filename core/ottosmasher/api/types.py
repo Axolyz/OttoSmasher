@@ -763,7 +763,7 @@ class ImportPreview(TypedDict):
     roots: list[str]
     # 按文件名推断时的分组：[作品, 个数]，"" = 未指定作品（只算新文件）
     inferredGroups: list[tuple[str, int]]
-    # “统一设为”的预填：新文件推断出同一个作品就用它，否则唯一的文件夹名
+    # “统一设为”的预填：只有输入恰好是一个文件夹时才用其名称
     suggestedWork: str
 
 

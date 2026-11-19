@@ -119,6 +119,31 @@ def test_duration_is_exact_sample_count(svc, db, media):
 
 
 @needs_ffmpeg
+def test_register_skips_audio_packet_scans_but_keeps_exact_duration(svc, media, monkeypatch):
+    tagged = two_audio_mkv(media / "tagged.mkv", seconds=2.5)
+    untagged = media / "untagged.mkv"
+    ff("-i", str(tagged), "-map", "0", "-c", "copy", "-live", "1", str(untagged))
+    packet_duration = probe_mod.packet_duration
+    scanned = []
+
+    def record(path, stream):
+        scanned.append((stream.kind, stream.ordinal))
+        return packet_duration(path, stream)
+
+    monkeypatch.setattr(probe_mod, "packet_duration", record)
+    probe_mod.probe(untagged)
+    assert scanned == [("video", 0), ("audio", 0), ("audio", 1)]
+    scanned.clear()
+    [result] = svc.add([str(untagged)])
+    assert result["ok"], result
+    source = svc.get(result["sourceId"])
+    assert scanned == [("video", 0)]
+    assert [stream["duration"] for stream in source["streams"] if stream["kind"] == "audio"] == [2.5, 2.5]
+    assert source["duration"] == 2.5
+    assert next(stream["duration"] for stream in source["streams"] if stream["kind"] == "video") == pytest.approx(2, abs=0.05)
+
+
+@needs_ffmpeg
 def test_register_streams_and_defaults(svc, media):
     f = two_audio_mkv(media / "[Group] Some Title [03][1080p].mkv")
     (media / "[Group] Some Title [03][1080p].ass").write_text("[Script Info]\n", encoding="utf-8")

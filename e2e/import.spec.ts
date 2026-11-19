@@ -26,7 +26,7 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await page.getByTestId("library-import").click();
   const dlg = page.getByTestId("import-dialog");
   await expect(dlg.getByTestId("import-preview")).toBeVisible({ timeout: 20000 });
-  await expect(dlg.getByTestId("import-work")).toHaveValue("游戏 A"); // 统一设为：文件名推断不出同一作品 → 文件夹名
+  await expect(dlg.getByTestId("import-work")).toHaveValue("游戏 A");
   await expect(dlg.getByTestId("import-groups")).toContainText("全部归入「游戏 A」");
   await expect(dlg.getByTestId("import-preview")).toContainText("3 个文件（其中 1 个视频）");
   await expect(dlg.getByTestId("import-preview")).toContainText("1 个找到同名画面");
@@ -88,9 +88,9 @@ test("导入文件夹：预览（同名画面、读不了的）→ 导入 → �
   await expect(dlg.getByTestId("import-preview")).toContainText("1 个文件", { timeout: 20000 });
   await expect(dlg.getByTestId("import-whole")).not.toBeChecked();
   await expect(dlg.getByTestId("import-nature")).toHaveCount(0);
-  await expect(dlg.getByTestId("import-work")).toHaveValue("Show B"); // 统一设为：文件名推断出同一个作品就预填它
+  await expect(dlg.getByTestId("import-work")).toHaveValue("原素材B");
   await dlg.getByTestId("import-work-mode").getByRole("radio", { name: "按文件名推断" }).click();
-  await expect(dlg.getByTestId("import-groups")).toContainText("Show B 1 个");
+  await expect(dlg.getByTestId("import-groups")).toContainText("按文件名推断的分组预览：Show B 1 个");
   await dlg.getByTestId("import-submit").click();
   await expect(page.getByTestId("source-settings")).toBeVisible(); // 只为第一个新原素材弹「作品与输入设置」
   await expect(page.getByTestId("field-work")).toHaveValue("Show B");

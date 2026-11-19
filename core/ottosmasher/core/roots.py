@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import unicodedata
 from collections.abc import Callable
 from pathlib import Path
@@ -30,8 +29,8 @@ from . import settings as settings_mod
 from .clock import new_id, now_iso
 from .edits import ChangeSet, loads
 from .errors import CoreError
-from .imports import _probe_of, bind_picture, collect, scan
-from .sources import find_subtitle, move_source, path_key
+from .imports import _probe_of, adopt_scan_cache, bind_picture, collect, scan
+from .sources import SubtitleLookup, move_source, path_key
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ NAME_MAX = 200
 BAD_CHARS = set('/\\:*?"<>|') | {chr(c) for c in range(32)}
 
 
-def subtitle_update(media: str, current: str | None) -> str | None:
+def subtitle_update(media: str, current: str | None, lookup: SubtitleLookup) -> str | None:
     """已登记原片的字幕关联要不要换（调用方已排除用户手选过的）：没有关联、关联的文件不在了，或者关联的是完全同名的 .ass 而旁边新有了完全同名的 .srt（.srt 优先）。
     返回新路径；不用换返回 None。"""
     path = Path(media)
@@ -55,7 +54,7 @@ def subtitle_update(media: str, current: str | None) -> str | None:
                     return None
             except OSError:
                 return None
-    found = find_subtitle(path)
+    found = lookup.find(path)
     return found if found and found != current else None
 
 
@@ -84,8 +83,9 @@ def scan_roots(
     res = scan(todo, cache, progress)
     folders = {r["id"]: _folder_names(r["path"]) for r in roots if r["id"] not in offline}
     subtitles = []
+    lookup = SubtitleLookup()
     for r in linked or ():
-        found = subtitle_update(r["path"], r["subtitle"])
+        found = subtitle_update(r["path"], r["subtitle"], lookup)
         if found:
             subtitles.append({"id": r["id"], "from": r["subtitle"], "to": found})
     return {"items": res["items"], "offline": offline, "folders": folders, "subtitles": subtitles}
@@ -224,16 +224,11 @@ class RootService:
         return {"id": self.jobs.submit("sources.scan", {"roots": roots, "known": known, "linked": linked})["id"]}
 
     def _adopt_scan(self, job: dict[str, Any], result: dict[str, Any]) -> None:
-        src = self.jobs.jobs_dir / job["id"] / "cache" / "Peaks"
-        if src.is_dir():
-            dst = self.ws.data / "Cache" / "Peaks"
-            dst.mkdir(parents=True, exist_ok=True)
-            for f in src.iterdir():
-                if not (dst / f.name).exists():
-                    shutil.move(str(f), dst / f.name)
+        adopt_scan_cache(self.jobs.jobs_dir / job["id"] / "cache", self.ws.data / "Cache")
         values = settings_mod.values(self.conn)
         rules, preferred = values["source.infer_rules"], values["source.sample_language"]
         cs = ChangeSet()
+        subtitles = SubtitleLookup()
         new_ids: list[str] = []
         moved: list[str] = []
         failed: list[dict[str, Any]] = []
@@ -265,7 +260,7 @@ class RootService:
                         move_source(self.conn, sid, it["path"])
                         moved.append(sid)
                     else:
-                        r = self.sources.insert(it["path"], pr, rules, preferred, None, cs, tx=False)
+                        r = self.sources.insert(it["path"], pr, rules, preferred, None, cs, tx=False, subtitles=subtitles)
                         sid = r["sourceId"]
                         where = rootpaths.locate(self.conn, it["path"])
                         wf = rootpaths.work_folder(self.conn, where[0], where[2]) if where else None

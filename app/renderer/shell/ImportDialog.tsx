@@ -50,7 +50,6 @@ export function ImportDialog(props: {
     setNature(props.defaultNature);
     setBind(true);
     setWhole(props.defaultWhole);
-    // 作品：默认“统一设为”，预览出来后预填（推断出的同一个作品，否则文件夹名）；用户改过就不覆盖
     setWork("");
     setWorkMode("unified");
     workTouched.current = false;
@@ -208,14 +207,16 @@ export function ImportDialog(props: {
           <div className={s.preview} data-testid="import-groups">
             {workMode === "unified"
               ? t("import.groupsUnified", { work: work.trim() || t("sources.noWork") })
-              : t("import.groupsInfer", {
-                  list:
-                    pv.inferredGroups
-                      .slice(0, GROUPS_MAX)
-                      .map(([w, n]) => t("import.groupItem", { work: w || t("sources.noWork"), n }))
-                      .join(t("settings.subtitle.speakerSep")) +
-                    (pv.inferredGroups.length > GROUPS_MAX ? t("import.groupsMore", { n: pv.inferredGroups.length - GROUPS_MAX }) : ""),
-                })}
+              : pv.inferredGroups.length
+                ? t("import.groupsInfer", {
+                    list:
+                      pv.inferredGroups
+                        .slice(0, GROUPS_MAX)
+                        .map(([w, n]) => t("import.groupItem", { work: w || t("sources.noWork"), n }))
+                        .join(t("settings.subtitle.speakerSep")) +
+                      (pv.inferredGroups.length > GROUPS_MAX ? t("import.groupsMore", { n: pv.inferredGroups.length - GROUPS_MAX }) : ""),
+                  })
+                : null}
             {pv.existing ? ` ${t("import.existingKeepWork", { n: pv.existing })}` : ""}
           </div>
           {pv.unreadable.length ? (

@@ -209,6 +209,29 @@ def test_find_subtitle_priority(tmp_path):
     assert find_subtitle(tmp_path / "Other.mkv") is None
 
 
+def test_rescan_reuses_subtitle_index_for_a_folder(tmp_path, monkeypatch):
+    subs = tmp_path / "Subs"
+    subs.mkdir()
+    media = [tmp_path / name for name in ("episode.01.mkv", "episode.02.mkv", "は\u309a.mkv", "missing.mkv")]
+    for path in media:
+        path.touch()
+    matches = [subs / "EPISODE.01.ja.ass", subs / "episode.02.srt", subs / "ぱ.srt"]
+    for path in (*matches, subs / "episode.01.en.srt"):
+        path.touch()
+    scandir = os.scandir
+    visits = []
+
+    def record(path):
+        visits.append(Path(path))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", record)
+    linked = [{"id": str(path), "path": str(path), "subtitle": None} for path in media]
+    result = scan_roots([], [], tmp_path / "Cache", lambda *_: None, linked)
+    assert [row["to"] for row in result["subtitles"]] == list(map(str, matches))
+    assert visits == [tmp_path, subs]
+
+
 @needs_ffmpeg
 def test_rescan_refreshes_subtitle_links(db, ws, tmp_path):
     """洗好的字幕放回去后重新扫描就能用（2026-11-04 字幕任务的反馈）：没关联的补上、同名 .ass 让位给同名 .srt；用户手选、手动清空过的不动。"""

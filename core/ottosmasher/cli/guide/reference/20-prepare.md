@@ -12,6 +12,8 @@ otto call sources.rescan --wait                            # rescan after changi
 A rescan registers new files and refreshes subtitle links of registered sources: a source with no link or a missing subtitle file gets the file found by the rules below, and a same-name `.ass` gives way to a new same-name `.srt`. It links but does not import. Sources whose `subtitle_path` was set or cleared with `edits.apply` or in the app keep that choice; the scan event reports the count in `subtitlesLinked`.
 Files outside a root can be registered too: `sources.add {"paths": [...]}`. Once registered they can be separated, given lines and analysed; results stay in the library and can be undone.
 
+The default file name rules accept only `Title [01v2]`, `Title - 04`, and `Title S01E11`. The first two allow a `[Publisher]` prefix. Tags after the episode are ignored. If no rule matches, the work is unset and the source label is the file name without the extension. Within a registered root, the first-level folder still sets the work.
+
 ## How the app finds and reads subtitles
 
 - **Association**: a `.srt` with **exactly the same name** in the media's folder wins, then `.ass`; then same name plus a suffix (`<video name>.ja.srt`, Japanese suffixes first), then the same in a subtitle subfolder of that folder (`Subs`, `Sub`, `Subtitles`, `字幕` and the like, case-insensitive). Association only; importing is a separate step. UTF-8 is required.

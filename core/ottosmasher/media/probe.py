@@ -123,7 +123,7 @@ def parse(data: dict[str, Any]) -> Probe:
     return Probe(fmt.get("format_name"), _num(fmt.get("duration")), tuple(streams))
 
 
-def probe(path: str | Path) -> Probe:
+def probe(path: str | Path, *, scan_audio_packets: bool = True) -> Probe:
     p = Path(path)
     if not p.is_file():
         raise CoreError("file-missing", path=str(p))
@@ -139,16 +139,13 @@ def probe(path: str | Path) -> Probe:
         pr = parse(json.loads(out.stdout.decode("utf-8", "replace")))
     except (json.JSONDecodeError, TypeError) as e:
         raise CoreError("media-probe-failed", path=str(p), detail=str(e)) from None
-    if any(s.duration is None and not s.is_attached_pic for s in pr.streams):
-        pr = Probe(
-            pr.format_name,
-            pr.format_duration,
-            tuple(
-                replace(s, duration=packet_duration(p, s)) if s.duration is None and not s.is_attached_pic else s
-                for s in pr.streams
-            ),
-        )
-    return pr
+    streams = tuple(
+        replace(s, duration=packet_duration(p, s))
+        if s.duration is None and not s.is_attached_pic and (s.kind != "audio" or scan_audio_packets)
+        else s
+        for s in pr.streams
+    )
+    return replace(pr, streams=streams)
 
 
 def packet_duration(path: Path, s: Stream) -> float | None:

@@ -4,14 +4,14 @@
 （采样库进来默认勾，原片页进来默认不勾）；任何原片之后也能「建立全长采样…」（统一建采样动作，来源 = 整段，``core/sample_plan.py``）。
 
 - 每个文件 = 一个原片（登记位置，不复制、不转码）；勾了全长采样就在默认音轨上建一个整段采样（名 = 文件名去扩展名，性质在框里选，不靠文件名或音高推断）。
-- 作品（所有者 2026-10-07：文件夹导入的本意是把一批归到一个作品）：明确二选一——“统一设为”（预填：所有新文件按文件名推断出同一个作品就用它，
-  否则所选的唯一文件夹名；空 = 未指定作品）或“按文件名推断”；两种都按文件名推断集数。预览给出导入后的分组。已登记过的文件不改作品
+- 作品（DECISIONS §2）：明确二选一——“统一设为”（只选一个文件夹时预填其名称；空 = 未指定作品）或“按文件名推断”；
+  两种都按文件名推断素材标识。预览给出分组。已登记过的文件不改作品
   （要改用原片列表批量「作品与类型…」）。
 - 接受文件和整个文件夹（含子文件夹，跳过隐藏文件）。文件夹里导入音频和视频；与同文件夹某个音频同名的视频/图片是那个音频的画面，不单独导入。
 - 再次导入已登记过的文件：原片不重复登记、属性不改；勾了全长采样就再建一个整段采样（显式操作一律新建）。
 - **同名画面**：与音频同一文件夹、去掉扩展名后同名（NFC、不分大小写）的视频 / 动图 / 静态图，按 视频 > 动图 > 静态图 取第一个（同类按文件名），
   其余列为冲突；视频要真的有视频流。绑定方式：视频 = 同步画面，动图 = 循环，静态图 = 图片（规格 12 的画面绑定）。
-- 两步：``import.scan`` 轻量任务在任务进程里探测、确切时长、生成波形峰值（写进任务目录，登记时移进缓存）、找同名画面 → 预览；
+- 两步：``import.scan`` 轻量任务在任务进程里探测、确切时长、生成波形和音频帧索引（任务完成后移进工作区缓存）、找同名画面 → 预览；
   用户确认后 ``commit`` 在 Core 主线程里逐个文件一个事务登记。
 - 扫描结果只留在内存里（预览令牌 = 任务 ID）；重启后要重新扫描。
 """
@@ -36,7 +36,7 @@ from .clock import new_id, now_iso
 from .edits import ChangeSet, dumps, loads
 from .errors import CoreError
 from .samples import NATURES
-from .sources import path_key, prepare
+from .sources import SubtitleLookup, path_key, prepare
 
 AUDIO_EXT = frozenset({".wav", ".flac", ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".aif", ".aiff", ".wma"})
 VIDEO_EXT = frozenset({".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"})
@@ -131,10 +131,12 @@ class _Pictures:
         return usable[0] | {"conflicts": [u["path"] for u in usable[1:]]}
 
 
-def scan(paths: list[str], cache: Path, progress: Callable[[int, int], None], *, probe: Callable[[str], probe_mod.Probe] = probe_mod.probe) -> dict[str, Any]:
+def scan(paths: list[str], cache: Path, progress: Callable[[int, int], None], *, probe: Callable[[str], probe_mod.Probe] | None = None) -> dict[str, Any]:
     """任务进程里执行：不碰数据库。"""
+    selected = Path(os.path.abspath(paths[0])) if len(paths) == 1 else None
+    suggested = unicodedata.normalize("NFC", selected.name) if selected is not None and selected.is_dir() else ""
     files = collect(paths)
-    pics = _Pictures(probe)
+    pics = _Pictures(probe or probe_mod.probe)
     items = []
     for i, (f, root) in enumerate(files):
         progress(i, len(files))
@@ -148,11 +150,21 @@ def scan(paths: list[str], cache: Path, progress: Callable[[int, int], None], *,
             item["picture"] = None if item["video"] else pics.find(f)  # 自己有画面的视频不再找同名画面
         items.append(item)
     progress(len(files), len(files))
-    return {"items": items}
+    return {"items": items, "suggestedWork": suggested}
 
 
 def _probe_of(d: dict[str, Any]) -> probe_mod.Probe:
     return probe_mod.Probe(d["format_name"], d["format_duration"], tuple(probe_mod.Stream(**s) for s in d["streams"]))
+
+
+def adopt_scan_cache(source: Path, target: Path) -> None:
+    for name in ("Peaks", "FrameIndex"):
+        origin, destination = source / name, target / name
+        if origin.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+            for entry in origin.iterdir():
+                if not (destination / entry.name).exists():
+                    shutil.move(str(entry), destination / entry.name)
 
 
 class ImportService:
@@ -172,14 +184,7 @@ class ImportService:
         return self.jobs.submit("import.scan", {"paths": paths})
 
     def _adopt_scan(self, job: dict[str, Any], result: dict[str, Any]) -> None:
-        # 任务目录里的波形峰值移进缓存（文件名是内容键，已有的不覆盖）
-        src = self.jobs.jobs_dir / job["id"] / "cache" / "Peaks"
-        if src.is_dir():
-            dst = self.ws.data / "Cache" / "Peaks"
-            dst.mkdir(parents=True, exist_ok=True)
-            for f in src.iterdir():
-                if not (dst / f.name).exists():
-                    shutil.move(str(f), dst / f.name)
+        adopt_scan_cache(self.jobs.jobs_dir / job["id"] / "cache", self.ws.data / "Cache")
         self._scans[job["id"]] = result
 
     def _scan_of(self, job_id: str) -> dict[str, Any]:
@@ -189,7 +194,8 @@ class ImportService:
         return sc
 
     def preview(self, job_id: str) -> dict[str, Any]:
-        items = self._scan_of(job_id)["items"]
+        scan_result = self._scan_of(job_id)
+        items = scan_result["items"]
         ok = [x for x in items if x["ok"]]
         existing = {r[0] for r in self.conn.execute("SELECT path_key FROM source")}
         fresh = [x for x in ok if path_key(x["path"]) not in existing]
@@ -199,12 +205,6 @@ class ImportService:
             w = naming.infer_work_episode(x["path"], rules).work or ""
             groups[w] = groups.get(w, 0) + 1
         roots = sorted({x["root"] for x in items})
-        if len(groups) == 1 and "" not in groups:
-            suggested = next(iter(groups))
-        elif len(roots) == 1:
-            suggested = unicodedata.normalize("NFC", Path(roots[0]).name)
-        else:
-            suggested = ""
         return {
             "total": len(items),
             "importable": len(ok),
@@ -221,7 +221,7 @@ class ImportService:
             "roots": roots,
             # 按文件名推断时的分组（只算新文件；已登记的保持原作品）：[[作品, 个数]]，个数多的在前，"" = 未指定作品
             "inferredGroups": [[w, n] for w, n in sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))],
-            "suggestedWork": suggested,
+            "suggestedWork": scan_result["suggestedWork"],
         }
 
     def commit(
@@ -239,6 +239,7 @@ class ImportService:
         values = settings_mod.values(self.conn)
         rules, preferred = values["source.infer_rules"], values["source.sample_language"]
         cs = ChangeSet()
+        subtitles = SubtitleLookup()
         created, existing, failed, sample_ids, source_ids = 0, 0, [], [], []
         for it in items:
             if not it["ok"]:
@@ -251,7 +252,8 @@ class ImportService:
                         existing += 1
                     else:
                         r = self.sources.insert(
-                            it["path"], _probe_of(it["probe"]), rules, preferred, it["root"], cs, work=work, source_type=source_type, tx=False
+                            it["path"], _probe_of(it["probe"]), rules, preferred, it["root"], cs,
+                            work=work, source_type=source_type, tx=False, subtitles=subtitles,
                         )
                         sid = r["sourceId"]
                         pic = it.get("picture")

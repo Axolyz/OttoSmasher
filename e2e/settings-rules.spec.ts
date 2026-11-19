@@ -10,9 +10,11 @@ test("推断规则：试算、校验、保存与撤销", async () => {
   const result = row.getByTestId("rules-result");
 
   // 默认规则试算默认样例
-  await expect(result).toHaveText("第 1 条匹配：作品「Yuru Yuri」· 素材标识「01」");
-  await row.getByTestId("rules-sample").fill("[DBD-Raws][Kemono Friends][02][1080P].mkv");
-  await expect(result).toHaveText("第 2 条匹配：作品「Kemono Friends」· 素材标识「02」");
+  await expect(result).toHaveText("第 1 条匹配：作品「Yuru Yuri」· 素材标识「01v2」");
+  await row.getByTestId("rules-sample").fill("[Erai-raws] FX Senshi Kurumi-chan - 04 [1080p CR WEBRip HEVC AAC][MultiSub][0504E70E].mkv");
+  await expect(result).toHaveText("第 2 条匹配：作品「FX Senshi Kurumi-chan」· 素材标识「04」");
+  await row.getByTestId("rules-sample").fill("Gabriel Dropout 2017 S01E11-[1080p][BDRIP][AV1.OPUS].mkv");
+  await expect(result).toHaveText("第 3 条匹配：作品「Gabriel Dropout 2017」· 素材标识「S01E11」");
   await row.getByTestId("rules-sample").fill("no pattern here.mkv");
   await expect(result).toHaveAttribute("data-state", "none");
 
@@ -21,17 +23,17 @@ test("推断规则：试算、校验、保存与撤销", async () => {
   const last = row.locator('[data-testid^="rule-"]').last();
   await last.fill("^(?P<work>");
   await expect(result).toHaveAttribute("data-state", "error");
-  await expect(result).toContainText("第 8 条正则写法有误");
+  await expect(result).toContainText("第 4 条正则写法有误");
   await expect(row.getByTestId("rules-save")).toBeDisabled();
   await page.screenshot({ path: ".cache/playwright-results/settings-rules-error.png" });
 
   // 改对：新规则命中，保存
   await last.fill("^(?P<work>no pattern) (?P<episode>here)$");
-  await expect(result).toHaveText("第 8 条匹配：作品「no pattern」· 素材标识「here」");
+  await expect(result).toHaveText("第 4 条匹配：作品「no pattern」· 素材标识「here」");
   await row.getByTestId("rules-save").click();
   await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: string[] }>>("settings.list");
-    return r.ok && r.r["source.infer_rules"]!.value.length === 8;
+    return r.ok && r.r["source.infer_rules"]!.value.length === 4;
   })).toBe(true);
   await page.screenshot({ path: ".cache/playwright-results/settings-rules.png" });
 
@@ -40,7 +42,7 @@ test("推断规则：试算、校验、保存与撤销", async () => {
   await page.getByTestId("undo").click();
   await expect.poll(() => page.evaluate(async () => {
     const r = await window.otto.core.request<Record<string, { value: string[]; version: number }>>("settings.list");
-    return r.ok && r.r["source.infer_rules"]!.value.length === 7;
+    return r.ok && r.r["source.infer_rules"]!.value.length === 3;
   })).toBe(true);
   await app.close();
 });

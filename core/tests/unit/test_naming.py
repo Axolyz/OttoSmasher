@@ -10,31 +10,17 @@ from ottosmasher.domain.naming import default_rules, infer_work_episode, validat
 @pytest.mark.parametrize(
     "name,work,episode",
     [
-        # 规格原文的例子
-        ("[VCB-Studio] Yuru Yuri [01][1080p].mkv", "Yuru Yuri", "01"),
-        ("[VCB-Studio] Yuru Yuri [01][Ma10p_1080p].mkv", "Yuru Yuri", "01"),
-        ("[DBD-Raws][Kemono Friends][02][1080P].mkv", "Kemono Friends", "02"),
-        ("[Kemono Friends][01].mkv", "Kemono Friends", "01"),
-        ("作品名 - 01.mkv", "作品名", "01"),
-        # 默认规则覆盖的常见变体
-        ("[Group] Some Title - 03 [1080p][ABCD1234].mkv", "Some Title", "03"),
-        ("[Group] Some Title - 03v2 (BD 1080p HEVC FLAC).mkv", "Some Title", "03"),
-        ("[Group][Some Title][12v2][1080P][CHS].mp4", "Some Title", "12"),
-        ("[Group][Some Title][12 END][1080P].mp4", "Some Title", "12"),
-        ("【字幕组】【作品名】【07】【1080P】.mp4", "作品名", "07"),
-        ("ゆるゆり 第05話.mp4", "ゆるゆり", "05"),
-        ("作品名 第5集.mkv", "作品名", "5"),
-        ("Dr. Stone - 11.mkv", "Dr. Stone", "11"),
-        ("Title (2019) - 04.mkv", "Title (2019)", "04"),
-        ("/some/dir with space/[Kemono Friends][01].mkv", "Kemono Friends", "01"),
-        # 没有集数：第一个括号块视为发布组；4 位 19xx/20xx 不当集数（所有者 2026-10-07 同意）；素材标识用文件名（所有者 2026-10-10）
-        ("[Group] Title [2019][1080p].mkv", "Title", "[Group] Title [2019][1080p]"),
-        ("[Group] Title [1080p].mkv", "Title", "[Group] Title [1080p]"),
-        ("[Group][Title][1080p].mkv", "Title", "[Group][Title][1080p]"),
-        # 作品推断不出来就是未知，不拿文件名充当（所有者 2026-10-07）；素材标识用文件名（所有者 2026-10-10）
-        ("Love Live 2.mp4", None, "Love Live 2"),
-        ("song ♪ ♯ remix.flac", None, "song ♪ ♯ remix"),
-        ("[1080p].mkv", None, "[1080p]"),
+        ("[VCB-Studio] Yuru Yuri [01v2][1080p].mkv", "Yuru Yuri", "01v2"),
+        ("Yuru Yuri [01].mkv", "Yuru Yuri", "01"),
+        ("作品名 - 03.mkv", "作品名", "03"),
+        (
+            "[Erai-raws] FX Senshi Kurumi-chan - 04 [1080p CR WEBRip HEVC AAC][MultiSub][0504E70E].mkv",
+            "FX Senshi Kurumi-chan", "04",
+        ),
+        ("Gabriel Dropout 2017 S01E11-[1080p][BDRIP][AV1.OPUS].mkv", "Gabriel Dropout 2017", "S01E11"),
+        ("/some/dir with space/[Group] Title (2019) [02].mkv", "Title (2019)", "02"),
+        ("[Group] Title - 03v2 (BD 1080p).mkv", "Title", "03v2"),
+        ("Title S02E03.mkv", "Title", "S02E03"),
     ],
 )
 def test_default_rules(name, work, episode):
@@ -42,9 +28,14 @@ def test_default_rules(name, work, episode):
     assert (r.work, r.episode) == (work, episode)
 
 
-def test_never_uses_group_or_episode_as_work():
-    for name in ["[VCB-Studio] Yuru Yuri [01][1080p].mkv", "[DBD-Raws][Kemono Friends][02][1080P].mkv"]:
-        assert infer_work_episode(name).work not in ("VCB-Studio", "DBD-Raws", "01", "02")
+@pytest.mark.parametrize("stem", [
+    "[Yuru Yuri][1080p]", "[Group] Title [1080p]", "[Group] Title [2019]",
+    "[Group][Title][01]", "[Title][01]", "[Group] Title - 1080p",
+    "Title - 1080p", "Title 第05話", "Title [1080p]", "Title [2019]", "Title_01", "Title S01E11extra",
+])
+def test_default_rules_leave_other_formats_unmatched(stem):
+    result = infer_work_episode(f"{stem}.mkv")
+    assert (result.work, result.episode, result.rule) == (None, stem, None)
 
 
 def test_first_matching_rule_wins_and_reports_index():

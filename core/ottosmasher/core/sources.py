@@ -63,9 +63,9 @@ def exact_durations(path: str, pr: probe_mod.Probe, cache: Path) -> probe_mod.Pr
     return probe_mod.Probe(pr.format_name, pr.format_duration, tuple(streams))
 
 
-def prepare(path: str, cache: Path, *, probe: Callable[[str], probe_mod.Probe] = probe_mod.probe) -> probe_mod.Probe:
+def prepare(path: str, cache: Path, *, probe: Callable[[str], probe_mod.Probe] | None = None) -> probe_mod.Probe:
     """登记前的准备（不碰数据库，可以在任务进程里做）：探测 + 确切时长。没有音频流 → 报错。"""
-    pr = probe(path)
+    pr = probe(path) if probe is not None else probe_mod.probe(path, scan_audio_packets=False)
     if not pr.audio:
         raise CoreError("source-no-audio", path=path)
     return exact_durations(path, pr, cache)
@@ -75,48 +75,57 @@ SUBTITLE_DIRS = ("subs", "sub", "subtitles", "subtitle", "\u5b57\u5e55")  # 最�
 JA_TAGS = ("ja", "jp", "jpn", "jap", "japanese")
 
 
-def _subtitle_in(d: Path, stem: str) -> Path | None:
-    """d 里与 stem 同名的字幕：完全同名 > 同名加一段后缀（stem.ja.srt，日语后缀优先）；同一层 .srt 优先于 .ass。"""
-    try:
-        files = [p for p in d.iterdir() if p.is_file()]
-    except OSError:
-        return None
-    exact: list[tuple[int, Path]] = []
-    tagged: list[tuple[int, int, str, Path]] = []
-    for p in files:
-        n = unicodedata.normalize("NFC", p.name).lower()
-        for rank, ext in enumerate(SUBTITLE_EXTS):
-            if not n.endswith(ext):
-                continue
-            base = n[: -len(ext)]
-            if base == stem:
-                exact.append((rank, p))
-            elif base.startswith(stem + "."):
-                tag = base[len(stem) + 1 :]
-                if 0 < len(tag) <= 12 and "." not in tag:
-                    tagged.append((0 if tag in JA_TAGS else 1, rank, tag, p))
-    if exact:
-        return min(exact)[1]
-    if tagged:
-        return min(tagged)[3]
-    return None
+class SubtitleLookup:
+    """Index each folder once per registration or rescan batch."""
+
+    def __init__(self) -> None:
+        self._folders: dict[Path, tuple[dict[str, Path], list[Path]]] = {}
+
+    def _index(self, directory: Path) -> tuple[dict[str, Path], list[Path]]:
+        if directory not in self._folders:
+            matches: dict[str, tuple[int, int, str, Path]] = {}
+            subdirs: list[Path] = []
+
+            def keep(stem: str, candidate: tuple[int, int, str, Path]) -> None:
+                if stem not in matches or candidate < matches[stem]:
+                    matches[stem] = candidate
+
+            try:
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        name = unicodedata.normalize("NFC", entry.name).lower()
+                        base, dot, suffix = name.rpartition(".")
+                        ext = dot + suffix
+                        if name in SUBTITLE_DIRS and entry.is_dir():
+                            subdirs.append(directory / entry.name)
+                        elif ext in SUBTITLE_EXTS and entry.is_file():
+                            path = directory / entry.name
+                            rank = SUBTITLE_EXTS.index(ext)
+                            keep(base, (0, rank, "", path))
+                            stem, dot, tag = base.rpartition(".")
+                            if dot and 0 < len(tag) <= 12:
+                                keep(stem, (1 if tag in JA_TAGS else 2, rank, tag, path))
+            except OSError:
+                matches.clear()
+                subdirs.clear()
+            self._folders[directory] = ({stem: candidate[3] for stem, candidate in matches.items()}, sorted(subdirs))
+        return self._folders[directory]
+
+    def find(self, path: Path) -> str | None:
+        stem = unicodedata.normalize("NFC", path.stem).lower()
+        matches, subdirs = self._index(path.parent)
+        hit = matches.get(stem)
+        if hit is None:
+            for subdir in subdirs:
+                hit = self._index(subdir)[0].get(stem)
+                if hit is not None:
+                    break
+        return str(hit) if hit is not None else None
 
 
-def find_subtitle(path: Path) -> str | None:
-    """自动关联的字幕（规格 05 §5.1：只关联不导入）。所有者 2026-10-07 放宽：同一文件夹里完全同名的 .srt/.ass，
-    其次同名加语言等后缀（第01集.ja.srt），再其次同一文件夹的 Subs / 字幕 子文件夹里的同样两种。"""
-    stem = unicodedata.normalize("NFC", path.stem).lower()
-    hit = _subtitle_in(path.parent, stem)
-    if hit is None:
-        try:
-            subdirs = sorted(p for p in path.parent.iterdir() if p.is_dir() and unicodedata.normalize("NFC", p.name).lower() in SUBTITLE_DIRS)
-        except OSError:
-            subdirs = []
-        for d in subdirs:
-            hit = _subtitle_in(d, stem)
-            if hit is not None:
-                break
-    return str(hit) if hit is not None else None
+def find_subtitle(path: Path, lookup: SubtitleLookup | None = None) -> str | None:
+    """自动关联字幕（规格 05 §5.1），查找顺序见 ARCHITECTURE §4.10。"""
+    return (lookup or SubtitleLookup()).find(path)
 
 
 def move_source(conn: sqlite3.Connection, source_id: str, path: str, snap: dict[str, Any] | None = None) -> None:
@@ -149,7 +158,7 @@ class SourceService:
         *,
         on_change: Callable[[ChangeSet], None] | None = None,
         workspace_root: Path,
-        probe: Callable[[str], probe_mod.Probe] = probe_mod.probe,
+        probe: Callable[[str], probe_mod.Probe] | None = None,
     ) -> None:
         self.conn = conn
         self.workspace_root = workspace_root
@@ -163,23 +172,24 @@ class SourceService:
         values = settings_mod.values(self.conn)
         rules, preferred = values["source.infer_rules"], values["source.sample_language"]
         cs = ChangeSet()
+        subtitles = SubtitleLookup()
         out: list[dict[str, Any]] = []
         for raw in paths:
             try:
-                out.append(self._add_one(str(raw), rules, preferred, import_root, cs))
+                out.append(self._add_one(str(raw), rules, preferred, import_root, cs, subtitles))
             except CoreError as e:
                 out.append({"path": str(raw), "ok": False, "error": e.to_wire()})
         if cs.entities and self.on_change:
             self.on_change(cs)
         return out
 
-    def _add_one(self, raw: str, rules: list[str], preferred: str, import_root: str | None, cs: ChangeSet) -> dict[str, Any]:
+    def _add_one(self, raw: str, rules: list[str], preferred: str, import_root: str | None, cs: ChangeSet, subtitles: SubtitleLookup) -> dict[str, Any]:
         path = os.path.abspath(raw)
         row = self.conn.execute("SELECT id FROM source WHERE path_key=?", (path_key(path),)).fetchone()
         if row is not None:
             return {"path": path, "ok": True, "sourceId": row[0], "existing": True}
         pr = prepare(path, self.workspace_root / "Data" / "Cache", probe=self.probe)
-        return self.insert(path, pr, rules, preferred, import_root, cs)
+        return self.insert(path, pr, rules, preferred, import_root, cs, subtitles=subtitles)
 
     def insert(
         self,
@@ -193,6 +203,7 @@ class SourceService:
         work: str | None = None,
         source_type: str | None = None,
         tx: bool = True,
+        subtitles: SubtitleLookup | None = None,
     ) -> dict[str, Any]:
         """登记一个已经 ``prepare`` 过的文件（不再探测）。work 为 None = 按文件名推断作品与集数；给了（含空串 = 未指定作品）= 作品用它、集数仍推断。source_type 给了就用。
         tx=False：在调用方的事务里写（采样库导入把原片、整段采样、画面绑定放进同一个事务）。"""
@@ -229,7 +240,7 @@ class SourceService:
                     inferred.work or "",
                     inferred.episode or "",
                     source_type or "",
-                    find_subtitle(Path(path)),
+                    find_subtitle(Path(path), subtitles),
                     default,
                     where[0] if where else None,
                     where[1] if where else None,
@@ -322,7 +333,7 @@ class SourceService:
         other = self.conn.execute("SELECT id FROM source WHERE path_key=? AND id<>?", (key, source_id)).fetchone()
         if other is not None:
             raise CoreError("source-path-taken", path=path, other=other[0])
-        pr = self.probe(path)
+        pr = (self.probe or probe_mod.probe)(path)
         snap = probe_mod.snapshot(path, pr)
         before = (cur["file_snapshot"] or {}).get("streams")
         with transaction(self.conn):

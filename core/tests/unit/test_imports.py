@@ -54,6 +54,20 @@ def service(db, ws):
 
 
 @needs_ffmpeg
+def test_scan_adopts_audio_frame_index(db, ws, media):  # noqa: F811
+    path = media / "indexed.mkv"
+    ff("-f", "lavfi", "-i", "sine=duration=0.2", "-c:a", "flac", str(path))
+    imp, _ = service(db, ws)
+    cache = imp.jobs.jobs_dir / "indexed" / "cache"
+    result = scan([str(path)], cache, lambda *_: None)
+    assert result["items"][0]["ok"]
+    [index] = (cache / "FrameIndex").glob("*.npz")
+    imp._adopt_scan({"id": "indexed"}, result)
+    assert not index.exists()
+    assert (ws.data / "Cache" / "FrameIndex" / index.name).is_file()
+
+
+@needs_ffmpeg
 def test_scan_preview_commit(db, ws, media):  # noqa: F811
     d = folder(media)
     imp, svc = service(db, ws)
@@ -166,23 +180,30 @@ def test_import_without_whole_sample_then_whole_samples(db, ws, media):  # noqa:
 
 @needs_ffmpeg
 def test_work_modes_and_grouping_preview(db, ws, media):  # noqa: F811
-    """作品二选一（所有者 2026-10-07）：统一设为（预填推断出的同一作品 / 文件夹名）或按文件名推断；预览给出分组。"""
     d = media / "番剧 文件夹"
     d.mkdir()
-    for n in ("[G] Show X [01].wav", "[G] Show X [02].wav"):
+    for n in ("[G] Show X [01v2].wav", "[G] Show X [02].wav"):
         wav(d / n, 0.2)
     imp, _ = service(db, ws)
     imp._adopt_scan({"id": "a"}, scan([str(d)], ws.root / "Jobs" / "a" / "cache", lambda *_: None))
     pv = imp.preview("a")
-    assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 2]], "Show X")  # 推断出同一个作品 → 预填它
+    assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 2]], d.name)
+    other = media / "空文件夹"
+    other.mkdir()
+    files = sorted(map(str, d.glob("*.wav")))
+    for index, paths in enumerate((files[:1], files, [str(d), files[0]], [str(d), str(other)])):
+        job_id = f"no-suggestion-{index}"
+        imp._adopt_scan({"id": job_id}, scan(paths, ws.root / "Jobs" / job_id / "cache", lambda *_: None))
+        pv = imp.preview(job_id)
+        assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 1 if index == 0 else 2]], "")
     wav(d / "extra.wav", 0.2)
     imp._adopt_scan({"id": "b"}, scan([str(d)], ws.root / "Jobs" / "b" / "cache", lambda *_: None))
     pv = imp.preview("b")
-    assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 2], ["", 1]], "番剧 文件夹")  # 不一致 → 文件夹名
+    assert (pv["inferredGroups"], pv["suggestedWork"]) == ([["Show X", 2], ["", 1]], d.name)
     # 按文件名推断（work=None）：两组；素材标识照样推断，推断不到用文件名（所有者 2026-10-10）
     imp.commit("b", work=None, source_type="", whole_sample=False, nature="unclassified", bind_pictures=True)
     got = sorted((r[0], r[1]) for r in db.execute("SELECT work, episode FROM source"))
-    assert got == [("", "extra"), ("Show X", "01"), ("Show X", "02")]
+    assert got == [("", "extra"), ("Show X", "01v2"), ("Show X", "02")]
     # 统一设为空 = 未指定作品（不再推断作品），素材标识仍推断
     db.execute("DELETE FROM sample")
     for t in ("default_track", "asset_storage", "asset_role", "sound_asset", "source_stream", "source"):
@@ -190,4 +211,4 @@ def test_work_modes_and_grouping_preview(db, ws, media):  # noqa: F811
     imp._adopt_scan({"id": "c"}, scan([str(d)], ws.root / "Jobs" / "c" / "cache", lambda *_: None))
     imp.commit("c", work="", source_type="", whole_sample=False, nature="unclassified", bind_pictures=True)
     got = sorted((r[0], r[1]) for r in db.execute("SELECT work, episode FROM source"))
-    assert got == [("", "01"), ("", "02"), ("", "extra")]
+    assert got == [("", "01v2"), ("", "02"), ("", "extra")]
