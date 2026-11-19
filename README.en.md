@@ -44,7 +44,7 @@ For speech material such as anime and voiced videos, we recommend:
 3. Separate the vocals and set them as the default vocal track (requires PyMSS Studio and a manually downloaded model). If you skip this on material with background sound, speech analysis will be largely unusable
 4. Create samples from the lines in bulk and run speech analysis
 5. Search samples by rhythm or pitch, and audition beat-fits at your BPM
-6. Copy the results to REAPER, or export WAV files and video clips
+6. Drag original or beat-fitted WAVs into your DAW, or export WAV files and video clips
 
 OttoSmasher also supports other ways of working:
 
@@ -98,7 +98,7 @@ Need a long, pitch-stable “ah” for a lead? Draw one block in Rhythm Search, 
 
 Set a BPM to line up the onsets of vowels or moraic nasals with the beat, then audition or export the result. It tries to preserve the original rhythm.
 
-**REAPER handoff:** Paste analyzed speech with editable stretch markers already on the onsets. Bring in the beat-fit or keep the original timing and just mark the onsets.
+**Optional REAPER handoff:** Paste analyzed speech with editable stretch markers, with or without beat-fit.
 
 ### Rhythm search
 
